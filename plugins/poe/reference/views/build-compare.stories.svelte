@@ -23,6 +23,14 @@
     }
     return ids;
   }
+
+  // hydrate maps a list of bare node IDs to the {id, name} object
+  // shape the v3 epic ships. Stories use synthetic "Node N" labels
+  // since tree-data.gen.json doesn't carry display names — real PoB
+  // names ship in production via wrapper.lua's serializeTreeSummary.
+  function hydrate(ids) {
+    return ids.map((id) => ({ id, name: `Node ${id}` }));
+  }
   const witchTerritory = nodeIdsInRegion(2000, 8000, -8000, -1500);
   const marauderTerritory = nodeIdsInRegion(-8000, -2000, 1500, 8000);
   const rangerTerritory = nodeIdsInRegion(2500, 8000, 1500, 7000);
@@ -44,7 +52,7 @@
       Armour: 1_240,
       Evasion: 0,
     },
-    tree: { allocatedNodeIds: [...new Set([...witchTerritory, ...centerCommons])] },
+    tree: { allocatedNodes: hydrate([...new Set([...witchTerritory, ...centerCommons])]) },
   };
 
   const elementalistBuild = {
@@ -62,7 +70,7 @@
       Armour: 980,
       Evasion: 0,
     },
-    tree: { allocatedNodeIds: [...new Set([...elementalistTerritory, ...centerCommons])] },
+    tree: { allocatedNodes: hydrate([...new Set([...elementalistTerritory, ...centerCommons])]) },
   };
 
   const marauderBuild = {
@@ -80,7 +88,7 @@
       Armour: 18_500,
       Evasion: 800,
     },
-    tree: { allocatedNodeIds: [...new Set([...marauderTerritory, ...centerCommons])] },
+    tree: { allocatedNodes: hydrate([...new Set([...marauderTerritory, ...centerCommons])]) },
   };
 
   const rangerBuild = {
@@ -98,7 +106,7 @@
       Armour: 0,
       Evasion: 22_400,
     },
-    tree: { allocatedNodeIds: [...new Set([...rangerTerritory, ...centerCommons])] },
+    tree: { allocatedNodes: hydrate([...new Set([...rangerTerritory, ...centerCommons])]) },
   };
 
   // ─── 1. N=2 same-class diff ───────────────────────────────────────────────
@@ -115,10 +123,10 @@
       tree: {
         // Parallel to builds[]: [witchBuild, elementalistBuild].
         allocatedOnlyIn: [
-          [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008],
-          [4001, 4002, 4003, 4004, 4005, 4006],
+          hydrate([3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008]),
+          hydrate([4001, 4002, 4003, 4004, 4005, 4006]),
         ],
-        common: Array.from({ length: 32 }, (_, i) => 1000 + i),
+        common: hydrate(Array.from({ length: 32 }, (_, i) => 1000 + i)),
       },
       gear: {
         Helmet: { perBuild: ["Atziri's Foible", "Crown of the Tyrant"], nameSame: false, modsSame: false },
@@ -162,11 +170,11 @@
       tree: {
         // Parallel to builds[]: [witchBuild, marauderBuild, rangerBuild].
         allocatedOnlyIn: [
-          [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008],
-          [5001, 5002, 5003, 5004, 5005, 5006, 5007],
-          [6001, 6002, 6003, 6004, 6005, 6006, 6007, 6008, 6009],
+          hydrate([3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008]),
+          hydrate([5001, 5002, 5003, 5004, 5005, 5006, 5007]),
+          hydrate([6001, 6002, 6003, 6004, 6005, 6006, 6007, 6008, 6009]),
         ],
-        common: Array.from({ length: 18 }, (_, i) => 1000 + i),
+        common: hydrate(Array.from({ length: 18 }, (_, i) => 1000 + i)),
       },
       gear: {
         Helmet: {
@@ -213,8 +221,8 @@
       },
       tree: {
         // Parallel to builds[]: [witchBuild, marauderBuild].
-        allocatedOnlyIn: [[3001, 3002], [5001]],
-        common: [1001, 1002, 1003],
+        allocatedOnlyIn: [hydrate([3001, 3002]), hydrate([5001])],
+        common: hydrate([1001, 1002, 1003]),
       },
       gear: {},
       skills: [],
@@ -442,8 +450,8 @@
       tree: {
         // 3 builds: [witchBuild, broken-01, marauderBuild] — failed
         // slot at index 1 gets [].
-        allocatedOnlyIn: [[3001, 3002], [], [5001, 5002, 5003]],
-        common: [1001, 1002, 1003],
+        allocatedOnlyIn: [hydrate([3001, 3002]), [], hydrate([5001, 5002, 5003])],
+        common: hydrate([1001, 1002, 1003]),
       },
       gear: {
         Helmet: { perBuild: ["Atziri's Foible", "Devoto's Devotion"], nameSame: false, modsSame: false },

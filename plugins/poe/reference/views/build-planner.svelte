@@ -165,7 +165,7 @@
     version?: number; allocated_nodes?: number; ascendancy_nodes?: number;
     level_points?: number; quest_points?: number; extra_points?: number;
     available_points?: number; remaining_points?: number;
-    allocatedNodeIds?: number[];
+    allocatedNodes?: { id: number; name: string }[];
   } | undefined);
 </script>
 
@@ -263,14 +263,14 @@
               {tree.level_points} level + {tree.quest_points} quest{#if tree.extra_points} + {tree.extra_points} extra{/if} = {tree.available_points} points
             </div>
           {/if}
-          {#if tree.allocatedNodeIds?.length}
+          {#if tree.allocatedNodes?.length}
             <!-- Inline tree section uses overlay's 480px default — taller heights overwhelm the conversational viewport; pan/zoom handles spatial navigation. -->
             <PassiveTreeOverlay
               perBuildAllocated={[{
                 id: "this-build",
                 label: character.ascendancy || character.class,
                 color: accent ?? "#5fa8d3",
-                nodeIds: tree.allocatedNodeIds,
+                nodeIds: tree.allocatedNodes.map((n) => n.id),
               }]}
             />
           {/if}

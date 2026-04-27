@@ -9,24 +9,26 @@ import (
 	"testing"
 )
 
-// compareRespWithPerBuildTree decodes /compare with the new
-// builds[i].tree.allocatedNodeIds field.
+// compareRespWithPerBuildTree decodes /compare with the
+// builds[i].tree.allocatedNodes field — {id, name} objects per node so
+// the LLM consumer can read tree state without a node-name lookup.
 type compareRespWithPerBuildTree struct {
 	Builds []struct {
 		ID    string `json:"id"`
 		Label string `json:"label"`
 		Tree  *struct {
-			AllocatedNodeIDs []int `json:"allocatedNodeIds"`
+			AllocatedNodes []allocatedNodeOnWire `json:"allocatedNodes"`
 		} `json:"tree"`
 		Error string `json:"error"`
 	} `json:"builds"`
 }
 
-// TestCompareExposesPerBuildAllocatedNodeIDs: each successful build's
-// allocated node set lands on the wire under tree.allocatedNodeIds.
-// This is what build-compare.svelte consumes to render the visual
-// passive-tree overlay.
-func TestCompareExposesPerBuildAllocatedNodeIDs(t *testing.T) {
+// TestCompareExposesPerBuildAllocatedNodes: each successful build's
+// allocated node set lands on the wire under tree.allocatedNodes as
+// {id, name} objects. This is what build-compare.svelte consumes
+// (extracting .id for the visual passive-tree overlay) and what the
+// LLM consumer reads for tree narration without a node-name lookup.
+func TestCompareExposesPerBuildAllocatedNodes(t *testing.T) {
 	srv, idA, idB := compareHarness(t, "<A/>", "<B/>",
 		calcResponseWithTree("Witch", []int{1001, 1002, 1003, 1004}),
 		calcResponseWithTree("Marauder", []int{2001, 2002, 2003}),
@@ -52,17 +54,28 @@ func TestCompareExposesPerBuildAllocatedNodeIDs(t *testing.T) {
 		if b.Tree == nil {
 			t.Fatalf("build[%d] missing tree field", i)
 		}
-		if len(b.Tree.AllocatedNodeIDs) == 0 {
-			t.Fatalf("build[%d] tree.allocatedNodeIds is empty", i)
+		if len(b.Tree.AllocatedNodes) == 0 {
+			t.Fatalf("build[%d] tree.allocatedNodes is empty", i)
 		}
 	}
 
 	// Build A should have its 4 allocated nodes; B should have its 3.
-	if !reflect.DeepEqual(resp.Builds[0].Tree.AllocatedNodeIDs, []int{1001, 1002, 1003, 1004}) {
-		t.Errorf("build[0] allocatedNodeIds = %v, want [1001 1002 1003 1004]", resp.Builds[0].Tree.AllocatedNodeIDs)
+	wantA := []allocatedNodeOnWire{
+		{ID: 1001, Name: "Node-1001"},
+		{ID: 1002, Name: "Node-1002"},
+		{ID: 1003, Name: "Node-1003"},
+		{ID: 1004, Name: "Node-1004"},
 	}
-	if !reflect.DeepEqual(resp.Builds[1].Tree.AllocatedNodeIDs, []int{2001, 2002, 2003}) {
-		t.Errorf("build[1] allocatedNodeIds = %v, want [2001 2002 2003]", resp.Builds[1].Tree.AllocatedNodeIDs)
+	wantB := []allocatedNodeOnWire{
+		{ID: 2001, Name: "Node-2001"},
+		{ID: 2002, Name: "Node-2002"},
+		{ID: 2003, Name: "Node-2003"},
+	}
+	if !reflect.DeepEqual(resp.Builds[0].Tree.AllocatedNodes, wantA) {
+		t.Errorf("build[0] allocatedNodes = %+v, want %+v", resp.Builds[0].Tree.AllocatedNodes, wantA)
+	}
+	if !reflect.DeepEqual(resp.Builds[1].Tree.AllocatedNodes, wantB) {
+		t.Errorf("build[1] allocatedNodes = %+v, want %+v", resp.Builds[1].Tree.AllocatedNodes, wantB)
 	}
 }
 

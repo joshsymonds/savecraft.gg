@@ -306,6 +306,18 @@ type gearModsDiff struct {
 	Common   []string   `json:"common"`
 }
 
+// allocatedNode is the per-node wire shape for tree allocations.
+// Carries the node's regular-tree ID alongside its display name (PoB's
+// node.dn or node.name) so the LLM consumer can read tree state
+// without a separate node-name lookup. The two fields travel together;
+// emitting one without the other would force consumers to maintain
+// their own ID→name map, which was the v2-epic friction this v3 epic
+// addresses.
+type allocatedNode struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 // compareTreeDiff carries the set-op result of the regular-tree
 // allocated-node lists across builds.
 //
@@ -319,15 +331,16 @@ type gearModsDiff struct {
 // common to all.
 //
 // Common is the intersection: nodes allocated in EVERY successful
-// build. Sorted ascending.
+// build. Sorted ascending by ID; names are populated from the first
+// successful build's node table (same ID = same node = same name).
 //
 // The diff itself is omitted (nil) when fewer than 2 builds succeed OR
-// any successful build's response lacked allocated_node_ids — partial
+// any successful build's response lacked allocatedNodes — partial
 // data would produce misleading set ops. (e.g. "build B has no node 5"
 // looks the same as "build B's data is missing".)
 type compareTreeDiff struct {
-	AllocatedOnlyIn [][]int `json:"allocatedOnlyIn"`
-	Common          []int   `json:"common"`
+	AllocatedOnlyIn [][]allocatedNode `json:"allocatedOnlyIn"`
+	Common          []allocatedNode   `json:"common"`
 }
 
 // compareStatDiff is one row of the summary-stat diff table. perBuild is
@@ -382,7 +395,7 @@ type compareBuildEntry struct {
 	Sections map[string]json.RawMessage `json:"sections,omitempty"`
 	Error    string                     `json:"error,omitempty"`
 
-	allocatedNodes []int
+	allocatedNodes []allocatedNode
 	itemsBySlot    map[string]gearItemSummary
 	socketGroups   []socketGroupSummary
 	config         map[string]any
@@ -391,9 +404,11 @@ type compareBuildEntry struct {
 // compareBuildTree is the per-build wire shape for tree allocation
 // data. Kept as its own type so future tree fields (paths, jewel
 // socket assignments, etc.) extend without touching the parent
-// entry's tag layout.
+// entry's tag layout. AllocatedNodes carries {id, name} objects so
+// the LLM consumer can read per-build tree state directly without a
+// node-name lookup table.
 type compareBuildTree struct {
-	AllocatedNodeIDs []int `json:"allocatedNodeIds"`
+	AllocatedNodes []allocatedNode `json:"allocatedNodes"`
 }
 
 // socketGroupSummary is the minimal per-group shape used for the skills
@@ -732,7 +747,7 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 		StatSources map[string]json.RawMessage `json:"statSources"`
 		Sections    struct {
 			Tree struct {
-				AllocatedNodeIDs []int `json:"allocatedNodeIds"`
+				AllocatedNodes []allocatedNode `json:"allocatedNodes"`
 			} `json:"tree"`
 			// Items is slot → object; the gear diff needs name (for slot
 			// identity), mods (for the name_same vs mods_same split), and
@@ -773,10 +788,10 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 	if len(parsed.StatSources) > 0 {
 		entry.StatSources = parsed.StatSources
 	}
-	entry.allocatedNodes = parsed.Sections.Tree.AllocatedNodeIDs
-	if len(parsed.Sections.Tree.AllocatedNodeIDs) > 0 {
+	entry.allocatedNodes = parsed.Sections.Tree.AllocatedNodes
+	if len(parsed.Sections.Tree.AllocatedNodes) > 0 {
 		entry.Tree = &compareBuildTree{
-			AllocatedNodeIDs: parsed.Sections.Tree.AllocatedNodeIDs,
+			AllocatedNodes: parsed.Sections.Tree.AllocatedNodes,
 		}
 	}
 
@@ -1101,19 +1116,21 @@ func computeTreeDiff(entries, successful []compareBuildEntry) *compareTreeDiff {
 		}
 	}
 	sets := buildAllocatedNodeSets(successful)
-	common := commonAllocatedNodes(sets)
+	common := commonAllocatedNodes(successful, sets)
 	allocatedOnlyIn := uniqueAllocatedNodesPerBuild(entries, sets)
 	return &compareTreeDiff{AllocatedOnlyIn: allocatedOnlyIn, Common: common}
 }
 
 // buildAllocatedNodeSets returns one node-id set per successful build
-// for fast intersection / unique-membership checks.
+// for fast intersection / unique-membership checks. Node names live on
+// the source entries; the sets are ID-only because set ops compare by
+// identity, not display string.
 func buildAllocatedNodeSets(successful []compareBuildEntry) []map[int]bool {
 	sets := make([]map[int]bool, len(successful))
 	for i, entry := range successful {
 		set := make(map[int]bool, len(entry.allocatedNodes))
-		for _, id := range entry.allocatedNodes {
-			set[id] = true
+		for _, n := range entry.allocatedNodes {
+			set[n.ID] = true
 		}
 		sets[i] = set
 	}
@@ -1122,20 +1139,27 @@ func buildAllocatedNodeSets(successful []compareBuildEntry) []map[int]bool {
 
 // commonAllocatedNodes returns the sorted intersection of every
 // per-build allocated set. Empty slice (not nil) when no node appears in
-// every build, so the JSON wire shape stays `[]`.
-func commonAllocatedNodes(sets []map[int]bool) []int {
+// every build, so the JSON wire shape stays `[]`. Names are resolved
+// from the first successful build's node table — same ID = same node
+// = same name across builds, so picking from any one is correct.
+func commonAllocatedNodes(successful []compareBuildEntry, sets []map[int]bool) []allocatedNode {
 	if len(sets) == 0 {
-		return []int{}
+		return []allocatedNode{}
 	}
-	var common []int
+	// nameByID for build 0; lookup is O(1) per common node.
+	nameByID := make(map[int]string, len(successful[0].allocatedNodes))
+	for _, n := range successful[0].allocatedNodes {
+		nameByID[n.ID] = n.Name
+	}
+	var common []allocatedNode
 	for id := range sets[0] {
 		if presentInAll(id, sets[1:]) {
-			common = append(common, id)
+			common = append(common, allocatedNode{ID: id, Name: nameByID[id]})
 		}
 	}
-	sort.Ints(common)
+	sort.Slice(common, func(i, j int) bool { return common[i].ID < common[j].ID })
 	if common == nil {
-		common = []int{}
+		common = []allocatedNode{}
 	}
 	return common
 }
@@ -1162,26 +1186,30 @@ func presentInAll(id int, rest []map[int]bool) bool {
 // Callers guarantee (via the early-return in computeTreeDiff) that
 // every successful entry has non-nil allocatedNodes by the time we get
 // here.
+//
+// Names ride along: the source entry already carries each node's name,
+// so the unique-to-build filter just retains the matching allocatedNode
+// objects without a separate name lookup.
 func uniqueAllocatedNodesPerBuild(
 	entries []compareBuildEntry,
 	sets []map[int]bool,
-) [][]int {
-	out := make([][]int, len(entries))
+) [][]allocatedNode {
+	out := make([][]allocatedNode, len(entries))
 	sIdx := 0
 	for i, entry := range entries {
 		if entry.Error != "" {
-			out[i] = []int{}
+			out[i] = []allocatedNode{}
 			continue
 		}
-		var only []int
-		for _, id := range entry.allocatedNodes {
-			if uniqueToBuild(id, sIdx, sets) {
-				only = append(only, id)
+		var only []allocatedNode
+		for _, n := range entry.allocatedNodes {
+			if uniqueToBuild(n.ID, sIdx, sets) {
+				only = append(only, n)
 			}
 		}
-		sort.Ints(only)
+		sort.Slice(only, func(a, b int) bool { return only[a].ID < only[b].ID })
 		if only == nil {
-			only = []int{}
+			only = []allocatedNode{}
 		}
 		out[i] = only
 		sIdx++

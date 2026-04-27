@@ -162,7 +162,7 @@
           extra_points: 0,
           available_points: 117,
           remaining_points: -4,
-          allocatedNodeIds: witchAllocation,
+          allocatedNodes: witchAllocation.map((id) => ({ id, name: `Node ${id}` })),
         },
       },
     },

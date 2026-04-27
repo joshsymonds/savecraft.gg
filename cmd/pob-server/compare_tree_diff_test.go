@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,9 +26,17 @@ type compareTreeDiffOnWire struct {
 	// nodes unique to builds[i]. Failed builds and builds without tree
 	// data get [] at their index. The diff itself is omitted (nil) only
 	// when fewer than 2 builds succeed OR a SUCCESSFUL build lacks
-	// allocatedNodeIds.
-	AllocatedOnlyIn [][]int `json:"allocatedOnlyIn"`
-	Common          []int   `json:"common"`
+	// allocatedNodes.
+	AllocatedOnlyIn [][]allocatedNodeOnWire `json:"allocatedOnlyIn"`
+	Common          []allocatedNodeOnWire   `json:"common"`
+}
+
+// allocatedNodeOnWire mirrors the production allocatedNode struct.
+// Decoded by tests to assert both ID set membership and that names ride
+// along (non-empty for real-Lua, synthetic for in-process harnesses).
+type allocatedNodeOnWire struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
 }
 
 func decodeCompareWithTree(t *testing.T, body []byte) compareRespWithTree {
@@ -40,10 +49,20 @@ func decodeCompareWithTree(t *testing.T, body []byte) compareRespWithTree {
 }
 
 // calcResponseWithTree returns a wrapper.lua-shaped response carrying a
-// per-build tree.allocated_node_ids list. Used to drive the diff
-// computation in tests without needing the real Lua subprocess.
+// per-build tree.allocatedNodes list of {id, name} objects. Used to
+// drive the diff computation in tests without needing the real Lua
+// subprocess. Names are synthesized as "Node-<id>" so the
+// in-process harness can assert that names ride along through diff
+// computation without having a real PoB tree-data table.
 func calcResponseWithTree(class string, allocatedIDs []int) string {
-	idsJSON, _ := json.Marshal(allocatedIDs)
+	nodes := make([]map[string]any, len(allocatedIDs))
+	for i, id := range allocatedIDs {
+		nodes[i] = map[string]any{
+			"id":   id,
+			"name": fmt.Sprintf("Node-%d", id),
+		}
+	}
+	nodesJSON, _ := json.Marshal(nodes)
 	return `{"type":"result","data":{` +
 		`"character":{"class":"` + class + `","ascendancy":"X","level":99},` +
 		`"summary":{"CombinedDPS":100000,"Life":6000,"LifeUnreserved":6000,"LifeUnreservedPercent":100,` +
@@ -53,7 +72,7 @@ func calcResponseWithTree(class string, allocatedIDs []int) string {
 		`"Str":100,"Dex":100,"Int":100,"FlaskEffect":0,"FlaskChargeGen":0,` +
 		`"LootQuantityNormalEnemies":0,"LootRarityMagicEnemies":0,` +
 		`"EnemyCurseLimit":1,"TotalDPS":100000},` +
-		`"section_index":[],"sections":{"tree":{"version":"3.28","allocated_nodes":3,"allocatedNodeIds":` + string(idsJSON) + `}}}}`
+		`"section_index":[],"sections":{"tree":{"version":"3.28","allocated_nodes":3,"allocatedNodes":` + string(nodesJSON) + `}}}}`
 }
 
 // TestCompareTreeDiffN2: two builds with overlapping allocated nodes
@@ -80,17 +99,25 @@ func TestCompareTreeDiffN2(t *testing.T) {
 		t.Fatalf("expected diffs.tree, got nil; body=%s", rec.Body.String())
 	}
 
-	if !equalIntSlices(resp.Diffs.Tree.Common, []int{3, 4}) {
-		t.Errorf("common = %v, want [3 4]", resp.Diffs.Tree.Common)
+	if !equalIntSlices(nodeIDsOf(resp.Diffs.Tree.Common), []int{3, 4}) {
+		t.Errorf("common IDs = %v, want [3 4]", nodeIDsOf(resp.Diffs.Tree.Common))
 	}
 	if got := len(resp.Diffs.Tree.AllocatedOnlyIn); got != 2 {
 		t.Fatalf("allocatedOnlyIn length = %d, want 2 (parallel to builds)", got)
 	}
-	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[0], []int{1, 2}) {
-		t.Errorf("allocatedOnlyIn[0] (idA) = %v, want [1 2]", resp.Diffs.Tree.AllocatedOnlyIn[0])
+	if !equalIntSlices(nodeIDsOf(resp.Diffs.Tree.AllocatedOnlyIn[0]), []int{1, 2}) {
+		t.Errorf("allocatedOnlyIn[0] (idA) IDs = %v, want [1 2]", nodeIDsOf(resp.Diffs.Tree.AllocatedOnlyIn[0]))
 	}
-	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[1], []int{5, 6}) {
-		t.Errorf("allocatedOnlyIn[1] (idB) = %v, want [5 6]", resp.Diffs.Tree.AllocatedOnlyIn[1])
+	if !equalIntSlices(nodeIDsOf(resp.Diffs.Tree.AllocatedOnlyIn[1]), []int{5, 6}) {
+		t.Errorf("allocatedOnlyIn[1] (idB) IDs = %v, want [5 6]", nodeIDsOf(resp.Diffs.Tree.AllocatedOnlyIn[1]))
+	}
+	// Names ride along: every entry in common + per-build slots carries
+	// a non-empty Name. The synthetic "Node-<id>" form from
+	// calcResponseWithTree is what we expect here; real fixtures get
+	// PoB display names via the integration test.
+	assertNamesPopulated(t, "common", resp.Diffs.Tree.Common)
+	for i, slot := range resp.Diffs.Tree.AllocatedOnlyIn {
+		assertNamesPopulated(t, fmt.Sprintf("allocatedOnlyIn[%d]", i), slot)
 	}
 }
 
@@ -134,15 +161,15 @@ func TestCompareTreeDiffN3(t *testing.T) {
 	}
 
 	// Common = {1, 2} (in all three)
-	if !equalIntSlices(resp.Diffs.Tree.Common, []int{1, 2}) {
-		t.Errorf("common = %v, want [1 2]", resp.Diffs.Tree.Common)
+	if !equalIntSlices(nodeIDsOf(resp.Diffs.Tree.Common), []int{1, 2}) {
+		t.Errorf("common IDs = %v, want [1 2]", nodeIDsOf(resp.Diffs.Tree.Common))
 	}
 
 	// 10 is in A and B but not C → not common, but also not "only in A"
 	// or "only in B". So it appears in NEITHER allocatedOnlyIn entry.
 	for i, only := range resp.Diffs.Tree.AllocatedOnlyIn {
 		for _, n := range only {
-			if n == 10 {
+			if n.ID == 10 {
 				t.Errorf("node 10 (in A+B, missing from C) leaked into allocatedOnlyIn[%d]", i)
 			}
 		}
@@ -156,7 +183,7 @@ func TestCompareTreeDiffN3(t *testing.T) {
 	gotOnly := make(map[int]bool)
 	for _, list := range resp.Diffs.Tree.AllocatedOnlyIn {
 		for _, n := range list {
-			gotOnly[n] = true
+			gotOnly[n.ID] = true
 		}
 	}
 	want := map[int]bool{20: true, 30: true, 40: true}
@@ -169,6 +196,11 @@ func TestCompareTreeDiffN3(t *testing.T) {
 		if !want[n] {
 			t.Errorf("unexpected node %d in allocatedOnlyIn (should be common or A∩B etc.)", n)
 		}
+	}
+	// Names ride along on every populated slot.
+	assertNamesPopulated(t, "common", resp.Diffs.Tree.Common)
+	for i, slot := range resp.Diffs.Tree.AllocatedOnlyIn {
+		assertNamesPopulated(t, fmt.Sprintf("allocatedOnlyIn[%d]", i), slot)
 	}
 }
 
@@ -192,8 +224,8 @@ func TestCompareTreeDiffIdenticalTrees(t *testing.T) {
 	if resp.Diffs == nil || resp.Diffs.Tree == nil {
 		t.Fatal("expected tree diff")
 	}
-	if !equalIntSlices(resp.Diffs.Tree.Common, []int{1, 2, 3}) {
-		t.Errorf("common = %v, want [1 2 3]", resp.Diffs.Tree.Common)
+	if !equalIntSlices(nodeIDsOf(resp.Diffs.Tree.Common), []int{1, 2, 3}) {
+		t.Errorf("common IDs = %v, want [1 2 3]", nodeIDsOf(resp.Diffs.Tree.Common))
 	}
 	if got := len(resp.Diffs.Tree.AllocatedOnlyIn); got != 2 {
 		t.Fatalf("allocatedOnlyIn length = %d, want 2 (parallel to builds)", got)
@@ -203,6 +235,7 @@ func TestCompareTreeDiffIdenticalTrees(t *testing.T) {
 			t.Errorf("allocatedOnlyIn[%d] should be empty for identical trees, got %v", i, only)
 		}
 	}
+	assertNamesPopulated(t, "common", resp.Diffs.Tree.Common)
 }
 
 // TestCompareTreeDiffDisjointTrees: no node in any pair → common=[],
@@ -231,11 +264,14 @@ func TestCompareTreeDiffDisjointTrees(t *testing.T) {
 	if got := len(resp.Diffs.Tree.AllocatedOnlyIn); got != 2 {
 		t.Fatalf("allocatedOnlyIn length = %d, want 2 (parallel to builds)", got)
 	}
-	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[0], []int{1, 2, 3}) {
-		t.Errorf("allocatedOnlyIn[0] (idA) = %v, want [1 2 3]", resp.Diffs.Tree.AllocatedOnlyIn[0])
+	if !equalIntSlices(nodeIDsOf(resp.Diffs.Tree.AllocatedOnlyIn[0]), []int{1, 2, 3}) {
+		t.Errorf("allocatedOnlyIn[0] (idA) IDs = %v, want [1 2 3]", nodeIDsOf(resp.Diffs.Tree.AllocatedOnlyIn[0]))
 	}
-	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[1], []int{10, 20, 30}) {
-		t.Errorf("allocatedOnlyIn[1] (idB) = %v, want [10 20 30]", resp.Diffs.Tree.AllocatedOnlyIn[1])
+	if !equalIntSlices(nodeIDsOf(resp.Diffs.Tree.AllocatedOnlyIn[1]), []int{10, 20, 30}) {
+		t.Errorf("allocatedOnlyIn[1] (idB) IDs = %v, want [10 20 30]", nodeIDsOf(resp.Diffs.Tree.AllocatedOnlyIn[1]))
+	}
+	for i, slot := range resp.Diffs.Tree.AllocatedOnlyIn {
+		assertNamesPopulated(t, fmt.Sprintf("allocatedOnlyIn[%d]", i), slot)
 	}
 }
 
@@ -319,10 +355,10 @@ func TestCompareTreeDiffFailedBuildSlotIsEmpty(t *testing.T) {
 	// unique to C across the two successful positions.
 	gotUnique := make(map[int]bool)
 	for _, n := range resp.Diffs.Tree.AllocatedOnlyIn[0] {
-		gotUnique[n] = true
+		gotUnique[n.ID] = true
 	}
 	for _, n := range resp.Diffs.Tree.AllocatedOnlyIn[2] {
-		gotUnique[n] = true
+		gotUnique[n.ID] = true
 	}
 	if !gotUnique[100] || !gotUnique[200] {
 		t.Errorf(
@@ -330,8 +366,36 @@ func TestCompareTreeDiffFailedBuildSlotIsEmpty(t *testing.T) {
 			resp.Diffs.Tree.AllocatedOnlyIn,
 		)
 	}
-	if !equalIntSlices(resp.Diffs.Tree.Common, []int{1, 2}) {
-		t.Errorf("common = %v, want [1 2]", resp.Diffs.Tree.Common)
+	if !equalIntSlices(nodeIDsOf(resp.Diffs.Tree.Common), []int{1, 2}) {
+		t.Errorf("common IDs = %v, want [1 2]", nodeIDsOf(resp.Diffs.Tree.Common))
+	}
+	// Names ride along on the successful slots; failed slot is [].
+	assertNamesPopulated(t, "common", resp.Diffs.Tree.Common)
+	assertNamesPopulated(t, "allocatedOnlyIn[0]", resp.Diffs.Tree.AllocatedOnlyIn[0])
+	assertNamesPopulated(t, "allocatedOnlyIn[2]", resp.Diffs.Tree.AllocatedOnlyIn[2])
+}
+
+// nodeIDsOf extracts just the IDs from a wire-decoded allocatedNode
+// slice so existing equalIntSlices assertions stay terse.
+func nodeIDsOf(nodes []allocatedNodeOnWire) []int {
+	out := make([]int, len(nodes))
+	for i, n := range nodes {
+		out[i] = n.ID
+	}
+	return out
+}
+
+// assertNamesPopulated fails the test if any wire-decoded allocatedNode
+// has an empty Name field. Empty Name means the diff carried IDs but
+// dropped names somewhere in the wrapper.lua → Go → wire chain — which
+// is the exact regression this epic is shipping to prevent.
+func assertNamesPopulated(t *testing.T, label string, nodes []allocatedNodeOnWire) {
+	t.Helper()
+	for i, n := range nodes {
+		if n.Name == "" {
+			t.Errorf("%s[%d] (id=%d): Name is empty — wrapper.lua → Go contract requires id+name to travel together",
+				label, i, n.ID)
+		}
 	}
 }
 

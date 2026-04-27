@@ -37,7 +37,15 @@ var ErrBuildNotFound = errors.New("build not found")
 // Rows cached at v1 lack these keys; bumping forces re-extraction so
 // /compare cache hits surface the new fields instead of silently
 // returning the old shape under sections.gear.socketGroups.
-const wrapperSchemaVersion = 2
+//
+// v3 (Item #1 of /compare polish v3 epic): wrapper.lua's serializeTreeSummary
+// replaced the allocatedNodeIds: [int, ...] emission with
+// allocatedNodes: [{id, name}, ...]. Rows cached at v2 carry the old
+// shape under sections.tree, so a /compare cache hit would yield raw
+// IDs without names and the LLM consumer would silently lose the
+// hydration the epic ships. Bump invalidates v2 rows on first read
+// post-deploy.
+const wrapperSchemaVersion = 3
 
 // BuildMeta holds non-content metadata for a stored build.
 type BuildMeta struct {

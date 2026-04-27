@@ -611,24 +611,29 @@ local function serializeTreeSummary(build)
 	local levelPoints = build.characterLevel - 1
 	local questPoints = 23
 	local available = levelPoints + questPoints + extra
-	-- Collect the regular-tree allocated node IDs as a sorted array. Used by
-	-- /compare's tree set-op diff (allocatedOnlyIn / common). Excludes
-	-- ascendancy and class-start nodes — they're auto-allocated or don't
-	-- compete for the same passive-point pool, so including them in a
-	-- tree diff would just add noise.
-	local allocatedIDs = {}
+	-- Collect the regular-tree allocated nodes as {id, name} objects sorted
+	-- by id ascending. Used by /compare's tree set-op diff
+	-- (allocatedOnlyIn / common) AND by the LLM consumer to read tree
+	-- state without a node-name lookup. Excludes ascendancy and
+	-- class-start nodes — they're auto-allocated or don't compete for
+	-- the same passive-point pool, so including them in a tree diff
+	-- would just add noise. Name fallback chain mirrors serializeKeystones.
+	local allocatedNodes = {}
 	if build.spec.nodes then
 		for id, node in pairs(build.spec.nodes) do
 			if node.alloc and not node.ascendancyName and not node.classStart then
-				allocatedIDs[#allocatedIDs + 1] = id
+				allocatedNodes[#allocatedNodes + 1] = {
+					id = id,
+					name = node.dn or node.name or tostring(id),
+				}
 			end
 		end
 	end
-	table.sort(allocatedIDs)
+	table.sort(allocatedNodes, function(a, b) return a.id < b.id end)
 	return {
 		version = build.spec.treeVersion,
 		allocated_nodes = used,
-		allocatedNodeIds = allocatedIDs,
+		allocatedNodes = allocatedNodes,
 		ascendancy_nodes = ascUsed,
 		level_points = levelPoints,
 		quest_points = questPoints,

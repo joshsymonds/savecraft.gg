@@ -31,15 +31,21 @@
     "#9b59b6", "#1abc9c", "#e67e22", "#8e44ad",
   ];
 
+  interface AllocatedNode {
+    id: number;
+    name: string;
+  }
+
   interface CompareBuild {
     id?: string;
     label: string;
     character?: { class: string; ascendancy?: string; level: number };
     summary?: Record<string, number>;
-    // tree.allocatedNodeIds is the per-build allocation set used by
-    // the visual passive-tree overlay panel below the comparison
-    // table. Mirrors the wire shape from compareBuildEntry.Tree.
-    tree?: { allocatedNodeIds: number[] };
+    // tree.allocatedNodes is the per-build allocation set ({id, name}
+    // objects so the consumer can read tree state without a node-name
+    // lookup). The view extracts .id when feeding the visual passive-
+    // tree overlay; the .name field is for narrative consumers.
+    tree?: { allocatedNodes: AllocatedNode[] };
     error?: string;
   }
 
@@ -51,11 +57,12 @@
 
   interface TreeDiff {
     // Indexed parallel to builds[] — entry i carries the nodes unique
-    // to builds[i]. Failed slots and slots without tree data get [] at
-    // their index, so `allocatedOnlyIn[builds.indexOf(b)]` always
-    // returns a defined array regardless of build success.
-    allocatedOnlyIn: number[][];
-    common: number[];
+    // to builds[i] as {id, name} objects. Failed slots and slots
+    // without tree data get [] at their index, so
+    // `allocatedOnlyIn[builds.indexOf(b)]` always returns a defined
+    // array regardless of build success.
+    allocatedOnlyIn: AllocatedNode[][];
+    common: AllocatedNode[];
   }
 
   interface SlotDiff {
@@ -137,18 +144,19 @@
   let erroredBuilds = $derived(builds.filter((b) => b.error));
 
   // Per-build allocation set for the visual tree overlay panel. Only
-  // successful builds with non-empty allocated_node_ids contribute;
-  // each gets a color from the TREE_OVERLAY_PALETTE indexed by their
+  // successful builds with non-empty allocatedNodes contribute; each
+  // gets a color from the TREE_OVERLAY_PALETTE indexed by their
   // position in the successful-subset (consistent with how the
-  // GroupedTable columns are ordered).
+  // GroupedTable columns are ordered). PassiveTreeOverlay expects
+  // number[]; we extract .id from the {id, name} objects.
   let treeAllocations = $derived.by(() => {
     return builds
-      .filter((b) => !b.error && b.tree?.allocatedNodeIds?.length)
+      .filter((b) => !b.error && b.tree?.allocatedNodes?.length)
       .map((b, i) => ({
         id: b.id ?? b.label,
         label: buildColumnLabel(b),
         color: TREE_OVERLAY_PALETTE[i % TREE_OVERLAY_PALETTE.length],
-        nodeIds: b.tree!.allocatedNodeIds,
+        nodeIds: b.tree!.allocatedNodes.map((n) => n.id),
       }));
   });
   let hasTreeOverlay = $derived(treeAllocations.length >= 2);
