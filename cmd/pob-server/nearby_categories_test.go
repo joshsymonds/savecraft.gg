@@ -36,15 +36,20 @@ func TestNearbyRejectsUnknownCategory(t *testing.T) {
 func TestNearbyShouldEvaluateRespectsAllowedTypes(t *testing.T) {
 	pathDist := 2
 	cases := []struct {
-		name    string
+		name     string
 		nodeType string
-		allowed map[string]bool
-		want    bool
+		allowed  map[string]bool
+		want     bool
 	}{
 		{"keystone in keystone-only", "Keystone", map[string]bool{"Keystone": true}, true},
 		{"notable in keystone-only", "Notable", map[string]bool{"Keystone": true}, false},
 		{"normal in default-set", "Normal", map[string]bool{"Normal": true, "Notable": true, "Keystone": true}, true},
-		{"mastery in default-set", "Mastery", map[string]bool{"Normal": true, "Notable": true, "Keystone": true}, false},
+		{
+			"mastery in default-set",
+			"Mastery",
+			map[string]bool{"Normal": true, "Notable": true, "Keystone": true},
+			false,
+		},
 		{"jewel socket in jewel-only", "JewelSocket", map[string]bool{"JewelSocket": true}, true},
 	}
 	for _, tc := range cases {

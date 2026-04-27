@@ -71,6 +71,7 @@ type CalcRequest struct {
 	BuildXML  string `json:"buildXml"`  // raw XML (alternative to buildCode)
 }
 
+//nolint:tagliatelle // stat_sources: snake_case wire contract with wrapper.lua's injectStatSources reader.
 type calcLuaRequest struct {
 	Type          string                   `json:"type"`
 	XML           string                   `json:"xml"`
@@ -106,9 +107,11 @@ const modSourcesMaxLimit = 50
 func validateAndBuildStatSourcesField(modSources []string, modSourcesLimit int) (*calcLuaStatSourcesField, error) {
 	if len(modSources) == 0 {
 		if modSourcesLimit > 0 {
-			return nil, errors.New("modSourcesLimit set without modSources — pass modSources: [\"Life\", ...] to enable")
+			return nil, errors.New(
+				"modSourcesLimit set without modSources — pass modSources: [\"Life\", ...] to enable",
+			)
 		}
-		return nil, nil
+		return nil, nil //nolint:nilnil // intentional no-op: caller treats nil as "user didn't ask for sources"
 	}
 	if modSourcesLimit < 0 {
 		return nil, errors.New("modSourcesLimit must be >= 0")
@@ -215,6 +218,8 @@ func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
 // for the named stats. When set, the response includes data.statSources
 // keyed by stat name. The cached fast-path is bypassed because cached
 // summaries don't carry source data.
+//
+//nolint:tagliatelle // nearby_categories: snake_case wire contract with the MCP layer.
 type ResolveRequest struct {
 	URL             string   `json:"url"`
 	ModSources      []string `json:"modSources,omitempty"`
@@ -266,21 +271,7 @@ func (srv *Server) handleResolve(
 
 	result, err := resolveBuildURL(req.URL, srv.cache.store, srv.httpClient())
 	if err != nil {
-		if errors.Is(err, ErrBuildNotFound) {
-			jsonError(writer, "build not found", http.StatusNotFound)
-			return
-		}
-		srv.log.Error("resolve error", "url", req.URL, "err", err)
-		// Surface user-friendly error messages (e.g. "build not found at ...")
-		// but don't leak internal details like hostnames or connection errors.
-		msg := err.Error()
-		if strings.Contains(msg, "build not found at") ||
-			strings.Contains(msg, "unsupported host") ||
-			strings.Contains(msg, "invalid URL") {
-			jsonError(writer, msg, http.StatusUnprocessableEntity)
-		} else {
-			jsonError(writer, "failed to resolve build from URL", http.StatusUnprocessableEntity)
-		}
+		srv.writeResolveError(writer, req.URL, err)
 		return
 	}
 
@@ -288,24 +279,52 @@ func (srv *Server) handleResolve(
 	// statSources — the stored summary doesn't carry source data, so
 	// we must run a fresh calc to populate it.
 	if result.cached && result.summary != "" && statSources == nil {
-		data := json.RawMessage(result.summary)
-		filtered, written := srv.applySectionFilter(writer, data, parseSections(request))
-		if written {
-			return
-		}
-
-		idJSON, _ := json.Marshal(result.buildID)
-		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode(map[string]json.RawMessage{
-			"buildId": idJSON,
-			"data":    filtered,
-		})
+		srv.writeResolveCachedSummary(writer, request, result)
 		return
 	}
 
 	// External URL — or cached internal URL with a statSources request:
 	// calc through PoB, persist, return.
 	srv.calcAndRespond(writer, request, result.xml, result.sourceURL, "", statSources, allowedCategories)
+}
+
+// writeResolveError maps resolveBuildURL errors to user-facing JSON
+// responses. Surfaces well-known message prefixes so callers can act on
+// them (e.g. "build not found at <url>"); generic failures fall back to
+// a sanitized message that doesn't leak internal connection details.
+func (srv *Server) writeResolveError(writer http.ResponseWriter, requestURL string, err error) {
+	if errors.Is(err, ErrBuildNotFound) {
+		jsonError(writer, "build not found", http.StatusNotFound)
+		return
+	}
+	srv.log.Error("resolve error", "url", requestURL, "err", err)
+	msg := err.Error()
+	if strings.Contains(msg, "build not found at") ||
+		strings.Contains(msg, "unsupported host") ||
+		strings.Contains(msg, "invalid URL") {
+		jsonError(writer, msg, http.StatusUnprocessableEntity)
+		return
+	}
+	jsonError(writer, "failed to resolve build from URL", http.StatusUnprocessableEntity)
+}
+
+// writeResolveCachedSummary serves the stored summary directly, bypassing
+// the PoB calc pipeline. Only invoked when the caller didn't ask for
+// statSources (the cached summary doesn't carry source data).
+func (srv *Server) writeResolveCachedSummary(
+	writer http.ResponseWriter, request *http.Request, result *resolveResult,
+) {
+	data := json.RawMessage(result.summary)
+	filtered, written := srv.applySectionFilter(writer, data, parseSections(request))
+	if written {
+		return
+	}
+	idJSON, _ := json.Marshal(result.buildID)
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(map[string]json.RawMessage{
+		"buildId": idJSON,
+		"data":    filtered,
+	})
 }
 
 // calcAndRespond acquires a PoB process, runs calc, persists, and writes the JSON response.
@@ -442,6 +461,8 @@ func extractSummaryFloats(data json.RawMessage) map[string]float64 {
 // ModSources/ModSourcesLimit follow the same opt-in semantics as
 // ResolveRequest — when set, the response includes data.statSources
 // for the named stats reflecting the post-modify ModDB.
+//
+//nolint:tagliatelle // nearby_categories: snake_case wire contract with the MCP layer.
 type ModifyRequest struct {
 	BuildID         string            `json:"buildId"`
 	Operations      []json.RawMessage `json:"operations"`
@@ -452,6 +473,7 @@ type ModifyRequest struct {
 	NearbyCategories []string `json:"nearby_categories,omitempty"`
 }
 
+//nolint:tagliatelle // stat_sources: snake_case wire contract with wrapper.lua's injectStatSources reader.
 type modifyLuaRequest struct {
 	Type          string                   `json:"type"`
 	XML           string                   `json:"xml"`
@@ -567,57 +589,20 @@ func (srv *Server) modifyAndRespond(
 	statSources *calcLuaStatSourcesField,
 	allowedCategories map[string]bool,
 ) {
-	proc, err := srv.pool.AcquireForBuild(parentID)
-	if err != nil {
-		if errors.Is(err, ErrPoolExhausted) {
-			jsonError(
-				writer,
-				"all PoB processes are busy, try again later",
-				http.StatusServiceUnavailable,
-			)
-			return
-		}
-		srv.log.Error("pool acquire error", "err", err)
-		jsonError(writer, "failed to acquire PoB process", http.StatusInternalServerError)
+	proc, ok := srv.acquirePoolProcess(writer, parentID)
+	if !ok {
 		return
 	}
 	defer srv.pool.Release(proc)
 
-	response, err := proc.Send(modifyLuaRequest{
-		Type:          "modify",
-		XML:           xml,
-		LoadedBuildID: proc.LastLoadedBuildID(),
-		Operations:    operations,
-		StatKeys:      parseStatKeys(request),
-		PreSummary:    preSummary,
-		StatSources:   statSources,
+	pobResp, ok := srv.runModifyLua(writer, proc, runModifyLuaInput{
+		xml:         xml,
+		operations:  operations,
+		preSummary:  preSummary,
+		statSources: statSources,
+		statKeys:    parseStatKeys(request),
 	})
-	if err != nil {
-		srv.log.Error("process send error", "err", err)
-		jsonError(
-			writer,
-			"PoB process error — check server logs for details",
-			http.StatusInternalServerError,
-		)
-		return
-	}
-
-	var pobResp modifyLuaResponse
-	if err := json.Unmarshal(response, &pobResp); err != nil {
-		srv.log.Error("failed to parse PoB response", "err", err)
-		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
-		return
-	}
-	if pobResp.Type == pobRespTypeError {
-		srv.log.Error("PoB modify error", "message", pobResp.Message)
-		message := pobResp.Message
-		if message == "" {
-			message = "PoB modification failed"
-		}
-		if enriched, ok := enrichGemNotFoundError(message, srv.getGemNames(proc)); ok {
-			message = enriched
-		}
-		jsonError(writer, message, http.StatusUnprocessableEntity)
+	if !ok {
 		return
 	}
 
@@ -625,28 +610,7 @@ func (srv *Server) modifyAndRespond(
 	if modifiedXML == "" {
 		modifiedXML = xml
 	}
-	newID := srv.cache.Put(modifiedXML)
-	if srv.cache.store != nil {
-		if err := srv.cache.store.Put(
-			newID, modifiedXML, string(pobResp.Data), "", parentID,
-		); err != nil {
-			srv.log.Warn("store put failed", "id", newID, "err", err)
-		}
-	}
-
-	// Transfer the affinity pin from parentID → newID so subsequent calls on
-	// the modified build hit the same process. If parentID had no pin (cold
-	// /modify), Pin establishes one on newID instead.
-	if newID != parentID {
-		if srv.pool.LookupAffinity(parentID) == proc {
-			srv.pool.SwapAffinity(parentID, newID)
-		} else {
-			srv.pool.Pin(proc, newID)
-		}
-	}
-	// The wrapper now has the modified build loaded; record its ID so
-	// follow-up requests can skip reload.
-	proc.SetLastLoadedBuildID(newID)
+	newID := srv.persistModifiedBuild(proc, parentID, modifiedXML, pobResp.Data)
 
 	// Filter sections based on query parameter
 	sections := parseSections(request)
@@ -661,7 +625,13 @@ func (srv *Server) modifyAndRespond(
 	// inline extract runs against the new state.
 	var powerReport *powerReportResult
 	if powerReportNeeded(sections) {
-		powerReport = srv.attachPowerReport(proc, newID, modifiedXML, extractSummaryFloats(pobResp.Data), allowedCategories)
+		powerReport = srv.attachPowerReport(
+			proc,
+			newID,
+			modifiedXML,
+			extractSummaryFloats(pobResp.Data),
+			allowedCategories,
+		)
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
@@ -670,6 +640,85 @@ func (srv *Server) modifyAndRespond(
 		PobData:     filtered,
 		PowerReport: powerReport,
 	})
+}
+
+// runModifyLuaInput bundles the per-call inputs to runModifyLua so the
+// helper signature stays one parameter wide (modifyAndRespond extracted
+// this for funlen budget).
+type runModifyLuaInput struct {
+	xml         string
+	operations  []json.RawMessage
+	preSummary  json.RawMessage
+	statSources *calcLuaStatSourcesField
+	statKeys    []string
+}
+
+// runModifyLua sends one modify request to wrapper.lua, decodes the
+// response, and writes the appropriate HTTP error on failure. Returns
+// (response, true) on success; (zero, false) when the writer has been
+// written to and the caller should return.
+func (srv *Server) runModifyLua(
+	writer http.ResponseWriter, proc *Process, in runModifyLuaInput,
+) (modifyLuaResponse, bool) {
+	var zero modifyLuaResponse
+	response, err := proc.Send(modifyLuaRequest{
+		Type:          "modify",
+		XML:           in.xml,
+		LoadedBuildID: proc.LastLoadedBuildID(),
+		Operations:    in.operations,
+		StatKeys:      in.statKeys,
+		PreSummary:    in.preSummary,
+		StatSources:   in.statSources,
+	})
+	if err != nil {
+		srv.log.Error("process send error", "err", err)
+		jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
+		return zero, false
+	}
+	var pobResp modifyLuaResponse
+	if err := json.Unmarshal(response, &pobResp); err != nil {
+		srv.log.Error("failed to parse PoB response", "err", err)
+		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
+		return zero, false
+	}
+	if pobResp.Type == pobRespTypeError {
+		srv.log.Error("PoB modify error", "message", pobResp.Message)
+		message := pobResp.Message
+		if message == "" {
+			message = "PoB modification failed"
+		}
+		if enriched, ok := enrichGemNotFoundError(message, srv.getGemNames(proc)); ok {
+			message = enriched
+		}
+		jsonError(writer, message, http.StatusUnprocessableEntity)
+		return zero, false
+	}
+	return pobResp, true
+}
+
+// persistModifiedBuild stores the post-modify XML + summary, transfers
+// the affinity pin from parent → new build (or establishes a new one
+// when the parent had no affinity), and records the new build as the
+// process's last-loaded ID for the skip-reload optimization. Returns
+// the new content-hash buildID.
+func (srv *Server) persistModifiedBuild(
+	proc *Process, parentID, modifiedXML string, data json.RawMessage,
+) string {
+	newID := srv.cache.Put(modifiedXML)
+	if srv.cache.store != nil {
+		if err := srv.cache.store.Put(newID, modifiedXML, string(data), "", parentID); err != nil {
+			srv.log.Warn("store put failed", "id", newID, "err", err)
+		}
+	}
+	if newID != parentID {
+		if srv.pool.LookupAffinity(parentID) == proc {
+			srv.pool.SwapAffinity(parentID, newID)
+		} else {
+			srv.pool.Pin(proc, newID)
+		}
+	}
+	proc.SetLastLoadedBuildID(newID)
+	return newID
 }
 
 // NearbyRequest is the JSON body for POST /nearby.

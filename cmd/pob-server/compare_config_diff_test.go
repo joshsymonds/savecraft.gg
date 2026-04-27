@@ -166,9 +166,18 @@ func TestCompareConfigDiffMissingKey(t *testing.T) {
 // differs in another. Expect exactly 2 entries; enemyLevel must NOT appear.
 func TestCompareConfigDiffN3Mixed(t *testing.T) {
 	pool, _ := captureMockPool(t, []string{
-		calcResponseWithConfig("Witch", map[string]any{"enemyLevel": float64(84), "enemyIsBoss": "Pinnacle", "raiseSpectreEnableBuffs": true}),
-		calcResponseWithConfig("Marauder", map[string]any{"enemyLevel": float64(84), "enemyIsBoss": "Conqueror", "raiseSpectreEnableBuffs": true}),
-		calcResponseWithConfig("Ranger", map[string]any{"enemyLevel": float64(84), "enemyIsBoss": "Pinnacle", "raiseSpectreEnableBuffs": false}),
+		calcResponseWithConfig(
+			"Witch",
+			map[string]any{"enemyLevel": float64(84), "enemyIsBoss": "Pinnacle", "raiseSpectreEnableBuffs": true},
+		),
+		calcResponseWithConfig(
+			"Marauder",
+			map[string]any{"enemyLevel": float64(84), "enemyIsBoss": "Conqueror", "raiseSpectreEnableBuffs": true},
+		),
+		calcResponseWithConfig(
+			"Ranger",
+			map[string]any{"enemyLevel": float64(84), "enemyIsBoss": "Pinnacle", "raiseSpectreEnableBuffs": false},
+		),
 	})
 	pool.maxSize = 1
 	pool.affinityMaxPins = 1

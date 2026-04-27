@@ -79,13 +79,13 @@ func newTradeStatsClient(store *BuildStore, tradeURL string, now func() time.Tim
 // Refresh fetches and persists the trade stats for one league when
 // the cached rows are stale (older than tradeStatsTTL) or missing.
 // Returns nil when fresh data is already cached — callers shouldn't
-// distinguish "didn't fetch" from "fetched and stored."
+// distinguish "didn't fetch" from "fetched and stored".
 func (c *tradeStatsClient) Refresh(league string) error {
 	if c == nil || c.store == nil {
 		return fmt.Errorf("trade stats client not initialized")
 	}
 	if league == "" {
-		league = "Standard"
+		league = defaultBuySimilarLeague
 	}
 
 	c.fetchMu.Lock()
@@ -149,7 +149,9 @@ func (c *tradeStatsClient) LastRefreshRowCount(league string) (int, error) {
 // Stripped text is the entry's text after running the strip pattern.
 // fetched_at is left zero — Refresh fills it in from c.now().
 func (c *tradeStatsClient) fetch() ([]tradeStatsRow, error) {
-	req, err := http.NewRequest(http.MethodGet, c.tradeURL, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), tradeStatsTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.tradeURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build trade stats request: %w", err)
 	}
@@ -215,7 +217,7 @@ func (srv *Server) handleRefreshTradeStats(writer http.ResponseWriter, request *
 	}
 	league := request.URL.Query().Get("league")
 	if league == "" {
-		league = "Standard"
+		league = defaultBuySimilarLeague
 	}
 	if !isValidLeague(league) {
 		jsonError(writer, "league must be ≤64 chars and contain no path separators", http.StatusBadRequest)

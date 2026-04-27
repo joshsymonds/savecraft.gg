@@ -2,6 +2,15 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ToolResult, ViewToolResult } from "../src/mcp/tools";
+
+// fetchInputPathname extracts the URL pathname from any of the shapes
+// the fetch API accepts. Avoids unsafe stringification of Request and
+// keeps every mock-fetch handler in this file one line shorter.
+function fetchInputPathname(input: RequestInfo | URL): string {
+  if (input instanceof Request) return new URL(input.url).pathname;
+  if (input instanceof URL) return input.pathname;
+  return new URL(input).pathname;
+}
 import {
   createNote,
   deleteNote,
@@ -2823,13 +2832,17 @@ describe("buildPlannerModule", () => {
     const originalFetch = globalThis.fetch;
     let capturedBody: Record<string, unknown> = {};
     let capturedPath = "";
-    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      const u = url instanceof URL ? url : new URL(url.toString());
-      capturedPath = u.pathname;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      capturedPath = fetchInputPathname(input);
       capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-      return new Response(
-        JSON.stringify({ builds: [], diffs: null }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
+      return Promise.resolve(
+        Response.json(
+          { builds: [], diffs: null },
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
     }) as typeof fetch;
     try {
@@ -2857,16 +2870,17 @@ describe("buildPlannerModule", () => {
     const originalFetch = globalThis.fetch;
     let capturedBody: Record<string, unknown> = {};
     let capturedPath = "";
-    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      const u = url instanceof URL ? url : new URL(url.toString());
-      capturedPath = u.pathname;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      capturedPath = fetchInputPathname(input);
       capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-      return new Response(
-        JSON.stringify({
-          buildId: "abc123def456",
-          data: { statSources: { Life: [] } },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
+      return Promise.resolve(
+        Response.json(
+          {
+            buildId: "abc123def456",
+            data: { statSources: { Life: [] } },
+          },
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
       );
     }) as typeof fetch;
     try {
@@ -2916,13 +2930,17 @@ describe("buildPlannerModule", () => {
     const originalFetch = globalThis.fetch;
     let capturedBody: Record<string, unknown> = {};
     let capturedPath = "";
-    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      const u = url instanceof URL ? url : new URL(url.toString());
-      capturedPath = u.pathname;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      capturedPath = fetchInputPathname(input);
       capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-      return new Response(
-        JSON.stringify({ buildId: "abc123def456", data: { results: [] } }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
+      return Promise.resolve(
+        Response.json(
+          { buildId: "abc123def456", data: { results: [] } },
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
     }) as typeof fetch;
     try {
@@ -2949,13 +2967,17 @@ describe("buildPlannerModule", () => {
     const originalFetch = globalThis.fetch;
     let capturedBody: Record<string, unknown> = {};
     let capturedPath = "";
-    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      const u = url instanceof URL ? url : new URL(url.toString());
-      capturedPath = u.pathname;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      capturedPath = fetchInputPathname(input);
       capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-      return new Response(
-        JSON.stringify({ buildId: "abc123def456", data: { summary: {} } }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
+      return Promise.resolve(
+        Response.json(
+          { buildId: "abc123def456", data: { summary: {} } },
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
     }) as typeof fetch;
     try {
@@ -2979,23 +3001,23 @@ describe("buildPlannerModule", () => {
     // /modify goes through /build/<id>/summary first then /modify; only
     // capture the /modify body.
     let modifyBody: Record<string, unknown> | null = null;
-    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      const u = url instanceof URL ? url : new URL(url.toString());
-      if (u.pathname === "/modify") {
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      if (fetchInputPathname(input) === "/modify") {
         modifyBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-        return new Response(
-          JSON.stringify({ buildId: "newhash", data: { summary: {} } }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+        return Promise.resolve(
+          Response.json({ buildId: "newhash", data: { summary: {} } }, { status: 200 }),
         );
       }
       // /build/<id>/summary stub: returns the XML + summary the modify
       // path needs to construct its request.
-      return new Response(
-        JSON.stringify({
-          summary: { class: "Witch", level: 95, summary: { Life: 5000 } },
-          buildXml: "<PathOfBuilding/>",
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
+      return Promise.resolve(
+        Response.json(
+          {
+            summary: { class: "Witch", level: 95, summary: { Life: 5000 } },
+            buildXml: "<PathOfBuilding/>",
+          },
+          { status: 200 },
+        ),
       );
     }) as typeof fetch;
     try {
@@ -3019,13 +3041,17 @@ describe("buildPlannerModule", () => {
     const originalFetch = globalThis.fetch;
     let capturedBody: Record<string, unknown> = {};
     let capturedPath = "";
-    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      const u = url instanceof URL ? url : new URL(url.toString());
-      capturedPath = u.pathname;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      capturedPath = fetchInputPathname(input);
       capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-      return new Response(
-        JSON.stringify({ buildId: "abc123def456", branches: [] }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
+      return Promise.resolve(
+        Response.json(
+          { buildId: "abc123def456", branches: [] },
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
     }) as typeof fetch;
     try {
@@ -3060,35 +3086,48 @@ describe("buildPlannerModule", () => {
     //
     // Scan ALL occurrences of each param (descriptions reuse param
     // names in non-chained context too); any qualifying pair counts.
-    const newParams = ["mod_sources", "buy_similar_filters", "nearby_categories", "audit_categories"] as const;
+    const newParams = [
+      "mod_sources",
+      "buy_similar_filters",
+      "nearby_categories",
+      "audit_categories",
+    ] as const;
     const connectives = [" then ", "→", "pair with", "follow-up", "re-call"];
     function allIndices(name: string): number[] {
       const out: number[] = [];
-      let i = desc.indexOf(name);
-      while (i !== -1) {
-        out.push(i);
-        i = desc.indexOf(name, i + 1);
+      let index = desc.indexOf(name);
+      while (index !== -1) {
+        out.push(index);
+        index = desc.indexOf(name, index + 1);
       }
       return out;
     }
-    let foundChain = false;
-    outer: for (const a of newParams) {
-      for (const b of newParams) {
-        if (a === b) continue;
-        for (const idxA of allIndices(a)) {
-          for (const idxB of allIndices(b)) {
-            if (Math.abs(idxA - idxB) >= 200) continue;
-            const spanStart = Math.min(idxA, idxB);
-            const spanEnd = Math.max(idxA, idxB) + b.length;
-            const span = desc.slice(spanStart, spanEnd);
-            if (connectives.some((c) => span.includes(c))) {
-              foundChain = true;
-              break outer;
-            }
-          }
+    function spanHasConnective(spanStart: number, spanEnd: number): boolean {
+      // span is a substring of desc; we check each connective via
+      // String.includes. unicorn/prefer-set-has misfires here because
+      // the call shape `connectives.some(c => span.includes(c))` looks
+      // like an array membership check from the linter's perspective.
+      // eslint-disable-next-line unicorn/prefer-set-has
+      const span = desc.slice(spanStart, spanEnd);
+      return connectives.some((c) => span.includes(c));
+    }
+    function pairHasChain(indexA: number, indexB: number, bLength: number): boolean {
+      if (Math.abs(indexA - indexB) >= 200) return false;
+      const spanStart = Math.min(indexA, indexB);
+      const spanEnd = Math.max(indexA, indexB) + bLength;
+      return spanHasConnective(spanStart, spanEnd);
+    }
+    function paramsAreChained(a: string, b: string): boolean {
+      for (const indexA of allIndices(a)) {
+        for (const indexB of allIndices(b)) {
+          if (pairHasChain(indexA, indexB, b.length)) return true;
         }
       }
+      return false;
     }
+    const foundChain = newParams.some((a) =>
+      newParams.some((b) => a !== b && paramsAreChained(a, b)),
+    );
     expect(foundChain).toBe(true);
   });
 
@@ -3149,13 +3188,17 @@ describe("buildPlannerModule", () => {
     const originalFetch = globalThis.fetch;
     let capturedBody: Record<string, unknown> = {};
     let capturedPath = "";
-    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      const u = url instanceof URL ? url : new URL(url.toString());
-      capturedPath = u.pathname;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      capturedPath = fetchInputPathname(input);
       capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-      return new Response(
-        JSON.stringify({ builds: [], buySimilar: [] }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
+      return Promise.resolve(
+        Response.json(
+          { builds: [], buySimilar: [] },
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
     }) as typeof fetch;
     try {

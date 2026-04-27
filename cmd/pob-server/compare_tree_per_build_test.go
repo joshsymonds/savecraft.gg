@@ -71,7 +71,7 @@ func TestCompareExposesPerBuildAllocatedNodeIDs(t *testing.T) {
 // have tree omitted from the wire (omitempty kicks in).
 func TestCompareTreeOmittedWhenNoAllocations(t *testing.T) {
 	srv, idA, idB := compareHarness(t, "<A/>", "<B/>",
-		minimalCalcResponseClass("Witch", 100000),   // no tree section
+		minimalCalcResponseClass("Witch", 100000),    // no tree section
 		minimalCalcResponseClass("Marauder", 200000), // no tree section
 	)
 

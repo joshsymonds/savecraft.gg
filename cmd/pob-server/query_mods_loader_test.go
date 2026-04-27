@@ -49,6 +49,9 @@ func TestEnsureQueryModsLoadedToleratesNonResultResponse(t *testing.T) {
 	srv.ensureQueryModsLoaded()
 
 	if srv.queryMods != nil {
-		t.Errorf("srv.queryMods should remain nil on non-result response (so a retry can populate it later); got %d entries", len(srv.queryMods))
+		t.Errorf(
+			"srv.queryMods should remain nil on non-result response (so a retry can populate it later); got %d entries",
+			len(srv.queryMods),
+		)
 	}
 }

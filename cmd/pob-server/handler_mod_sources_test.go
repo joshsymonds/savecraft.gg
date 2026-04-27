@@ -48,9 +48,13 @@ func TestResolveWithModSourcesBypassesCache(t *testing.T) {
 	if !ok {
 		t.Fatalf("stat_sources.stats not an array: %+v", statSources)
 	}
-	got := []string{}
+	got := make([]string, 0, len(stats))
 	for _, s := range stats {
-		got = append(got, s.(string))
+		str, ok := s.(string)
+		if !ok {
+			t.Fatalf("stat_sources.stats[%d] not a string: %v", len(got), s)
+		}
+		got = append(got, str)
 	}
 	if !reflect.DeepEqual(got, []string{"Life", "CombinedDPS"}) {
 		t.Errorf("stat_sources.stats = %v, want [Life CombinedDPS]", got)
@@ -123,7 +127,10 @@ func TestResolveModSourcesDefaultLimit(t *testing.T) {
 	if len(requests) != 1 {
 		t.Fatalf("expected 1 captured request, got %d", len(requests))
 	}
-	statSources := requests[0]["stat_sources"].(map[string]any)
+	statSources, ok := requests[0]["stat_sources"].(map[string]any)
+	if !ok {
+		t.Fatalf("stat_sources missing or wrong type: %+v", requests[0])
+	}
 	if limit, _ := statSources["limit"].(float64); limit != 10 {
 		t.Errorf("default stat_sources.limit = %v, want 10", limit)
 	}

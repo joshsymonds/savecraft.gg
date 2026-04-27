@@ -18,10 +18,10 @@ type compareDiffsModSourcesOnWire struct {
 }
 
 type compareModSourceDiffOnWire struct {
-	Key        string                          `json:"key"`
-	SourceType string                          `json:"source_type"`
-	ModType    string                          `json:"mod_type"`
-	PerBuild   []*compareModSourceCellOnWire   `json:"perBuild"`
+	Key        string                        `json:"key"`
+	SourceType string                        `json:"source_type"`
+	ModType    string                        `json:"mod_type"`
+	PerBuild   []*compareModSourceCellOnWire `json:"perBuild"`
 }
 
 type compareModSourceCellOnWire struct {
@@ -51,12 +51,24 @@ func decodeCompareWithModSourcesDiff(t *testing.T, body []byte) compareRespWithM
 func TestCompareModSourcesDiffMatchesNormalizedKeys(t *testing.T) {
 	respA := calcResponseWithStatSources("Witch", map[string][]map[string]any{
 		"Life": {
-			{"source_type": "Item", "source_name": "Belly of the Beast", "mod_name": "Life", "mod_type": "INC", "value": 40.0},
+			{
+				"source_type": "Item",
+				"source_name": "Belly of the Beast",
+				"mod_name":    "Life",
+				"mod_type":    "INC",
+				"value":       40.0,
+			},
 		},
 	})
 	respB := calcResponseWithStatSources("Marauder", map[string][]map[string]any{
 		"Life": {
-			{"source_type": "Item", "source_name": "Belly of the Beast", "mod_name": "Life", "mod_type": "INC", "value": 40.0},
+			{
+				"source_type": "Item",
+				"source_name": "Belly of the Beast",
+				"mod_name":    "Life",
+				"mod_type":    "INC",
+				"value":       40.0,
+			},
 		},
 	})
 	srv, idA, idB := compareHarness(t, "<A/>", "<B/>", respA, respB)
@@ -86,12 +98,24 @@ func TestCompareModSourcesDiffMatchesNormalizedKeys(t *testing.T) {
 func TestCompareModSourcesDiffUniquePerBuild(t *testing.T) {
 	respA := calcResponseWithStatSources("Witch", map[string][]map[string]any{
 		"Life": {
-			{"source_type": "Tree", "source_name": "Cruel Preparation", "mod_name": "Life", "mod_type": "BASE", "value": 50.0},
+			{
+				"source_type": "Tree",
+				"source_name": "Cruel Preparation",
+				"mod_name":    "Life",
+				"mod_type":    "BASE",
+				"value":       50.0,
+			},
 		},
 	})
 	respB := calcResponseWithStatSources("Marauder", map[string][]map[string]any{
 		"Life": {
-			{"source_type": "Tree", "source_name": "Heart of the Warrior", "mod_name": "Life", "mod_type": "INC", "value": 30.0},
+			{
+				"source_type": "Tree",
+				"source_name": "Heart of the Warrior",
+				"mod_name":    "Life",
+				"mod_type":    "INC",
+				"value":       30.0,
+			},
 		},
 	})
 	srv, idA, idB := compareHarness(t, "<A/>", "<B/>", respA, respB)
@@ -149,7 +173,7 @@ func TestCompareModSourcesDiffOmittedWithoutModSourcesRequest(t *testing.T) {
 // Updated edge case: a row "shared by 2 of 3 with the third absent" is
 // NOT identical across all builds (one slot is nil) — it survives the
 // filter as a 2-vs-nil mismatch. The truly-filtered case is "same row
-// across ALL builds with no nils."
+// across ALL builds with no nils".
 func TestCompareModSourcesDiffN3(t *testing.T) {
 	shared := map[string]any{
 		"source_type": "Item", "source_name": "Belly of the Beast",

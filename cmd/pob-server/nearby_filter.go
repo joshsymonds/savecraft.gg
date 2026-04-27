@@ -82,6 +82,8 @@ func nearbyShouldEvaluateWithCategories(candidate *nearbyCandidate, radius int, 
 // taxonomy. ClusterNotable / ClusterSocket are PoB's strings for nodes
 // inside an allocated cluster jewel — kept in the public set so a
 // caller can drill specifically into cluster contents.
+//
+//nolint:gochecknoglobals // category taxonomy mirrors PoB's PassiveSpec node-type strings; immutable, used by request validators.
 var nearbyValidCategories = []string{
 	"Normal",
 	"Notable",
@@ -117,17 +119,17 @@ func validateNearbyCategories(input []string) (map[string]bool, error) {
 		known[k] = true
 	}
 	out := make(map[string]bool, len(input))
-	for _, c := range input {
-		if !known[c] {
+	for _, cat := range input {
+		if !known[cat] {
 			validList := make([]string, len(nearbyValidCategories))
 			copy(validList, nearbyValidCategories)
 			sort.Strings(validList)
 			return nil, fmt.Errorf(
 				"unknown category %q (valid: %s)",
-				c, strings.Join(validList, ", "),
+				cat, strings.Join(validList, ", "),
 			)
 		}
-		out[c] = true
+		out[cat] = true
 	}
 	return out, nil
 }

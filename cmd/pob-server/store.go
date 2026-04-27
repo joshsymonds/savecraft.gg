@@ -362,12 +362,17 @@ func (s *BuildStore) PutTradeStatsBatch(league string, rows []tradeStatsRow) err
 	defer stmt.Close()
 
 	for _, row := range rows {
-		if _, err := stmt.ExecContext(ctx, league, row.StrippedText, row.Category, row.TradeID, row.FetchedAt.Unix()); err != nil {
-			return fmt.Errorf("inserting trade_stats (%s, %q, %q): %w", league, row.StrippedText, row.Category, err)
+		_, err := stmt.ExecContext(
+			ctx, league, row.StrippedText, row.Category, row.TradeID, row.FetchedAt.Unix(),
+		)
+		if err != nil {
+			return fmt.Errorf(
+				"inserting trade_stats (%s, %q, %q): %w", league, row.StrippedText, row.Category, err,
+			)
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return err
+		return fmt.Errorf("commit trade_stats batch: %w", err)
 	}
 
 	// Refresh the in-memory cache for this league so /compare hits the

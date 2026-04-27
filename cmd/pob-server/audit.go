@@ -312,64 +312,108 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	// Split branch deltas back into the two scope arrays.
-	treeBranchDeltas, ascBranchDeltas := srv.splitBranchDeltas(
-		perturbEnvelope.Data.BranchDeltas, len(treeSelected), len(ascSelected),
-	)
-
-	// Build per-scope NodeTypes lookups for the rank step. The extract data
-	// has them keyed by id; we just reference the maps the extract response
-	// already gave us so dead-weight extraction can flag empty sockets.
-	// Cached per (buildID, scope) since the result is build-stable.
-	treeNodeTypes := srv.cachedScopeNodeTypes(req.BuildID, "tree", extractEnvelope.Data.Tree)
-	ascNodeTypes := srv.cachedScopeNodeTypes(req.BuildID, "asc", extractEnvelope.Data.Ascendancy)
-
-	// Rank each scope independently.
-	treeOut, treeDead, treeWeakest := auditRank(auditRankInput{
-		Branches:         treeSelected,
-		BranchDeltas:     treeBranchDeltas,
-		LeafDeltas:       perturbEnvelope.Data.SingleDeltas,
-		LeavesByBranchID: treeLeavesByBranch,
-		NodeTypes:        treeNodeTypes,
-		Adjacency:        treeAdj,
-		Metrics:          req.Metrics,
-		DeltaStats:       req.DeltaStats,
-		Sort:             req.Sort,
-		BranchLimit:      req.BranchLimit,
-		IncludeZero:      *req.IncludeZero,
+	tree, asc := srv.rankAuditScopes(auditRankPipelineInput{
+		req:                req,
+		extractEnvelope:    extractEnvelope,
+		perturbEnvelope:    perturbEnvelope,
+		treeSelected:       treeSelected,
+		ascSelected:        ascSelected,
+		treeAdj:            treeAdj,
+		ascAdj:             ascAdj,
+		treeLeavesByBranch: treeLeavesByBranch,
+		ascLeavesByBranch:  ascLeavesByBranch,
+		allowedCategories:  allowedCategories,
 	})
-	ascOut, ascDead, ascWeakest := auditRank(auditRankInput{
-		Branches:         ascSelected,
-		BranchDeltas:     ascBranchDeltas,
-		LeafDeltas:       perturbEnvelope.Data.SingleDeltas,
-		LeavesByBranchID: ascLeavesByBranch,
-		NodeTypes:        ascNodeTypes,
-		Adjacency:        ascAdj,
-		Metrics:          req.Metrics,
-		DeltaStats:       req.DeltaStats,
-		Sort:             req.Sort,
-		BranchLimit:      req.BranchLimit,
-		IncludeZero:      *req.IncludeZero,
-	})
-
-	// Apply category filter post-rank — drops branches whose terminal
-	// type isn't in the caller's allowlist. nil allowlist (default)
-	// passes everything through unchanged.
-	treeOut = filterAuditBranchesByCategory(treeOut, allowedCategories)
-	ascOut = filterAuditBranchesByCategory(ascOut, allowedCategories)
 
 	srv.writeAuditFinalResponse(writer, auditFinalInput{
 		Req:          req,
 		Baseline:     perturbEnvelope.Data.Baseline,
-		TreeBranches: treeOut,
-		AscBranches:  ascOut,
-		TreeDead:     treeDead,
-		AscDead:      ascDead,
+		TreeBranches: tree.branches,
+		AscBranches:  asc.branches,
+		TreeDead:     tree.dead,
+		AscDead:      asc.dead,
 		TreeTotal:    treeTotal,
 		AscTotal:     ascTotal,
-		TreeWeakest:  treeWeakest,
-		AscWeakest:   ascWeakest,
+		TreeWeakest:  tree.weakest,
+		AscWeakest:   asc.weakest,
 	})
+}
+
+// auditRankPipelineInput bundles the post-perturb rank work into one
+// param so handleAudit can hand off the long phase as a single call.
+type auditRankPipelineInput struct {
+	req                AuditRequest
+	extractEnvelope    auditExtractEnvelope
+	perturbEnvelope    auditPerturbEnvelope
+	treeSelected       []segmentBranch
+	ascSelected        []segmentBranch
+	treeAdj            map[int][]int
+	ascAdj             map[int][]int
+	treeLeavesByBranch map[string][]int
+	ascLeavesByBranch  map[string][]int
+	allowedCategories  map[string]bool
+}
+
+// auditRankResult is one scope's rank output.
+type auditRankResult struct {
+	branches []auditBranchResponse
+	dead     []deadWeightEntry
+	weakest  *string
+}
+
+// rankAuditScopes splits perturb deltas, builds the per-scope rank
+// inputs, runs auditRank for both scopes, and applies the category
+// filter. Extracted from handleAudit to keep the handler under the
+// funlen budget without losing the per-scope symmetry that makes the
+// rank phase readable.
+func (srv *Server) rankAuditScopes(in auditRankPipelineInput) (auditRankResult, auditRankResult) {
+	treeBranchDeltas, ascBranchDeltas := srv.splitBranchDeltas(
+		in.perturbEnvelope.Data.BranchDeltas, len(in.treeSelected), len(in.ascSelected),
+	)
+	// Build per-scope NodeTypes lookups for the rank step. Cached per
+	// (buildID, scope) since the result is build-stable.
+	treeNodeTypes := srv.cachedScopeNodeTypes(in.req.BuildID, "tree", in.extractEnvelope.Data.Tree)
+	ascNodeTypes := srv.cachedScopeNodeTypes(in.req.BuildID, "asc", in.extractEnvelope.Data.Ascendancy)
+
+	tree := scopeRank(in.req, in.treeSelected, treeBranchDeltas, in.perturbEnvelope.Data.SingleDeltas,
+		in.treeLeavesByBranch, treeNodeTypes, in.treeAdj)
+	asc := scopeRank(in.req, in.ascSelected, ascBranchDeltas, in.perturbEnvelope.Data.SingleDeltas,
+		in.ascLeavesByBranch, ascNodeTypes, in.ascAdj)
+
+	// Apply category filter post-rank — drops branches whose terminal
+	// type isn't in the caller's allowlist. nil allowlist (default)
+	// passes everything through unchanged.
+	tree.branches = filterAuditBranchesByCategory(tree.branches, in.allowedCategories)
+	asc.branches = filterAuditBranchesByCategory(asc.branches, in.allowedCategories)
+	return tree, asc
+}
+
+// scopeRank runs auditRank for one scope and packages the three return
+// values into auditRankResult so the caller can unpack symmetrically
+// for tree + ascendancy.
+func scopeRank(
+	req AuditRequest,
+	selected []segmentBranch,
+	branchDeltas []map[string]float64,
+	leafDeltas map[int]map[string]float64,
+	leavesByBranch map[string][]int,
+	nodeTypes map[int]string,
+	adj map[int][]int,
+) auditRankResult {
+	branches, dead, weakest := auditRank(auditRankInput{
+		Branches:         selected,
+		BranchDeltas:     branchDeltas,
+		LeafDeltas:       leafDeltas,
+		LeavesByBranchID: leavesByBranch,
+		NodeTypes:        nodeTypes,
+		Adjacency:        adj,
+		Metrics:          req.Metrics,
+		DeltaStats:       req.DeltaStats,
+		Sort:             req.Sort,
+		BranchLimit:      req.BranchLimit,
+		IncludeZero:      *req.IncludeZero,
+	})
+	return auditRankResult{branches: branches, dead: dead, weakest: weakest}
 }
 
 // filterAuditBranchesByCategory drops branches whose terminal type
@@ -401,10 +445,10 @@ func filterAuditBranchesByCategory(branches []auditBranchResponse, allowed map[s
 // the shared nearbyValidCategories taxonomy. Distinct from
 // validateNearbyCategories: empty input returns nil (no filter — pass
 // every branch through), not the historical default. The semantic is
-// "what to keep" rather than "what's eligible for evaluation."
+// "what to keep" rather than "what's eligible for evaluation".
 func validateAuditCategories(input []string) (map[string]bool, error) {
 	if len(input) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // intentional no-filter sentinel: nil map → "keep every branch"
 	}
 	// Reuse the shared validator's allowlist check; just discard its
 	// default-when-empty branch since we want nil for no-filter.
@@ -493,7 +537,10 @@ func (srv *Server) cachedScopeNodeTypes(buildID, scope string, data *auditExtrac
 	}
 	cacheKey := buildID + "|" + scope
 	if v, ok := srv.auditNodeTypesCache.Load(cacheKey); ok {
-		return v.(map[int]string)
+		// Type known: this map only ever stores map[int]string (Store
+		// at line 499 is the only writer).
+		cached, _ := v.(map[int]string)
+		return cached
 	}
 	out := scopeNodeTypes(data)
 	srv.auditNodeTypesCache.Store(cacheKey, out)

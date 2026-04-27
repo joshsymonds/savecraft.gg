@@ -31,10 +31,10 @@ func calcResponseWithStatSources(class string, statSources map[string][]map[stri
 // pulling in the full diffs/buySimilar surface.
 type compareRespWithStatSources struct {
 	Builds []struct {
-		ID          string                       `json:"id"`
-		Label       string                       `json:"label"`
-		StatSources map[string][]map[string]any  `json:"statSources"`
-		Error       string                       `json:"error"`
+		ID          string                      `json:"id"`
+		Label       string                      `json:"label"`
+		StatSources map[string][]map[string]any `json:"statSources"`
+		Error       string                      `json:"error"`
 	} `json:"builds"`
 }
 
@@ -54,13 +54,31 @@ func decodeCompareWithStatSources(t *testing.T, body []byte) compareRespWithStat
 func TestCompareWithModSourcesPopulatesPerBuildStatSources(t *testing.T) {
 	respA := calcResponseWithStatSources("Witch", map[string][]map[string]any{
 		"Life": {
-			{"source_type": "Tree", "source_name": "Cruel Preparation", "mod_name": "Life", "mod_type": "BASE", "value": 50.0},
-			{"source_type": "Item", "source_name": "Belly of the Beast", "mod_name": "Life", "mod_type": "INC", "value": 40.0},
+			{
+				"source_type": "Tree",
+				"source_name": "Cruel Preparation",
+				"mod_name":    "Life",
+				"mod_type":    "BASE",
+				"value":       50.0,
+			},
+			{
+				"source_type": "Item",
+				"source_name": "Belly of the Beast",
+				"mod_name":    "Life",
+				"mod_type":    "INC",
+				"value":       40.0,
+			},
 		},
 	})
 	respB := calcResponseWithStatSources("Marauder", map[string][]map[string]any{
 		"Life": {
-			{"source_type": "Tree", "source_name": "Heart of the Warrior", "mod_name": "Life", "mod_type": "INC", "value": 30.0},
+			{
+				"source_type": "Tree",
+				"source_name": "Heart of the Warrior",
+				"mod_name":    "Life",
+				"mod_type":    "INC",
+				"value":       30.0,
+			},
 		},
 	})
 	srv, idA, idB := compareHarness(t, "<A/>", "<B/>", respA, respB)

@@ -10,6 +10,36 @@ import (
 	"time"
 )
 
+// mustMap is a typed-assert helper that fails the test rather than
+// panicking. Used to cut the noise of `, ok` checks across the deep
+// trade-query envelope tests below.
+func mustMap(t *testing.T, v any, what string) map[string]any {
+	t.Helper()
+	m, ok := v.(map[string]any)
+	if !ok {
+		t.Fatalf("%s expected map[string]any, got %T (%v)", what, v, v)
+	}
+	return m
+}
+
+func mustSlice(t *testing.T, v any, what string) []any {
+	t.Helper()
+	s, ok := v.([]any)
+	if !ok {
+		t.Fatalf("%s expected []any, got %T (%v)", what, v, v)
+	}
+	return s
+}
+
+func mustFloat(t *testing.T, v any, what string) float64 {
+	t.Helper()
+	f, ok := v.(float64)
+	if !ok {
+		t.Fatalf("%s expected float64, got %T (%v)", what, v, v)
+	}
+	return f
+}
+
 // decodeTradeQueryFromURL parses the trade-search URL's q-parameter
 // payload into a generic map for assertion. Avoids re-marshaling
 // boilerplate in every filter test.
@@ -47,7 +77,7 @@ func TestModLineTemplateMatchesPoB(t *testing.T) {
 	}{
 		{"+90 to maximum Life", "+# to maximum Life"},
 		{"40% increased Spell Damage", "#% increased Spell Damage"},
-		{"+1.5 metres to Melee Range", "+# metres to Melee Range"},
+		{"+1.5 meters to Melee Range", "+# meters to Melee Range"},
 		{"Adds 10 to 50 Lightning Damage", "Adds # to # Lightning Damage"},
 		{"no numbers here", "no numbers here"},
 	}
@@ -72,30 +102,30 @@ func TestBuySimilarWithModFilterFromCache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	min := 90.0
+	minVal := 90.0
 	filters := &compareBuySimilarFilters{
 		Mods: []compareBuySimilarModFilter{
-			{ModText: "+90 to maximum Life", ModType: "Explicit", Min: &min},
+			{ModText: "+90 to maximum Life", ModType: "Explicit", Min: &minVal},
 		},
 	}
 	tradeURL := buildTradeURLWithFilters(srv, "Belly of the Beast", "Standard", filters)
 	q := decodeTradeQueryFromURL(t, tradeURL)
-	queryObj, _ := q["query"].(map[string]any)
-	stats, _ := queryObj["stats"].([]any)
+	queryObj := mustMap(t, q["query"], "query")
+	stats := mustSlice(t, queryObj["stats"], "stats")
 	if len(stats) == 0 {
 		t.Fatalf("expected stats group; got %+v", queryObj)
 	}
-	group := stats[0].(map[string]any)
-	innerFilters, _ := group["filters"].([]any)
+	group := mustMap(t, stats[0], "stats[0]")
+	innerFilters := mustSlice(t, group["filters"], "stats[0].filters")
 	if len(innerFilters) != 1 {
 		t.Fatalf("expected 1 mod filter, got %d: %+v", len(innerFilters), innerFilters)
 	}
-	entry := innerFilters[0].(map[string]any)
+	entry := mustMap(t, innerFilters[0], "stats[0].filters[0]")
 	if entry["id"] != "explicit.stat_5678" {
 		t.Errorf("filter id = %v, want explicit.stat_5678", entry["id"])
 	}
-	value := entry["value"].(map[string]any)
-	if value["min"].(float64) != 90.0 {
+	value := mustMap(t, entry["value"], "stats[0].filters[0].value")
+	if mustFloat(t, value["min"], "value.min") != 90.0 {
 		t.Errorf("filter value.min = %v, want 90", value["min"])
 	}
 }
@@ -115,27 +145,30 @@ func TestBuySimilarUsesQueryModsLookup(t *testing.T) {
 		// lowercases the caller's modType for this leg.
 		"+# to maximum Life|explicit": "explicit.stat_life_query_mods",
 	}
-	min := 90.0
+	minVal := 90.0
 	filters := &compareBuySimilarFilters{
 		Mods: []compareBuySimilarModFilter{
-			{ModText: "+90 to maximum Life", ModType: "Explicit", Min: &min},
+			{ModText: "+90 to maximum Life", ModType: "Explicit", Min: &minVal},
 		},
 	}
 	tradeURL := buildTradeURLWithFilters(srv, "Belly", "Standard", filters)
 	q := decodeTradeQueryFromURL(t, tradeURL)
-	queryObj, _ := q["query"].(map[string]any)
-	stats, _ := queryObj["stats"].([]any)
+	queryObj := mustMap(t, q["query"], "query")
+	stats := mustSlice(t, queryObj["stats"], "stats")
 	if len(stats) == 0 {
 		t.Fatalf("expected stats group; got %+v", queryObj)
 	}
-	group := stats[0].(map[string]any)
-	innerFilters, _ := group["filters"].([]any)
+	group := mustMap(t, stats[0], "stats[0]")
+	innerFilters := mustSlice(t, group["filters"], "stats[0].filters")
 	if len(innerFilters) != 1 {
 		t.Fatalf("expected 1 mod filter resolved via QueryMods, got %d: %+v", len(innerFilters), innerFilters)
 	}
-	entry := innerFilters[0].(map[string]any)
+	entry := mustMap(t, innerFilters[0], "stats[0].filters[0]")
 	if entry["id"] != "explicit.stat_life_query_mods" {
-		t.Errorf("filter id = %v, want explicit.stat_life_query_mods (from QueryMods, not trade_stats cache)", entry["id"])
+		t.Errorf(
+			"filter id = %v, want explicit.stat_life_query_mods (from QueryMods, not trade_stats cache)",
+			entry["id"],
+		)
 	}
 }
 
@@ -144,18 +177,18 @@ func TestBuySimilarUsesQueryModsLookup(t *testing.T) {
 // still emits with the rest of the filters intact.
 func TestBuySimilarFiltersUnknownModSkipped(t *testing.T) {
 	srv := newTestServer(t)
-	min := 30.0
+	minVal := 30.0
 	filters := &compareBuySimilarFilters{
 		Mods: []compareBuySimilarModFilter{
-			{ModText: "+30 unknown mod with no trade ID", ModType: "Explicit", Min: &min},
+			{ModText: "+30 unknown mod with no trade ID", ModType: "Explicit", Min: &minVal},
 		},
 	}
 	tradeURL := buildTradeURLWithFilters(srv, "X", "Standard", filters)
 	q := decodeTradeQueryFromURL(t, tradeURL)
-	queryObj, _ := q["query"].(map[string]any)
-	stats, _ := queryObj["stats"].([]any)
-	group := stats[0].(map[string]any)
-	innerFilters, _ := group["filters"].([]any)
+	queryObj := mustMap(t, q["query"], "query")
+	stats := mustSlice(t, queryObj["stats"], "stats")
+	group := mustMap(t, stats[0], "stats[0]")
+	innerFilters := mustSlice(t, group["filters"], "stats[0].filters")
 	if len(innerFilters) != 0 {
 		t.Errorf("unknown mod should be silently dropped, got %d entries: %+v", len(innerFilters), innerFilters)
 	}
@@ -170,15 +203,16 @@ func TestBuySimilarWithDefenceRange(t *testing.T) {
 	}
 	tradeURL := buildTradeURLWithFilters(srv, "Belly", "Standard", filters)
 	q := decodeTradeQueryFromURL(t, tradeURL)
-	queryObj, _ := q["query"].(map[string]any)
-	queryFilters, _ := queryObj["filters"].(map[string]any)
-	armourGroup, ok := queryFilters["armour_filters"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected armour_filters; got %+v", queryFilters)
-	}
-	innerArmour := armourGroup["filters"].(map[string]any)["armour"].(map[string]any)
-	if innerArmour["min"].(float64) != 800.0 {
-		t.Errorf("armour min = %v, want 800", innerArmour["min"])
+	queryObj := mustMap(t, q["query"], "query")
+	queryFilters := mustMap(t, queryObj["filters"], "query.filters")
+	armourGroup := mustMap(t, queryFilters["armour_filters"], "armour_filters")
+	armourInner := mustMap(
+		t,
+		mustMap(t, armourGroup["filters"], "armour_filters.filters")["armour"],
+		"armour_filters.filters.armour",
+	)
+	if mustFloat(t, armourInner["min"], "armour.min") != 800.0 {
+		t.Errorf("armour min = %v, want 800", armourInner["min"])
 	}
 }
 
@@ -191,9 +225,10 @@ func TestBuySimilarWithItemLevelRange(t *testing.T) {
 	}
 	tradeURL := buildTradeURLWithFilters(srv, "X", "Standard", filters)
 	q := decodeTradeQueryFromURL(t, tradeURL)
-	queryFilters := q["query"].(map[string]any)["filters"].(map[string]any)
-	misc := queryFilters["misc_filters"].(map[string]any)["filters"].(map[string]any)["ilvl"].(map[string]any)
-	if misc["min"].(float64) != 84 || misc["max"].(float64) != 86 {
+	queryFilters := mustMap(t, mustMap(t, q["query"], "query")["filters"], "query.filters")
+	miscGroup := mustMap(t, queryFilters["misc_filters"], "misc_filters")
+	misc := mustMap(t, mustMap(t, miscGroup["filters"], "misc_filters.filters")["ilvl"], "misc_filters.filters.ilvl")
+	if mustFloat(t, misc["min"], "ilvl.min") != 84 || mustFloat(t, misc["max"], "ilvl.max") != 86 {
 		t.Errorf("ilvl filter = %+v, want {min:84, max:86}", misc)
 	}
 }
@@ -208,7 +243,7 @@ func TestBuySimilarRealmAndListed(t *testing.T) {
 		t.Errorf("URL missing realm path /trade/search/sony/Standard; got %s", tradeURL)
 	}
 	q := decodeTradeQueryFromURL(t, tradeURL)
-	status := q["query"].(map[string]any)["status"].(map[string]any)
+	status := mustMap(t, mustMap(t, q["query"], "query")["status"], "query.status")
 	if status["option"] != "any" {
 		t.Errorf("status option = %v, want any", status["option"])
 	}

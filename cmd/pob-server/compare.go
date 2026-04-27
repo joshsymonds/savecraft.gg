@@ -19,19 +19,21 @@ import (
 // recommendations covering gear slots where one build has an item the
 // other lacks (or has a different one). League selects the trade
 // realm; defaults to "Standard" when omitted.
+//
+//nolint:tagliatelle // buy_similar_filters: snake_case wire contract with the MCP layer (matches the LLM-facing param name).
 type CompareRequest struct {
-	Builds             []string                  `json:"builds"`
-	Labels             []string                  `json:"labels,omitempty"`
-	BuySimilar         bool                      `json:"buySimilar,omitempty"`
-	League             string                    `json:"league,omitempty"`
-	BuySimilarFilters  *compareBuySimilarFilters `json:"buy_similar_filters,omitempty"`
-	ModSources         []string                  `json:"modSources,omitempty"`
-	ModSourcesLimit    int                       `json:"modSourcesLimit,omitempty"`
+	Builds            []string                  `json:"builds"`
+	Labels            []string                  `json:"labels,omitempty"`
+	BuySimilar        bool                      `json:"buySimilar,omitempty"`
+	League            string                    `json:"league,omitempty"`
+	BuySimilarFilters *compareBuySimilarFilters `json:"buy_similar_filters,omitempty"`
+	ModSources        []string                  `json:"modSources,omitempty"`
+	ModSourcesLimit   int                       `json:"modSourcesLimit,omitempty"`
 }
 
 // compareBuySimilarFilters narrows the buy_similar trade-search URLs
 // from "find any item with this name" to the actual constraints the
-// LLM cares about — per-mod thresholds, defence ranges, item-level,
+// LLM cares about — per-mod thresholds, defense ranges, item-level,
 // realm + listed status. Mirrors PoB's CompareBuySimilar buildURL
 // inputs.
 //
@@ -39,6 +41,8 @@ type CompareRequest struct {
 // callers without a refreshed cache for the chosen league get URLs
 // with the non-mod filters applied and the mod entries silently
 // dropped — preferable to either an error or a 5xx.
+//
+//nolint:tagliatelle // snake_case wire contract with the MCP layer (matches PoE trade-API JSON keys + LLM-facing param names).
 type compareBuySimilarFilters struct {
 	Mods            []compareBuySimilarModFilter `json:"mods,omitempty"`
 	ArmourMin       int                          `json:"armour_min,omitempty"`
@@ -54,6 +58,8 @@ type compareBuySimilarFilters struct {
 // compareBuySimilarModFilter is one mod-level constraint. Min/Max are
 // pointers so JSON null distinguishes "no constraint" from "value is
 // zero" — important for damage modifiers where 0 is a real threshold.
+//
+//nolint:tagliatelle // mod_text / mod_type: snake_case wire contract with the MCP layer.
 type compareBuySimilarModFilter struct {
 	ModText string   `json:"mod_text"`
 	ModType string   `json:"mod_type,omitempty"`
@@ -63,39 +69,48 @@ type compareBuySimilarModFilter struct {
 
 // validBuySimilarRealms / validBuySimilarListed cap the wire-format
 // inputs to PoB's known set. Unknown values rejected at the handler.
+//
+//nolint:gochecknoglobals // small allowlist (4 elements) used by request validation; constant-shaped, no mutation.
 var validBuySimilarRealms = map[string]bool{"": true, "pc": true, "sony": true, "xbox": true}
-var validBuySimilarListed = map[string]bool{"": true, "available": true, "securable": true, "online": true, "any": true}
 
-// validateBuySimilarFilters applies the realm/listed/ilvl/defence
+//nolint:gochecknoglobals // small allowlist (5 elements) used by request validation; constant-shaped, no mutation.
+var validBuySimilarListed = map[string]bool{
+	"": true, "available": true, "securable": true, "online": true, "any": true,
+}
+
+// validateBuySimilarFilters applies the realm/listed/ilvl/defense
 // guards and returns the first violation as a clear error. Nil
 // filters → nil error (no-op for callers that don't set the field).
-func validateBuySimilarFilters(f *compareBuySimilarFilters) error {
-	if f == nil {
+func validateBuySimilarFilters(filters *compareBuySimilarFilters) error {
+	if filters == nil {
 		return nil
 	}
-	if !validBuySimilarRealms[f.Realm] {
-		return fmt.Errorf("buy_similar_filters.realm %q invalid (valid: pc, sony, xbox)", f.Realm)
+	if !validBuySimilarRealms[filters.Realm] {
+		return fmt.Errorf("buy_similar_filters.realm %q invalid (valid: pc, sony, xbox)", filters.Realm)
 	}
-	if !validBuySimilarListed[f.Listed] {
-		return fmt.Errorf("buy_similar_filters.listed %q invalid (valid: available, securable, online, any)", f.Listed)
+	if !validBuySimilarListed[filters.Listed] {
+		return fmt.Errorf(
+			"buy_similar_filters.listed %q invalid (valid: available, securable, online, any)",
+			filters.Listed,
+		)
 	}
-	if f.IlvlMin < 0 || f.IlvlMin > 100 {
-		return fmt.Errorf("buy_similar_filters.ilvl_min %d out of range 0-100", f.IlvlMin)
+	if filters.IlvlMin < 0 || filters.IlvlMin > 100 {
+		return fmt.Errorf("buy_similar_filters.ilvl_min %d out of range 0-100", filters.IlvlMin)
 	}
-	if f.IlvlMax < 0 || f.IlvlMax > 100 {
-		return fmt.Errorf("buy_similar_filters.ilvl_max %d out of range 0-100", f.IlvlMax)
+	if filters.IlvlMax < 0 || filters.IlvlMax > 100 {
+		return fmt.Errorf("buy_similar_filters.ilvl_max %d out of range 0-100", filters.IlvlMax)
 	}
-	if f.IlvlMax > 0 && f.IlvlMin > f.IlvlMax {
-		return fmt.Errorf("buy_similar_filters.ilvl_min %d > ilvl_max %d", f.IlvlMin, f.IlvlMax)
+	if filters.IlvlMax > 0 && filters.IlvlMin > filters.IlvlMax {
+		return fmt.Errorf("buy_similar_filters.ilvl_min %d > ilvl_max %d", filters.IlvlMin, filters.IlvlMax)
 	}
 	for _, name := range []struct {
 		name string
 		val  int
 	}{
-		{"armour_min", f.ArmourMin},
-		{"evasion_min", f.EvasionMin},
-		{"energy_shield_min", f.EnergyShieldMin},
-		{"ward_min", f.WardMin},
+		{"armour_min", filters.ArmourMin},
+		{"evasion_min", filters.EvasionMin},
+		{"energy_shield_min", filters.EnergyShieldMin},
+		{"ward_min", filters.WardMin},
 	} {
 		if name.val < 0 {
 			return fmt.Errorf("buy_similar_filters.%s %d must be non-negative", name.name, name.val)
@@ -158,12 +173,12 @@ type compareBuySimilarEntry struct {
 // dimension's entries carry perBuild arrays or set-op results, never a
 // 2-build-only field.
 type compareDiffs struct {
-	Summary    map[string]compareStatDiff               `json:"summary,omitempty"`
-	Tree       *compareTreeDiff                         `json:"tree,omitempty"`
-	Gear       map[string]compareSlotDiff               `json:"gear,omitempty"`
-	Skills     []compareSocketGroupDiff                 `json:"skills,omitempty"`
-	Config     []compareConfigDiffEntry                 `json:"config,omitempty"`
-	ModSources map[string][]compareModSourceDiffEntry   `json:"modSources,omitempty"`
+	Summary    map[string]compareStatDiff             `json:"summary,omitempty"`
+	Tree       *compareTreeDiff                       `json:"tree,omitempty"`
+	Gear       map[string]compareSlotDiff             `json:"gear,omitempty"`
+	Skills     []compareSocketGroupDiff               `json:"skills,omitempty"`
+	Config     []compareConfigDiffEntry               `json:"config,omitempty"`
+	ModSources map[string][]compareModSourceDiffEntry `json:"modSources,omitempty"`
 }
 
 // compareModSourceDiffEntry is one row of the per-stat modifier-source
@@ -179,6 +194,8 @@ type compareDiffs struct {
 // Same-row entries (where every build agrees on source_name + value)
 // are filtered server-side — the diff surfaces divergences, not common
 // state, matching the config-diff precedent.
+//
+//nolint:tagliatelle // source_type / mod_type: snake_case wire contract emitted by wrapper.lua and surfaced through the MCP layer.
 type compareModSourceDiffEntry struct {
 	Key        string                       `json:"key"`
 	SourceType string                       `json:"source_type"`
@@ -189,6 +206,8 @@ type compareModSourceDiffEntry struct {
 // compareModSourceCellValue is the per-build cell within one diff
 // entry. Source_name + value can vary even when the normalized key
 // matches — different items of the same name with different rolls.
+//
+//nolint:tagliatelle // source_name / mod_name: snake_case wire contract emitted by wrapper.lua.
 type compareModSourceCellValue struct {
 	SourceName string  `json:"source_name"`
 	ModName    string  `json:"mod_name"`
@@ -202,6 +221,8 @@ type compareModSourceCellValue struct {
 // ModRowKey is computed by wrapper.lua via PoB's own
 // compareCalcsHelpers.ModRowKey() — Go preserves the value rather than
 // reconstructing it, so PoB owns the matching contract end-to-end.
+//
+//nolint:tagliatelle // snake_case fields are the wrapper.lua emit contract; matching keys keep the decoder lossless.
 type statSourceRow struct {
 	SourceType string  `json:"source_type"`
 	SourceName string  `json:"source_name"`
@@ -363,63 +384,12 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 	}
 	request.Body = http.MaxBytesReader(writer, request.Body, maxRequestBodySize)
 
-	var req CompareRequest
-	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
-		jsonError(writer, "invalid JSON body", http.StatusBadRequest)
-		return
-	}
-	if len(req.Builds) == 0 {
-		jsonError(writer, "builds array is required", http.StatusBadRequest)
-		return
-	}
-	if len(req.Builds) < 2 {
-		jsonError(writer, "compare needs at least 2 builds", http.StatusBadRequest)
-		return
-	}
-	if len(req.Builds) > maxCompareBuilds {
-		jsonError(writer, "compare accepts at most 8 builds per request", http.StatusBadRequest)
+	req, statSources, ok := decodeAndValidateCompareRequest(writer, request)
+	if !ok {
 		return
 	}
 
-	statSources, err := validateAndBuildStatSourcesField(req.ModSources, req.ModSourcesLimit)
-	if err != nil {
-		jsonError(writer, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if req.BuySimilarFilters != nil && !req.BuySimilar {
-		jsonError(writer,
-			"buy_similar_filters set without buySimilar=true (filters would be silently ignored — set both or neither)",
-			http.StatusBadRequest)
-		return
-	}
-	if err := validateBuySimilarFilters(req.BuySimilarFilters); err != nil {
-		jsonError(writer, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Run per-build calc in parallel. Pool affinity still works under
-	// fan-out — each worker pins its own build_id. Cap concurrency at
-	// `pool.maxSize - 1` (with a floor of 1) so /compare never claims
-	// the entire pool and starves /resolve / /modify / /audit / /nearby
-	// with ErrPoolExhausted during a max-size compare. Per-build errors
-	// live on entry.Error; the goroutines themselves never return one.
-	resp := CompareResponse{Builds: make([]compareBuildEntry, len(req.Builds))}
-	compareSlots := max(1, srv.pool.maxSize-1)
-	concurrency := min(len(req.Builds), compareSlots)
-	sem := make(chan struct{}, concurrency)
-	var wg sync.WaitGroup
-	for i, input := range req.Builds {
-		wg.Add(1)
-		sem <- struct{}{}
-		go func() {
-			defer wg.Done()
-			defer func() { <-sem }()
-			resp.Builds[i] = srv.compareOneBuild(input, labelFor(req.Labels, i, input), statSources)
-		}()
-	}
-	wg.Wait()
-
+	resp := CompareResponse{Builds: srv.runCompareCalcs(req, statSources)}
 	successes := 0
 	for _, entry := range resp.Builds {
 		if entry.Error == "" {
@@ -453,6 +423,78 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(status)
 	_ = json.NewEncoder(writer).Encode(resp)
+}
+
+// decodeAndValidateCompareRequest decodes the /compare request body and
+// runs every short-circuit validation. Returns (req, statSources, true)
+// on success; on failure writes the 400 and returns (zero, nil, false).
+func decodeAndValidateCompareRequest(
+	writer http.ResponseWriter, request *http.Request,
+) (CompareRequest, *calcLuaStatSourcesField, bool) {
+	var req CompareRequest
+	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+		jsonError(writer, "invalid JSON body", http.StatusBadRequest)
+		return req, nil, false
+	}
+	if msg := validateCompareBuildsCardinality(req.Builds); msg != "" {
+		jsonError(writer, msg, http.StatusBadRequest)
+		return req, nil, false
+	}
+	statSources, err := validateAndBuildStatSourcesField(req.ModSources, req.ModSourcesLimit)
+	if err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return req, nil, false
+	}
+	if req.BuySimilarFilters != nil && !req.BuySimilar {
+		jsonError(writer,
+			"buy_similar_filters set without buySimilar=true (filters would be silently ignored — set both or neither)",
+			http.StatusBadRequest)
+		return req, nil, false
+	}
+	if err := validateBuySimilarFilters(req.BuySimilarFilters); err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return req, nil, false
+	}
+	return req, statSources, true
+}
+
+// validateCompareBuildsCardinality checks the build-list size invariants;
+// returns a user-facing error string when one is violated, "" otherwise.
+func validateCompareBuildsCardinality(builds []string) string {
+	switch {
+	case len(builds) == 0:
+		return "builds array is required"
+	case len(builds) < 2:
+		return "compare needs at least 2 builds"
+	case len(builds) > maxCompareBuilds:
+		return "compare accepts at most 8 builds per request"
+	}
+	return ""
+}
+
+// runCompareCalcs fans out per-build calc requests in parallel. Pool
+// affinity still works under fan-out — each worker pins its own
+// build_id. Cap concurrency at `pool.maxSize - 1` (with a floor of 1)
+// so /compare never claims the entire pool and starves the other
+// endpoints. Per-build errors live on entry.Error; the goroutines
+// themselves never return one.
+func (srv *Server) runCompareCalcs(req CompareRequest, statSources *calcLuaStatSourcesField) []compareBuildEntry {
+	out := make([]compareBuildEntry, len(req.Builds))
+	compareSlots := max(1, srv.pool.maxSize-1)
+	concurrency := min(len(req.Builds), compareSlots)
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+	for i, input := range req.Builds {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			out[i] = srv.compareOneBuild(input, labelFor(req.Labels, i, input), statSources)
+		}()
+	}
+	wg.Wait()
+	return out
 }
 
 // compareOneBuild resolves a single builds[i] entry — either an existing
@@ -676,7 +718,8 @@ func computeCompareDiffs(entries []compareBuildEntry) *compareDiffs {
 	skills := computeSkillsDiff(successful)
 	config := computeConfigDiff(successful)
 	modSources := computeModSourcesDiff(successful)
-	if len(summary) == 0 && tree == nil && len(gear) == 0 && len(skills) == 0 && len(config) == 0 && len(modSources) == 0 {
+	if len(summary) == 0 && tree == nil && len(gear) == 0 && len(skills) == 0 && len(config) == 0 &&
+		len(modSources) == 0 {
 		return nil
 	}
 	return &compareDiffs{
@@ -851,43 +894,13 @@ func computeConfigDiff(successful []compareBuildEntry) []compareConfigDiffEntry 
 	if len(successful) < 2 {
 		return nil
 	}
-	keys := make(map[string]bool)
-	for _, entry := range successful {
-		for key := range entry.config {
-			keys[key] = true
-		}
-	}
-	if len(keys) == 0 {
+	sortedKeys := collectSortedConfigKeys(successful)
+	if len(sortedKeys) == 0 {
 		return nil
 	}
-	sortedKeys := make([]string, 0, len(keys))
-	for key := range keys {
-		sortedKeys = append(sortedKeys, key)
-	}
-	sort.Strings(sortedKeys)
-
 	out := make([]compareConfigDiffEntry, 0, len(sortedKeys))
 	for _, key := range sortedKeys {
-		perBuild := make([]any, len(successful))
-		same := true
-		var first any
-		hasFirst := false
-		for i, entry := range successful {
-			val, present := entry.config[key]
-			if !present {
-				perBuild[i] = nil
-			} else {
-				perBuild[i] = val
-			}
-			if !hasFirst {
-				first = perBuild[i]
-				hasFirst = true
-				continue
-			}
-			if !reflect.DeepEqual(perBuild[i], first) {
-				same = false
-			}
-		}
+		perBuild, same := buildConfigPerBuildRow(successful, key)
 		if same {
 			continue
 		}
@@ -897,6 +910,51 @@ func computeConfigDiff(successful []compareBuildEntry) []compareConfigDiffEntry 
 		return nil
 	}
 	return out
+}
+
+// collectSortedConfigKeys returns the union of all config keys across
+// the successful builds, sorted for deterministic diff output.
+func collectSortedConfigKeys(successful []compareBuildEntry) []string {
+	keys := make(map[string]bool)
+	for _, entry := range successful {
+		for key := range entry.config {
+			keys[key] = true
+		}
+	}
+	sortedKeys := make([]string, 0, len(keys))
+	for key := range keys {
+		sortedKeys = append(sortedKeys, key)
+	}
+	sort.Strings(sortedKeys)
+	return sortedKeys
+}
+
+// buildConfigPerBuildRow extracts the per-build values for one config
+// key (nil where the key is absent) and reports whether every cell
+// agrees. Same-cell rows are filtered out by the caller — the diff
+// surfaces divergences, not common state.
+func buildConfigPerBuildRow(successful []compareBuildEntry, key string) ([]any, bool) {
+	perBuild := make([]any, len(successful))
+	same := true
+	var first any
+	hasFirst := false
+	for i, entry := range successful {
+		val, present := entry.config[key]
+		if !present {
+			perBuild[i] = nil
+		} else {
+			perBuild[i] = val
+		}
+		if !hasFirst {
+			first = perBuild[i]
+			hasFirst = true
+			continue
+		}
+		if !reflect.DeepEqual(perBuild[i], first) {
+			same = false
+		}
+	}
+	return perBuild, same
 }
 
 // computeTreeDiff produces the per-build allocated-node set ops. Returns
@@ -1384,7 +1442,7 @@ func buildTradeURL(itemName, league string) string {
 
 // buildTradeURLWithFilters constructs a trade URL with the full filter
 // envelope: per-mod constraints (resolved via the trade_stats cache),
-// defence-stat ranges, item-level range, realm + listed status.
+// defense-stat ranges, item-level range, realm + listed status.
 // Callers MUST pass a non-nil filters; the legacy nil-filter path lives
 // at buildTradeURL and is selected by the (single) production call site
 // in buySimilarPairsForSlotWithFilters before this function is invoked.
