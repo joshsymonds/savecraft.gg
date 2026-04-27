@@ -106,6 +106,7 @@ export const buildPlannerModule: NativeReferenceModule = {
     "When narrating /compare gear diffs, filter to slots where modsSame is false — modsSame:true means no mechanical divergence even when nameSame:false (rare reroll, RELIC/UNIQUE foil flag), so those slots add noise without insight. " +
     "Each compared socket group carries mainGemLinkCount (link count of the main gem's socket), hostItemMaxLink (largest link on the host item), and hostItemName — read these directly to answer \"is this skill 6-linked?\" instead of re-correlating with sections.gear.items by slot. " +
     "diffs.tree.allocatedOnlyIn is an array indexed parallel to builds[]; failed builds get [] at their index — index by build position, not buildId. " +
+    "Config keys prefixed multiplier (e.g. multiplierRage, multiplierWitheredStackCount, multiplierFrenzyCharges) are user-set knobs the calc reads as inputs; the resulting runtime stats live in offense/defense (Rage, WitherEffect, FrenzyCharges) and may be cap-clamped against gear-derived maxima. Read the runtime stat in offense/defense for the post-calc effect — the config value is what was requested, not what's being applied. " +
     "Every response includes a buildId for follow-up calls.",
   parameters: {
     build: {

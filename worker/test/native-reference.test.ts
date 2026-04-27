@@ -419,6 +419,32 @@ describe("PoE module descriptions provide preventive guidance", () => {
     expect(desc).toMatch(/parallel to builds/i);
   });
 
+  it("build_planner documents multiplierX → runtime stat reconciliation", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const desc = buildPlannerModule.description;
+
+    // Generalized framing: any config key prefixed `multiplier` is a
+    // user-set knob, not the post-calc effect. Without this, the LLM
+    // hedged on "Rage at max ≈ +40% more" because it couldn't tell
+    // whether multiplierRage:50 vs Rage:40 meant 50 was being applied
+    // or clamped down.
+    expect(desc).toContain("multiplier");
+
+    // Concrete example so the AI can pattern-match the exact key it
+    // sees in production /compare responses, not just a category name.
+    expect(desc).toContain("multiplierRage");
+
+    // Cap-clamping language locks the runtime-vs-input distinction.
+    // A future edit can't drop the relationship without breaking this
+    // assertion. Accept any of the common phrasings.
+    expect(desc).toMatch(/cap-clamped|clamp|maximum|max/i);
+
+    // Instruct the AI to read the runtime stat (in offense/defense)
+    // for the post-calc effect. Phrasing varies but the keywords pin
+    // the directive — "runtime" is the load-bearing word.
+    expect(desc).toMatch(/runtime/i);
+  });
+
   it("gem_search names itself as canonical source for build_planner gem ops", async () => {
     const { gemSearchModule } = await import("../../plugins/poe/reference/gem-search");
     const desc = gemSearchModule.description;
