@@ -62,6 +62,10 @@ jobs:
       - name: Install luajit
         run: sudo apt-get update && sudo apt-get install -y luajit
 
+      - name: Clone PoB v2.65.0 (tree-data extractor needs PoB's tree.lua + bundled dkjson)
+        run: git clone --depth 1 --branch v2.65.0 https://github.com/PathOfBuildingCommunity/PathOfBuilding.git .reference/pob
+        working-directory: .
+
       - name: Generate manifests
         run: just build-manifests
         working-directory: .
@@ -246,6 +250,10 @@ jobs:
 
       - name: Install luajit
         run: sudo apt-get update && sudo apt-get install -y luajit
+
+      - name: Clone PoB v2.65.0 (tree-data extractor needs PoB's tree.lua + bundled dkjson)
+        run: git clone --depth 1 --branch v2.65.0 https://github.com/PathOfBuildingCommunity/PathOfBuilding.git .reference/pob
+        working-directory: .
 
       - name: Generate manifests
         run: just build-manifests
