@@ -17,6 +17,22 @@ import (
 // ErrBuildNotFound is returned when a build ID is not in the store.
 var ErrBuildNotFound = errors.New("build not found")
 
+// wrapperSchemaVersion stamps cached BuildStore entries so that
+// wrapper.lua emission shape changes auto-invalidate pre-existing rows.
+// BuildStore.Put writes this value on every insert/upsert; BuildStore.Get
+// returns ErrBuildNotFound for rows whose stored version doesn't match.
+//
+// BUMP THIS WHENEVER the JSON shape wrapper.lua emits in `data` (or any
+// subkey hydrateEntryFromData reads — character, summary, sections.tree,
+// sections.items, sections.socketGroups, sections.config, statSources)
+// changes in a way that would make old cached rows return wrong-shape
+// responses to /compare or /modify cache hits. The constant only goes
+// up; existing rows below current auto-invalidate, which is the point.
+//
+// Pre-migration rows have wrapper_schema_version=0 (column default), so
+// any current >= 1 invalidates them on first read post-deploy.
+const wrapperSchemaVersion = 1
+
 // BuildMeta holds non-content metadata for a stored build.
 type BuildMeta struct {
 	SourceURL  string
@@ -47,7 +63,8 @@ CREATE TABLE IF NOT EXISTS builds (
 	source_url  TEXT NOT NULL DEFAULT '',
 	parent_id   TEXT NOT NULL DEFAULT '',
 	created_at  INTEGER NOT NULL,
-	accessed_at INTEGER NOT NULL
+	accessed_at INTEGER NOT NULL,
+	wrapper_schema_version INTEGER NOT NULL DEFAULT 0
 );
 
 -- Delta cache for per-node perturbation results. Keyed by
@@ -106,10 +123,57 @@ func NewBuildStore(dbPath string) (*BuildStore, error) {
 		return nil, fmt.Errorf("creating schema: %w", err)
 	}
 
+	// Idempotent migration: existing DBs (pre-version-stamping) need the
+	// wrapper_schema_version column added. PRAGMA table_info introspects
+	// the live schema; ALTER TABLE ADD COLUMN with a NOT NULL DEFAULT is
+	// atomic in SQLite and back-fills existing rows with the default.
+	if err := ensureWrapperSchemaVersionColumn(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("ensuring wrapper_schema_version column: %w", err)
+	}
+
 	return &BuildStore{
 		db:            db,
 		tradeStatsMem: make(map[string]map[string]string),
 	}, nil
+}
+
+// ensureWrapperSchemaVersionColumn adds the wrapper_schema_version
+// column to the builds table if it's missing. Idempotent — safe to call
+// on every startup; no-op when the column already exists. Existing rows
+// receive the default value (0), which auto-invalidates against any
+// current wrapperSchemaVersion >= 1.
+func ensureWrapperSchemaVersionColumn(db *sql.DB) error {
+	rows, err := db.QueryContext(context.Background(), "PRAGMA table_info(builds)")
+	if err != nil {
+		return fmt.Errorf("PRAGMA table_info: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			ctype      string
+			notnull    int
+			dfltValue  sql.NullString
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &primaryKey); err != nil {
+			return fmt.Errorf("scan column info: %w", err)
+		}
+		if name == "wrapper_schema_version" {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate column info: %w", err)
+	}
+	if _, err := db.ExecContext(context.Background(),
+		"ALTER TABLE builds ADD COLUMN wrapper_schema_version INTEGER NOT NULL DEFAULT 0",
+	); err != nil {
+		return fmt.Errorf("ALTER TABLE: %w", err)
+	}
+	return nil
 }
 
 // tradeStatsMemKey is the per-league memcache lookup key.
@@ -117,18 +181,21 @@ func tradeStatsMemKey(category, strippedText string) string {
 	return category + "|" + strippedText
 }
 
-// Put stores a build. If the ID already exists, summary/source_url/parent_id are updated.
+// Put stores a build. If the ID already exists, summary/source_url/parent_id
+// and wrapper_schema_version are updated. Always stamps the row with the
+// current wrapperSchemaVersion so re-storing a stale row upgrades it.
 func (s *BuildStore) Put(id, xml, summary, sourceURL, parentID string) error {
 	now := time.Now().Unix()
 	_, err := s.db.ExecContext(context.Background(), `
-		INSERT INTO builds (id, xml, summary, source_url, parent_id, created_at, accessed_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO builds (id, xml, summary, source_url, parent_id, created_at, accessed_at, wrapper_schema_version)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			summary = excluded.summary,
 			source_url = CASE WHEN excluded.source_url = '' THEN builds.source_url ELSE excluded.source_url END,
 			parent_id = CASE WHEN excluded.parent_id = '' THEN builds.parent_id ELSE excluded.parent_id END,
-			accessed_at = excluded.accessed_at
-	`, id, xml, summary, sourceURL, parentID, now, now)
+			accessed_at = excluded.accessed_at,
+			wrapper_schema_version = excluded.wrapper_schema_version
+	`, id, xml, summary, sourceURL, parentID, now, now, wrapperSchemaVersion)
 	if err != nil {
 		return fmt.Errorf("storing build %s: %w", id, err)
 	}
@@ -136,11 +203,17 @@ func (s *BuildStore) Put(id, xml, summary, sourceURL, parentID string) error {
 }
 
 // Get retrieves a build's XML and summary by ID, updating accessed_at.
-// Returns ErrBuildNotFound if the ID doesn't exist.
+// Returns ErrBuildNotFound if the ID doesn't exist OR the stored row's
+// wrapper_schema_version doesn't match the current constant. Stale-version
+// rows are invisible to readers; the caller falls through to a fresh calc
+// path and a subsequent Put rewrites the row with the current version.
 func (s *BuildStore) Get(id string) (xml string, summary string, err error) {
 	ctx := context.Background()
 	now := time.Now().Unix()
-	err = s.db.QueryRowContext(ctx, "SELECT xml, summary FROM builds WHERE id = ?", id).Scan(&xml, &summary)
+	err = s.db.QueryRowContext(ctx,
+		"SELECT xml, summary FROM builds WHERE id = ? AND wrapper_schema_version = ?",
+		id, wrapperSchemaVersion,
+	).Scan(&xml, &summary)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", ErrBuildNotFound
 	}
