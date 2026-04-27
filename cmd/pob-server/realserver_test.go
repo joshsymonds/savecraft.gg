@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+// Note: setupRealServer attaches a SQLite-backed BuildStore to the cache
+// because /compare gates on `srv.cache.store != nil` (compare.go:381).
+// Tests use a temp-dir DB so each run is isolated and auto-cleaned.
+
 // setupRealServer constructs a Server backed by a real LuaJIT subprocess
 // pool that loads PoB from $POB_DIR. Use this for integration tests that
 // must observe wrapper.lua's actual emission shape — bugs in
@@ -48,6 +52,14 @@ func setupRealServer(t *testing.T) *Server {
 
 	cache := NewBuildCache(10*time.Minute, 100)
 	t.Cleanup(cache.Shutdown)
+
+	dbPath := filepath.Join(t.TempDir(), "builds.db")
+	store, err := NewBuildStore(dbPath)
+	if err != nil {
+		t.Fatalf("open build store: %v", err)
+	}
+	t.Cleanup(store.Close)
+	cache.store = store
 
 	srv := &Server{
 		pool:     pool,
