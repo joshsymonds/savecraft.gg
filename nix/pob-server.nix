@@ -6,16 +6,8 @@
 }: let
   cfg = config.services.savecraftPobServer;
 
-  pobSrc = pkgs.fetchFromGitHub {
-    owner = "PathOfBuildingCommunity";
-    repo = "PathOfBuilding";
-    # v2.65.0 — required for Classes/CompareCalcsHelpers + CompareTradeHelpers,
-    # which the ride-along statSources / buy-similar / dump_query_mods paths
-    # need. Bumping this revision is the only knob — wrapper.lua + the Go
-    # tests assume the helpers are present.
-    rev = "f9f4f3b4ab6a3a37d2eb693265b5c73317ff42a6";
-    hash = "sha256-lNr9e7gifr7g+UsmyhEVqbQ9wBBWzlhHTKCsLnjsn6Y=";
-  };
+  # Shared with devenv.nix so dev/CI/prod can never drift.
+  pobSrc = import ./pob-source.nix {inherit pkgs;};
 in {
   options.services.savecraftPobServer = {
     enable = lib.mkEnableOption "PoB calc server (headless Path of Building via LuaJIT)";
