@@ -113,10 +113,11 @@
         ChaosResist: { perBuild: [-30, 18], leader: 1, range: 1.6 },
       },
       tree: {
-        allocatedOnlyIn: {
-          "witch-01": [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008],
-          "witch-02": [4001, 4002, 4003, 4004, 4005, 4006],
-        },
+        // Parallel to builds[]: [witchBuild, elementalistBuild].
+        allocatedOnlyIn: [
+          [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008],
+          [4001, 4002, 4003, 4004, 4005, 4006],
+        ],
         common: Array.from({ length: 32 }, (_, i) => 1000 + i),
       },
       gear: {
@@ -159,11 +160,12 @@
         Evasion: { perBuild: [0, 800, 22_400], leader: 2, range: Infinity },
       },
       tree: {
-        allocatedOnlyIn: {
-          "witch-01": [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008],
-          "marauder-01": [5001, 5002, 5003, 5004, 5005, 5006, 5007],
-          "ranger-01": [6001, 6002, 6003, 6004, 6005, 6006, 6007, 6008, 6009],
-        },
+        // Parallel to builds[]: [witchBuild, marauderBuild, rangerBuild].
+        allocatedOnlyIn: [
+          [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008],
+          [5001, 5002, 5003, 5004, 5005, 5006, 5007],
+          [6001, 6002, 6003, 6004, 6005, 6006, 6007, 6008, 6009],
+        ],
         common: Array.from({ length: 18 }, (_, i) => 1000 + i),
       },
       gear: {
@@ -210,7 +212,8 @@
         Armour: { perBuild: [400, 52_000], leader: 1, range: 129.0 },
       },
       tree: {
-        allocatedOnlyIn: { "witch-01": [3001, 3002], "marauder-01": [5001] },
+        // Parallel to builds[]: [witchBuild, marauderBuild].
+        allocatedOnlyIn: [[3001, 3002], [5001]],
         common: [1001, 1002, 1003],
       },
       gear: {},
@@ -236,7 +239,7 @@
         Amulet: { perBuild: ["Bisco's Collar", "Bisco's Collar"], nameSame: true, modsSame: true },
       },
       skills: [],
-      tree: { allocatedOnlyIn: {}, common: [] },
+      tree: { allocatedOnlyIn: [[], []], common: [] },
     },
   };
 
@@ -256,7 +259,7 @@
         Boots: { perBuild: ["Goldwyrm", "Kaom's Roots"], nameSame: false, modsSame: false },
       },
       skills: [],
-      tree: { allocatedOnlyIn: {}, common: [] },
+      tree: { allocatedOnlyIn: [[], []], common: [] },
     },
     buySimilar: [
       {
@@ -298,7 +301,7 @@
         "Body Armour": { perBuild: ["Kintsugi", "Belly of the Beast"], nameSame: false, modsSame: false },
       },
       skills: [],
-      tree: { allocatedOnlyIn: {}, common: [] },
+      tree: { allocatedOnlyIn: [[], []], common: [] },
     },
     buySimilar: [],
   };
@@ -315,7 +318,7 @@
       },
       gear: {},
       skills: [],
-      tree: { allocatedOnlyIn: {}, common: [] },
+      tree: { allocatedOnlyIn: [[], []], common: [] },
       config: [
         {
           key: "enemyIsBoss",
@@ -359,7 +362,8 @@
       },
       gear: {},
       skills: [],
-      tree: { allocatedOnlyIn: {}, common: [] },
+      // 3 builds: [witchBuild, marauderBuild, rangerBuild].
+      tree: { allocatedOnlyIn: [[], [], []], common: [] },
       modSources: {
         Life: [
           {
@@ -436,7 +440,9 @@
         Life: { perBuild: [4_891, 7_200], leader: 1, range: 0.472 },
       },
       tree: {
-        allocatedOnlyIn: { "witch-01": [3001, 3002], "marauder-01": [5001, 5002, 5003] },
+        // 3 builds: [witchBuild, broken-01, marauderBuild] — failed
+        // slot at index 1 gets [].
+        allocatedOnlyIn: [[3001, 3002], [], [5001, 5002, 5003]],
         common: [1001, 1002, 1003],
       },
       gear: {

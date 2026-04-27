@@ -50,7 +50,11 @@
   }
 
   interface TreeDiff {
-    allocatedOnlyIn: Record<string, number[]>;
+    // Indexed parallel to builds[] — entry i carries the nodes unique
+    // to builds[i]. Failed slots and slots without tree data get [] at
+    // their index, so `allocatedOnlyIn[builds.indexOf(b)]` always
+    // returns a defined array regardless of build success.
+    allocatedOnlyIn: number[][];
     common: number[];
   }
 
@@ -296,7 +300,11 @@
         buildTreeRow("Common to all", diffs.tree.common.length, undefined),
       ];
       successful.forEach((b) => {
-        const onlyHere = diffs!.tree!.allocatedOnlyIn[b.id ?? ""] ?? [];
+        // The wire-side allocatedOnlyIn is parallel to builds[] (NOT
+        // successful), so look up by the build's position in the full
+        // builds list — the same b reference is filtered into successful.
+        const idx = builds.indexOf(b);
+        const onlyHere = idx >= 0 ? (diffs!.tree!.allocatedOnlyIn[idx] ?? []) : [];
         treeRows.push(buildTreeRow(`Only in ${buildColumnLabel(b)}`, onlyHere.length, b));
       });
       out.push({ label: "Allocated Tree", rows: treeRows });

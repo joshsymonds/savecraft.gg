@@ -21,8 +21,13 @@ type compareDiffsTreeOnWire struct {
 }
 
 type compareTreeDiffOnWire struct {
-	AllocatedOnlyIn map[string][]int `json:"allocatedOnlyIn"`
-	Common          []int            `json:"common"`
+	// AllocatedOnlyIn is parallel to resp.Builds — index i carries the
+	// nodes unique to builds[i]. Failed builds and builds without tree
+	// data get [] at their index. The diff itself is omitted (nil) only
+	// when fewer than 2 builds succeed OR a SUCCESSFUL build lacks
+	// allocatedNodeIds.
+	AllocatedOnlyIn [][]int `json:"allocatedOnlyIn"`
+	Common          []int   `json:"common"`
 }
 
 func decodeCompareWithTree(t *testing.T, body []byte) compareRespWithTree {
@@ -52,7 +57,9 @@ func calcResponseWithTree(class string, allocatedIDs []int) string {
 }
 
 // TestCompareTreeDiffN2: two builds with overlapping allocated nodes
-// produce {allocatedOnlyIn: {idA: [unique-A], idB: [unique-B]}, common}.
+// produce {allocatedOnlyIn: [[unique-A], [unique-B]], common}. The
+// perBuild array is indexed parallel to resp.Builds, which preserves
+// the request order — so index 0 is idA, index 1 is idB.
 func TestCompareTreeDiffN2(t *testing.T) {
 	srv, idA, idB := compareHarness(
 		t,
@@ -76,16 +83,19 @@ func TestCompareTreeDiffN2(t *testing.T) {
 	if !equalIntSlices(resp.Diffs.Tree.Common, []int{3, 4}) {
 		t.Errorf("common = %v, want [3 4]", resp.Diffs.Tree.Common)
 	}
-	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[idA], []int{1, 2}) {
-		t.Errorf("allocatedOnlyIn[A] = %v, want [1 2]", resp.Diffs.Tree.AllocatedOnlyIn[idA])
+	if got := len(resp.Diffs.Tree.AllocatedOnlyIn); got != 2 {
+		t.Fatalf("allocatedOnlyIn length = %d, want 2 (parallel to builds)", got)
 	}
-	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[idB], []int{5, 6}) {
-		t.Errorf("allocatedOnlyIn[B] = %v, want [5 6]", resp.Diffs.Tree.AllocatedOnlyIn[idB])
+	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[0], []int{1, 2}) {
+		t.Errorf("allocatedOnlyIn[0] (idA) = %v, want [1 2]", resp.Diffs.Tree.AllocatedOnlyIn[0])
+	}
+	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[1], []int{5, 6}) {
+		t.Errorf("allocatedOnlyIn[1] (idB) = %v, want [5 6]", resp.Diffs.Tree.AllocatedOnlyIn[1])
 	}
 }
 
 // TestCompareTreeDiffN3: three builds; common is only nodes in ALL
-// three; allocatedOnlyIn[buildID] is nodes in EXACTLY that build.
+// three; allocatedOnlyIn[i] is nodes in EXACTLY builds[i].
 func TestCompareTreeDiffN3(t *testing.T) {
 	pool, _ := captureMockPool(t, []string{
 		calcResponseWithTree("Witch", []int{1, 2, 10, 20}),
@@ -119,6 +129,9 @@ func TestCompareTreeDiffN3(t *testing.T) {
 	if resp.Diffs == nil || resp.Diffs.Tree == nil {
 		t.Fatalf("expected diffs.tree")
 	}
+	if got := len(resp.Diffs.Tree.AllocatedOnlyIn); got != 3 {
+		t.Fatalf("allocatedOnlyIn length = %d, want 3 (parallel to builds)", got)
+	}
 
 	// Common = {1, 2} (in all three)
 	if !equalIntSlices(resp.Diffs.Tree.Common, []int{1, 2}) {
@@ -127,36 +140,19 @@ func TestCompareTreeDiffN3(t *testing.T) {
 
 	// 10 is in A and B but not C → not common, but also not "only in A"
 	// or "only in B". So it appears in NEITHER allocatedOnlyIn entry.
-	for buildID, only := range resp.Diffs.Tree.AllocatedOnlyIn {
+	for i, only := range resp.Diffs.Tree.AllocatedOnlyIn {
 		for _, n := range only {
 			if n == 10 {
-				t.Errorf("node 10 (in A+B, missing from C) leaked into allocatedOnlyIn[%s]", buildID)
+				t.Errorf("node 10 (in A+B, missing from C) leaked into allocatedOnlyIn[%d]", i)
 			}
 		}
 	}
 
 	// 20 only in A; 30 only in B; 40 only in C.
-	checkOnly := func(label, buildID string, want int) {
-		t.Helper()
-		got := resp.Diffs.Tree.AllocatedOnlyIn[buildID]
-		found := false
-		for _, n := range got {
-			if n == want {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("expected node %d in allocatedOnlyIn[%s] (%s); got %v", want, buildID, label, got)
-		}
-	}
-	// We don't know which slot maps to which build (mock-pool round-robins
-	// responses), so we look up by the responded character class. But the
-	// test setup associates buildIds with XMLs, not with class names —
-	// we'd need to inspect the response to know.
-	//
-	// Instead, verify the EXISTENCE of single-build-only nodes 20, 30, 40
-	// across the response: the union of all allocatedOnlyIn entries
-	// should contain {20, 30, 40} and nothing else.
+	// The mock pool round-robins calc responses across spawned subprocesses,
+	// so the wire-side mapping of buildId→class isn't deterministic. What
+	// IS deterministic: the union of unique nodes across all positions
+	// must equal {20, 30, 40} and contain nothing else.
 	gotOnly := make(map[int]bool)
 	for _, list := range resp.Diffs.Tree.AllocatedOnlyIn {
 		for _, n := range list {
@@ -174,9 +170,6 @@ func TestCompareTreeDiffN3(t *testing.T) {
 			t.Errorf("unexpected node %d in allocatedOnlyIn (should be common or A∩B etc.)", n)
 		}
 	}
-
-	// Avoid unused-helper warning when we couldn't run checkOnly.
-	_ = checkOnly
 }
 
 // TestCompareTreeDiffIdenticalTrees: every build allocates the same
@@ -202,9 +195,12 @@ func TestCompareTreeDiffIdenticalTrees(t *testing.T) {
 	if !equalIntSlices(resp.Diffs.Tree.Common, []int{1, 2, 3}) {
 		t.Errorf("common = %v, want [1 2 3]", resp.Diffs.Tree.Common)
 	}
-	for buildID, only := range resp.Diffs.Tree.AllocatedOnlyIn {
+	if got := len(resp.Diffs.Tree.AllocatedOnlyIn); got != 2 {
+		t.Fatalf("allocatedOnlyIn length = %d, want 2 (parallel to builds)", got)
+	}
+	for i, only := range resp.Diffs.Tree.AllocatedOnlyIn {
 		if len(only) != 0 {
-			t.Errorf("allocatedOnlyIn[%s] should be empty for identical trees, got %v", buildID, only)
+			t.Errorf("allocatedOnlyIn[%d] should be empty for identical trees, got %v", i, only)
 		}
 	}
 }
@@ -232,11 +228,14 @@ func TestCompareTreeDiffDisjointTrees(t *testing.T) {
 	if len(resp.Diffs.Tree.Common) != 0 {
 		t.Errorf("common = %v, want []", resp.Diffs.Tree.Common)
 	}
-	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[idA], []int{1, 2, 3}) {
-		t.Errorf("allocatedOnlyIn[A] = %v, want [1 2 3]", resp.Diffs.Tree.AllocatedOnlyIn[idA])
+	if got := len(resp.Diffs.Tree.AllocatedOnlyIn); got != 2 {
+		t.Fatalf("allocatedOnlyIn length = %d, want 2 (parallel to builds)", got)
 	}
-	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[idB], []int{10, 20, 30}) {
-		t.Errorf("allocatedOnlyIn[B] = %v, want [10 20 30]", resp.Diffs.Tree.AllocatedOnlyIn[idB])
+	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[0], []int{1, 2, 3}) {
+		t.Errorf("allocatedOnlyIn[0] (idA) = %v, want [1 2 3]", resp.Diffs.Tree.AllocatedOnlyIn[0])
+	}
+	if !equalIntSlices(resp.Diffs.Tree.AllocatedOnlyIn[1], []int{10, 20, 30}) {
+		t.Errorf("allocatedOnlyIn[1] (idB) = %v, want [10 20 30]", resp.Diffs.Tree.AllocatedOnlyIn[1])
 	}
 }
 
@@ -261,6 +260,78 @@ func TestCompareTreeDiffOmittedWhenDataMissing(t *testing.T) {
 	}
 	if resp.Diffs.Tree != nil {
 		t.Errorf("expected diffs.tree to be omitted (one build lacked data); got %+v", resp.Diffs.Tree)
+	}
+}
+
+// TestCompareTreeDiffFailedBuildSlotIsEmpty: when a build in the middle
+// of the request fails (unknown buildId), the diff still computes
+// across the remaining successful builds AND the failed build's slot
+// surfaces as [] at its original index in allocatedOnlyIn — so the
+// perBuild array stays parallel to resp.Builds for any consumer
+// zipping by index.
+func TestCompareTreeDiffFailedBuildSlotIsEmpty(t *testing.T) {
+	pool, _ := captureMockPool(t, []string{
+		calcResponseWithTree("Witch", []int{1, 2, 100}),
+		calcResponseWithTree("Ranger", []int{1, 2, 200}),
+	})
+	pool.maxSize = 1
+	pool.affinityMaxPins = 1
+	defer pool.Shutdown()
+	srv := newTestSrv(t, pool)
+	srv.cache.store = newInMemoryStoreForTest(t)
+
+	xmlA := "<A/>"
+	xmlC := "<C/>"
+	idA := srv.cache.Put(xmlA)
+	idC := srv.cache.Put(xmlC)
+	_ = srv.cache.store.Put(idA, xmlA, "", "", "")
+	_ = srv.cache.store.Put(idC, xmlC, "", "", "")
+
+	// Three slots; middle one is bogus → builds[1] errors out, builds[0]
+	// and builds[2] resolve normally.
+	body := `{"builds":["` + idA + `","00000000000000000000000000000000","` + idC + `"]}`
+	rec := httptest.NewRecorder()
+	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	resp := decodeCompareWithTree(t, rec.Body.Bytes())
+	if len(resp.Builds) != 3 {
+		t.Fatalf("builds length = %d, want 3", len(resp.Builds))
+	}
+	if resp.Builds[1].Error == "" {
+		t.Fatalf("expected builds[1] to have an error (unknown id); got %+v", resp.Builds[1])
+	}
+	if resp.Diffs == nil || resp.Diffs.Tree == nil {
+		t.Fatalf("expected diffs.tree across the 2 successful slots; body=%s", rec.Body.String())
+	}
+
+	if got := len(resp.Diffs.Tree.AllocatedOnlyIn); got != 3 {
+		t.Fatalf("allocatedOnlyIn length = %d, want 3 (parallel to builds — failed slot included)", got)
+	}
+	if got := resp.Diffs.Tree.AllocatedOnlyIn[1]; len(got) != 0 {
+		t.Errorf("allocatedOnlyIn[1] (failed slot) = %v, want []", got)
+	}
+
+	// Successful slots' unique-node sets land at indices 0 and 2; the
+	// shared {1, 2} land in common, leaving {100} unique to A and {200}
+	// unique to C across the two successful positions.
+	gotUnique := make(map[int]bool)
+	for _, n := range resp.Diffs.Tree.AllocatedOnlyIn[0] {
+		gotUnique[n] = true
+	}
+	for _, n := range resp.Diffs.Tree.AllocatedOnlyIn[2] {
+		gotUnique[n] = true
+	}
+	if !gotUnique[100] || !gotUnique[200] {
+		t.Errorf(
+			"expected unique nodes 100 and 200 at successful slots; got %v",
+			resp.Diffs.Tree.AllocatedOnlyIn,
+		)
+	}
+	if !equalIntSlices(resp.Diffs.Tree.Common, []int{1, 2}) {
+		t.Errorf("common = %v, want [1 2]", resp.Diffs.Tree.Common)
 	}
 }
 

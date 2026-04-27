@@ -307,24 +307,27 @@ type gearModsDiff struct {
 }
 
 // compareTreeDiff carries the set-op result of the regular-tree
-// allocated-node lists across the SUCCESSFUL builds.
+// allocated-node lists across builds.
 //
-// AllocatedOnlyIn is keyed by buildId; the value is the list of nodes
-// allocated in EXACTLY that build and no other (set difference: A \
-// (union of all others)). A node allocated in two of three builds
-// appears in NEITHER allocatedOnlyIn entry — it's not unique to either,
-// but also not common to all.
+// AllocatedOnlyIn is indexed parallel to CompareResponse.Builds — entry
+// i carries the nodes allocated in EXACTLY builds[i] and no other
+// successful build (set difference: A \ (union of all others)). Failed
+// builds and builds whose response lacked tree data get [] at their
+// index, so consumers can zip directly against builds[] without
+// filtering. A node allocated in two of three builds appears in NEITHER
+// allocatedOnlyIn entry — it's not unique to either, but also not
+// common to all.
 //
 // Common is the intersection: nodes allocated in EVERY successful
 // build. Sorted ascending.
 //
-// The diff is omitted (nil) when any successful build's response
-// lacked allocated_node_ids — partial data would produce misleading set
-// ops. (e.g. "build B has no node 5" looks the same as "build B's data
-// is missing".)
+// The diff itself is omitted (nil) when fewer than 2 builds succeed OR
+// any successful build's response lacked allocated_node_ids — partial
+// data would produce misleading set ops. (e.g. "build B has no node 5"
+// looks the same as "build B's data is missing".)
 type compareTreeDiff struct {
-	AllocatedOnlyIn map[string][]int `json:"allocatedOnlyIn"`
-	Common          []int            `json:"common"`
+	AllocatedOnlyIn [][]int `json:"allocatedOnlyIn"`
+	Common          []int   `json:"common"`
 }
 
 // compareStatDiff is one row of the summary-stat diff table. perBuild is
@@ -811,7 +814,7 @@ func computeCompareDiffs(entries []compareBuildEntry) *compareDiffs {
 	}
 
 	summary := computeSummaryDiff(successful)
-	tree := computeTreeDiff(successful)
+	tree := computeTreeDiff(entries, successful)
 	gear := computeGearDiff(successful)
 	skills := computeSkillsDiff(successful)
 	config := computeConfigDiff(successful)
@@ -1060,7 +1063,11 @@ func buildConfigPerBuildRow(successful []compareBuildEntry, key string) ([]any, 
 // would make "common" misleading (a node missing from one build looks
 // the same as that build's data not arriving). All-or-nothing keeps the
 // semantics honest.
-func computeTreeDiff(successful []compareBuildEntry) *compareTreeDiff {
+//
+// AllocatedOnlyIn is laid out parallel to entries (the full builds list
+// from the request), with [] at any failed slot — successful is just
+// the subset used to compute the unique-node sets.
+func computeTreeDiff(entries, successful []compareBuildEntry) *compareTreeDiff {
 	if len(successful) < 2 {
 		return nil
 	}
@@ -1071,7 +1078,7 @@ func computeTreeDiff(successful []compareBuildEntry) *compareTreeDiff {
 	}
 	sets := buildAllocatedNodeSets(successful)
 	common := commonAllocatedNodes(sets)
-	allocatedOnlyIn := uniqueAllocatedNodesPerBuild(successful, sets)
+	allocatedOnlyIn := uniqueAllocatedNodesPerBuild(entries, sets)
 	return &compareTreeDiff{AllocatedOnlyIn: allocatedOnlyIn, Common: common}
 }
 
@@ -1122,17 +1129,29 @@ func presentInAll(id int, rest []map[int]bool) bool {
 }
 
 // uniqueAllocatedNodesPerBuild returns sorted "only-in-this-build" node
-// lists keyed by build ID. Each list is `[]` (not nil) when a build has
-// no unique nodes — easier wire shape for consumers.
+// lists indexed parallel to entries. Each list is `[]` (not nil) for
+// failed slots and for successful slots with no unique nodes — easier
+// wire shape for consumers (zip directly against builds[]).
+//
+// The successful subset is implicit: walk entries and increment the
+// successful-position counter only for entries whose Error is empty.
+// Callers guarantee (via the early-return in computeTreeDiff) that
+// every successful entry has non-nil allocatedNodes by the time we get
+// here.
 func uniqueAllocatedNodesPerBuild(
-	successful []compareBuildEntry,
+	entries []compareBuildEntry,
 	sets []map[int]bool,
-) map[string][]int {
-	out := make(map[string][]int, len(successful))
-	for i, entry := range successful {
+) [][]int {
+	out := make([][]int, len(entries))
+	sIdx := 0
+	for i, entry := range entries {
+		if entry.Error != "" {
+			out[i] = []int{}
+			continue
+		}
 		var only []int
 		for _, id := range entry.allocatedNodes {
-			if uniqueToBuild(id, i, sets) {
+			if uniqueToBuild(id, sIdx, sets) {
 				only = append(only, id)
 			}
 		}
@@ -1140,7 +1159,8 @@ func uniqueAllocatedNodesPerBuild(
 		if only == nil {
 			only = []int{}
 		}
-		out[entry.ID] = only
+		out[i] = only
+		sIdx++
 	}
 	return out
 }
