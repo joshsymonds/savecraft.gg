@@ -74,6 +74,109 @@ func TestBuildStoreVersionRewriteOnPut(t *testing.T) {
 	}
 }
 
+// TestEnsureWrapperSchemaVersionColumnAddsToLegacyDB pins the
+// production-impacted migration path: existing deployed DBs were
+// created before wrapper_schema_version existed, so first startup
+// post-deploy must ALTER TABLE to add the column. NewBuildStore's
+// CREATE TABLE IF NOT EXISTS is a no-op on those DBs (the table
+// already exists with the OLD schema); ensureWrapperSchemaVersionColumn
+// is the actual code path that adds the column. Without this test, the
+// ALTER branch is dead code in CI — a regression would silently
+// corrupt every prior cache entry on the next deploy.
+func TestEnsureWrapperSchemaVersionColumnAddsToLegacyDB(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "legacy.db")
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	// Pre-migration schema literal — only the builds table, no
+	// wrapper_schema_version column. Mirrors what production DBs created
+	// before the version-stamping epic shipped looked like.
+	if _, err := db.ExecContext(ctx, `
+		CREATE TABLE builds (
+			id          TEXT PRIMARY KEY,
+			xml         TEXT NOT NULL,
+			summary     TEXT NOT NULL DEFAULT '{}',
+			source_url  TEXT NOT NULL DEFAULT '',
+			parent_id   TEXT NOT NULL DEFAULT '',
+			created_at  INTEGER NOT NULL,
+			accessed_at INTEGER NOT NULL
+		)
+	`); err != nil {
+		t.Fatalf("create legacy schema: %v", err)
+	}
+
+	// Seed a legacy row to verify ALTER's NOT NULL DEFAULT back-fills it.
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO builds (id, xml, created_at, accessed_at) VALUES (?, ?, ?, ?)`,
+		"legacy", "<x/>", 0, 0,
+	); err != nil {
+		t.Fatalf("seed legacy row: %v", err)
+	}
+
+	// Run the migration.
+	if err := ensureWrapperSchemaVersionColumn(db); err != nil {
+		t.Fatalf("ensureWrapperSchemaVersionColumn: %v", err)
+	}
+
+	// Column now exists.
+	hasCol := columnExists(t, db, "builds", "wrapper_schema_version")
+	if !hasCol {
+		t.Fatalf("expected wrapper_schema_version column to exist after migration")
+	}
+
+	// Existing row inherits the column default (0) — auto-invalidates
+	// against the current constant on first Get.
+	var v int
+	err = db.QueryRowContext(ctx,
+		"SELECT wrapper_schema_version FROM builds WHERE id = ?", "legacy",
+	).Scan(&v)
+	if err != nil {
+		t.Fatalf("read version: %v", err)
+	}
+	if v != 0 {
+		t.Errorf("expected legacy row's wrapper_schema_version=0, got %d", v)
+	}
+
+	// Idempotent: second call is a no-op (no error, no duplicate column).
+	if err := ensureWrapperSchemaVersionColumn(db); err != nil {
+		t.Fatalf("second ensureWrapperSchemaVersionColumn call failed: %v", err)
+	}
+}
+
+// columnExists walks PRAGMA table_info to check column presence.
+func columnExists(t *testing.T, db *sql.DB, table, column string) bool {
+	t.Helper()
+	rows, err := db.QueryContext(context.Background(), "PRAGMA table_info("+table+")")
+	if err != nil {
+		t.Fatalf("PRAGMA table_info(%s): %v", table, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			ctype      string
+			notnull    int
+			dfltValue  sql.NullString
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &primaryKey); err != nil {
+			t.Fatalf("scan column info: %v", err)
+		}
+		if name == column {
+			return true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate column info: %v", err)
+	}
+	return false
+}
+
 // newBuildStoreInTempDir creates a fresh BuildStore in a per-test temp
 // directory and registers cleanup. Each test gets its own DB.
 func newBuildStoreInTempDir(t *testing.T) *BuildStore {
