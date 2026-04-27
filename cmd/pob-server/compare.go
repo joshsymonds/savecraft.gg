@@ -1413,19 +1413,21 @@ func hasAnyRarity(perBuildRarity []*string) bool {
 	return false
 }
 
+// rarityUnique is PoB's tag for unique items. RELIC is the foil flag
+// on a unique — mechanically the same item — so canonicalRarity treats
+// any UNIQUE among the per-build values as the canonical view.
+const rarityUnique = "UNIQUE"
+
 // canonicalRarity derives a single rarity for the slot from the per-build
-// values. UNIQUE wins over any non-UNIQUE — the rule is: if any build
-// reports UNIQUE, the canonical view is UNIQUE (RELIC is just the foil
-// flag on a UNIQUE so they're mechanically the same item). Otherwise,
-// if all builds agree on a rarity, return it. Otherwise return "" (no
-// canonical view; consumers fall back to inspecting per-build values).
-// Empty input → empty string.
+// values. UNIQUE wins over any non-UNIQUE. If all builds agree on a
+// rarity, return it. Otherwise return "" (no canonical view; consumers
+// fall back to inspecting per-build values). Empty input → empty string.
 func canonicalRarity(rarities []string) string {
 	if len(rarities) == 0 {
 		return ""
 	}
-	if slices.Contains(rarities, "UNIQUE") {
-		return "UNIQUE"
+	if slices.Contains(rarities, rarityUnique) {
+		return rarityUnique
 	}
 	first := rarities[0]
 	for _, r := range rarities[1:] {
