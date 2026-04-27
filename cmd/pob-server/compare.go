@@ -401,9 +401,23 @@ type compareBuildTree struct {
 // just slice equality — gem ORDER inside a group doesn't change the
 // gameplay (a Cyclone+Brutality+Pulverise setup behaves the same as
 // Pulverise+Brutality+Cyclone).
+//
+// MainGemLinkCount, HostItemMaxLink, and HostItemName are decoded from
+// wrapper.lua's serializeSocketGroups output. The wire-side exposure
+// for these fields actually flows through entry.Sections["gear"] (raw
+// JSON passthrough via filterSectionsParsed), so they're decoded here
+// for parity with the wrapper.lua emission contract but NOT consumed
+// by computeSkillsDiff — equality stays Label + sorted Gems only. A
+// 5-link Cyclone and a 6-link Cyclone in the same labeled group still
+// register as same:true; TestCompareSkillsDiffIgnoresLinkCount pins
+// this. Pointer types with omitempty so absence is JSON-absent (no
+// sentinel-zero conflation between "no host item" and "0 links").
 type socketGroupSummary struct {
-	Label string
-	Gems  []string
+	Label            string
+	Gems             []string
+	MainGemLinkCount *int    `json:"mainGemLinkCount,omitempty"`
+	HostItemMaxLink  *int    `json:"hostItemMaxLink,omitempty"`
+	HostItemName     *string `json:"hostItemName,omitempty"`
 }
 
 // buildIDPattern matches the 32-char lowercase hex shape that
@@ -732,9 +746,16 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 			} `json:"items"`
 			// SocketGroups is an ordered array of skill setups (label +
 			// gem list). v1 diff matches by label, ignores gem order.
+			// Link metadata (mainGemLinkCount, hostItemMaxLink,
+			// hostItemName) is wrapper.lua-conditional on host-item
+			// presence; pointer types pass through Lua-nil → JSON-absent
+			// without sentinel-zero conflation.
 			SocketGroups []struct {
-				Label string `json:"label"`
-				Gems  []struct {
+				Label            string  `json:"label"`
+				MainGemLinkCount *int    `json:"mainGemLinkCount,omitempty"`
+				HostItemMaxLink  *int    `json:"hostItemMaxLink,omitempty"`
+				HostItemName     *string `json:"hostItemName,omitempty"`
+				Gems             []struct {
 					Name string `json:"name"`
 				} `json:"gems"`
 			} `json:"socketGroups"`
@@ -783,8 +804,11 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 			}
 			sort.Strings(gemNames)
 			entry.socketGroups = append(entry.socketGroups, socketGroupSummary{
-				Label: group.Label,
-				Gems:  gemNames,
+				Label:            group.Label,
+				Gems:             gemNames,
+				MainGemLinkCount: group.MainGemLinkCount,
+				HostItemMaxLink:  group.HostItemMaxLink,
+				HostItemName:     group.HostItemName,
 			})
 		}
 	}
