@@ -264,6 +264,7 @@
             </div>
           {/if}
           {#if tree.allocatedNodeIds?.length}
+            <!-- Inline tree section uses overlay's 480px default — taller heights overwhelm the conversational viewport; pan/zoom handles spatial navigation. -->
             <PassiveTreeOverlay
               perBuildAllocated={[{
                 id: "this-build",

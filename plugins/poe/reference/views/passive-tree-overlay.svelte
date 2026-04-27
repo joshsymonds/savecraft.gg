@@ -76,9 +76,11 @@
     data?: TreeData;
     hideAscendancy?: boolean;
     perBuildAllocated?: BuildAllocation[];
+    /** CSS length controlling the rendered SVG height (e.g. "480px", "60vh"). Defaults to "480px"; consumers in larger layouts can override. */
+    height?: string;
   }
 
-  let { data, hideAscendancy = true, perBuildAllocated }: Props = $props();
+  let { data, hideAscendancy = true, perBuildAllocated, height = "480px" }: Props = $props();
 
   let tree = $derived(data ?? (treeData as TreeData));
 
@@ -577,6 +579,7 @@
       preserveAspectRatio="xMidYMid meet"
       class="tree-svg"
       class:dragging
+      style:height={height}
       onwheel={onWheel}
       onmousedown={onMouseDown}
       role="presentation"
@@ -687,7 +690,6 @@
   }
   .tree-svg {
     width: 100%;
-    height: 800px;
     background: #1a252f;
     border-radius: 4px;
     cursor: grab;

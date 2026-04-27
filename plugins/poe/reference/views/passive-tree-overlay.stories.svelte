@@ -156,3 +156,14 @@
     <PassiveTreeOverlay perBuildAllocated={allCommon.perBuildAllocated} />
   </div>
 </Story>
+
+<!--
+  Verifies the `height` prop overrides the 480px default. Consumers in
+  full-page layouts (build-planner, build-compare) can opt into a taller
+  tree without forking the component.
+-->
+<Story name="Large explicit height">
+  <div style="max-width: 1200px;">
+    <PassiveTreeOverlay height="800px" />
+  </div>
+</Story>
