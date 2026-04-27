@@ -12,6 +12,16 @@
 -->
 <script lang="ts">
   import treeData from "./tree-data.gen.json";
+  import {
+    clientToContent,
+    clientToSvg as clientToSvgPure,
+    computeDragTransform,
+    computeWheelTransform,
+    type ContentTransform,
+    type Point,
+    type SvgLayout,
+    type ViewBox,
+  } from "../../../../views/src/components/poe/tree-coords.js";
 
   interface TreeNode {
     x: number;
@@ -154,10 +164,12 @@
   }
 
   // ─── Zoom + pan state ──────────────────────────────────────────────────
-  // viewBox is mutable state; initial value is computed from visible-node
-  // bounds. wheel/drag handlers mutate it directly. The auto-fit recomputes
-  // when hideAscendancy toggles (different node set → different bounds).
-  type ViewBox = { x: number; y: number; w: number; h: number };
+  // The SVG's viewBox stays *fixed* at the auto-fit bounds of the visible
+  // node set (it only changes when hideAscendancy toggles, swapping the
+  // node set). Pan/zoom is applied as a transform="translate(tx,ty) scale(s)"
+  // on a single inner <g> instead — the browser composites that without
+  // re-laying-out the ~7800 child elements every frame. Math helpers in
+  // ../../../../views/src/components/poe/tree-coords.ts.
 
   function autoFit(nodes: Map<string, TreeNode>): ViewBox {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -176,112 +188,88 @@
     };
   }
 
-  // initialFit recomputes whenever the visible-node set changes (i.e.
-  // hideAscendancy flipped). Stored separately from viewBox so reset
-  // can return there.
-  let initialFit = $derived(autoFit(visibleNodes));
+  // SVG viewBox — fixed once per visible-node set. Bound to the <svg>'s
+  // viewBox attribute; never mutated during pan/zoom.
+  let fixedViewBox = $derived(autoFit(visibleNodes));
+  let viewBoxStr = $derived(`${fixedViewBox.x} ${fixedViewBox.y} ${fixedViewBox.w} ${fixedViewBox.h}`);
 
-  // viewBox starts at the initial fit; then user wheel/drag mutates it.
-  // $state.raw is the right vehicle: viewBox is replaced as a whole
-  // object on each interaction, never field-mutated, so deep proxy
-  // tracking would be wasted overhead.
-  let viewBox: ViewBox = $state.raw({ ...initialFit });
+  // Content transform — mutated on wheel/drag/reset. scale=1 corresponds
+  // to "tree fits the viewBox" because viewBox already covers full bounds.
+  // Clamp range mirrors the original viewBox-width clamp: scale 0.25 = 4×
+  // zoomed-out, scale 20 = 20× zoomed-in.
+  const SCALE_MIN = 0.25;
+  const SCALE_MAX = 20;
+  let tx = $state.raw(0);
+  let ty = $state.raw(0);
+  let scale = $state.raw(1);
 
-  // When initialFit changes (hideAscendancy toggle), reset viewBox to
-  // match. $effect.pre to apply before render.
+  // When fixedViewBox changes (hideAscendancy toggle), reset transform so
+  // the new node set fits the box. $effect.pre to apply before render.
   $effect.pre(() => {
-    viewBox = { ...initialFit };
+    // Touch fixedViewBox so the effect re-runs when it changes; the
+    // assignments themselves don't depend on its value.
+    void fixedViewBox;
+    tx = 0;
+    ty = 0;
+    scale = 1;
   });
 
-  let viewBoxStr = $derived(`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`);
+  let transformStr = $derived(`translate(${tx} ${ty}) scale(${scale})`);
 
-  // ─── Coordinate conversion ─────────────────────────────────────────────
-  // SVG element ref so we can convert client → SVG coords. Used by
-  // wheel anchoring and drag delta.
+  // SVG element ref — used to read getBoundingClientRect() at event time.
   let svgEl: SVGSVGElement | null = $state(null);
 
-  function clientToSvg(clientX: number, clientY: number): { x: number; y: number } {
-    if (!svgEl) return { x: 0, y: 0 };
+  function svgLayout(): SvgLayout | null {
+    if (!svgEl) return null;
     const rect = svgEl.getBoundingClientRect();
-    // The viewBox preserveAspectRatio="xMidYMid meet" means the SVG
-    // scales uniformly to fit the container. Compute the actually-used
-    // sub-rectangle of the rect.
-    const scale = Math.min(rect.width / viewBox.w, rect.height / viewBox.h);
-    const renderedW = viewBox.w * scale;
-    const renderedH = viewBox.h * scale;
-    const offsetX = (rect.width - renderedW) / 2;
-    const offsetY = (rect.height - renderedH) / 2;
     return {
-      x: viewBox.x + (clientX - rect.left - offsetX) / scale,
-      y: viewBox.y + (clientY - rect.top - offsetY) / scale,
+      rectLeft: rect.left,
+      rectTop: rect.top,
+      rectWidth: rect.width,
+      rectHeight: rect.height,
     };
   }
 
   // ─── Wheel zoom ────────────────────────────────────────────────────────
-  // 10% per tick is the standard feel. Anchor zoom on cursor: keep the
-  // SVG point under the cursor at the same client position post-zoom.
-  // Clamp scale: don't let the user zoom out past 4x the auto-fit width
-  // (just shows tiny tree in big background) or in past 0.05x (single
-  // orbit fills the view).
   function onWheel(e: WheelEvent) {
     e.preventDefault();
-    const factor = e.deltaY > 0 ? 1.1 : 1 / 1.1;
-    const cursor = clientToSvg(e.clientX, e.clientY);
-    let newW = viewBox.w * factor;
-    let newH = viewBox.h * factor;
-    // Clamp range
-    const minW = initialFit.w * 0.05;
-    const maxW = initialFit.w * 4;
-    if (newW < minW) {
-      const ratio = minW / newW;
-      newW *= ratio;
-      newH *= ratio;
-    } else if (newW > maxW) {
-      const ratio = maxW / newW;
-      newW *= ratio;
-      newH *= ratio;
-    }
-    const actualFactor = newW / viewBox.w;
-    const newX = cursor.x - (cursor.x - viewBox.x) * actualFactor;
-    const newY = cursor.y - (cursor.y - viewBox.y) * actualFactor;
-    viewBox = { x: newX, y: newY, w: newW, h: newH };
+    const layout = svgLayout();
+    if (!layout) return;
+    const factor = e.deltaY > 0 ? 1 / 1.1 : 1.1;
+    const current: ContentTransform = { tx, ty, scale };
+    const cursorContent = clientToContent(e.clientX, e.clientY, layout, fixedViewBox, current);
+    const cursorSvg = clientToSvgPure(e.clientX, e.clientY, layout, fixedViewBox);
+    const next = computeWheelTransform(current, cursorContent, cursorSvg, factor, SCALE_MIN, SCALE_MAX);
+    tx = next.tx;
+    ty = next.ty;
+    scale = next.scale;
   }
 
   // ─── Pan via drag ──────────────────────────────────────────────────────
   let dragging = $state(false);
-  let dragStart: { svgX: number; svgY: number; viewBox: ViewBox } | null = null;
+  let dragStart: { startTransform: ContentTransform; startCursorContent: Point } | null = null;
 
   function onMouseDown(e: MouseEvent) {
     // Only left-button drag; right-click reserved for browser context menu.
     if (e.button !== 0) return;
+    const layout = svgLayout();
+    if (!layout) return;
+    const startTransform: ContentTransform = { tx, ty, scale };
+    const startCursorContent = clientToContent(e.clientX, e.clientY, layout, fixedViewBox, startTransform);
+    dragStart = { startTransform, startCursorContent };
     dragging = true;
-    const svg = clientToSvg(e.clientX, e.clientY);
-    dragStart = { svgX: svg.x, svgY: svg.y, viewBox: { ...viewBox } };
     e.preventDefault();
   }
 
   function onMouseMove(e: MouseEvent) {
     if (!dragging || !dragStart) return;
-    // Convert current cursor to SVG coords using the ORIGINAL viewBox
-    // (the one captured at drag start). Otherwise the conversion uses
-    // the moved viewBox and the drag drifts.
-    const rect = svgEl!.getBoundingClientRect();
-    const startVB = dragStart.viewBox;
-    const scale = Math.min(rect.width / startVB.w, rect.height / startVB.h);
-    const renderedW = startVB.w * scale;
-    const renderedH = startVB.h * scale;
-    const offsetX = (rect.width - renderedW) / 2;
-    const offsetY = (rect.height - renderedH) / 2;
-    const cursorSvgX = startVB.x + (e.clientX - rect.left - offsetX) / scale;
-    const cursorSvgY = startVB.y + (e.clientY - rect.top - offsetY) / scale;
-    const dx = cursorSvgX - dragStart.svgX;
-    const dy = cursorSvgY - dragStart.svgY;
-    viewBox = {
-      x: startVB.x - dx,
-      y: startVB.y - dy,
-      w: viewBox.w,
-      h: viewBox.h,
-    };
+    const layout = svgLayout();
+    if (!layout) return;
+    const cursorSvg = clientToSvgPure(e.clientX, e.clientY, layout, fixedViewBox);
+    const next = computeDragTransform(dragStart.startTransform, dragStart.startCursorContent, cursorSvg);
+    tx = next.tx;
+    ty = next.ty;
+    scale = next.scale;
   }
 
   function onMouseUp() {
@@ -290,7 +278,9 @@
   }
 
   function resetView() {
-    viewBox = { ...initialFit };
+    tx = 0;
+    ty = 0;
+    scale = 1;
   }
 
   // ─── Hover tooltip ─────────────────────────────────────────────────────
@@ -584,45 +574,47 @@
       onmousedown={onMouseDown}
       role="presentation"
     >
-      <g class="connections" fill="none">
-        {#each visibleConnectionsWithStyle as conn (conn.key)}
-          {#if conn.type === "arc"}
-            <path
-              d={conn.arcD}
-              stroke={conn.stroke}
-              stroke-width={conn.strokeWidth}
-              opacity={conn.opacity}
-            />
-          {:else}
-            <line
-              x1={conn.aX}
-              y1={conn.aY}
-              x2={conn.bX}
-              y2={conn.bY}
-              stroke={conn.stroke}
-              stroke-width={conn.strokeWidth}
-              opacity={conn.opacity}
-            />
-          {/if}
-        {/each}
-      </g>
-      <g class="nodes">
-        {#each visibleNodesWithStyle as n (n.id)}
-          <circle
-            cx={n.x}
-            cy={n.y}
-            r={n.radius}
-            fill={n.fill}
-            stroke={n.stroke}
-            stroke-width={n.strokeWidth}
-            opacity={n.opacity}
-            onmouseenter={(e) => onNodeEnter(e, n.id, n.node)}
-            onmouseleave={onNodeLeave}
-            role="button"
-            tabindex="-1"
-            aria-label={n.name}
-          ></circle>
-        {/each}
+      <g transform={transformStr}>
+        <g class="connections" fill="none">
+          {#each visibleConnectionsWithStyle as conn (conn.key)}
+            {#if conn.type === "arc"}
+              <path
+                d={conn.arcD}
+                stroke={conn.stroke}
+                stroke-width={conn.strokeWidth}
+                opacity={conn.opacity}
+              />
+            {:else}
+              <line
+                x1={conn.aX}
+                y1={conn.aY}
+                x2={conn.bX}
+                y2={conn.bY}
+                stroke={conn.stroke}
+                stroke-width={conn.strokeWidth}
+                opacity={conn.opacity}
+              />
+            {/if}
+          {/each}
+        </g>
+        <g class="nodes">
+          {#each visibleNodesWithStyle as n (n.id)}
+            <circle
+              cx={n.x}
+              cy={n.y}
+              r={n.radius}
+              fill={n.fill}
+              stroke={n.stroke}
+              stroke-width={n.strokeWidth}
+              opacity={n.opacity}
+              onmouseenter={(e) => onNodeEnter(e, n.id, n.node)}
+              onmouseleave={onNodeLeave}
+              role="button"
+              tabindex="-1"
+              aria-label={n.name}
+            ></circle>
+          {/each}
+        </g>
       </g>
     </svg>
 
