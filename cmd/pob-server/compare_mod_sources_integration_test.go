@@ -121,7 +121,10 @@ func TestCompareModSourcesDoesNotLeakBetweenCalls(t *testing.T) {
 		}
 		for k := range gotSet {
 			if !expected[k] {
-				t.Errorf("build[%d] (label=%q): unexpected key %q (leaked from prior call?). Got: %v", i, b.Label, k, got)
+				t.Errorf(
+					"build[%d] (label=%q): unexpected key %q (leaked from prior call?). Got: %v",
+					i, b.Label, k, got,
+				)
 			}
 		}
 	}

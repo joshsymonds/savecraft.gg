@@ -1168,44 +1168,52 @@ func computeGearDiff(successful []compareBuildEntry) map[string]compareSlotDiff 
 
 	out := make(map[string]compareSlotDiff, len(slotSet))
 	for slot := range slotSet {
-		perBuild := make([]*string, len(successful))
-		var firstName string
-		var firstMods []string
-		firstSet := false
-		nameSame := true
-		modsSame := true
-		anyMissing := false
-		for i, entry := range successful {
-			item, ok := entry.itemsBySlot[slot]
-			if !ok || item.Name == "" {
-				perBuild[i] = nil
-				anyMissing = true
-				continue
-			}
-			nameCopy := item.Name
-			perBuild[i] = &nameCopy
-			if !firstSet {
-				firstName = item.Name
-				firstMods = item.Mods
-				firstSet = true
-				continue
-			}
-			if item.Name != firstName {
-				nameSame = false
-			}
-			if !equalStringSlices(item.Mods, firstMods) {
-				modsSame = false
-			}
-		}
-		// Any missing slot in any build flips both to false — when one
-		// build has the slot empty we can't claim identity on either axis.
-		if anyMissing {
-			nameSame = false
-			modsSame = false
-		}
-		out[slot] = compareSlotDiff{PerBuild: perBuild, NameSame: nameSame, ModsSame: modsSame}
+		out[slot] = computeSingleSlotDiff(slot, successful)
 	}
 	return out
+}
+
+// computeSingleSlotDiff builds the per-slot compareSlotDiff for one
+// equipment slot across the successful builds. NameSame and ModsSame
+// are independent: names differ but mods identical → name_same:false,
+// mods_same:true (a rare reroll). Any build missing the slot flips both
+// to false — we can't claim identity on either axis when a build has
+// nothing equipped.
+func computeSingleSlotDiff(slot string, successful []compareBuildEntry) compareSlotDiff {
+	perBuild := make([]*string, len(successful))
+	var firstName string
+	var firstMods []string
+	firstSet := false
+	nameSame := true
+	modsSame := true
+	anyMissing := false
+	for i, entry := range successful {
+		item, ok := entry.itemsBySlot[slot]
+		if !ok || item.Name == "" {
+			perBuild[i] = nil
+			anyMissing = true
+			continue
+		}
+		nameCopy := item.Name
+		perBuild[i] = &nameCopy
+		if !firstSet {
+			firstName = item.Name
+			firstMods = item.Mods
+			firstSet = true
+			continue
+		}
+		if item.Name != firstName {
+			nameSame = false
+		}
+		if !equalStringSlices(item.Mods, firstMods) {
+			modsSame = false
+		}
+	}
+	if anyMissing {
+		nameSame = false
+		modsSame = false
+	}
+	return compareSlotDiff{PerBuild: perBuild, NameSame: nameSame, ModsSame: modsSame}
 }
 
 // computeSkillsDiff produces the per-socket-group diff. Groups are

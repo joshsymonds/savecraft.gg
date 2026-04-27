@@ -163,8 +163,10 @@ func TestCompareGearDiffSlotEmptyInOneBuild(t *testing.T) {
 
 	helmet := resp.Diffs.Gear["Helmet"]
 	if helmet.NameSame || helmet.ModsSame {
-		t.Errorf("Helmet should be name_same:false mods_same:false (one build has it, other doesn't); got name_same=%v mods_same=%v",
-			helmet.NameSame, helmet.ModsSame)
+		t.Errorf(
+			"Helmet should be both-false (one build absent); got name_same=%v mods_same=%v",
+			helmet.NameSame, helmet.ModsSame,
+		)
 	}
 	if len(helmet.PerBuild) != 2 {
 		t.Fatalf("perBuild length = %d, want 2", len(helmet.PerBuild))
@@ -184,8 +186,10 @@ func TestCompareGearDiffSlotEmptyInOneBuild(t *testing.T) {
 
 	body2 := resp.Diffs.Gear["Body Armour"]
 	if body2.NameSame || body2.ModsSame {
-		t.Errorf("Body Armour should be name_same:false mods_same:false (one build absent); got name_same=%v mods_same=%v",
-			body2.NameSame, body2.ModsSame)
+		t.Errorf(
+			"Body Armour should be both-false (one build absent); got name_same=%v mods_same=%v",
+			body2.NameSame, body2.ModsSame,
+		)
 	}
 }
 

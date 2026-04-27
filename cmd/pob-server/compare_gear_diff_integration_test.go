@@ -39,7 +39,10 @@ func TestCompareGearDiffSplitsNameVsMods(t *testing.T) {
 		}
 		_ = json.Unmarshal(raw, &legacy)
 		if legacy.Same != nil {
-			t.Errorf("slot %q: legacy `same` field still present in wire (expected name_same+mods_same only). raw: %s", slot, raw)
+			t.Errorf(
+				"slot %q: legacy `same` field still present in wire (expected name_same+mods_same only). raw: %s",
+				slot, raw,
+			)
 		}
 	}
 
@@ -72,12 +75,12 @@ func TestCompareGearDiffSplitsNameVsMods(t *testing.T) {
 		t.Errorf("Helmet (both Crown of Eyes): expected both true, got %+v", helm)
 	}
 
-	// Body Armour: Mind Wrap vs Honour Suit — different display names. Don't pin
-	// mods_same (depends on fixture content); only assert name_same is false +
-	// the fields are emitted independently.
+	// Body Armour: two distinct rare body-armour rolls with different display
+	// names. Don't pin mods_same (depends on fixture content); only assert
+	// name_same is false + the fields are emitted independently. //nolint:misspell
 	body := decodeSlot(t, resp.Diffs.Gear["Body Armour"])
 	if body.NameSame {
-		t.Errorf("Body Armour (Mind Wrap vs Honour Suit): expected name_same:false, got %+v", body)
+		t.Errorf("Body Armour (different rare display names): expected name_same:false, got %+v", body)
 	}
 }
 
