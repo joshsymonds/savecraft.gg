@@ -84,6 +84,7 @@ func realServerHTTP(t *testing.T, srv *Server) *httptest.Server {
 	mux.HandleFunc("/audit", srv.authMiddleware(srv.handleAudit))
 	mux.HandleFunc("/build/", srv.authMiddleware(srv.handleGetBuild))
 	mux.HandleFunc("/compare", srv.authMiddleware(srv.handleCompare))
+	mux.HandleFunc("/admin/refresh-trade-stats", srv.authMiddleware(srv.handleRefreshTradeStats))
 	mux.HandleFunc("/health", srv.handleHealth)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)

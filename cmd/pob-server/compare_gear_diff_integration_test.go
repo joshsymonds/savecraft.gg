@@ -32,15 +32,22 @@ func TestCompareGearDiffSplitsNameVsMods(t *testing.T) {
 		t.Fatalf("expected non-empty gear diff, got 0 slots")
 	}
 
-	// Negative assertion: legacy `same` must NOT appear in any slot's wire output.
+	// Negative assertion: legacy `same` and prior snake_case `name_same` /
+	// `mods_same` tags must NOT appear in any slot's wire output (camelCase
+	// nameSame/modsSame is the contract).
 	for slot, raw := range resp.Diffs.Gear {
 		var legacy struct {
-			Same *bool `json:"same"`
+			Same    *bool `json:"same"`
+			NameOld *bool `json:"name_same"`
+			ModsOld *bool `json:"mods_same"`
 		}
 		_ = json.Unmarshal(raw, &legacy)
 		if legacy.Same != nil {
+			t.Errorf("slot %q: legacy `same` field still present in wire. raw: %s", slot, raw)
+		}
+		if legacy.NameOld != nil || legacy.ModsOld != nil {
 			t.Errorf(
-				"slot %q: legacy `same` field still present in wire (expected name_same+mods_same only). raw: %s",
+				"slot %q: snake_case name_same/mods_same still present (expected camelCase). raw: %s",
 				slot, raw,
 			)
 		}
@@ -50,7 +57,7 @@ func TestCompareGearDiffSplitsNameVsMods(t *testing.T) {
 	// known fixture state.
 	for slot, raw := range resp.Diffs.Gear {
 		d := decodeSlot(t, raw)
-		t.Logf("  %-15s perBuild=%v name_same=%v mods_same=%v",
+		t.Logf("  %-15s perBuild=%v nameSame=%v modsSame=%v",
 			slot, perBuildNames(d.PerBuild), d.NameSame, d.ModsSame)
 	}
 
@@ -94,8 +101,8 @@ func decodeSlot(t *testing.T, raw json.RawMessage) decodedSlot {
 	t.Helper()
 	var d struct {
 		PerBuild []*string `json:"perBuild"`
-		NameSame bool      `json:"name_same"`
-		ModsSame bool      `json:"mods_same"`
+		NameSame bool      `json:"nameSame"`
+		ModsSame bool      `json:"modsSame"`
 	}
 	if err := json.Unmarshal(raw, &d); err != nil {
 		t.Fatalf("decode slot: %v\nraw: %s", err, raw)

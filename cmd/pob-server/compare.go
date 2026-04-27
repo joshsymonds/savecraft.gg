@@ -270,15 +270,13 @@ type compareSocketGroupDiff struct {
 //
 // NameSame and ModsSame are independent: two amulets with identical
 // rolled mod text but different rare display names produce
-// {name_same:false, mods_same:true} — surfacing that the items are
+// {nameSame:false, modsSame:true} — surfacing that the items are
 // mechanically equivalent even though the auto-generated names differ.
 // Either field being false means the slot has SOMETHING that diverges.
-//
-//nolint:tagliatelle // snake_case wire contract surfaced through the MCP layer.
 type compareSlotDiff struct {
 	PerBuild []*string `json:"perBuild"`
-	NameSame bool      `json:"name_same"`
-	ModsSame bool      `json:"mods_same"`
+	NameSame bool      `json:"nameSame"`
+	ModsSame bool      `json:"modsSame"`
 }
 
 // gearItemSummary is the per-build per-slot record fed into computeGearDiff.
@@ -1145,9 +1143,13 @@ func statDiff(perBuild []float64) compareStatDiff {
 
 // computeGearDiff produces the per-slot equipment diff. Iterates the
 // union of slot names across every successful build, then for each slot
-// builds a perBuild array (item name pointer or nil-when-empty) and a
-// `same` flag that's true iff every entry is non-nil and every name
-// matches.
+// builds a perBuild array (item name pointer or nil-when-empty) plus
+// independent nameSame and modsSame flags. nameSame is true iff every
+// entry has the same display name; modsSame is true iff every entry's
+// mod text matches as a set (mod ordering canonicalized before
+// comparison so two rares with the same mod text in different roll
+// order still compare equal). When ANY build is missing the slot, both
+// flags are false — we can't claim identity on either axis.
 //
 // Returns nil when fewer than 2 successful builds exist or none of them
 // have any items (unusual but defensive — empty diff is misleading).
@@ -1198,14 +1200,16 @@ func computeSingleSlotDiff(slot string, successful []compareBuildEntry) compareS
 		perBuild[i] = &nameCopy
 		if !firstSet {
 			firstName = item.Name
-			firstMods = item.Mods
+			firstMods = sortedCopy(item.Mods)
 			firstSet = true
 			continue
 		}
 		if item.Name != firstName {
 			nameSame = false
 		}
-		if !equalStringSlices(item.Mods, firstMods) {
+		// Compare mod sets order-independently — two rares with the same
+		// mod text but different roll order should still compare equal.
+		if !equalStringSlices(sortedCopy(item.Mods), firstMods) {
 			modsSame = false
 		}
 	}
@@ -1300,6 +1304,19 @@ func buildSocketGroupDiff(
 		}
 	}
 	return compareSocketGroupDiff{Label: label, PerBuild: perBuild, Same: same}
+}
+
+// sortedCopy returns a sorted copy of the input slice. nil-safe.
+// Used for set-equality comparisons where the original slice's order
+// must not be mutated (e.g. mod lists carried in compareBuildEntry).
+func sortedCopy(s []string) []string {
+	if s == nil {
+		return nil
+	}
+	out := make([]string, len(s))
+	copy(out, s)
+	sort.Strings(out)
+	return out
 }
 
 func equalStringSlices(a, b []string) bool {

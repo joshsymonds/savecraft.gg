@@ -172,12 +172,22 @@ type compareResponseShape struct {
 			Same     bool       `json:"same"`
 		} `json:"skills,omitempty"`
 		Gear map[string]json.RawMessage `json:"gear,omitempty"`
+		// Note: Gear is left as RawMessage so per-test decoders can use
+		// the camelCase {nameSame, modsSame} tags directly via decodeSlot.
 	} `json:"diffs,omitempty"`
 }
 
-// decodeRows decodes a raw statSources entry into the row slice. nil
-// raw → nil slice (the field was missing from response). Empty `[]`
-// raw → empty non-nil slice (correct emission for derived stats).
+// decodeRows decodes a raw statSources entry into the row slice.
+//   - missing field (raw bytes empty) → nil slice
+//   - JSON `null` → nil slice (json.Unmarshal returns nil)
+//   - JSON `[]` → non-nil empty slice
+//
+// Callers can distinguish "key absent or null" (nil) from "key present
+// as empty array" (non-nil zero-length) — both are valid for asserting
+// the wire contract. We deliberately do NOT upgrade null to empty:
+// promoting `null` to `[]` would silently make the assertion at the
+// `derived stat returns []` call site pass for either wire shape and
+// weaken the regression guard.
 func decodeRows(t *testing.T, raw json.RawMessage) []map[string]any {
 	t.Helper()
 	if len(raw) == 0 {
@@ -186,11 +196,6 @@ func decodeRows(t *testing.T, raw json.RawMessage) []map[string]any {
 	var rows []map[string]any
 	if err := json.Unmarshal(raw, &rows); err != nil {
 		t.Fatalf("decode rows: %v\nraw: %s", err, raw)
-	}
-	if rows == nil {
-		// Distinguish JSON `[]` (decoded as non-nil empty slice) from JSON `null`.
-		// json.Unmarshal of `[]` produces a non-nil zero-length slice; null gives nil.
-		return []map[string]any{}
 	}
 	return rows
 }

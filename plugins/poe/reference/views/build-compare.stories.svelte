@@ -120,9 +120,9 @@
         common: Array.from({ length: 32 }, (_, i) => 1000 + i),
       },
       gear: {
-        Helmet: { perBuild: ["Atziri's Foible", "Crown of the Tyrant"], name_same: false, mods_same: false },
-        "Body Armour": { perBuild: ["Kintsugi", "Shavronne's Wrappings"], name_same: false, mods_same: false },
-        Boots: { perBuild: ["Goldwyrm", "Goldwyrm"], name_same: true, mods_same: true },
+        Helmet: { perBuild: ["Atziri's Foible", "Crown of the Tyrant"], nameSame: false, modsSame: false },
+        "Body Armour": { perBuild: ["Kintsugi", "Shavronne's Wrappings"], nameSame: false, modsSame: false },
+        Boots: { perBuild: ["Goldwyrm", "Goldwyrm"], nameSame: true, modsSame: true },
       },
       skills: [
         {
@@ -169,18 +169,18 @@
       gear: {
         Helmet: {
           perBuild: ["Atziri's Foible", "Devoto's Devotion", "Hyrri's Demise"],
-          name_same: false,
-          mods_same: false,
+          nameSame: false,
+          modsSame: false,
         },
         "Body Armour": {
           perBuild: ["Kintsugi", "Belly of the Beast", "Queen of the Forest"],
-          name_same: false,
-          mods_same: false,
+          nameSame: false,
+          modsSame: false,
         },
         Boots: {
           perBuild: ["Goldwyrm", "Atziri's Step", "Atziri's Step"],
-          name_same: false,
-          mods_same: false,
+          nameSame: false,
+          modsSame: false,
         },
       },
       skills: [
@@ -228,12 +228,12 @@
         CombinedDPS: { perBuild: [1_247_832, 1_840_000], leader: 1, range: 0.475 },
       },
       gear: {
-        Helmet: { perBuild: ["Atziri's Foible", "Crown of the Tyrant"], name_same: false, mods_same: false },
-        "Body Armour": { perBuild: ["Kintsugi", null], name_same: false, mods_same: false },
-        Gloves: { perBuild: [null, "Voidbringer"], name_same: false, mods_same: false },
-        Boots: { perBuild: ["Goldwyrm", null], name_same: false, mods_same: false },
-        Belt: { perBuild: [null, null], name_same: false, mods_same: false },
-        Amulet: { perBuild: ["Bisco's Collar", "Bisco's Collar"], name_same: true, mods_same: true },
+        Helmet: { perBuild: ["Atziri's Foible", "Crown of the Tyrant"], nameSame: false, modsSame: false },
+        "Body Armour": { perBuild: ["Kintsugi", null], nameSame: false, modsSame: false },
+        Gloves: { perBuild: [null, "Voidbringer"], nameSame: false, modsSame: false },
+        Boots: { perBuild: ["Goldwyrm", null], nameSame: false, modsSame: false },
+        Belt: { perBuild: [null, null], nameSame: false, modsSame: false },
+        Amulet: { perBuild: ["Bisco's Collar", "Bisco's Collar"], nameSame: true, modsSame: true },
       },
       skills: [],
       tree: { allocatedOnlyIn: {}, common: [] },
@@ -251,9 +251,9 @@
         Life: { perBuild: [4_891, 7_200], leader: 1, range: 0.472 },
       },
       gear: {
-        Helmet: { perBuild: ["Atziri's Foible", "Devoto's Devotion"], name_same: false, mods_same: false },
-        "Body Armour": { perBuild: ["Kintsugi", "Belly of the Beast"], name_same: false, mods_same: false },
-        Boots: { perBuild: ["Goldwyrm", "Kaom's Roots"], name_same: false, mods_same: false },
+        Helmet: { perBuild: ["Atziri's Foible", "Devoto's Devotion"], nameSame: false, modsSame: false },
+        "Body Armour": { perBuild: ["Kintsugi", "Belly of the Beast"], nameSame: false, modsSame: false },
+        Boots: { perBuild: ["Goldwyrm", "Kaom's Roots"], nameSame: false, modsSame: false },
       },
       skills: [],
       tree: { allocatedOnlyIn: {}, common: [] },
@@ -294,8 +294,8 @@
         Life: { perBuild: [4_891, 7_200], leader: 1, range: 0.472 },
       },
       gear: {
-        Helmet: { perBuild: ["Atziri's Foible", "Devoto's Devotion"], name_same: false, mods_same: false },
-        "Body Armour": { perBuild: ["Kintsugi", "Belly of the Beast"], name_same: false, mods_same: false },
+        Helmet: { perBuild: ["Atziri's Foible", "Devoto's Devotion"], nameSame: false, modsSame: false },
+        "Body Armour": { perBuild: ["Kintsugi", "Belly of the Beast"], nameSame: false, modsSame: false },
       },
       skills: [],
       tree: { allocatedOnlyIn: {}, common: [] },
@@ -440,7 +440,7 @@
         common: [1001, 1002, 1003],
       },
       gear: {
-        Helmet: { perBuild: ["Atziri's Foible", "Devoto's Devotion"], name_same: false, mods_same: false },
+        Helmet: { perBuild: ["Atziri's Foible", "Devoto's Devotion"], nameSame: false, modsSame: false },
       },
       skills: [],
     },

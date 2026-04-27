@@ -28,8 +28,8 @@ type compareDiffsGearOnWire struct {
 // from "actually different mods".
 type compareSlotDiffOnWire struct {
 	PerBuild []*string `json:"perBuild"`
-	NameSame bool      `json:"name_same"`
-	ModsSame bool      `json:"mods_same"`
+	NameSame bool      `json:"nameSame"`
+	ModsSame bool      `json:"modsSame"`
 }
 
 func decodeCompareWithGear(t *testing.T, body []byte) compareRespWithGear {
@@ -43,23 +43,55 @@ func decodeCompareWithGear(t *testing.T, body []byte) compareRespWithGear {
 
 // calcResponseWithItems returns a wrapper.lua-shaped response with a
 // custom items map. slot → name lets each test build a distinct gear
-// loadout.
+// loadout. All items are emitted as UNIQUE with no mod text — fine for
+// most tests since mods_same trivially holds when both builds emit nil
+// mods. For tests exercising the name vs mods split (rares with mod
+// text), use calcResponseWithRareItems.
 func calcResponseWithItems(class string, items map[string]string) string {
+	rareItems := make(map[string]rareItemFixture, len(items))
+	for slot, name := range items {
+		rareItems[slot] = rareItemFixture{Name: name, Rarity: "UNIQUE"}
+	}
+	return calcResponseWithRareItems(class, rareItems)
+}
+
+// rareItemFixture is the per-slot fixture shape used by
+// calcResponseWithRareItems. Mods is the per-item mod-text array as
+// wrapper.lua's serializeItems emits it for non-uniques.
+type rareItemFixture struct {
+	Name   string
+	Rarity string
+	Mods   []string
+}
+
+// calcResponseWithRareItems returns a wrapper.lua-shaped response with
+// per-item rarity + mod text — needed to test the gear diff's
+// name_same vs mods_same split.
+func calcResponseWithRareItems(class string, items map[string]rareItemFixture) string {
 	b := strings.Builder{}
 	b.WriteString("{")
 	first := true
-	for slot, name := range items {
+	for slot, item := range items {
 		if !first {
 			b.WriteString(",")
 		}
 		first = false
-		// Each slot value is an object with at least `name`.
-		nameJSON, _ := json.Marshal(name)
+		nameJSON, _ := json.Marshal(item.Name)
 		slotJSON, _ := json.Marshal(slot)
+		rarity := item.Rarity
+		if rarity == "" {
+			rarity = "UNIQUE"
+		}
 		b.Write(slotJSON)
 		b.WriteString(`:{"name":`)
 		b.Write(nameJSON)
-		b.WriteString(`,"baseName":"X","rarity":"UNIQUE","type":"X"}`)
+		b.WriteString(`,"baseName":"X","rarity":"` + rarity + `","type":"X"`)
+		if len(item.Mods) > 0 {
+			modsJSON, _ := json.Marshal(item.Mods)
+			b.WriteString(`,"mods":`)
+			b.Write(modsJSON)
+		}
+		b.WriteString(`}`)
 	}
 	b.WriteString("}")
 	return `{"type":"result","data":{` +
@@ -226,8 +258,19 @@ func TestCompareGearDiffN3Mixed(t *testing.T) {
 	if helmet.NameSame {
 		t.Errorf("Helmet name_same should be false (one of three differs)")
 	}
+	// Three uniques with no mods emitted → mods_same is true (all-empty
+	// mod sets compare equal); the divergence is purely in display name.
+	if !helmet.ModsSame {
+		t.Errorf("Helmet mods_same should be true (all uniques, no mods); got false")
+	}
 	if len(helmet.PerBuild) != 3 {
-		t.Errorf("perBuild length = %d, want 3", len(helmet.PerBuild))
+		t.Fatalf("perBuild length = %d, want 3", len(helmet.PerBuild))
+	}
+	wantNames := []string{"Atziri's Foible", "Atziri's Foible", "Devoto's Devotion"}
+	for i, ptr := range helmet.PerBuild {
+		if ptr == nil || *ptr != wantNames[i] {
+			t.Errorf("perBuild[%d] = %v, want %s", i, ptr, wantNames[i])
+		}
 	}
 }
 
@@ -295,4 +338,74 @@ func mapKeysGearDiff(m map[string]compareSlotDiffOnWire) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// TestCompareGearDiffNameDiffersModsIdentical pins the requirement-5
+// case: two rares with different display names but identical mod text
+// produce name_same:false, mods_same:true. Hand-built fixture so this
+// runs without POB_DIR.
+func TestCompareGearDiffNameDiffersModsIdentical(t *testing.T) {
+	mods := []string{
+		"+80 to maximum Life",
+		"32% increased Critical Strike Chance",
+		"+45% to Cold Resistance",
+	}
+	srv, idA, idB := compareHarness(
+		t,
+		"<A/>", "<B/>",
+		calcResponseWithRareItems("Witch", map[string]rareItemFixture{
+			"Amulet": {Name: "Onslaught Locket", Rarity: "RARE", Mods: mods},
+		}),
+		calcResponseWithRareItems("Witch", map[string]rareItemFixture{
+			"Amulet": {Name: "Ghoul Idol", Rarity: "RARE", Mods: mods},
+		}),
+	)
+	body := `{"builds":["` + idA + `","` + idB + `"]}`
+	rec := httptest.NewRecorder()
+	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	resp := decodeCompareWithGear(t, rec.Body.Bytes())
+	amulet := resp.Diffs.Gear["Amulet"]
+	if amulet.NameSame {
+		t.Errorf("Amulet name_same should be false (different display names); got true")
+	}
+	if !amulet.ModsSame {
+		t.Errorf("Amulet mods_same should be true (identical mods); got false")
+	}
+}
+
+// TestCompareGearDiffModsOrderIndependent pins that two rares with
+// the same mod *set* in different roll order compare mods_same:true.
+// Without canonicalization, equalStringSlices would return false here.
+func TestCompareGearDiffModsOrderIndependent(t *testing.T) {
+	srv, idA, idB := compareHarness(
+		t,
+		"<A/>", "<B/>",
+		calcResponseWithRareItems("Witch", map[string]rareItemFixture{
+			"Amulet": {Name: "Same Amulet", Rarity: "RARE", Mods: []string{
+				"+80 to maximum Life",
+				"32% increased Critical Strike Chance",
+				"+45% to Cold Resistance",
+			}},
+		}),
+		calcResponseWithRareItems("Witch", map[string]rareItemFixture{
+			"Amulet": {Name: "Same Amulet", Rarity: "RARE", Mods: []string{
+				"+45% to Cold Resistance",
+				"+80 to maximum Life",
+				"32% increased Critical Strike Chance",
+			}},
+		}),
+	)
+	body := `{"builds":["` + idA + `","` + idB + `"]}`
+	rec := httptest.NewRecorder()
+	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
+
+	resp := decodeCompareWithGear(t, rec.Body.Bytes())
+	amulet := resp.Diffs.Gear["Amulet"]
+	if !amulet.ModsSame {
+		t.Errorf("Amulet mods_same should be true (same mod set, different order); got false")
+	}
 }
