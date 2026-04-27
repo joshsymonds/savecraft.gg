@@ -9,8 +9,12 @@
   pobSrc = pkgs.fetchFromGitHub {
     owner = "PathOfBuildingCommunity";
     repo = "PathOfBuilding";
-    rev = "d126ab7dc269aaf8371430ad2238e0c8041357e3";
-    hash = "sha256-KZSwLT/nIglOjwp4Ddho4Jup0sH1a0SdIrMSWu4CiqE=";
+    # v2.65.0 — required for Classes/CompareCalcsHelpers + CompareTradeHelpers,
+    # which the ride-along statSources / buy-similar / dump_query_mods paths
+    # need. Bumping this revision is the only knob — wrapper.lua + the Go
+    # tests assume the helpers are present.
+    rev = "f9f4f3b4ab6a3a37d2eb693265b5c73317ff42a6";
+    hash = "sha256-lNr9e7gifr7g+UsmyhEVqbQ9wBBWzlhHTKCsLnjsn6Y=";
   };
 in {
   options.services.savecraftPobServer = {
