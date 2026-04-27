@@ -164,6 +164,7 @@ type compareResponseShape struct {
 		Label       string                     `json:"label"`
 		Error       string                     `json:"error,omitempty"`
 		StatSources map[string]json.RawMessage `json:"statSources,omitempty"`
+		Sections    map[string]json.RawMessage `json:"sections,omitempty"`
 	} `json:"builds"`
 	Diffs *struct {
 		Skills []struct {
@@ -213,6 +214,7 @@ func buildErrors(builds []struct {
 	Label       string                     `json:"label"`
 	Error       string                     `json:"error,omitempty"`
 	StatSources map[string]json.RawMessage `json:"statSources,omitempty"`
+	Sections    map[string]json.RawMessage `json:"sections,omitempty"`
 }) []string {
 	out := []string{}
 	for _, b := range builds {

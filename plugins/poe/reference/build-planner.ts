@@ -570,7 +570,7 @@ export const buildPlannerModule: NativeReferenceModule = {
 
       let response: Response;
       try {
-        response = await pobFetch(pobUrl, "/compare", compareBody, env.POB_API_KEY);
+        response = await pobFetch(pobUrl, "/compare", compareBody, env.POB_API_KEY, sections, statKeys);
       } catch (e) {
         return {
           type: "text",

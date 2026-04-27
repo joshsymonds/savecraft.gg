@@ -351,8 +351,16 @@ type compareBuildEntry struct {
 	// hydrateEntryFromData saw allocated nodes in the wrapper.lua
 	// response. Mirrors the data.sections.tree shape exposed by /resolve
 	// so the two endpoints have parallel tree-data wire shapes.
-	Tree  *compareBuildTree `json:"tree,omitempty"`
-	Error string            `json:"error,omitempty"`
+	Tree *compareBuildTree `json:"tree,omitempty"`
+	// Sections carries filterSections output when the /compare request
+	// included a `sections` query param. Each key is one of the public
+	// 6-name section ids (offense, defense, gear, tree, config, summary);
+	// values are the same shape /resolve emits per section. Omitted when
+	// sections wasn't requested. Populated on both cold-calc and cache-hit
+	// paths so the caller doesn't need a separate /resolve round-trip to
+	// drill into per-build details.
+	Sections map[string]json.RawMessage `json:"sections,omitempty"`
+	Error    string                     `json:"error,omitempty"`
 
 	allocatedNodes []int
 	itemsBySlot    map[string]gearItemSummary
@@ -405,7 +413,17 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
-	resp := CompareResponse{Builds: srv.runCompareCalcs(req, statSources)}
+	// `sections` query param mirrors /resolve and /modify — when set,
+	// each per-build entry's Sections map is populated with the requested
+	// public-named sections. Unknown names trigger a 400 via filterSections
+	// applied per-build below.
+	sections := parseSections(request)
+	if err := validateSectionNames(sections); err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	resp := CompareResponse{Builds: srv.runCompareCalcs(req, statSources, sections)}
 	successes := 0
 	for _, entry := range resp.Builds {
 		if entry.Error == "" {
@@ -494,7 +512,11 @@ func validateCompareBuildsCardinality(builds []string) string {
 // so /compare never claims the entire pool and starves the other
 // endpoints. Per-build errors live on entry.Error; the goroutines
 // themselves never return one.
-func (srv *Server) runCompareCalcs(req CompareRequest, statSources *calcLuaStatSourcesField) []compareBuildEntry {
+func (srv *Server) runCompareCalcs(
+	req CompareRequest,
+	statSources *calcLuaStatSourcesField,
+	sections []string,
+) []compareBuildEntry {
 	out := make([]compareBuildEntry, len(req.Builds))
 	compareSlots := max(1, srv.pool.maxSize-1)
 	concurrency := min(len(req.Builds), compareSlots)
@@ -506,7 +528,7 @@ func (srv *Server) runCompareCalcs(req CompareRequest, statSources *calcLuaStatS
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			out[i] = srv.compareOneBuild(input, labelFor(req.Labels, i, input), statSources)
+			out[i] = srv.compareOneBuild(input, labelFor(req.Labels, i, input), statSources, sections)
 		}()
 	}
 	wg.Wait()
@@ -520,7 +542,15 @@ func (srv *Server) runCompareCalcs(req CompareRequest, statSources *calcLuaStatS
 // statSources, when non-nil, opts the per-build calc into wrapper.lua's
 // TabulateMods walk for the named stats. The cached fast-path is
 // skipped because stored summaries lack source data.
-func (srv *Server) compareOneBuild(input, label string, statSources *calcLuaStatSourcesField) compareBuildEntry {
+//
+// sections, when non-nil, populates entry.Sections with the public
+// 6-name section view emitted by filterSections. Applies on both the
+// cache fast-path and the fresh-calc path.
+func (srv *Server) compareOneBuild(
+	input, label string,
+	statSources *calcLuaStatSourcesField,
+	sections []string,
+) compareBuildEntry {
 	xml, buildID, err := srv.fetchCompareInputXML(input)
 	if err != nil {
 		return compareBuildEntry{Label: label, Error: err.Error()}
@@ -533,6 +563,7 @@ func (srv *Server) compareOneBuild(input, label string, statSources *calcLuaStat
 		if cachedData, ok := srv.tryCachedSummary(buildID); ok {
 			entry := compareBuildEntry{ID: buildID, Label: label}
 			hydrateEntryFromData(&entry, cachedData)
+			attachFilteredSections(&entry, cachedData, sections)
 			return entry
 		}
 	}
@@ -580,7 +611,34 @@ func (srv *Server) compareOneBuild(input, label string, statSources *calcLuaStat
 
 	entry := compareBuildEntry{ID: buildID, Label: label}
 	hydrateEntryFromData(&entry, pobResp.Data)
+	attachFilteredSections(&entry, pobResp.Data, sections)
 	return entry
+}
+
+// attachFilteredSections runs the wrapper-shaped data through
+// filterSections (the same helper /resolve uses) and pulls out the
+// public-named `sections` map onto entry.Sections. No-op when sections
+// is nil/empty. Section-name validation already happened in
+// handleCompare; failures here are unmarshal-level (non-JSON cached
+// data, etc.) and are silently dropped — the caller still gets the
+// rest of the entry's wire fields, just without the Sections drill-in.
+func attachFilteredSections(entry *compareBuildEntry, data json.RawMessage, sections []string) {
+	if len(sections) == 0 {
+		return
+	}
+	filtered, err := filterSections(data, sections)
+	if err != nil {
+		return
+	}
+	var parsed struct {
+		Sections map[string]json.RawMessage `json:"sections"`
+	}
+	if err := json.Unmarshal(filtered, &parsed); err != nil {
+		return
+	}
+	if len(parsed.Sections) > 0 {
+		entry.Sections = parsed.Sections
+	}
 }
 
 // fetchCompareInputXML returns the XML and (if known) the buildId for an
