@@ -31,7 +31,13 @@ var ErrBuildNotFound = errors.New("build not found")
 //
 // Pre-migration rows have wrapper_schema_version=0 (column default), so
 // any current >= 1 invalidates them on first read post-deploy.
-const wrapperSchemaVersion = 1
+//
+// v2 (Item #3 of /compare polish epic): wrapper.lua's serializeSocketGroups
+// gained mainGemLinkCount, hostItemMaxLink, hostItemName per group.
+// Rows cached at v1 lack these keys; bumping forces re-extraction so
+// /compare cache hits surface the new fields instead of silently
+// returning the old shape under sections.gear.socketGroups.
+const wrapperSchemaVersion = 2
 
 // BuildMeta holds non-content metadata for a stored build.
 type BuildMeta struct {

@@ -461,12 +461,58 @@ local function serializeSocketGroups(build)
 			label = string.format("(%s #%d)", group.slot or "group", i)
 		end
 
+		-- Compute link metrics + host item name. itemSockets is the
+		-- {color, group} array from getItemSockets above; absence (no
+		-- host item, or selItemId <= 0) means we leave all three fields
+		-- nil so the JSON encoder omits them. The three fields travel
+		-- together: a group either has a host item with all three set,
+		-- or no host item with all three absent.
+		local mainGemLinkCount, hostItemMaxLink, hostItemName
+		if itemSockets and #itemSockets > 0 then
+			-- Group-size table: how many sockets share each link group?
+			local sizes = {}
+			for _, s in ipairs(itemSockets) do
+				sizes[s.group] = (sizes[s.group] or 0) + 1
+			end
+			-- hostItemMaxLink: largest connected group on the item.
+			for _, n in pairs(sizes) do
+				if not hostItemMaxLink or n > hostItemMaxLink then
+					hostItemMaxLink = n
+				end
+			end
+			-- mainGemLinkCount: link group containing the main gem.
+			-- "Main gem" = first non-support gem with non-empty name;
+			-- fall back to gem index 1 when no active gem found.
+			local mainIdx
+			for j, gem in ipairs(gems) do
+				if gem.name and gem.name ~= "" and not gem.support then
+					mainIdx = j
+					break
+				end
+			end
+			if not mainIdx and #gems > 0 then
+				mainIdx = 1
+			end
+			if mainIdx and itemSockets[mainIdx] then
+				mainGemLinkCount = sizes[itemSockets[mainIdx].group]
+			end
+			-- hostItemName: read from the same itemsTab plumbing as
+			-- getItemSockets used. Prefer the explicit title (rare
+			-- magics/rares carry it) over baseName.
+			local slot = build.itemsTab.slots[group.slot]
+			local item = build.itemsTab.items[slot.selItemId]
+			hostItemName = item.title or item.name or item.baseName
+		end
+
 		groups[#groups + 1] = {
 			label = label,
 			enabled = group.enabled,
 			slot = group.slot or "",
 			gems = gems,
 			isMainGroup = (i == build.mainSocketGroup),
+			mainGemLinkCount = mainGemLinkCount,
+			hostItemMaxLink = hostItemMaxLink,
+			hostItemName = hostItemName,
 		}
 	end
 	return groups

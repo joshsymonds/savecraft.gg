@@ -371,6 +371,55 @@ func TestCompareSkillsDiffWithinBuildLabelCollision(t *testing.T) {
 	}
 }
 
+// TestCompareSkillsDiffIgnoresLinkCount: two builds with the same gem
+// set in the same labeled group, but different mainGemLinkCount /
+// hostItemMaxLink values, must still report same:true. The new
+// socket-link fields are informational for the AI consumer (so it can
+// say "you went from 5L to 6L") — they are NOT part of the "same gem
+// set" question. Folding link count into equality would split otherwise
+// identical groups when the player kept the same skill but improved
+// gear, which is the opposite of what /compare should surface.
+func TestCompareSkillsDiffIgnoresLinkCount(t *testing.T) {
+	// Build A: 5-link Cyclone setup. Build B: same gems, 6-link.
+	respA := calcResponseWithSkillsAndLinks("Witch",
+		testSocketGroupWithLinks{
+			Label:            "Main Skill",
+			Gems:             []string{"Cyclone", "Brutality", "Pulverise"},
+			MainGemLinkCount: intPtr(5),
+			HostItemMaxLink:  intPtr(5),
+			HostItemName:     strPtr("Saintly Chainmail"),
+		},
+	)
+	respB := calcResponseWithSkillsAndLinks("Marauder",
+		testSocketGroupWithLinks{
+			Label:            "Main Skill",
+			Gems:             []string{"Cyclone", "Brutality", "Pulverise"},
+			MainGemLinkCount: intPtr(6),
+			HostItemMaxLink:  intPtr(6),
+			HostItemName:     strPtr("Loath Bane"),
+		},
+	)
+
+	srv, idA, idB := compareHarness(t, "<A/>", "<B/>", respA, respB)
+	body := `{"builds":["` + idA + `","` + idB + `"]}`
+	rec := httptest.NewRecorder()
+	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	resp := decodeCompareWithSkills(t, rec.Body.Bytes())
+	g := findGroup(resp.Diffs.Skills, "Main Skill")
+	if g == nil {
+		t.Fatal("Main Skill group missing")
+	}
+	if !g.Same {
+		t.Errorf(
+			"same should be true (identical gem set; only link count + host item differ); got false",
+		)
+	}
+}
+
 // TestCompareSkillsDiffOrderInsensitive: gem order within a group
 // shouldn't matter — same gems in different order are still "same".
 func TestCompareSkillsDiffOrderInsensitive(t *testing.T) {
@@ -400,3 +449,61 @@ func TestCompareSkillsDiffOrderInsensitive(t *testing.T) {
 		t.Errorf("same should be true (same gem set, different order)")
 	}
 }
+
+// testSocketGroupWithLinks extends testSocketGroup with the new
+// socket-link fields. Used by TestCompareSkillsDiffIgnoresLinkCount to
+// craft per-build responses where same gems land at different link
+// counts — pinning that link count is informational only and does not
+// participate in skills-diff equality.
+type testSocketGroupWithLinks struct {
+	Label            string
+	Gems             []string
+	MainGemLinkCount *int
+	HostItemMaxLink  *int
+	HostItemName     *string
+}
+
+// calcResponseWithSkillsAndLinks emits a wrapper.lua-shaped JSON
+// response with link-aware socketGroups. Mirrors calcResponseWithSkills
+// but threads through the optional pointer fields, omitting them when
+// nil (matches Lua's nil → JSON-absent behavior).
+func calcResponseWithSkillsAndLinks(class string, groups ...testSocketGroupWithLinks) string {
+	type gemEntry struct {
+		Name string `json:"name"`
+	}
+	type groupEntry struct {
+		Label            string     `json:"label"`
+		Gems             []gemEntry `json:"gems"`
+		MainGemLinkCount *int       `json:"mainGemLinkCount,omitempty"`
+		HostItemMaxLink  *int       `json:"hostItemMaxLink,omitempty"`
+		HostItemName     *string    `json:"hostItemName,omitempty"`
+	}
+	out := make([]groupEntry, 0, len(groups))
+	for _, g := range groups {
+		gems := make([]gemEntry, len(g.Gems))
+		for i, name := range g.Gems {
+			gems[i] = gemEntry{Name: name}
+		}
+		out = append(out, groupEntry{
+			Label:            g.Label,
+			Gems:             gems,
+			MainGemLinkCount: g.MainGemLinkCount,
+			HostItemMaxLink:  g.HostItemMaxLink,
+			HostItemName:     g.HostItemName,
+		})
+	}
+	groupsJSON, _ := json.Marshal(out)
+
+	return `{"type":"result","data":{` +
+		`"character":{"class":"` + class + `","ascendancy":"X","level":99},` +
+		`"summary":{"CombinedDPS":100000,"Life":6000,"LifeUnreserved":6000,"LifeUnreservedPercent":100,` +
+		`"EnergyShield":0,"Mana":500,"Armour":0,"Evasion":0,` +
+		`"FireResist":75,"ColdResist":75,"LightningResist":75,"ChaosResist":40,` +
+		`"BlockChance":0,"SpellSuppressionChance":0,"MovementSpeedMod":1,` +
+		`"Str":100,"Dex":100,"Int":100,"FlaskEffect":0,"FlaskChargeGen":0,` +
+		`"LootQuantityNormalEnemies":0,"LootRarityMagicEnemies":0,` +
+		`"EnemyCurseLimit":1,"TotalDPS":100000},` +
+		`"section_index":[],"sections":{"socketGroups":` + string(groupsJSON) + `}}}`
+}
+
+func strPtr(s string) *string { return &s }
