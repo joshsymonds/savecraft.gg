@@ -56,7 +56,8 @@
 
   interface SlotDiff {
     perBuild: Array<string | null>;
-    same: boolean;
+    name_same: boolean;
+    mods_same: boolean;
   }
 
   interface SocketGroupDiff {
@@ -309,8 +310,12 @@
           successful.forEach((b, i) => {
             const item = slotDiff.perBuild[i];
             const colKey = `b${b.id ?? b.label}`;
+            // mods_same:true → mechanically identical (mute even when names differ —
+            // e.g. two rolls of the same rare, or a unique with relic variant).
+            // name_same:true alone (mods_same:false would be unusual; surface as default).
+            // Otherwise it's a real divergence — render unmuted.
             row[colKey] = item
-              ? slotDiff.same
+              ? slotDiff.mods_same
                 ? { value: item, variant: "muted" }
                 : item
               : { value: "—", variant: "muted" };

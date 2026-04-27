@@ -266,11 +266,29 @@ type compareSocketGroupDiff struct {
 //
 // PerBuild values are pointers so JSON null marshaling distinguishes
 // "build has nothing equipped in this slot" (nil pointer) from "build
-// equipped Atziri's Foible." Same is true iff every entry is non-nil
-// AND every name matches.
+// equipped Atziri's Foible."
+//
+// NameSame and ModsSame are independent: two amulets with identical
+// rolled mod text but different rare display names produce
+// {name_same:false, mods_same:true} — surfacing that the items are
+// mechanically equivalent even though the auto-generated names differ.
+// Either field being false means the slot has SOMETHING that diverges.
+//
+//nolint:tagliatelle // snake_case wire contract surfaced through the MCP layer.
 type compareSlotDiff struct {
 	PerBuild []*string `json:"perBuild"`
-	Same     bool      `json:"same"`
+	NameSame bool      `json:"name_same"`
+	ModsSame bool      `json:"mods_same"`
+}
+
+// gearItemSummary is the per-build per-slot record fed into computeGearDiff.
+// Captures the full identity needed to compute name vs mods divergence
+// independently. Mods is nil when the wrapper.lua emission omits it (uniques
+// + relics; in those cases all builds in the slot will have nil mods so
+// mods_same trivially holds when the names match).
+type gearItemSummary struct {
+	Name string
+	Mods []string
 }
 
 // compareTreeDiff carries the set-op result of the regular-tree
@@ -339,7 +357,7 @@ type compareBuildEntry struct {
 	Error string            `json:"error,omitempty"`
 
 	allocatedNodes []int
-	itemsBySlot    map[string]string
+	itemsBySlot    map[string]gearItemSummary
 	socketGroups   []socketGroupSummary
 	config         map[string]any
 }
@@ -628,10 +646,14 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 			Tree struct {
 				AllocatedNodeIDs []int `json:"allocatedNodeIds"`
 			} `json:"tree"`
-			// Items is slot → object; we only need the name for the v1
-			// diff (matches the shape from wrapper.lua serializeItems).
+			// Items is slot → object; the gear diff needs both name (for
+			// the slot identity) and mods (for the name_same vs mods_same
+			// split). Mods is omitted by wrapper.lua for uniques + relics —
+			// in those cases all builds in the slot have nil mods, so
+			// mods_same trivially holds when the names match.
 			Items map[string]struct {
-				Name string `json:"name"`
+				Name string   `json:"name"`
+				Mods []string `json:"mods"`
 			} `json:"items"`
 			// SocketGroups is an ordered array of skill setups (label +
 			// gem list). v1 diff matches by label, ignores gem order.
@@ -663,10 +685,10 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 	}
 
 	if len(parsed.Sections.Items) > 0 {
-		entry.itemsBySlot = make(map[string]string, len(parsed.Sections.Items))
+		entry.itemsBySlot = make(map[string]gearItemSummary, len(parsed.Sections.Items))
 		for slot, item := range parsed.Sections.Items {
 			if item.Name != "" {
-				entry.itemsBySlot[slot] = item.Name
+				entry.itemsBySlot[slot] = gearItemSummary{Name: item.Name, Mods: item.Mods}
 			}
 		}
 	}
@@ -1147,26 +1169,41 @@ func computeGearDiff(successful []compareBuildEntry) map[string]compareSlotDiff 
 	out := make(map[string]compareSlotDiff, len(slotSet))
 	for slot := range slotSet {
 		perBuild := make([]*string, len(successful))
-		first := ""
+		var firstName string
+		var firstMods []string
 		firstSet := false
-		same := true
+		nameSame := true
+		modsSame := true
+		anyMissing := false
 		for i, entry := range successful {
-			name, ok := entry.itemsBySlot[slot]
-			if !ok || name == "" {
+			item, ok := entry.itemsBySlot[slot]
+			if !ok || item.Name == "" {
 				perBuild[i] = nil
-				same = false // any null breaks identity
+				anyMissing = true
 				continue
 			}
-			nameCopy := name
+			nameCopy := item.Name
 			perBuild[i] = &nameCopy
 			if !firstSet {
-				first = name
+				firstName = item.Name
+				firstMods = item.Mods
 				firstSet = true
-			} else if name != first {
-				same = false
+				continue
+			}
+			if item.Name != firstName {
+				nameSame = false
+			}
+			if !equalStringSlices(item.Mods, firstMods) {
+				modsSame = false
 			}
 		}
-		out[slot] = compareSlotDiff{PerBuild: perBuild, Same: same}
+		// Any missing slot in any build flips both to false — when one
+		// build has the slot empty we can't claim identity on either axis.
+		if anyMissing {
+			nameSame = false
+			modsSame = false
+		}
+		out[slot] = compareSlotDiff{PerBuild: perBuild, NameSame: nameSame, ModsSame: modsSame}
 	}
 	return out
 }
@@ -1381,26 +1418,26 @@ func buySimilarPairsForSlotWithFilters(
 ) []compareBuySimilarEntry {
 	var out []compareBuySimilarEntry
 	for i, from := range successful {
-		fromName := from.itemsBySlot[slot]
-		if fromName == "" {
+		fromItem := from.itemsBySlot[slot]
+		if fromItem.Name == "" {
 			continue
 		}
 		// Build the URL once per `from`; it does not depend on `to`.
 		var tradeURL string
 		if filters == nil {
-			tradeURL = buildTradeURL(fromName, league)
+			tradeURL = buildTradeURL(fromItem.Name, league)
 		} else {
-			tradeURL = buildTradeURLWithFilters(srv, fromName, league, filters)
+			tradeURL = buildTradeURLWithFilters(srv, fromItem.Name, league, filters)
 		}
 		for j, to := range successful {
-			if i == j || to.itemsBySlot[slot] == fromName {
+			if i == j || to.itemsBySlot[slot].Name == fromItem.Name {
 				continue
 			}
 			out = append(out, compareBuySimilarEntry{
 				FromBuildID: from.ID,
 				ToBuildID:   to.ID,
 				Slot:        slot,
-				ItemName:    fromName,
+				ItemName:    fromItem.Name,
 				TradeURL:    tradeURL,
 			})
 		}

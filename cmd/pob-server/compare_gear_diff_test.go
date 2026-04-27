@@ -23,10 +23,13 @@ type compareDiffsGearOnWire struct {
 
 // compareSlotDiffOnWire mirrors the wire shape: perBuild is a list of
 // pointers so JSON null encodes as nil — distinguishing "slot empty in
-// this build" from "build absent".
+// this build" from "build absent". NameSame and ModsSame are independent
+// so callers can distinguish "different rare display name, same mods"
+// from "actually different mods".
 type compareSlotDiffOnWire struct {
 	PerBuild []*string `json:"perBuild"`
-	Same     bool      `json:"same"`
+	NameSame bool      `json:"name_same"`
+	ModsSame bool      `json:"mods_same"`
 }
 
 func decodeCompareWithGear(t *testing.T, body []byte) compareRespWithGear {
@@ -95,8 +98,9 @@ func TestCompareGearDiffIdenticalSlot(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected Helmet slot in gear diff; got keys: %v", mapKeysGearDiff(resp.Diffs.Gear))
 	}
-	if !helmet.Same {
-		t.Errorf("Helmet.same should be true (identical), got false")
+	if !helmet.NameSame || !helmet.ModsSame {
+		t.Errorf("Helmet identical: expected name_same:true mods_same:true, got name_same=%v mods_same=%v",
+			helmet.NameSame, helmet.ModsSame)
 	}
 	if len(helmet.PerBuild) != 2 {
 		t.Fatalf("perBuild length = %d, want 2", len(helmet.PerBuild))
@@ -108,7 +112,7 @@ func TestCompareGearDiffIdenticalSlot(t *testing.T) {
 	}
 }
 
-// TestCompareGearDiffDifferentSlot: same slot, different items → same=false.
+// TestCompareGearDiffDifferentSlot: same slot, different items → name_same=false.
 func TestCompareGearDiffDifferentSlot(t *testing.T) {
 	srv, idA, idB := compareHarness(
 		t,
@@ -125,8 +129,8 @@ func TestCompareGearDiffDifferentSlot(t *testing.T) {
 	}
 	resp := decodeCompareWithGear(t, rec.Body.Bytes())
 	helmet := resp.Diffs.Gear["Helmet"]
-	if helmet.Same {
-		t.Errorf("Helmet.same should be false (different items)")
+	if helmet.NameSame {
+		t.Errorf("Helmet name_same should be false (different items)")
 	}
 	names := []string{}
 	for _, ptr := range helmet.PerBuild {
@@ -158,8 +162,9 @@ func TestCompareGearDiffSlotEmptyInOneBuild(t *testing.T) {
 	resp := decodeCompareWithGear(t, rec.Body.Bytes())
 
 	helmet := resp.Diffs.Gear["Helmet"]
-	if helmet.Same {
-		t.Errorf("Helmet.same should be false (one build has it, other doesn't)")
+	if helmet.NameSame || helmet.ModsSame {
+		t.Errorf("Helmet should be name_same:false mods_same:false (one build has it, other doesn't); got name_same=%v mods_same=%v",
+			helmet.NameSame, helmet.ModsSame)
 	}
 	if len(helmet.PerBuild) != 2 {
 		t.Fatalf("perBuild length = %d, want 2", len(helmet.PerBuild))
@@ -178,8 +183,9 @@ func TestCompareGearDiffSlotEmptyInOneBuild(t *testing.T) {
 	}
 
 	body2 := resp.Diffs.Gear["Body Armour"]
-	if body2.Same {
-		t.Errorf("Body Armour.same should be false")
+	if body2.NameSame || body2.ModsSame {
+		t.Errorf("Body Armour should be name_same:false mods_same:false (one build absent); got name_same=%v mods_same=%v",
+			body2.NameSame, body2.ModsSame)
 	}
 }
 
@@ -213,8 +219,8 @@ func TestCompareGearDiffN3Mixed(t *testing.T) {
 	}
 	resp := decodeCompareWithGear(t, rec.Body.Bytes())
 	helmet := resp.Diffs.Gear["Helmet"]
-	if helmet.Same {
-		t.Errorf("Helmet.same should be false (one of three differs)")
+	if helmet.NameSame {
+		t.Errorf("Helmet name_same should be false (one of three differs)")
 	}
 	if len(helmet.PerBuild) != 3 {
 		t.Errorf("perBuild length = %d, want 3", len(helmet.PerBuild))
@@ -273,8 +279,9 @@ func TestCompareGearDiffEmptyItemsMap(t *testing.T) {
 	if !ok {
 		t.Fatalf("Helmet should appear (build A has it); got keys %v", mapKeysGearDiff(resp.Diffs.Gear))
 	}
-	if helmet.Same {
-		t.Errorf("Helmet.same should be false (B has no item)")
+	if helmet.NameSame || helmet.ModsSame {
+		t.Errorf("Helmet should be name_same:false mods_same:false (B has no item); got name_same=%v mods_same=%v",
+			helmet.NameSame, helmet.ModsSame)
 	}
 }
 

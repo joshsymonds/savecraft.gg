@@ -318,8 +318,8 @@ func TestComputeBuySimilarRejectsDangerousLeague(t *testing.T) {
 	for name, badLeague := range cases {
 		t.Run(name, func(t *testing.T) {
 			entries := []compareBuildEntry{
-				{ID: "a", itemsBySlot: map[string]string{"Helmet": "Atziri's Foible"}},
-				{ID: "b", itemsBySlot: map[string]string{"Helmet": "Devoto's Devotion"}},
+				{ID: "a", itemsBySlot: map[string]gearItemSummary{"Helmet": {Name: "Atziri's Foible"}}},
+				{ID: "b", itemsBySlot: map[string]gearItemSummary{"Helmet": {Name: "Devoto's Devotion"}}},
 			}
 			out := computeBuySimilarWithFilters(nil, entries, badLeague, nil)
 			if len(out) == 0 {
