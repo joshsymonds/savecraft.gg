@@ -580,7 +580,7 @@ func (srv *Server) compareOneBuild(
 		if cachedData, ok := srv.tryCachedSummary(buildID); ok {
 			entry := compareBuildEntry{ID: buildID, Label: label}
 			hydrateEntryFromData(&entry, cachedData)
-			attachFilteredSections(&entry, cachedData, sections)
+			srv.attachFilteredSections(&entry, cachedData, sections)
 			return entry
 		}
 	}
@@ -628,33 +628,31 @@ func (srv *Server) compareOneBuild(
 
 	entry := compareBuildEntry{ID: buildID, Label: label}
 	hydrateEntryFromData(&entry, pobResp.Data)
-	attachFilteredSections(&entry, pobResp.Data, sections)
+	srv.attachFilteredSections(&entry, pobResp.Data, sections)
 	return entry
 }
 
 // attachFilteredSections runs the wrapper-shaped data through
-// filterSections (the same helper /resolve uses) and pulls out the
-// public-named `sections` map onto entry.Sections. No-op when sections
-// is nil/empty. Section-name validation already happened in
-// handleCompare; failures here are unmarshal-level (non-JSON cached
-// data, etc.) and are silently dropped — the caller still gets the
-// rest of the entry's wire fields, just without the Sections drill-in.
-func attachFilteredSections(entry *compareBuildEntry, data json.RawMessage, sections []string) {
+// filterSectionsParsed (the parsed-map form shared with /resolve's
+// filterSections) and copies the public-named sections map onto
+// entry.Sections. No-op when sections is nil/empty. Section-name
+// validation already happened in handleCompare; failures here are
+// unmarshal-level (non-JSON cached data, etc.) — the caller still
+// gets the rest of the entry's wire fields, just without the Sections
+// drill-in. Mismatches the surrounding logs to surface unexpected
+// cache corruption (the equivalent applySectionFilter on /resolve
+// also warns on filter failure).
+func (srv *Server) attachFilteredSections(entry *compareBuildEntry, data json.RawMessage, sections []string) {
 	if len(sections) == 0 {
 		return
 	}
-	filtered, err := filterSections(data, sections)
+	_, aggregated, err := filterSectionsParsed(data, sections)
 	if err != nil {
+		srv.log.Warn("compare attach sections failed", "build_id", entry.ID, "err", err)
 		return
 	}
-	var parsed struct {
-		Sections map[string]json.RawMessage `json:"sections"`
-	}
-	if err := json.Unmarshal(filtered, &parsed); err != nil {
-		return
-	}
-	if len(parsed.Sections) > 0 {
-		entry.Sections = parsed.Sections
+	if len(aggregated) > 0 {
+		entry.Sections = aggregated
 	}
 }
 
@@ -1315,13 +1313,27 @@ func computeSingleSlotDiff(slot string, successful []compareBuildEntry) compareS
 	if !modsSame && !anyMissing {
 		out.ModsDiff = computeGearModsDiff(perBuildMods)
 	}
-	if hasAnyRarity(perBuildRarity) {
-		out.PerBuildRarity = perBuildRarity
-		if c := canonicalRarity(rarities); c != "" {
-			out.CanonicalRarity = &c
-		}
-	}
+	attachRarityFields(&out, perBuildRarity, rarities, anyMissing)
 	return out
+}
+
+// attachRarityFields wires PerBuildRarity and CanonicalRarity onto the
+// slot diff. PerBuildRarity is per-slot raw data and stays informative
+// even when a build is missing the slot (nil entries make that visible).
+// CanonicalRarity is a derived "what's this item's rarity" view — gated
+// on !anyMissing to match ModsDiff's semantics, since claiming a
+// canonical rarity is misleading when not every build has the item.
+func attachRarityFields(out *compareSlotDiff, perBuildRarity []*string, rarities []string, anyMissing bool) {
+	if !hasAnyRarity(perBuildRarity) {
+		return
+	}
+	out.PerBuildRarity = perBuildRarity
+	if anyMissing {
+		return
+	}
+	if c := canonicalRarity(rarities); c != "" {
+		out.CanonicalRarity = &c
+	}
 }
 
 // computeGearModsDiff returns the per-build set difference of mod
@@ -1331,10 +1343,14 @@ func computeSingleSlotDiff(slot string, successful []compareBuildEntry) compareS
 // (non-nil) per-build entries are valid — they mean that build had
 // no unique mods even though some other build did.
 func computeGearModsDiff(perBuildMods [][]string) *gearModsDiff {
-	// Tally each unique mod across all builds.
+	// Tally each unique mod across all builds. `seen` is reused across
+	// builds with `clear` between iterations to avoid a per-build map
+	// allocation (computeGearModsDiff is called once per gear slot —
+	// roughly slots × builds map allocations otherwise).
 	tally := make(map[string]int)
+	seen := make(map[string]bool)
 	for _, mods := range perBuildMods {
-		seen := make(map[string]bool, len(mods))
+		clear(seen)
 		for _, m := range mods {
 			if seen[m] {
 				continue
@@ -1367,14 +1383,16 @@ func computeGearModsDiff(perBuildMods [][]string) *gearModsDiff {
 	return &gearModsDiff{PerBuild: perBuild, Common: common}
 }
 
-// dedupSorted removes adjacent duplicates from an already-sorted slice.
-// Returns the slice with duplicates removed; nil-safe.
-func dedupSorted(s []string) []string {
-	if len(s) < 2 {
-		return s
+// dedupSorted returns a new slice with adjacent duplicates removed
+// from an already-sorted input. nil-safe. Allocates a fresh backing
+// array so callers can safely use the result without aliasing concerns.
+func dedupSorted(sorted []string) []string {
+	if len(sorted) == 0 {
+		return sorted
 	}
-	out := s[:1]
-	for _, v := range s[1:] {
+	out := make([]string, 0, len(sorted))
+	out = append(out, sorted[0])
+	for _, v := range sorted[1:] {
 		if v != out[len(out)-1] {
 			out = append(out, v)
 		}

@@ -80,6 +80,54 @@ func TestCompareSectionsHonoredOnCacheHit(t *testing.T) {
 	}
 }
 
+// TestCompareGearRarityFromRealLua pins that wrapper.lua's items
+// emission key matches the Go decode contract (`json:"rarity"`) by
+// running /compare end-to-end against the canonical fixture pair and
+// asserting at least one slot's PerBuildRarity is populated. Stub-driven
+// rarity tests pass even if wrapper.lua silently changes its emission
+// key — this test catches that drift.
+func TestCompareGearRarityFromRealLua(t *testing.T) {
+	srv := setupRealServer(t)
+	ts := realServerHTTP(t, srv)
+
+	idA := srv.cache.Put(readFixture(t, "build_OeN3b-6rvLSM"))
+	idB := srv.cache.Put(readFixture(t, "build_AVbLkApuCqI9"))
+
+	resp := postCompare(t, ts, map[string]any{"builds": []string{idA, idB}})
+	if resp.Diffs == nil || len(resp.Diffs.Gear) == 0 {
+		t.Fatalf("expected diffs.gear, got nil/empty")
+	}
+
+	// Decode at least one slot and assert rarity is populated.
+	type slotShape struct {
+		PerBuild        []*string `json:"perBuild"`
+		PerBuildRarity  []*string `json:"perBuildRarity"`
+		CanonicalRarity *string   `json:"canonicalRarity"`
+	}
+	gotRarity := false
+	for slot, raw := range resp.Diffs.Gear {
+		var s slotShape
+		if err := json.Unmarshal(raw, &s); err != nil {
+			t.Fatalf("decode %s: %v", slot, err)
+		}
+		for _, r := range s.PerBuildRarity {
+			if r != nil && *r != "" {
+				gotRarity = true
+				t.Logf("slot %s: PerBuildRarity has %q (canonical=%v)", slot, *r, s.CanonicalRarity)
+				break
+			}
+		}
+		if gotRarity {
+			break
+		}
+	}
+	if !gotRarity {
+		t.Errorf(
+			"expected at least one slot with non-nil PerBuildRarity from real-Lua; wrapper.lua's `rarity` key may not match the Go decode contract",
+		)
+	}
+}
+
 // TestCompareNoSectionsReturnsNoSectionsField pins that omitting the
 // sections query param leaves the per-build response without a
 // Sections field — the empty-case behavior matches the existing

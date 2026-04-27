@@ -1459,53 +1459,62 @@ func (srv *Server) applySectionFilter(
 // regardless of what wrapper.lua emitted, so callers always see the new
 // taxonomy.
 func filterSections(data json.RawMessage, sections []string) (json.RawMessage, error) {
-	var parsed map[string]json.RawMessage
-	if err := json.Unmarshal(data, &parsed); err != nil {
-		return data, fmt.Errorf("unmarshal data: %w", err)
-	}
-
-	// Always overwrite section_index with the canonical 6-name list.
-	indexJSON, err := json.Marshal(buildSectionIndex())
+	parsed, aggregated, err := filterSectionsParsed(data, sections)
 	if err != nil {
-		return data, fmt.Errorf("marshal section_index: %w", err)
+		return data, err
 	}
-	parsed["section_index"] = indexJSON
-
-	if sections == nil {
-		delete(parsed, "sections")
-		result, err := json.Marshal(parsed)
+	if aggregated != nil {
+		aggregatedJSON, err := json.Marshal(aggregated)
 		if err != nil {
-			return data, fmt.Errorf("marshal response: %w", err)
+			return data, fmt.Errorf("marshal aggregated sections: %w", err)
 		}
-		return result, nil
+		parsed["sections"] = aggregatedJSON
+	} else {
+		delete(parsed, "sections")
 	}
-
-	// Validate every requested name. Old/unknown names → all-or-nothing
-	// rejection (the request is out of contract).
-	if err := validateSectionNames(sections); err != nil {
-		return data, err
-	}
-
-	rawSections, err := extractRawSections(parsed)
-	if err != nil {
-		return data, err
-	}
-
-	aggregated, err := aggregateSections(rawSections, sections)
-	if err != nil {
-		return data, err
-	}
-
-	aggregatedJSON, err := json.Marshal(aggregated)
-	if err != nil {
-		return data, fmt.Errorf("marshal aggregated sections: %w", err)
-	}
-	parsed["sections"] = aggregatedJSON
 	result, err := json.Marshal(parsed)
 	if err != nil {
 		return data, fmt.Errorf("marshal response: %w", err)
 	}
 	return result, nil
+}
+
+// filterSectionsParsed is the parsed-map form of filterSections. Returns
+// the parsed wrapper-shaped data (with section_index overwritten) AND the
+// aggregated public-named sections map, without re-marshaling. Callers
+// that only need the aggregated sections (e.g. /compare's per-build
+// `sections` exposure) skip both the inner Marshal of aggregated sections
+// and the outer Marshal of the full envelope.
+//
+// When sections is nil, the returned `aggregated` is nil — callers should
+// treat that as "no sections requested." The parsed map is returned in
+// both cases so the caller can decide how to use it.
+func filterSectionsParsed(
+	data json.RawMessage, sections []string,
+) (parsed map[string]json.RawMessage, aggregated map[string]json.RawMessage, err error) {
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return nil, nil, fmt.Errorf("unmarshal data: %w", err)
+	}
+	indexJSON, err := json.Marshal(buildSectionIndex())
+	if err != nil {
+		return parsed, nil, fmt.Errorf("marshal section_index: %w", err)
+	}
+	parsed["section_index"] = indexJSON
+	if sections == nil {
+		return parsed, nil, nil
+	}
+	if err := validateSectionNames(sections); err != nil {
+		return parsed, nil, err
+	}
+	rawSections, err := extractRawSections(parsed)
+	if err != nil {
+		return parsed, nil, err
+	}
+	aggregated, err = aggregateSections(rawSections, sections)
+	if err != nil {
+		return parsed, nil, err
+	}
+	return parsed, aggregated, nil
 }
 
 func buildSectionIndex() []map[string]string {
