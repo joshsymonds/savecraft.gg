@@ -103,6 +103,9 @@ export const buildPlannerModule: NativeReferenceModule = {
     "Non-decomposable stats (return empty arrays — calc-aggregate / derived): CombinedDPS, TotalDPS, FullDPS, AverageHit, Speed, EHP, MaximumHitTaken variants. PoB computes these from other stats; there is no per-mod attribution to walk. " +
     "When a player asks why two builds diverge on a damage stat, request the underlying decomposable inputs (crit components, hit-damage adders, conversion mods, gear-source life-as-extra-mana, etc.) — NOT CombinedDPS, which will return []. Aggregate stats serve as quick \"is this build behaving fundamentally differently?\" tells, not as source-decomposable answers. After identifying the divergent mods, re-call compare with buy_similar=true and buy_similar_filters populated from those mods to find replacement gear. " +
     "Use nearby_categories on a /resolve or /modify call to focus the inline power_report on a specific node type (e.g. nearby_categories=[\"Keystone\"] when the player asks \"any keystone I should grab?\") — pair with audit_categories on a follow-up audit_allocated call to get symmetric remove/add suggestions confined to the same category axis. " +
+    "When narrating /compare gear diffs, filter to slots where modsSame is false — modsSame:true means no mechanical divergence even when nameSame:false (rare reroll, RELIC/UNIQUE foil flag), so those slots add noise without insight. " +
+    "Each compared socket group carries mainGemLinkCount (link count of the main gem's socket), hostItemMaxLink (largest link on the host item), and hostItemName — read these directly to answer \"is this skill 6-linked?\" instead of re-correlating with sections.gear.items by slot. " +
+    "diffs.tree.allocatedOnlyIn is an array indexed parallel to builds[]; failed builds get [] at their index — index by build position, not buildId. " +
     "Every response includes a buildId for follow-up calls.",
   parameters: {
     build: {

@@ -394,6 +394,31 @@ describe("PoE module descriptions provide preventive guidance", () => {
     expect(setItemLine!).toContain("equip_unique");
   });
 
+  it("build_planner /compare guidance documents modsSame filtering, socketGroup link fields, and tree perBuild shape", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const desc = buildPlannerModule.description;
+
+    // Item #1: tell the AI to filter compareSlotDiff entries by modsSame.
+    // Slots where modsSame:true are mechanically identical even when
+    // nameSame:false (rare reroll, RELIC/UNIQUE foil flag) — they add
+    // noise to the diff narrative without adding insight.
+    expect(desc).toMatch(/modsSame/);
+
+    // Item #3: each compared socket group carries link metadata.
+    // Without this guidance the AI falls back to slot→items correlation,
+    // which loses the "is this skill 6-linked?" signal players think in.
+    expect(desc).toContain("mainGemLinkCount");
+    expect(desc).toContain("hostItemMaxLink");
+    expect(desc).toContain("hostItemName");
+
+    // Item #2: tree.allocatedOnlyIn is now an array indexed parallel to
+    // builds[] (was buildId-keyed map). Failed builds get [] at their
+    // index. Doc must call this out so the AI doesn't try to look up
+    // by buildId on the new shape.
+    expect(desc).toContain("allocatedOnlyIn");
+    expect(desc).toMatch(/parallel to builds/i);
+  });
+
   it("gem_search names itself as canonical source for build_planner gem ops", async () => {
     const { gemSearchModule } = await import("../../plugins/poe/reference/gem-search");
     const desc = gemSearchModule.description;
