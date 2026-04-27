@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 )
 
@@ -151,7 +152,7 @@ func ptrIntStr(p *int) string {
 	if p == nil {
 		return "<nil>"
 	}
-	return jsonAtoi(*p)
+	return strconv.Itoa(*p)
 }
 
 func ptrStrStr(p *string) string {
@@ -159,9 +160,4 @@ func ptrStrStr(p *string) string {
 		return "<nil>"
 	}
 	return *p
-}
-
-func jsonAtoi(n int) string {
-	b, _ := json.Marshal(n)
-	return string(b)
 }

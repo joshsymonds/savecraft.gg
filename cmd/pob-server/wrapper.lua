@@ -382,19 +382,23 @@ local function serializeSocketGroups(build)
 		return groups
 	end
 
-	-- Look up the item for a slot to get socket colors.
-	local function getItemSockets(slotName)
-		if not slotName or slotName == "" then return nil end
-		if not build.itemsTab or not build.itemsTab.slots then return nil end
+	-- Look up the item AND its socket layout for a slot. Returning both
+	-- avoids the caller re-walking itemsTab.slots → selItemId → items —
+	-- the link-metric computation below needs item.title/name/baseName
+	-- AND item.sockets, so resolve once and pass both out.
+	local function getHostItem(slotName)
+		if not slotName or slotName == "" then return nil, nil end
+		if not build.itemsTab or not build.itemsTab.slots then return nil, nil end
 		local slot = build.itemsTab.slots[slotName]
-		if not slot or not slot.selItemId or slot.selItemId <= 0 then return nil end
+		if not slot or not slot.selItemId or slot.selItemId <= 0 then return nil, nil end
 		local item = build.itemsTab.items[slot.selItemId]
-		return item and item.sockets
+		if not item then return nil, nil end
+		return item, item.sockets
 	end
 
 	for i, group in ipairs(build.skillsTab.socketGroupList) do
 		local gems = {}
-		local itemSockets = getItemSockets(group.slot)
+		local hostItem, itemSockets = getHostItem(group.slot)
 		if group.gemList then
 			for j, gem in ipairs(group.gemList) do
 				local gemInfo = {
@@ -462,13 +466,13 @@ local function serializeSocketGroups(build)
 		end
 
 		-- Compute link metrics + host item name. itemSockets is the
-		-- {color, group} array from getItemSockets above; absence (no
+		-- {color, group} array from getHostItem above; absence (no
 		-- host item, or selItemId <= 0) means we leave all three fields
 		-- nil so the JSON encoder omits them. The three fields travel
 		-- together: a group either has a host item with all three set,
 		-- or no host item with all three absent.
 		local mainGemLinkCount, hostItemMaxLink, hostItemName
-		if itemSockets and #itemSockets > 0 then
+		if hostItem and itemSockets and #itemSockets > 0 then
 			-- Group-size table: how many sockets share each link group?
 			local sizes = {}
 			for _, s in ipairs(itemSockets) do
@@ -496,12 +500,27 @@ local function serializeSocketGroups(build)
 			if mainIdx and itemSockets[mainIdx] then
 				mainGemLinkCount = sizes[itemSockets[mainIdx].group]
 			end
-			-- hostItemName: read from the same itemsTab plumbing as
-			-- getItemSockets used. Prefer the explicit title (rare
-			-- magics/rares carry it) over baseName.
-			local slot = build.itemsTab.slots[group.slot]
-			local item = build.itemsTab.items[slot.selItemId]
-			hostItemName = item.title or item.name or item.baseName
+			-- hostItemName: prefer the explicit title (rares/magics
+			-- carry it) over baseName. Lua's `or` short-circuits on
+			-- nil/false BUT treats `""` as truthy, so check non-empty
+			-- explicitly to avoid emitting `""` and breaking the
+			-- co-emission contract documented in the integration test.
+			if hostItem.title and hostItem.title ~= "" then
+				hostItemName = hostItem.title
+			elseif hostItem.name and hostItem.name ~= "" then
+				hostItemName = hostItem.name
+			elseif hostItem.baseName and hostItem.baseName ~= "" then
+				hostItemName = hostItem.baseName
+			end
+			-- If all three name fields were nil/empty, hostItemName
+			-- stays nil and the co-emission invariant breaks (sockets
+			-- present, name absent). Promote the host item back to
+			-- "no host" semantics by clearing the link metrics so the
+			-- three keys remain co-emitted-or-co-absent.
+			if not hostItemName then
+				mainGemLinkCount = nil
+				hostItemMaxLink = nil
+			end
 		end
 
 		groups[#groups + 1] = {
