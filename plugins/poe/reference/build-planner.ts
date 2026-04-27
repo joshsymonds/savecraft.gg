@@ -98,8 +98,10 @@ export const buildPlannerModule: NativeReferenceModule = {
     "present the delta to the player, not the full stat dump. " +
     "For tree exploration, pass buildId + nearby_metrics to find the highest-impact nearby nodes ranked by real calc deltas. " +
     "For tree pruning, pass buildId + audit_allocated to find weak branches in the CURRENT allocated tree — ranked by what the player would lose by removing them, with a dead_weight bucket of zero-contribution nodes. Pairs naturally with nearby_metrics: audit identifies underperforming branches, nearby finds replacement directions, you propose the swap. " +
-    "To drill into WHY a stat has its value (which item, tree node, skill, or pantheon contributes), pass mod_sources with the stat names (e.g. mod_sources=[\"Life\",\"CombinedDPS\"]). The response carries data.statSources keyed by stat with top-N source rows. " +
-    "When a player asks why two builds diverge on a stat, call compare with mod_sources=[\"Life\",\"CombinedDPS\"] (the stat names in question) to surface the per-mod source breakdown — then re-call compare with buy_similar=true and buy_similar_filters populated from the divergent mods to find replacement gear that closes the gap. " +
+    "To drill into WHY a stat has its value (which item, tree node, skill, or pantheon contributes), pass mod_sources with the stat names. The response carries data.statSources keyed by stat with top-N source rows. " +
+    "Decomposable stats (return real per-mod rows): Life, EnergyShield, Mana, Armour, Evasion, Strength, Dexterity, Intelligence, resistances, BlockChance, SpellSuppressionChance, LifeRegen, ManaRegen, CritChance, ailment-chance/effect stats, hit-damage component stats — anything stored as a mod against the player's actor. " +
+    "Non-decomposable stats (return empty arrays — calc-aggregate / derived): CombinedDPS, TotalDPS, FullDPS, AverageHit, Speed, EHP, MaximumHitTaken variants. PoB computes these from other stats; there is no per-mod attribution to walk. " +
+    "When a player asks why two builds diverge on a damage stat, request the underlying decomposable inputs (crit components, hit-damage adders, conversion mods, gear-source life-as-extra-mana, etc.) — NOT CombinedDPS, which will return []. Aggregate stats serve as quick \"is this build behaving fundamentally differently?\" tells, not as source-decomposable answers. After identifying the divergent mods, re-call compare with buy_similar=true and buy_similar_filters populated from those mods to find replacement gear. " +
     "Use nearby_categories on a /resolve or /modify call to focus the inline power_report on a specific node type (e.g. nearby_categories=[\"Keystone\"] when the player asks \"any keystone I should grab?\") — pair with audit_categories on a follow-up audit_allocated call to get symmetric remove/add suggestions confined to the same category axis. " +
     "Every response includes a buildId for follow-up calls.",
   parameters: {
@@ -324,18 +326,30 @@ export const buildPlannerModule: NativeReferenceModule = {
       description:
         "Array of stat names to drill into per-modifier sources for. Use when " +
         "explaining WHY a build has a given stat value — e.g. 'why is my Life so low' " +
-        "→ pass [\"Life\"]; 'what's contributing to my DPS' → pass [\"CombinedDPS\"]; " +
+        "→ pass [\"Life\"]; 'what's contributing to my crit' → pass [\"CritChance\"]; " +
         "'walk me through this build's defenses' → pass [\"Armour\",\"Evasion\",\"EnergyShield\",\"Life\"]. " +
         "Each requested stat returns a top-N list of modifier rows under " +
         "data.statSources[statName], where each row carries source_type " +
         "(Item/Tree/Skill/Pantheon/Spectre/Class/Base), source_name (the " +
         "actual item / passive node / gem / etc. that contributes), mod_name, " +
-        "mod_type (BASE/INC/MORE/FLAG/OVERRIDE), and value. Works with build / " +
-        "build_id / operations / compare_with — when combined with compare_with, " +
-        "EVERY build in the response gets its own statSources for the requested " +
-        "stats, useful for 'which build has more flat life from items vs tree' " +
-        "style cross-build analysis. Heavy field — only request the stats you'll " +
-        "actually surface to the user. Default empty.",
+        "mod_type (BASE/INC/MORE/FLAG/OVERRIDE), and value. " +
+        "DECOMPOSABLE stats (mod-backed; return real rows): Life, EnergyShield, Mana, " +
+        "Armour, Evasion, Strength, Dexterity, Intelligence, FireResist, ColdResist, " +
+        "LightningResist, ChaosResist, BlockChance, SpellSuppressionChance, LifeRegen, " +
+        "ManaRegen, CritChance, plus most ailment-chance/effect and hit-damage component " +
+        "stats. " +
+        "NON-DECOMPOSABLE stats (calc-aggregate / derived; return empty arrays []): " +
+        "CombinedDPS, TotalDPS, FullDPS, AverageHit, Speed, CombinedAvg, TotalDot, EHP, " +
+        "PhysicalMaximumHitTaken / FireMaximumHitTaken / ColdMaximumHitTaken / " +
+        "LightningMaximumHitTaken / ChaosMaximumHitTaken. PoB computes these from other " +
+        "stats — there's nothing to walk. To explain damage divergence, request the " +
+        "underlying decomposable inputs (crit chance/multi, hit-damage adders, conversion " +
+        "mods, life-as-extra-mana, etc.), not the aggregate. " +
+        "Works with build / build_id / operations / compare_with — when combined with " +
+        "compare_with, EVERY build in the response gets its own statSources for the " +
+        "requested stats, useful for 'which build has more flat life from items vs tree' " +
+        "style cross-build analysis. Heavy field — only request the stats you'll actually " +
+        "surface to the user. Default empty.",
     },
     mod_sources_limit: {
       type: "integer",
