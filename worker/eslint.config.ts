@@ -19,6 +19,7 @@ export default tseslint.config(
       "node_modules/**",
       "dist/**",
       ".wrangler/**",
+      ".devenv/**", // nix-managed dev profile contents (Go module cache, etc.)
       "coverage/**",
       "scripts/**", // Plain JS build scripts, not application code
       "*.config.ts", // Config files aren't application code
