@@ -25,11 +25,23 @@ type compareDiffsGearOnWire struct {
 // pointers so JSON null encodes as nil — distinguishing "slot empty in
 // this build" from "build absent". NameSame and ModsSame are independent
 // so callers can distinguish "different rare display name, same mods"
-// from "actually different mods".
+// from "actually different mods". ModsDiff carries the per-build set
+// difference when ModsSame is false (omitted on the wire when same).
+// PerBuildRarity + CanonicalRarity expose PoB's per-export rarity tag
+// and a derived canonical view (UNIQUE-wins-on-mismatch) for surfacing
+// foil/relic distinctions without polluting equality.
 type compareSlotDiffOnWire struct {
-	PerBuild []*string `json:"perBuild"`
-	NameSame bool      `json:"nameSame"`
-	ModsSame bool      `json:"modsSame"`
+	PerBuild        []*string         `json:"perBuild"`
+	NameSame        bool              `json:"nameSame"`
+	ModsSame        bool              `json:"modsSame"`
+	ModsDiff        *gearModsDiffWire `json:"modsDiff,omitempty"`
+	PerBuildRarity  []*string         `json:"perBuildRarity,omitempty"`
+	CanonicalRarity *string           `json:"canonicalRarity,omitempty"`
+}
+
+type gearModsDiffWire struct {
+	PerBuild [][]string `json:"perBuild"`
+	Common   []string   `json:"common"`
 }
 
 func decodeCompareWithGear(t *testing.T, body []byte) compareRespWithGear {

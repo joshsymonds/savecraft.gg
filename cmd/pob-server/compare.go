@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -274,19 +275,35 @@ type compareSocketGroupDiff struct {
 // mechanically equivalent even though the auto-generated names differ.
 // Either field being false means the slot has SOMETHING that diverges.
 type compareSlotDiff struct {
-	PerBuild []*string `json:"perBuild"`
-	NameSame bool      `json:"nameSame"`
-	ModsSame bool      `json:"modsSame"`
+	PerBuild        []*string     `json:"perBuild"`
+	NameSame        bool          `json:"nameSame"`
+	ModsSame        bool          `json:"modsSame"`
+	ModsDiff        *gearModsDiff `json:"modsDiff,omitempty"`
+	PerBuildRarity  []*string     `json:"perBuildRarity,omitempty"`
+	CanonicalRarity *string       `json:"canonicalRarity,omitempty"`
 }
 
 // gearItemSummary is the per-build per-slot record fed into computeGearDiff.
 // Captures the full identity needed to compute name vs mods divergence
 // independently. Mods is nil when the wrapper.lua emission omits it (uniques
 // + relics; in those cases all builds in the slot will have nil mods so
-// mods_same trivially holds when the names match).
+// mods_same trivially holds when the names match). Rarity captures PoB's
+// per-export rarity tag (UNIQUE / RELIC / RARE / MAGIC / NORMAL) so the
+// compareSlotDiff can expose per-build and canonical rarity views.
 type gearItemSummary struct {
-	Name string
-	Mods []string
+	Name   string
+	Mods   []string
+	Rarity string
+}
+
+// gearModsDiff is the per-slot set-diff of item mods, emitted only
+// when modsSame:false. PerBuild[i] lists mods unique to build i (sorted);
+// Common lists mods present in every successful build (sorted). The
+// uniform shape generalizes at N=2 and N≥3 — same convention as the
+// rest of the diffs surface.
+type gearModsDiff struct {
+	PerBuild [][]string `json:"perBuild"`
+	Common   []string   `json:"common"`
 }
 
 // compareTreeDiff carries the set-op result of the regular-tree
@@ -702,14 +719,15 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 			Tree struct {
 				AllocatedNodeIDs []int `json:"allocatedNodeIds"`
 			} `json:"tree"`
-			// Items is slot → object; the gear diff needs both name (for
-			// the slot identity) and mods (for the name_same vs mods_same
-			// split). Mods is omitted by wrapper.lua for uniques + relics —
-			// in those cases all builds in the slot have nil mods, so
-			// mods_same trivially holds when the names match.
+			// Items is slot → object; the gear diff needs name (for slot
+			// identity), mods (for the name_same vs mods_same split), and
+			// rarity (for per-build / canonical rarity exposure on
+			// compareSlotDiff). Mods is omitted by wrapper.lua for uniques
+			// + relics; rarity is always emitted.
 			Items map[string]struct {
-				Name string   `json:"name"`
-				Mods []string `json:"mods"`
+				Name   string   `json:"name"`
+				Mods   []string `json:"mods"`
+				Rarity string   `json:"rarity"`
 			} `json:"items"`
 			// SocketGroups is an ordered array of skill setups (label +
 			// gem list). v1 diff matches by label, ignores gem order.
@@ -744,7 +762,11 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 		entry.itemsBySlot = make(map[string]gearItemSummary, len(parsed.Sections.Items))
 		for slot, item := range parsed.Sections.Items {
 			if item.Name != "" {
-				entry.itemsBySlot[slot] = gearItemSummary{Name: item.Name, Mods: item.Mods}
+				entry.itemsBySlot[slot] = gearItemSummary{
+					Name:   item.Name,
+					Mods:   item.Mods,
+					Rarity: item.Rarity,
+				}
 			}
 		}
 	}
@@ -1241,6 +1263,9 @@ func computeGearDiff(successful []compareBuildEntry) map[string]compareSlotDiff 
 // nothing equipped.
 func computeSingleSlotDiff(slot string, successful []compareBuildEntry) compareSlotDiff {
 	perBuild := make([]*string, len(successful))
+	perBuildRarity := make([]*string, len(successful))
+	perBuildMods := make([][]string, len(successful))
+	rarities := make([]string, 0, len(successful))
 	var firstName string
 	var firstMods []string
 	firstSet := false
@@ -1251,14 +1276,24 @@ func computeSingleSlotDiff(slot string, successful []compareBuildEntry) compareS
 		item, ok := entry.itemsBySlot[slot]
 		if !ok || item.Name == "" {
 			perBuild[i] = nil
+			perBuildRarity[i] = nil
+			perBuildMods[i] = nil
 			anyMissing = true
 			continue
 		}
 		nameCopy := item.Name
 		perBuild[i] = &nameCopy
+		if item.Rarity != "" {
+			rarityCopy := item.Rarity
+			perBuildRarity[i] = &rarityCopy
+			rarities = append(rarities, item.Rarity)
+		}
+		// Sort once per build for both the same-check and the diff path.
+		sortedMods := sortedCopy(item.Mods)
+		perBuildMods[i] = sortedMods
 		if !firstSet {
 			firstName = item.Name
-			firstMods = sortedCopy(item.Mods)
+			firstMods = sortedMods
 			firstSet = true
 			continue
 		}
@@ -1267,7 +1302,7 @@ func computeSingleSlotDiff(slot string, successful []compareBuildEntry) compareS
 		}
 		// Compare mod sets order-independently — two rares with the same
 		// mod text but different roll order should still compare equal.
-		if !equalStringSlices(sortedCopy(item.Mods), firstMods) {
+		if !equalStringSlices(sortedMods, firstMods) {
 			modsSame = false
 		}
 	}
@@ -1275,7 +1310,112 @@ func computeSingleSlotDiff(slot string, successful []compareBuildEntry) compareS
 		nameSame = false
 		modsSame = false
 	}
-	return compareSlotDiff{PerBuild: perBuild, NameSame: nameSame, ModsSame: modsSame}
+
+	out := compareSlotDiff{PerBuild: perBuild, NameSame: nameSame, ModsSame: modsSame}
+	if !modsSame && !anyMissing {
+		out.ModsDiff = computeGearModsDiff(perBuildMods)
+	}
+	if hasAnyRarity(perBuildRarity) {
+		out.PerBuildRarity = perBuildRarity
+		if c := canonicalRarity(rarities); c != "" {
+			out.CanonicalRarity = &c
+		}
+	}
+	return out
+}
+
+// computeGearModsDiff returns the per-build set difference of mod
+// lists across builds: PerBuild[i] is mods present in build i but not
+// in EVERY other build's set; Common is mods present in all builds.
+// Inputs are pre-sorted slices; outputs preserve sort order. Empty
+// (non-nil) per-build entries are valid — they mean that build had
+// no unique mods even though some other build did.
+func computeGearModsDiff(perBuildMods [][]string) *gearModsDiff {
+	// Tally each unique mod across all builds.
+	tally := make(map[string]int)
+	for _, mods := range perBuildMods {
+		seen := make(map[string]bool, len(mods))
+		for _, m := range mods {
+			if seen[m] {
+				continue
+			}
+			seen[m] = true
+			tally[m]++
+		}
+	}
+	common := make([]string, 0, len(tally))
+	for mod, count := range tally {
+		if count == len(perBuildMods) {
+			common = append(common, mod)
+		}
+	}
+	sort.Strings(common)
+
+	perBuild := make([][]string, len(perBuildMods))
+	for i, mods := range perBuildMods {
+		uniqueToI := make([]string, 0, len(mods))
+		for _, m := range mods {
+			if tally[m] != len(perBuildMods) {
+				uniqueToI = append(uniqueToI, m)
+			}
+		}
+		// Mods are pre-sorted; uniqueToI is a stable filtered subset, but
+		// dedupe defensively in case wrapper.lua emits the same line twice.
+		sort.Strings(uniqueToI)
+		perBuild[i] = dedupSorted(uniqueToI)
+	}
+	return &gearModsDiff{PerBuild: perBuild, Common: common}
+}
+
+// dedupSorted removes adjacent duplicates from an already-sorted slice.
+// Returns the slice with duplicates removed; nil-safe.
+func dedupSorted(s []string) []string {
+	if len(s) < 2 {
+		return s
+	}
+	out := s[:1]
+	for _, v := range s[1:] {
+		if v != out[len(out)-1] {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// hasAnyRarity reports whether any per-build rarity slot is non-nil.
+// When all slots are nil (e.g. legacy stub responses without rarity),
+// PerBuildRarity should be omitted from the wire to avoid emitting an
+// all-null array that adds no information.
+func hasAnyRarity(perBuildRarity []*string) bool {
+	for _, r := range perBuildRarity {
+		if r != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// canonicalRarity derives a single rarity for the slot from the per-build
+// values. UNIQUE wins over any non-UNIQUE — the rule is: if any build
+// reports UNIQUE, the canonical view is UNIQUE (RELIC is just the foil
+// flag on a UNIQUE so they're mechanically the same item). Otherwise,
+// if all builds agree on a rarity, return it. Otherwise return "" (no
+// canonical view; consumers fall back to inspecting per-build values).
+// Empty input → empty string.
+func canonicalRarity(rarities []string) string {
+	if len(rarities) == 0 {
+		return ""
+	}
+	if slices.Contains(rarities, "UNIQUE") {
+		return "UNIQUE"
+	}
+	first := rarities[0]
+	for _, r := range rarities[1:] {
+		if r != first {
+			return ""
+		}
+	}
+	return first
 }
 
 // computeSkillsDiff produces the per-socket-group diff. Groups are
