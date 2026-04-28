@@ -26,6 +26,34 @@ describe("OAuth Discovery", () => {
     expect(body.authorization_servers).toEqual(["https://test-host"]);
   });
 
+  it("sends permissive CORS headers on protected resource metadata", async () => {
+    // Browser-based MCP inspectors follow WWW-Authenticate.resource_metadata
+    // cross-origin. RFC 8414 / 9728 discovery docs are public, so we wildcard
+    // origin (matching the OAuth library's behavior on oauth-authorization-server).
+    const resp = await SELF.fetch("https://test-host/.well-known/oauth-protected-resource", {
+      headers: { Origin: "https://glama.ai" },
+    });
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    // Response body must still be intact alongside CORS headers.
+    const body = await resp.json<{ resource: string }>();
+    expect(body.resource).toBe("https://test-host/");
+  });
+
+  it("answers CORS preflight on protected resource metadata", async () => {
+    const resp = await SELF.fetch("https://test-host/.well-known/oauth-protected-resource", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://glama.ai",
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "Authorization",
+      },
+    });
+    expect(resp.status).toBe(204);
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(resp.headers.get("Access-Control-Allow-Methods")).toContain("GET");
+  });
+
   it("serves AS metadata with our domain as issuer", async () => {
     const resp = await SELF.fetch("https://test-host/.well-known/oauth-authorization-server");
     expect(resp.status).toBe(200);

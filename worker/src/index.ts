@@ -164,13 +164,29 @@ export default {
     // MCP clients send resource=https://host/ (with slash) in authorize requests.
     // RFC 8707 uses exact string comparison — mismatch causes Claude Desktop to
     // silently discard the token after a successful OAuth flow.
+    //
+    // CORS is wildcarded: this is public OAuth discovery metadata (RFC 9728),
+    // and browser-based MCP inspectors follow WWW-Authenticate.resource_metadata
+    // cross-origin. ALLOWED_ORIGINS gates protected operations, not discovery.
     if (url.pathname === "/.well-known/oauth-protected-resource") {
-      return Response.json({
-        resource: `${url.origin}/`,
-        authorization_servers: [url.origin],
-        bearer_methods_supported: ["header"],
-        resource_name: "Savecraft MCP Server",
-      });
+      const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization, *",
+        "Access-Control-Max-Age": "86400",
+      };
+      if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders });
+      }
+      return Response.json(
+        {
+          resource: `${url.origin}/`,
+          authorization_servers: [url.origin],
+          bearer_methods_supported: ["header"],
+          resource_name: "Savecraft MCP Server",
+        },
+        { headers: corsHeaders },
+      );
     }
 
     // OpenAI domain verification challenge
