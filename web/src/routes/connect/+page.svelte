@@ -34,7 +34,7 @@
   <meta property="og:title" content="Savecraft -- Real game data for your AI assistant" />
   <meta
     property="og:description"
-    content="This URL gives Claude or ChatGPT real game data on Magic, Path of Exile, Factorio, and more: rules, items, builds, economy. Add it in your AI app's settings, not in the chat."
+    content="Real game data and expert modules for Claude and ChatGPT — Magic, Path of Exile, Factorio, Diablo II, RimWorld, and more. Open source."
   />
   <meta property="og:url" content="https://my.savecraft.gg/connect" />
   <meta property="og:type" content="website" />
@@ -76,7 +76,12 @@
       <div class="client-hint">
         <span class="client-name">ChatGPT</span>
         <span class="client-steps">
-          Settings &rarr; Apps &rarr; Advanced settings &rarr; Create App &rarr; paste URL
+          Open the <a
+            href="https://chatgpt.com/apps/savecraft/asdk_app_69bf076444388191b92e9c482184b44c"
+            class="text-link"
+            target="_blank"
+            rel="noopener">Savecraft app</a
+          > &rarr; click <strong>Connect</strong> in the upper right
         </span>
       </div>
 

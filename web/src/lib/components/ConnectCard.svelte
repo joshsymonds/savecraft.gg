@@ -102,11 +102,25 @@
           </div>
         </div>
 
-        <div class="row">
-          <div class="status">
-            <span class="status-dot pending"></span>
-            <span class="label cta-label">NEXT: CONNECT AI</span>
-          </div>
+        <div class="status-row">
+          <span class="status-dot pending"></span>
+          <span class="label cta-label">NEXT: CONNECT AI</span>
+        </div>
+
+        <div class="primary-action">
+          <a
+            class="chatgpt-btn"
+            href="https://chatgpt.com/apps/savecraft/asdk_app_69bf076444388191b92e9c482184b44c"
+            target="_blank"
+            rel="noopener">OPEN SAVECRAFT IN CHATGPT</a
+          >
+        </div>
+
+        <div class="path-divider">
+          <span class="path-divider-text">or for Claude</span>
+        </div>
+
+        <div class="row secondary-row">
           <div class="url-block url-block-cta">
             <code class="url-text">{mcpUrl}</code>
             <button class="copy-btn copy-btn-cta" class:copied onclick={copyUrl}>{copyLabel}</button
@@ -115,7 +129,7 @@
         </div>
 
         <div class="docs-hint">
-          Copy the URL above and paste it into Claude or ChatGPT.
+          Paste into your client's MCP settings.
           <a href="https://savecraft.gg/docs" class="docs-link" target="_blank" rel="noopener"
             >Step-by-step guide &rarr;</a
           >
@@ -198,6 +212,71 @@
     line-height: 1.4;
   }
 
+  /* -- Status row (CTA only) ---------------------------------- */
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 18px 6px;
+  }
+
+  /* -- Primary ChatGPT action --------------------------------- */
+
+  .primary-action {
+    padding: 4px 18px 0;
+  }
+
+  .chatgpt-btn {
+    display: block;
+    width: 100%;
+    padding: 10px 20px;
+    background: rgba(200, 168, 78, 0.1);
+    color: var(--color-gold);
+    border: 1px solid rgba(200, 168, 78, 0.4);
+    border-radius: 4px;
+    text-align: center;
+    text-decoration: none;
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
+    box-sizing: border-box;
+  }
+
+  .chatgpt-btn:hover {
+    background: rgba(200, 168, 78, 0.18);
+    border-color: var(--color-gold);
+  }
+
+  /* -- Path divider ------------------------------------------- */
+
+  .path-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px 0;
+  }
+
+  .path-divider::before,
+  .path-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(74, 90, 173, 0.25);
+  }
+
+  .path-divider-text {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+  }
+
   /* -- Shared row layout -------------------------------------- */
 
   .row {
@@ -205,6 +284,10 @@
     display: flex;
     align-items: center;
     gap: 16px;
+  }
+
+  .secondary-row {
+    padding-top: 8px;
   }
 
   .status {

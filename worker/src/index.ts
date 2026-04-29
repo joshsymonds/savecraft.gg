@@ -88,7 +88,7 @@ function serveMcpBrowserPage(env: Env): Response {
   <title>Savecraft Connector</title>
   <link rel="icon" type="image/png" href="https://savecraft.gg/favicon.png">
   <meta property="og:title" content="Savecraft — Game Save Connector for AI">
-  <meta property="og:description" content="This URL connects your game saves to AI assistants like Claude and ChatGPT. Add it in your AI app's settings — not in the chat.">
+  <meta property="og:description" content="Real game data and expert modules for Claude and ChatGPT — Magic, Path of Exile, Factorio, Diablo II, RimWorld, and more.">
   <meta property="og:url" content="${connectUrl}">
   <meta property="og:type" content="website">
   <meta http-equiv="refresh" content="0;url=${connectUrl}">

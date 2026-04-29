@@ -76,9 +76,17 @@
       <div class="faq-item">
         <h3>How do I connect an AI assistant?</h3>
         <p>
-          Follow the step-by-step instructions on our
-          <a href="/docs" class="text-link">docs page</a>. You'll paste a URL into your AI app's
-          settings, sign in to Savecraft, and you're done.
+          <strong>ChatGPT:</strong> install the
+          <a
+            href="https://chatgpt.com/apps/savecraft/asdk_app_69bf076444388191b92e9c482184b44c"
+            class="text-link"
+            target="_blank"
+            rel="noopener">Savecraft app</a
+          > and click Connect &mdash; one step.
+        </p>
+        <p>
+          <strong>Claude:</strong> paste your MCP URL into your client's connector settings. Full
+          step-by-step instructions on our <a href="/docs" class="text-link">docs page</a>.
         </p>
       </div>
 

@@ -43,7 +43,8 @@
     <h2 class="section-title">Connect your assistant</h2>
     <p class="section-intro">
       Add Savecraft to your AI assistant. You'll sign in once and then the assistant can access your
-      game data. The same URL works for every client:
+      game data. ChatGPT installs in one click via the app directory; Claude takes a few seconds with
+      this URL:
     </p>
     <code class="url-block">https://mcp.savecraft.gg</code>
 
@@ -83,32 +84,17 @@
         <h3 class="client-name">ChatGPT</h3>
         <ol class="steps">
           <li>
-            Open <a href="https://chatgpt.com" class="text-link" target="_blank" rel="noopener"
-              >chatgpt.com</a
-            > and sign in.
-          </li>
-          <li>Click your name in the lower left, then click <strong>Settings</strong>.</li>
-          <li>
-            Click <strong>Apps</strong>, expand the <strong>Advanced settings</strong> bar, then
-            click <strong>Create App</strong>.
-          </li>
-          <li>
-            Fill in the form:
-            <ul class="substeps">
-              <li>Name: <strong>Savecraft</strong></li>
-              <li>
-                MCP URL: <code class="url-block">https://mcp.savecraft.gg</code>
-              </li>
-              <li>Authentication: <strong>OAuth</strong></li>
-              <li>
-                Check <strong>&ldquo;I understand and want to continue&rdquo;</strong>, then click
-                <strong>Create</strong>.
-              </li>
-            </ul>
+            Open the Savecraft app on ChatGPT:
+            <a
+              href="https://chatgpt.com/apps/savecraft/asdk_app_69bf076444388191b92e9c482184b44c"
+              class="text-link"
+              target="_blank"
+              rel="noopener">chatgpt.com/apps/savecraft</a
+            >
           </li>
           <li>
-            ChatGPT will ask you to <strong>authorize Savecraft</strong>. Click Allow. You'll sign
-            in to Savecraft if you aren't already.
+            Click <strong>Connect</strong> in the upper right. You'll sign in to Savecraft if you
+            aren't already, then authorize the app.
           </li>
           <li>
             Start a new chat and ask something like: <em
