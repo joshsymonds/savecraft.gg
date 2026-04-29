@@ -43,8 +43,8 @@
     <h2 class="section-title">Connect your assistant</h2>
     <p class="section-intro">
       Add Savecraft to your AI assistant. You'll sign in once and then the assistant can access your
-      game data. ChatGPT installs in one click via the app directory; Claude takes a few seconds with
-      this URL:
+      game data. ChatGPT installs in one click via the app directory; Claude takes a few seconds
+      with this URL:
     </p>
     <code class="url-block">https://mcp.savecraft.gg</code>
 
@@ -93,8 +93,8 @@
             >
           </li>
           <li>
-            Click <strong>Connect</strong> in the upper right. You'll sign in to Savecraft if you
-            aren't already, then authorize the app.
+            Click <strong>Connect</strong> in the upper right. You'll sign in to Savecraft if you aren't
+            already, then authorize the app.
           </li>
           <li>
             Start a new chat and ask something like: <em

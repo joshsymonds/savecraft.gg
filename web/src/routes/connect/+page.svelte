@@ -81,7 +81,8 @@
             class="text-link"
             target="_blank"
             rel="noopener">Savecraft app</a
-          > &rarr; click <strong>Connect</strong> in the upper right
+          >
+          &rarr; click <strong>Connect</strong> in the upper right
         </span>
       </div>
 
