@@ -850,10 +850,12 @@ describe("card_search native module", () => {
   // (the column allows NULL). Each price-filter test seeds prices
   // explicitly via UPDATE so we don't have to rewrite the whole seed.
 
-  async function setPrice(scryfallId: string, price: number | null, opts?: { reserved?: number }): Promise<void> {
-    await env.DB.prepare(
-      `UPDATE magic_cards SET price_usd = ?, reserved = ? WHERE scryfall_id = ?`,
-    )
+  async function setPrice(
+    scryfallId: string,
+    price: number | null,
+    opts?: { reserved?: number },
+  ): Promise<void> {
+    await env.DB.prepare(`UPDATE magic_cards SET price_usd = ?, reserved = ? WHERE scryfall_id = ?`)
       .bind(price, opts?.reserved ?? 0, scryfallId)
       .run();
   }

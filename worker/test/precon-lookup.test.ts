@@ -22,11 +22,25 @@ describe("precon_lookup native module", () => {
       env.DB.prepare(
         `INSERT INTO magic_edh_commanders (scryfall_id, name, slug, color_identity, deck_count, rank)
          VALUES (?, ?, ?, ?, ?, ?)`,
-      ).bind(ATRAXA_ID, "Atraxa, Praetors' Voice", "atraxa-praetors-voice", '["W","U","B","G"]', 40000, 3),
+      ).bind(
+        ATRAXA_ID,
+        "Atraxa, Praetors' Voice",
+        "atraxa-praetors-voice",
+        '["W","U","B","G"]',
+        40000,
+        3,
+      ),
       env.DB.prepare(
         `INSERT INTO magic_edh_commanders (scryfall_id, name, slug, color_identity, deck_count, rank)
          VALUES (?, ?, ?, ?, ?, ?)`,
-      ).bind(KORVOLD_ID, "Korvold, Fae-Cursed King", "korvold-fae-cursed-king", '["B","R","G"]', 25000, 12),
+      ).bind(
+        KORVOLD_ID,
+        "Korvold, Fae-Cursed King",
+        "korvold-fae-cursed-king",
+        '["B","R","G"]',
+        25000,
+        12,
+      ),
 
       // Atraxa precon
       env.DB.prepare(
@@ -99,10 +113,7 @@ describe("precon_lookup native module", () => {
 
   it("looks up by commander name (face match)", async () => {
     await seedPrecons();
-    const result = await preconLookupModule.execute(
-      { commander: "Atraxa" },
-      env as unknown as Env,
-    );
+    const result = await preconLookupModule.execute({ commander: "Atraxa" }, env as unknown as Env);
     if (result.type !== "structured") throw new Error("expected structured");
     const data = result.data as {
       precons: {

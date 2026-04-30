@@ -238,10 +238,7 @@ describe("commander_trends native module", () => {
       ).bind("kozilek-id", "budget", 220, 800, 80),
     ]);
 
-    const result = await commanderTrendsModule.execute(
-      { mode: "cheapest" },
-      env as unknown as Env,
-    );
+    const result = await commanderTrendsModule.execute({ mode: "cheapest" }, env as unknown as Env);
     expect(result.type).toBe("structured");
     if (result.type !== "structured") return;
     const data = result.data as {

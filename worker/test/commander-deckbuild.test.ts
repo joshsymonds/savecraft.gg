@@ -20,7 +20,14 @@ describe("commander_deckbuild native module", () => {
       env.DB.prepare(
         `INSERT INTO magic_edh_commanders (scryfall_id, name, slug, color_identity, deck_count, rank)
          VALUES (?, ?, ?, ?, ?, ?)`,
-      ).bind(ATRAXA_ID, "Atraxa, Praetors' Voice", "atraxa-praetors-voice", '["W","U","B","G"]', 40000, 3),
+      ).bind(
+        ATRAXA_ID,
+        "Atraxa, Praetors' Voice",
+        "atraxa-praetors-voice",
+        '["W","U","B","G"]',
+        40000,
+        3,
+      ),
       env.DB.prepare(`INSERT INTO magic_edh_commanders_fts (scryfall_id, name) VALUES (?, ?)`).bind(
         ATRAXA_ID,
         "Atraxa, Praetors' Voice",
@@ -61,7 +68,9 @@ describe("commander_deckbuild native module", () => {
       ).bind(ATRAXA_ID, "budget", "Forest", 8, "Land"),
 
       // Game-changers table (Cyclonic Rift is on the WotC list)
-      env.DB.prepare(`INSERT INTO magic_game_changers (card_name) VALUES (?)`).bind("Cyclonic Rift"),
+      env.DB.prepare(`INSERT INTO magic_game_changers (card_name) VALUES (?)`).bind(
+        "Cyclonic Rift",
+      ),
 
       // Prices via EDHREC TCGPlayer
       env.DB.prepare(

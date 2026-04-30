@@ -309,7 +309,9 @@ describe("commander_lookup native module", () => {
       recommendations: Record<string, { card_name: string }[]>;
     };
 
-    const allCards = Object.values(data.recommendations).flat().map((r) => r.card_name);
+    const allCards = Object.values(data.recommendations)
+      .flat()
+      .map((r) => r.card_name);
     expect(allCards).toContain("Sol Ring");
     expect(allCards).toContain("Swords to Plowshares");
     expect(allCards).not.toContain("Tekuthal, Inquiry Dominus");
@@ -349,7 +351,9 @@ describe("commander_lookup native module", () => {
     const data = result.data as {
       recommendations: Record<string, { card_name: string }[]>;
     };
-    const allCards = Object.values(data.recommendations).flat().map((r) => r.card_name);
+    const allCards = Object.values(data.recommendations)
+      .flat()
+      .map((r) => r.card_name);
     expect(allCards).toContain("Sol Ring");
   });
 
@@ -371,7 +375,9 @@ describe("commander_lookup native module", () => {
     const data = result.data as {
       recommendations: Record<string, { card_name: string }[]>;
     };
-    const allCards = Object.values(data.recommendations).flat().map((r) => r.card_name);
+    const allCards = Object.values(data.recommendations)
+      .flat()
+      .map((r) => r.card_name);
     expect(allCards).toContain("Sol Ring");
     // The other recs have no price data; they must be excluded under max_price.
     expect(allCards.length).toBe(1);
@@ -427,7 +433,9 @@ describe("commander_lookup native module", () => {
     expect(data.tier_info.tier).toBe("budget");
     expect(data.tier_info.avg_price).toBe(174);
 
-    const allCards = Object.values(data.recommendations).flat().map((r) => r.card_name);
+    const allCards = Object.values(data.recommendations)
+      .flat()
+      .map((r) => r.card_name);
     expect(allCards).toContain("Sol Ring");
     expect(allCards).toContain("Cultivate");
     expect(allCards).toContain("Forest");
@@ -451,7 +459,9 @@ describe("commander_lookup native module", () => {
       tier_info: { avg_price: number };
     };
     expect(data.tier_info.avg_price).toBe(5688);
-    const allCards = Object.values(data.recommendations).flat().map((r) => r.card_name);
+    const allCards = Object.values(data.recommendations)
+      .flat()
+      .map((r) => r.card_name);
     expect(allCards).toContain("Mana Crypt");
     expect(allCards).not.toContain("Sol Ring"); // budget-only
   });

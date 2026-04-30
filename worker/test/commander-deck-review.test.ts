@@ -414,8 +414,12 @@ describe("commander_deck_review native module", () => {
     await seedAtraxa();
     // Seed game changers and tier metadata.
     await env.DB.batch([
-      env.DB.prepare(`INSERT INTO magic_game_changers (card_name) VALUES (?)`).bind("Cyclonic Rift"),
-      env.DB.prepare(`INSERT INTO magic_game_changers (card_name) VALUES (?)`).bind("Demonic Tutor"),
+      env.DB.prepare(`INSERT INTO magic_game_changers (card_name) VALUES (?)`).bind(
+        "Cyclonic Rift",
+      ),
+      env.DB.prepare(`INSERT INTO magic_game_changers (card_name) VALUES (?)`).bind(
+        "Demonic Tutor",
+      ),
       env.DB.prepare(
         `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
       ).bind(ATRAXA_ID, "budget", 174, 4072, 84),
