@@ -261,3 +261,75 @@ func TestBuildCommanderSQL_TierZeroDeckSize(t *testing.T) {
 		t.Errorf("expected tier metadata INSERT even when zero-valued")
 	}
 }
+
+func TestBuildGameChangersSQL_Cards(t *testing.T) {
+	cards := []string{"Mana Crypt", "Demonic Tutor", "Praetor's Counsel"}
+	sql := BuildGameChangersSQL(cards)
+
+	// Wipe-and-replace
+	if !strings.Contains(sql, "DELETE FROM magic_game_changers") {
+		t.Errorf("expected DELETE")
+	}
+	if !strings.Contains(sql, "INSERT INTO magic_game_changers") {
+		t.Errorf("expected INSERT")
+	}
+	if !strings.Contains(sql, "Mana Crypt") {
+		t.Errorf("expected Mana Crypt in SQL")
+	}
+	if !strings.Contains(sql, "Demonic Tutor") {
+		t.Errorf("expected Demonic Tutor in SQL")
+	}
+	// Apostrophe escape
+	if !strings.Contains(sql, "Praetor''s Counsel") {
+		t.Errorf("expected escaped apostrophe")
+	}
+	// 3 INSERT rows
+	if got := strings.Count(sql, "INSERT INTO magic_game_changers"); got != 3 {
+		t.Errorf("expected 3 INSERTs, got %d", got)
+	}
+}
+
+func TestBuildGameChangersSQL_Empty(t *testing.T) {
+	sql := BuildGameChangersSQL(nil)
+	if !strings.Contains(sql, "DELETE FROM magic_game_changers") {
+		t.Errorf("expected DELETE for wipe even with empty input")
+	}
+	if strings.Contains(sql, "INSERT INTO magic_game_changers") {
+		t.Errorf("should not contain INSERT with empty input")
+	}
+}
+
+func TestGameChangersDiff(t *testing.T) {
+	wotc := []string{"Mana Crypt", "Demonic Tutor", "Mystical Tutor"}
+	derived := map[string]int{
+		"Mana Crypt":           10,
+		"Demonic Tutor":        8,
+		"Imperial Seal":        3, // EDHREC has it; not in WotC list (drift signal)
+		"Some Random New Card": 1, // EDHREC tagged once; possibly a tagging error
+	}
+
+	missing, extra := gameChangersDiff(wotc, derived)
+
+	// Missing: WotC has it but EDHREC didn't index any commander with it.
+	// "Mystical Tutor" is in WotC but not EDHREC's data.
+	wantMissing := map[string]bool{"Mystical Tutor": true}
+	if len(missing) != len(wantMissing) {
+		t.Errorf("missing length = %d, want %d (entries: %v)", len(missing), len(wantMissing), missing)
+	}
+	for _, m := range missing {
+		if !wantMissing[m] {
+			t.Errorf("unexpected missing entry: %q", m)
+		}
+	}
+
+	// Extra: EDHREC has it but WotC doesn't.
+	wantExtra := map[string]bool{"Imperial Seal": true, "Some Random New Card": true}
+	if len(extra) != len(wantExtra) {
+		t.Errorf("extra length = %d, want %d (entries: %v)", len(extra), len(wantExtra), extra)
+	}
+	for _, e := range extra {
+		if !wantExtra[e] {
+			t.Errorf("unexpected extra entry: %q", e)
+		}
+	}
+}

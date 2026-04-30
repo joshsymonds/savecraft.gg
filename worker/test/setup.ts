@@ -688,6 +688,12 @@ const statements = [
     PRIMARY KEY (commander_id, tier, card_name)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_edh_avg_tier_commander ON magic_edh_average_decks_by_tier(commander_id, tier)`,
+  // WotC Game Changers list (migration 0053)
+  `CREATE TABLE IF NOT EXISTS magic_game_changers (
+    card_name TEXT PRIMARY KEY,
+    source    TEXT NOT NULL DEFAULT 'wotc-official',
+    added_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
 ];
 
 for (const sql of statements) {

@@ -191,6 +191,17 @@ func run(accountID, apiToken, databaseID, commanderFilter, cacheDir string,
 		}
 	}
 
+	// Game Changers — wipe-and-replace from the hardcoded WotC list, then
+	// log drift against EDHREC's per-commander gamechangers tagging. Drift
+	// >5 cards in either direction is a strong signal that the hardcoded
+	// list is stale and needs to be refreshed from Scryfall's
+	// `is:gamechanger` predicate.
+	if !dryRun {
+		if err := refreshGameChangers(accountID, apiToken, databaseID); err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: failed to refresh game changers: %v\n", err)
+		}
+	}
+
 	// Card-price scrape phase — pulls per-card multi-vendor prices from
 	// EDHREC's per-card pages for every name referenced by recommendations
 	// or average decks. Idempotent (wipe-and-replace).
@@ -199,6 +210,53 @@ func run(accountID, apiToken, databaseID, commanderFilter, cacheDir string,
 		fmt.Fprintf(os.Stderr, "WARN: card prices phase failed: %v\n", err)
 	}
 
+	return nil
+}
+
+// refreshGameChangers writes the hardcoded WotC list to D1 and logs any
+// drift versus EDHREC's per-commander gamechangers tagging.
+func refreshGameChangers(accountID, apiToken, databaseID string) error {
+	if err := cfapi.ImportD1SQL(accountID, databaseID, apiToken,
+		BuildGameChangersSQL(wotcGameChangers)); err != nil {
+		return fmt.Errorf("game changers import: %w", err)
+	}
+	fmt.Printf("game changers: imported %d cards (WotC official)\n", len(wotcGameChangers))
+
+	// Cross-check: derive EDHREC's gamechanger set by counting how many
+	// commanders tag each card. Only cards tagged across >=2 commanders
+	// count as "EDHREC's gamechanger list" — a single tag could be noise.
+	rows, err := cfapi.QueryD1(accountID, databaseID, apiToken,
+		`SELECT card_name, COUNT(DISTINCT commander_id) AS cnt
+		 FROM magic_edh_recommendations
+		 WHERE category = 'gamechangers'
+		 GROUP BY card_name
+		 HAVING cnt >= 2`)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARN: game changers cross-check query failed: %v\n", err)
+		return nil
+	}
+	derived := make(map[string]int)
+	for _, r := range rows {
+		name, _ := r["card_name"].(string)
+		// Cloudflare D1 query rows return numbers as float64.
+		cnt, _ := r["cnt"].(float64)
+		if name != "" {
+			derived[name] = int(cnt)
+		}
+	}
+	missing, extra := gameChangersDiff(wotcGameChangers, derived)
+	if len(missing) == 0 && len(extra) == 0 {
+		fmt.Println("game changers: cross-check OK (no drift)")
+		return nil
+	}
+	if len(missing) > 0 {
+		fmt.Printf("game changers: %d in WotC list but not in EDHREC's per-commander tags: %v\n",
+			len(missing), missing)
+	}
+	if len(extra) > 0 {
+		fmt.Printf("game changers: %d in EDHREC's tags but not in WotC list (UPDATE wotcGameChangers): %v\n",
+			len(extra), extra)
+	}
 	return nil
 }
 
