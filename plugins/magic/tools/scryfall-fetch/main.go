@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +32,13 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/magic/parser/data"
 	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 )
+
+// ScryfallPrices captures the price fields we read from Scryfall. Scryfall
+// emits prices as JSON strings (possibly null) so the consumer must handle
+// empty/invalid values via parsePrice.
+type ScryfallPrices struct {
+	USD string `json:"usd"`
+}
 
 // ScryfallCard represents the fields we extract from each Scryfall card object.
 type ScryfallCard struct {
@@ -55,6 +63,9 @@ type ScryfallCard struct {
 	Power         string            `json:"power"`
 	Toughness     string            `json:"toughness"`
 	Games         []string          `json:"games"`
+	Prices        ScryfallPrices    `json:"prices"`
+	Reserved      bool              `json:"reserved"` // Reserved List flag (supply-frozen cards)
+	Reprint       bool              `json:"reprint"`
 	IsDefault     bool              `json:"-"` // computed, not from Scryfall
 	FrontFaceName string            `json:"-"` // computed: Name split on " // ", first part
 }
@@ -565,6 +576,21 @@ func countUniqueOracleIDs(cards []ScryfallCard) int {
 		seen[c.OracleID] = struct{}{}
 	}
 	return len(seen)
+}
+
+// parsePrice parses a Scryfall USD price string into a float pointer. Returns
+// nil for empty, whitespace-only, or unparseable inputs — callers must treat
+// nil as SQL NULL rather than zero, since price=0 is a real (free) value.
+func parsePrice(s string) *float64 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return nil
+	}
+	return &v
 }
 
 func httpGet(url string) (*http.Response, error) {

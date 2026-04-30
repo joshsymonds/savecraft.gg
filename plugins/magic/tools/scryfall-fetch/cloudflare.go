@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -52,12 +53,28 @@ func buildCardSQL(cards []ScryfallCard, aliases []CardAlias) string {
 			arenaIDBack = fmt.Sprintf("%d", c.ArenaIDBack)
 		}
 
-		fmt.Fprintf(&b, "INSERT INTO magic_cards (scryfall_id, arena_id, arena_id_back, oracle_id, name, front_face_name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, produced_mana, power, toughness, is_default) VALUES (%s, %s, %s, %s, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d);\n",
+		// price_usd is nullable — Scryfall returns null/empty for unpriced cards.
+		priceUSD := "NULL"
+		if p := parsePrice(c.Prices.USD); p != nil {
+			priceUSD = strconv.FormatFloat(*p, 'f', -1, 64)
+		}
+
+		reserved := 0
+		if c.Reserved {
+			reserved = 1
+		}
+		reprint := 0
+		if c.Reprint {
+			reprint = 1
+		}
+
+		fmt.Fprintf(&b, "INSERT INTO magic_cards (scryfall_id, arena_id, arena_id_back, oracle_id, name, front_face_name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, produced_mana, power, toughness, is_default, price_usd, reserved, reprint) VALUES (%s, %s, %s, %s, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %s, %d, %d);\n",
 			q(c.ScryfallID), arenaID, arenaIDBack, q(c.OracleID),
 			q(c.Name), q(c.FrontFaceName), q(c.ManaCost), c.CMC,
 			q(c.TypeLine), q(c.OracleText), q(colorsJSON), q(colorIdentityJSON),
 			q(legalitiesJSON), q(c.Rarity), q(c.Set), q(keywordsJSON),
 			q(producedManaJSON), q(c.Power), q(c.Toughness), isDefault,
+			priceUSD, reserved, reprint,
 		)
 
 		// FTS5 table (default printings only).
