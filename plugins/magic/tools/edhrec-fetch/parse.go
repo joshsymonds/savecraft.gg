@@ -47,9 +47,37 @@ type commanderCardView struct {
 	TrendZScore    float64 `json:"trend_zscore"`
 }
 
+// commanderSimilar accepts both shapes EDHREC publishes:
+//  1. {"id": "...", "name": "..."} — older format
+//  2. "Card Name" — newer flat-string format observed 2026-04-30
+//
+// We treat the name as the source of truth; ID is best-effort and may be
+// empty, since no downstream consumer reads it.
 type commanderSimilar struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID   string
+	Name string
+}
+
+func (c *commanderSimilar) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		var name string
+		if err := json.Unmarshal(data, &name); err != nil {
+			return err
+		}
+		c.Name = name
+		return nil
+	}
+	type raw struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	var r raw
+	if err := json.Unmarshal(data, &r); err != nil {
+		return err
+	}
+	c.ID = r.ID
+	c.Name = r.Name
+	return nil
 }
 
 type commanderPanels struct {
@@ -148,9 +176,10 @@ func ParseCommanderPage(data []byte) (*ParsedCommander, error) {
 		pc.Themes = append(pc.Themes, ThemeEntry{Slug: t.Slug, Value: t.Value, Count: t.Count})
 	}
 
-	// Similar commanders
+	// Similar commanders. Filter on Name rather than ID — the newer EDHREC
+	// flat-string format omits IDs entirely.
 	for _, s := range p.Similar {
-		if s.ID == "" {
+		if s.Name == "" {
 			continue
 		}
 		pc.Similar = append(pc.Similar, SimilarCommander{ScryfallID: s.ID, Name: s.Name})
@@ -346,6 +375,92 @@ func ParseAverageDecksPage(data []byte) ([]AverageDeckEntry, error) {
 		})
 	}
 	return out, nil
+}
+
+// ── Tier page (json.edhrec.com/pages/commanders/{slug}/{tier}.json) ──
+//
+// EDHREC publishes four power/budget tiers per commander: budget,
+// upgraded, optimized, cedh. Each is an empirical "average decklist for
+// commander X at tier Y" — same schema as the default average-decks page,
+// plus tier-level metadata fields (avg_price, num_decks_avg, deck_size).
+
+type tierPage struct {
+	AvgPrice    float64  `json:"avg_price"`
+	NumDecksAvg int      `json:"num_decks_avg"`
+	DeckSize    int      `json:"deck_size"`
+	Deck        []string `json:"deck"`
+	Container   struct {
+		JSONDict struct {
+			CardLists []averageDeckList `json:"cardlists"`
+		} `json:"json_dict"`
+	} `json:"container"`
+}
+
+// TierMeta captures the per-tier metadata published with each
+// commander/tier average decklist.
+type TierMeta struct {
+	AvgPrice    float64
+	NumDecksAvg int
+	DeckSize    int
+}
+
+// TierBundle is the parsed tier-page result: metadata + the categorized
+// average decklist for that tier.
+type TierBundle struct {
+	Meta  *TierMeta
+	Decks []AverageDeckEntry
+}
+
+// ParseTierPage parses an EDHREC tier endpoint payload. The deck array
+// uses the same "1 Card Name" / "10 Forest" string format as the default
+// average-decks page, so we reuse the same line-parsing path. Empty
+// payloads (rare commander with no data at this tier) return zero-valued
+// metadata and an empty deck list — not an error.
+func ParseTierPage(data []byte) (*TierMeta, []AverageDeckEntry, error) {
+	var p tierPage
+	if err := json.Unmarshal(data, &p); err != nil {
+		return nil, nil, fmt.Errorf("decode tier page: %w", err)
+	}
+	meta := &TierMeta{
+		AvgPrice:    p.AvgPrice,
+		NumDecksAvg: p.NumDecksAvg,
+		DeckSize:    p.DeckSize,
+	}
+
+	// Build category map from cardlists (same shape as ParseAverageDecksPage).
+	category := make(map[string]string)
+	for _, cl := range p.Container.JSONDict.CardLists {
+		for _, cv := range cl.CardViews {
+			if cv.Name != "" {
+				category[cv.Name] = cl.Tag
+			}
+		}
+	}
+
+	seen := make(map[string]bool)
+	var out []AverageDeckEntry
+	for _, line := range p.Deck {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		m := deckEntryRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		qty, _ := strconv.Atoi(m[1])
+		name := strings.TrimSpace(m[2])
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, AverageDeckEntry{
+			CardName: name,
+			Quantity: qty,
+			Category: category[name],
+		})
+	}
+	return meta, out, nil
 }
 
 // ── Card page (json.edhrec.com/pages/cards/{slug}.json) ──

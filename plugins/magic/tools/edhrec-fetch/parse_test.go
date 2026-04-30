@@ -266,3 +266,54 @@ func TestParseCardPage_EmptyPrices(t *testing.T) {
 		t.Errorf("all vendor prices should be nil for empty prices block")
 	}
 }
+
+func TestParseTierPage_AtraxaBudget(t *testing.T) {
+	data := loadFixture(t, "atraxa_budget.json")
+	meta, decks, err := ParseTierPage(data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if meta == nil {
+		t.Fatal("expected non-nil tier metadata")
+	}
+	// Tolerate small movement since EDHREC numbers update over time.
+	if meta.AvgPrice < 100 || meta.AvgPrice > 300 {
+		t.Errorf("AvgPrice = %v, want roughly 174", meta.AvgPrice)
+	}
+	if meta.NumDecksAvg < 1000 {
+		t.Errorf("NumDecksAvg = %d, want > 1000 for a popular budget tier", meta.NumDecksAvg)
+	}
+	if len(decks) < 50 {
+		t.Errorf("decks length = %d, want at least 50 cards in a budget Atraxa list", len(decks))
+	}
+	// Categories should be populated for most entries (consistent with
+	// ParseAverageDecksPage behavior).
+	withCat := 0
+	for _, e := range decks {
+		if e.Category != "" {
+			withCat++
+		}
+	}
+	if withCat < len(decks)/2 {
+		t.Errorf("only %d/%d entries have categories", withCat, len(decks))
+	}
+}
+
+func TestParseTierPage_EmptyResponse(t *testing.T) {
+	// Some commanders may not have all four tiers populated. The parser must
+	// not crash on minimal/empty JSON; metadata should be zero-valued.
+	raw := []byte(`{}`)
+	meta, decks, err := ParseTierPage(raw)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if meta == nil {
+		t.Fatal("expected non-nil tier metadata even for empty response")
+	}
+	if meta.AvgPrice != 0 || meta.NumDecksAvg != 0 {
+		t.Errorf("expected zero-valued metadata, got %+v", meta)
+	}
+	if len(decks) != 0 {
+		t.Errorf("expected no decks, got %d", len(decks))
+	}
+}

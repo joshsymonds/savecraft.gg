@@ -71,6 +71,20 @@ func averageDecksPageURL(slug string) string {
 	return fmt.Sprintf("%s/pages/average-decks/%s.json", edhrecBaseURL, slug)
 }
 
+// tierPageURL points at the tier-specific average-decks endpoint.
+// EDHREC's /pages/commanders/{slug}/{tier}.json also exists but returns
+// recommendations and summary counts rather than an explicit decklist.
+// /pages/average-decks/{slug}/{tier}.json gives the actual list of cards.
+func tierPageURL(slug, tier string) string {
+	return fmt.Sprintf("%s/pages/average-decks/%s/%s.json", edhrecBaseURL, slug, tier)
+}
+
+// tierNames is the canonical list of EDHREC power/budget tiers we ingest
+// per commander. Order matches roughly increasing price:
+//
+//	budget (~$150-300) < upgraded (~$1k) < optimized (~$2-3k) < cedh ($5k+)
+var tierNames = []string{"budget", "upgraded", "optimized", "cedh"}
+
 // contentHash returns a hex SHA-256 of the input bytes.
 func contentHash(data []byte) string {
 	sum := sha256.Sum256(data)

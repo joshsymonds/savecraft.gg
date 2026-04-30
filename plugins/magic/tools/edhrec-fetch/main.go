@@ -319,9 +319,30 @@ func processCommander(ctx context.Context, client *http.Client, target commander
 		}
 	}
 
+	// Fetch the four EDHREC tier endpoints (budget/upgraded/optimized/cedh).
+	// Some commanders have only a subset of tiers populated — 404 is fine.
+	tiers := make(map[string]*TierBundle)
+	for _, tier := range tierNames {
+		data, err := rateLimitedFetch(tierPageURL(slug, tier))
+		if err != nil {
+			var nf errNotFound
+			if !errors.As(err, &nf) {
+				fmt.Printf("  %s: WARN tier %s: %v\n", slug, tier, err)
+			}
+			continue
+		}
+		meta, decks, perr := ParseTierPage(data)
+		if perr != nil {
+			fmt.Printf("  %s: WARN tier %s parse: %v\n", slug, tier, perr)
+			continue
+		}
+		tiers[tier] = &TierBundle{Meta: meta, Decks: decks}
+		_ = cacheWrite(jsonDir, slug+"_tier_"+tier+".json", data)
+	}
+
 	_ = cacheWrite(jsonDir, slug+"_commander.json", commanderData)
 
-	sql := BuildCommanderSQL(pc, combos, avg)
+	sql := BuildCommanderSQL(pc, combos, avg, tiers)
 	_ = cacheWrite(sqlDir, slug+".sql", []byte(sql))
 
 	if dryRun {
@@ -334,8 +355,16 @@ func processCommander(ctx context.Context, client *http.Client, target commander
 		return statusFailed
 	}
 
-	// Row count estimate for pipeline state
-	rowCount := 1 + len(pc.Recs) + len(combos) + len(avg) + len(pc.Curve)
+	// Row count estimate for pipeline state. Includes the new tier rows
+	// (1 metadata row per tier + the tier's deck entries).
+	tierRowCount := 0
+	for _, t := range tiers {
+		if t == nil {
+			continue
+		}
+		tierRowCount += 1 + len(t.Decks)
+	}
+	rowCount := 1 + len(pc.Recs) + len(combos) + len(avg) + len(pc.Curve) + tierRowCount
 	if err := cfapi.UpdatePipelineState(accountID, databaseID, apiToken, pipelineTool, slug, hash, rowCount); err != nil {
 		fmt.Printf("  %s: WARN pipeline state: %v\n", slug, err)
 	}

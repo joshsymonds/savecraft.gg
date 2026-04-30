@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
@@ -11,7 +12,7 @@ import (
 // BuildCommanderSQL returns a SQL blob that deletes and re-inserts all rows
 // for a single commander across all EDHREC tables. Safe to import as one
 // transaction via cfapi.ImportD1SQL.
-func BuildCommanderSQL(pc *ParsedCommander, combos []Combo, avg []AverageDeckEntry) string {
+func BuildCommanderSQL(pc *ParsedCommander, combos []Combo, avg []AverageDeckEntry, tiers map[string]*TierBundle) string {
 	var b strings.Builder
 	q := cfapi.SQLQuote
 	id := q(pc.ScryfallID)
@@ -24,6 +25,11 @@ func BuildCommanderSQL(pc *ParsedCommander, combos []Combo, avg []AverageDeckEnt
 	fmt.Fprintf(&b, "DELETE FROM magic_edh_combos_fts WHERE commander_id = %s;\n", id)
 	fmt.Fprintf(&b, "DELETE FROM magic_edh_average_decks WHERE commander_id = %s;\n", id)
 	fmt.Fprintf(&b, "DELETE FROM magic_edh_mana_curves WHERE commander_id = %s;\n", id)
+	// Tier tables also wipe-and-replace per commander so a re-import with
+	// fewer tiers (e.g. EDHREC dropped one tier for this commander) doesn't
+	// leave orphaned rows.
+	fmt.Fprintf(&b, "DELETE FROM magic_edh_commander_tiers WHERE commander_id = %s;\n", id)
+	fmt.Fprintf(&b, "DELETE FROM magic_edh_average_decks_by_tier WHERE commander_id = %s;\n", id)
 
 	// ── Commander row ────────────────────────────────────────
 	themesJSON := marshalThemes(pc.Themes)
@@ -113,6 +119,37 @@ func BuildCommanderSQL(pc *ParsedCommander, combos []Combo, avg []AverageDeckEnt
 			fmt.Fprintf(&b, "(%s, %d, %s)", id, c.CMC, formatFloat(c.AvgCount))
 		}
 		b.WriteString(";\n")
+	}
+
+	// ── Tier metadata + per-tier average decks ────────────────
+	// Iterate in deterministic order so SQL output is stable across runs
+	// (helps with caching, diffing, debugging).
+	tierKeys := make([]string, 0, len(tiers))
+	for k := range tiers {
+		tierKeys = append(tierKeys, k)
+	}
+	sort.Strings(tierKeys)
+	for _, tierName := range tierKeys {
+		t := tiers[tierName]
+		if t == nil || t.Meta == nil {
+			continue
+		}
+		fmt.Fprintf(&b,
+			"INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (%s, %s, %s, %d, %d);\n",
+			id, q(tierName), formatFloat(t.Meta.AvgPrice), t.Meta.NumDecksAvg, t.Meta.DeckSize,
+		)
+		if len(t.Decks) > 0 {
+			b.WriteString("INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES ")
+			for i, e := range t.Decks {
+				if i > 0 {
+					b.WriteString(", ")
+				}
+				fmt.Fprintf(&b, "(%s, %s, %s, %d, %s)",
+					id, q(tierName), q(e.CardName), e.Quantity, q(e.Category),
+				)
+			}
+			b.WriteString(";\n")
+		}
 	}
 
 	return b.String()
