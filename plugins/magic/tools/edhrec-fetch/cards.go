@@ -19,13 +19,25 @@ func cardPageURL(slug string) string {
 }
 
 // loadCardNamesFromD1 returns the deduped set of card names referenced in
-// existing magic_edh_recommendations and magic_edh_average_decks rows.
-// These are the cards we have a reason to know prices for.
+// the EDHREC tables we want priced. Includes:
+//   - cross-tier recommendations (magic_edh_recommendations)
+//   - per-tier average decklists (magic_edh_average_decks_by_tier) — cEDH-
+//     only staples that don't appear in the cross-tier rec pool show up here
+//   - default-tier average decklists (magic_edh_average_decks)
+//   - precon decklists (magic_edh_precon_decks)
+//   - precon upgrade pool — only the 'add'/'land_add' actions, since 'cut'
+//     entries aren't cards a user needs to price-shop
 func loadCardNamesFromD1(accountID, apiToken, databaseID string) ([]string, error) {
 	const sqlText = `
 SELECT DISTINCT card_name FROM magic_edh_recommendations
 UNION
 SELECT DISTINCT card_name FROM magic_edh_average_decks
+UNION
+SELECT DISTINCT card_name FROM magic_edh_average_decks_by_tier
+UNION
+SELECT DISTINCT card_name FROM magic_edh_precon_decks
+UNION
+SELECT DISTINCT card_name FROM magic_edh_precon_upgrades WHERE action IN ('add', 'land_add')
 ORDER BY card_name
 `
 	rows, err := cfapi.QueryD1(accountID, databaseID, apiToken, sqlText)

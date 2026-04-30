@@ -114,6 +114,30 @@ describe("commander_deckbuild native module", () => {
     expect(data.deck.map((c) => c.card_name)).not.toContain("Sol Ring");
   });
 
+  it("must_include with no known price still pins (and is listed in cards_without_prices)", async () => {
+    await seedAtraxa();
+    // "Mystery Card" has no entry in either magic_edh_card_prices or magic_cards.
+    const result = await commanderDeckbuildModule.execute(
+      {
+        commander: "Atraxa",
+        max_price: 100,
+        must_include: ["Mystery Card"],
+        exclude_game_changers: false,
+      },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as {
+      deck: { card_name: string; source: string; price_usd: number | null }[];
+      cards_without_prices: string[];
+    };
+    const mystery = data.deck.find((c) => c.card_name === "Mystery Card");
+    expect(mystery).toBeDefined();
+    expect(mystery!.source).toBe("must_include");
+    expect(mystery!.price_usd).toBeNull();
+    expect(data.cards_without_prices).toContain("Mystery Card");
+  });
+
   it("must_include pins cards even when over budget", async () => {
     await seedAtraxa();
     // Budget too low to include Cyclonic Rift naturally ($32 > $20),

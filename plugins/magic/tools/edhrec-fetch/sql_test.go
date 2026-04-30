@@ -124,17 +124,11 @@ func TestBuildCardPricesSQL_AllVendors(t *testing.T) {
 	if !strings.Contains(sql, "DELETE FROM magic_edh_card_prices") {
 		t.Errorf("expected DELETE for wipe-and-replace")
 	}
-	if !strings.Contains(sql, "INSERT INTO magic_edh_card_prices") {
-		t.Errorf("expected INSERT")
-	}
-	if !strings.Contains(sql, "Sol Ring") {
-		t.Errorf("expected card name in SQL")
-	}
-	if !strings.Contains(sql, "1.29") {
-		t.Errorf("expected TCGPlayer price 1.29")
-	}
-	if !strings.Contains(sql, "1.99") {
-		t.Errorf("expected Card Kingdom price 1.99")
+	// Assert the exact VALUES tuple so we don't pass on a SQL fragment
+	// that happens to contain the prices in the wrong column order.
+	wantTuple := "VALUES ('Sol Ring', 1.29, 1.99, 1.49, 1.19)"
+	if !strings.Contains(sql, wantTuple) {
+		t.Errorf("expected exact tuple %q, got SQL:\n%s", wantTuple, sql)
 	}
 }
 
@@ -147,11 +141,10 @@ func TestBuildCardPricesSQL_NilPricesAsNULL(t *testing.T) {
 		},
 	}
 	sql := BuildCardPricesSQL(prices)
-	if !strings.Contains(sql, "5") {
-		t.Errorf("expected TCGPlayer price 5")
-	}
-	if !strings.Contains(sql, "NULL") {
-		t.Errorf("expected NULL for missing vendor prices")
+	// Exact tuple — TCG=5, the other three vendors NULL.
+	wantTuple := "VALUES ('Sparse', 5, NULL, NULL, NULL)"
+	if !strings.Contains(sql, wantTuple) {
+		t.Errorf("expected exact tuple %q, got SQL:\n%s", wantTuple, sql)
 	}
 }
 

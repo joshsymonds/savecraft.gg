@@ -14,6 +14,7 @@ import type {
   ReferenceResult,
 } from "../../../worker/src/reference/types";
 import { safeParseJSON } from "../../../worker/src/reference/json";
+import { resolveCardPrices, resolveGameChangers } from "./commander-prices";
 import { resolveCommander } from "./commander-resolve";
 
 const STAPLE_THRESHOLD = 0.25;
@@ -119,36 +120,34 @@ async function runReview(
         .all<TierInfoRow>()
     : Promise.resolve({ results: [] });
 
-  // Game changers in user's deck — only relevant when tier is set, but
-  // batched in the same parallel block to keep latency low.
-  const gameChangersQuery: Promise<{ results?: { card_name: string }[] }> = tier
-    ? (() => {
-        const placeholders = [...deckByLower.values()].map(() => "?").join(",");
-        if (placeholders === "") return Promise.resolve({ results: [] });
-        return env.DB
-          .prepare(
-            `SELECT card_name FROM magic_game_changers
-             WHERE card_name IN (${placeholders})`,
-          )
-          .bind(...deckByLower.values())
-          .all<{ card_name: string }>();
-      })()
-    : Promise.resolve({ results: [] });
+  // Game changers in user's deck — only relevant when tier is set. The
+  // shared resolveGameChangers helper chunks the IN clause to fit D1's
+  // 100-bind ceiling so large pasted decklists don't reject.
+  const gameChangersQuery: Promise<string[]> = tier
+    ? resolveGameChangers(env, [...deckByLower.values()])
+    : Promise.resolve([]);
 
-  const [topCardsResult, averageResult, tierInfoResult, gameChangersResult] = await Promise.all([
-    env.DB.prepare(
-      `SELECT card_name, inclusion
+  // Price the user's deck via the shared helper. Folded into the same
+  // parallel block as the staple/average/tier/GC queries so total latency
+  // is bounded by the slowest of these (rather than serial waits).
+  const priceLookupQuery = resolveCardPrices(env, [...deckByLower.values()]);
+
+  const [topCardsResult, averageResult, tierInfoResult, gameChangersResult, priceLookup] =
+    await Promise.all([
+      env.DB.prepare(
+        `SELECT card_name, inclusion
          FROM magic_edh_recommendations
          WHERE commander_id = ? AND category = 'topcards' AND inclusion >= ?
          ORDER BY inclusion DESC
          LIMIT ?`,
-    )
-      .bind(commanderId, minInclusion, MAX_STAPLE_CANDIDATES)
-      .all<RecRow>(),
-    averageDecksQuery,
-    tierInfoQuery,
-    gameChangersQuery,
-  ]);
+      )
+        .bind(commanderId, minInclusion, MAX_STAPLE_CANDIDATES)
+        .all<RecRow>(),
+      averageDecksQuery,
+      tierInfoQuery,
+      gameChangersQuery,
+      priceLookupQuery,
+    ]);
 
   const tierInfo = tier ? (tierInfoResult.results?.[0] ?? null) : undefined;
 
@@ -219,9 +218,20 @@ async function runReview(
 
   // Price the user's deck. EDHREC TCGPlayer first, Scryfall fallback,
   // unknown-price cards excluded from total_price and listed in
-  // cards_without_prices so the LLM can flag them.
+  // cards_without_prices so the LLM can flag them. The shared resolver
+  // returns lowercase keys, absorbing user case variance.
   const maxPrice = typeof query.max_price === "number" ? query.max_price : undefined;
-  const { totalPrice, cardsWithoutPrices } = await priceDecklist(env, deckByLower);
+  let totalPrice = 0;
+  const cardsWithoutPrices: string[] = [];
+  for (const [lower, original] of deckByLower) {
+    const resolved = priceLookup.prices.get(lower);
+    if (resolved?.price != null) {
+      totalPrice += resolved.price;
+    } else {
+      cardsWithoutPrices.push(original);
+    }
+  }
+  totalPrice = Math.round(totalPrice * 100) / 100;
 
   const data: Record<string, unknown> = {
     commander: {
@@ -265,9 +275,9 @@ async function runReview(
     // tier's expected constraints. For now, just game changers — at the
     // budget tier these push the deck toward bracket 3+. Future additions
     // could include "fast mana not in budget tier" etc.
-    const gcInDeck = (gameChangersResult.results ?? [])
-      .map((r) => r.card_name)
-      .filter((name) => deckByLower.has(name.toLowerCase()));
+    const gcInDeck = gameChangersResult.filter((name) =>
+      deckByLower.has(name.toLowerCase()),
+    );
     if (gcInDeck.length > 0 || tier === "budget") {
       data.tier_mismatches = {
         game_changers: gcInDeck,
@@ -282,73 +292,6 @@ async function runReview(
   return { type: "structured", data };
 }
 
-interface PriceLookupRow {
-  card_name: string;
-  price_usd: number | null;
-}
-
-/**
- * Sum prices across the user's decklist. Returns the running total and a list
- * of card names that had no price source on either EDHREC or Scryfall —
- * those cards contribute 0 to the total but the caller should surface them so
- * the LLM can flag the price uncertainty.
- *
- * D1 has a 100-bind-parameter limit per statement; a 100-card Commander deck
- * fits comfortably. Two queries (EDHREC, then Scryfall fallback) so each stays
- * under the limit independently.
- */
-async function priceDecklist(
-  env: Env,
-  deck: Map<string, string>,
-): Promise<{ totalPrice: number; cardsWithoutPrices: string[] }> {
-  const names = [...deck.values()];
-  if (names.length === 0) {
-    return { totalPrice: 0, cardsWithoutPrices: [] };
-  }
-  const placeholders = names.map(() => "?").join(",");
-
-  const [edhRes, scryRes] = await Promise.all([
-    env.DB
-      .prepare(
-        `SELECT card_name, tcgplayer_price AS price_usd
-         FROM magic_edh_card_prices
-         WHERE card_name IN (${placeholders})`,
-      )
-      .bind(...names)
-      .all<PriceLookupRow>(),
-    env.DB
-      .prepare(
-        `SELECT name AS card_name, price_usd
-         FROM magic_cards
-         WHERE is_default = 1 AND name IN (${placeholders})`,
-      )
-      .bind(...names)
-      .all<PriceLookupRow>(),
-  ]);
-
-  // EDHREC wins when both sources have a price for the same name.
-  const priceByName = new Map<string, number>();
-  for (const row of scryRes.results ?? []) {
-    if (row.price_usd != null) priceByName.set(row.card_name, row.price_usd);
-  }
-  for (const row of edhRes.results ?? []) {
-    if (row.price_usd != null) priceByName.set(row.card_name, row.price_usd);
-  }
-
-  let total = 0;
-  const missing: string[] = [];
-  for (const name of names) {
-    const p = priceByName.get(name);
-    if (p == null) {
-      missing.push(name);
-    } else {
-      total += p;
-    }
-  }
-  // Round to cents — SQLite + JS float arithmetic produces dust like 0.7000000000000001.
-  total = Math.round(total * 100) / 100;
-  return { totalPrice: total, cardsWithoutPrices: missing };
-}
 
 export const commanderDeckReviewModule: NativeReferenceModule = {
   id: "commander_deck_review",

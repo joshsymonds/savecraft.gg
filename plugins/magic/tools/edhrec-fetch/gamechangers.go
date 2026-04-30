@@ -125,5 +125,5 @@ func gameChangersDiff(wotc []string, derived map[string]int) (missing, extra []s
 	}
 	sort.Strings(missing)
 	sort.Strings(extra)
-	return
+	return missing, extra
 }

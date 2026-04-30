@@ -124,19 +124,19 @@ export const preconLookupModule: NativeReferenceModule = {
     } else if (commander) {
       // JOIN on magic_edh_precon_commanders.commander_name. Order: face
       // commander first, then by EDHREC popularity.
+      // LIKE-prefix subsumes equality match — a single param covers both.
       const result = await env.DB
         .prepare(
           `SELECT DISTINCT p.slug, p.name, p.msrp_usd, p.set_code, p.release_year
            FROM magic_edh_precons p
            JOIN magic_edh_precon_commanders pc ON pc.precon_slug = p.slug
-           WHERE pc.commander_name = ?
-              OR pc.commander_name LIKE ? || '%'
+           WHERE pc.commander_name LIKE ? || '%'
            ORDER BY (SELECT MAX(is_face) FROM magic_edh_precon_commanders
                     WHERE precon_slug = p.slug AND commander_name LIKE ? || '%') DESC,
                     p.release_year DESC
            LIMIT ?`,
         )
-        .bind(commander, commander, commander, limit)
+        .bind(commander, commander, limit)
         .all<PreconRow>();
       precons = result.results ?? [];
     } else {

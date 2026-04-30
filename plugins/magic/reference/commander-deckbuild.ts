@@ -16,6 +16,8 @@ import type {
   NativeReferenceModule,
   ReferenceResult,
 } from "../../../worker/src/reference/types";
+import { safeParseJSON } from "../../../worker/src/reference/json";
+import { resolveCardPrices } from "./commander-prices";
 import { resolveCommander } from "./commander-resolve";
 
 const VALID_TIERS = ["budget", "upgraded", "optimized", "cedh"] as const;
@@ -34,24 +36,6 @@ interface TierDeckRow {
   category: string;
 }
 
-interface PriceLookupRow {
-  card_name: string;
-  price_usd: number | null;
-}
-
-interface ScryfallSidecarRow {
-  card_name: string;
-  reserved: number;
-}
-
-interface PricedAtRow {
-  priced_at: string | null;
-}
-
-interface ResolvedPrice {
-  price: number | null;
-  reserved: boolean;
-}
 
 interface DeckEntry {
   card_name: string;
@@ -278,7 +262,8 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     for (const c of tierDeck) allNames.add(c.card_name);
     for (const m of mustInclude) allNames.add(m);
     const namesArr = [...allNames];
-    const priceByLower = await batchPriceLookup(env, namesArr);
+    const priceLookup = await resolveCardPrices(env, namesArr);
+    const priceByLower = priceLookup.prices;
 
     // Filter tier deck.
     const filtered: TierDeckRow[] = [];
@@ -365,7 +350,7 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     // color identity. Heuristic — works well for budget tier where the
     // tier average's land list still includes shocks/duals that bust the
     // cap on small budgets.
-    const colorIdentity = JSON.parse(commanderRow.color_identity || "[]") as string[];
+    const colorIdentity = safeParseJSON<string[]>(commanderRow.color_identity, []);
     const manaBaseSubs: { out: string; in: string; saved: number }[] = [];
     if (maxPrice !== undefined && colorIdentity.length > 0) {
       const landCap = maxPrice * 0.4;
@@ -418,11 +403,8 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       );
     }
 
-    // Surface the most-recent EDHREC priced_at across the deck so the LLM
-    // can caveat staleness. Only the EDHREC side has a priced_at column;
-    // Scryfall-only prices contribute nothing to this timestamp.
-    const placedNames = placed.map((p) => p.card_name);
-    const pricedAt = await maxPricedAt(env, placedNames);
+    // priced_at is already aggregated from the price-resolution step.
+    const pricedAt = priceLookup.pricedAt;
 
     return {
       type: "structured",
@@ -578,7 +560,8 @@ async function runPreconBuild(
   const priceNames = new Set<string>();
   for (const u of upgrades) priceNames.add(u.card_name);
   for (const m of mustInclude) priceNames.add(m);
-  const priceByLower = await batchPriceLookup(env, [...priceNames]);
+  const priceLookup = await resolveCardPrices(env, [...priceNames]);
+  const priceByLower = priceLookup.prices;
 
   // Seed placed[] from the precon decklist. The precon contents charge MSRP
   // collectively; per-card price_usd stays null so the LLM can see they
@@ -666,7 +649,7 @@ async function runPreconBuild(
       commander: {
         name: commanderRow.name,
         slug: commanderRow.slug,
-        color_identity: JSON.parse(commanderRow.color_identity || "[]") as string[],
+        color_identity: safeParseJSON<string[]>(commanderRow.color_identity, []),
         tier_used: null, // precon path doesn't use tier average
       },
       precon: {
@@ -689,68 +672,11 @@ async function runPreconBuild(
       warnings,
       attribution: {
         source: "EDHREC",
+        priced_at: priceLookup.pricedAt,
         note: `Precon '${preconRow.slug}' seeds the deck (charged at MSRP $${msrp}). Upgrades drawn from EDHREC's cardstoadd / landstoadd pool, sorted by inclusion. Singles prices via EDHREC TCGPlayer mid (Scryfall fallback).`,
       },
     },
   };
-}
-
-/**
- * Batch-fetch prices + Reserved List flags for the given card names.
- * Prices: EDHREC TCGPlayer first (M1.2), Scryfall default-printing fallback
- * (M1.1). Reserved flag: only Scryfall has it.
- *
- * Returns a Map keyed by lowercase card name → {price, reserved}. Cards
- * absent from both sources are still in the map with {price: null,
- * reserved: false} so callers can distinguish "looked up" from "didn't ask".
- */
-async function batchPriceLookup(
-  env: Env,
-  names: string[],
-): Promise<Map<string, ResolvedPrice>> {
-  const result = new Map<string, ResolvedPrice>();
-  if (names.length === 0) return result;
-
-  const placeholders = names.map(() => "?").join(",");
-  const [edhRes, scryRes] = await Promise.all([
-    env.DB
-      .prepare(
-        `SELECT card_name, tcgplayer_price AS price_usd
-         FROM magic_edh_card_prices
-         WHERE card_name IN (${placeholders})`,
-      )
-      .bind(...names)
-      .all<PriceLookupRow>(),
-    env.DB
-      .prepare(
-        `SELECT name AS card_name, price_usd, reserved
-         FROM magic_cards
-         WHERE is_default = 1 AND name IN (${placeholders})`,
-      )
-      .bind(...names)
-      .all<PriceLookupRow & ScryfallSidecarRow>(),
-  ]);
-
-  // Scryfall first — establishes baseline price + reserved flag.
-  for (const row of scryRes.results ?? []) {
-    result.set(row.card_name.toLowerCase(), {
-      price: row.price_usd,
-      reserved: row.reserved === 1,
-    });
-  }
-  // EDHREC TCGPlayer overrides the price (matches what users see on EDHREC).
-  // Reserved flag stays from Scryfall since EDHREC doesn't carry it.
-  for (const row of edhRes.results ?? []) {
-    if (row.price_usd != null) {
-      const lower = row.card_name.toLowerCase();
-      const existing = result.get(lower);
-      result.set(lower, {
-        price: row.price_usd,
-        reserved: existing?.reserved ?? false,
-      });
-    }
-  }
-  return result;
 }
 
 /**
@@ -795,6 +721,11 @@ function reallocateManaBase(
       ? COLOR_TO_BASIC[colorIdentity.find((c) => COLOR_TO_BASIC[c])!]!
       : "Wastes";
 
+  // Indices to splice out at the end. Avoid mutating placed[] during the
+  // iteration — sentinel-string approaches collide with cards legitimately
+  // named the sentinel value.
+  const indicesToRemove = new Set<number>();
+
   for (const { entry, index } of lands) {
     if (remaining <= landCap) break;
     if (entry.price_usd == null) continue;
@@ -821,11 +752,7 @@ function reallocateManaBase(
     );
     if (existingBasicIdx >= 0) {
       placed[existingBasicIdx]!.quantity += entry.quantity;
-      placed[index] = {
-        ...entry,
-        // Mark it for removal — we splice below
-        card_name: "__REMOVED__",
-      };
+      indicesToRemove.add(index);
     } else {
       placed[index] = {
         card_name: preferredBasic,
@@ -839,31 +766,12 @@ function reallocateManaBase(
     }
   }
 
-  // Remove "__REMOVED__" placeholder entries created during dedupe.
-  for (let i = placed.length - 1; i >= 0; i--) {
-    if (placed[i]!.card_name === "__REMOVED__") {
-      placed.splice(i, 1);
-    }
+  // Splice in reverse order so earlier indices stay valid as we shrink.
+  const sortedRemove = [...indicesToRemove].sort((a, b) => b - a);
+  for (const i of sortedRemove) {
+    placed.splice(i, 1);
   }
 
   return { substitutions: subs, savings: Math.round(savings * 100) / 100 };
 }
 
-/**
- * Most-recent `priced_at` from the EDHREC card-prices table for the given
- * names. Returns null when no rows match. Surfaced in the deckbuild
- * attribution block so the LLM can caveat staleness.
- */
-async function maxPricedAt(env: Env, names: string[]): Promise<string | null> {
-  if (names.length === 0) return null;
-  const placeholders = names.map(() => "?").join(",");
-  const result = await env.DB
-    .prepare(
-      `SELECT MAX(priced_at) AS priced_at
-       FROM magic_edh_card_prices
-       WHERE card_name IN (${placeholders})`,
-    )
-    .bind(...names)
-    .all<PricedAtRow>();
-  return result.results?.[0]?.priced_at ?? null;
-}
