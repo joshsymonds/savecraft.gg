@@ -23,6 +23,16 @@
     echo "=== ${env}: 17lands-fetch ==="
     go run ./tools/17lands-fetch \
       --d1-database-id=${d1Id}
+
+    # edhrec-fetch runs last in this section: enumerateCommanders queries
+    # magic_cards for legality (populated by scryfall-fetch above), and the
+    # card-price scrape phase iterates every recommendation card name.
+    # Cold scrape is ~100 min for ~2k commanders + ~25k card pages; warm runs
+    # are much faster thanks to per-commander hash-skip. Card prices are
+    # wipe-and-replace each run so they always re-scrape.
+    echo "=== ${env}: edhrec-fetch ==="
+    go run ./tools/edhrec-fetch \
+      --d1-database-id=${d1Id}
   '';
 
   runPoeFetchers = env: d1Id: vectorizeSuffix: ''
@@ -102,7 +112,9 @@ in {
         Type = "oneshot";
         User = cfg.user;
         ExecStart = "${pkgs.bash}/bin/bash ${refreshScript}";
-        TimeoutStartSec = "2h";
+        # 4h budget: scryfall + rules + 17lands ≈ 30min, edhrec ≈ 100min
+        # (commanders + ~25k card pages at 5 req/s), run twice for staging+prod.
+        TimeoutStartSec = "4h";
         Environment = [
           "HOME=/home/${cfg.user}"
           "PATH=${lib.makeBinPath [pkgs.bash pkgs.coreutils pkgs.git pkgs.nix]}:/home/${cfg.user}/.nix-profile/bin"
