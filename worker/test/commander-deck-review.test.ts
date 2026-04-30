@@ -269,4 +269,86 @@ describe("commander_deck_review native module", () => {
     const data = result.data as { average_deck?: unknown[] };
     expect(data.average_deck).toBeUndefined();
   });
+
+  // ── price/budget tests ────────────────────────────────────────
+
+  it("returns total_price summing EDHREC TCGPlayer prices", async () => {
+    await seedAtraxa();
+
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Sol Ring", 1.5),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Arcane Signet", 2),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Cultivate", 0.5),
+    ]);
+
+    const decklist = ["Sol Ring", "Arcane Signet", "Cultivate"];
+    const result = await commanderDeckReviewModule.execute(
+      { commander: "Atraxa", decklist },
+      env as unknown as Env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") return;
+
+    const data = result.data as { total_price: number; cards_without_prices: string[] };
+    expect(data.total_price).toBeCloseTo(4.0, 2);
+    expect(data.cards_without_prices).toEqual([]);
+  });
+
+  it("flags over_budget when total_price exceeds max_price", async () => {
+    await seedAtraxa();
+
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Sol Ring", 100),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Arcane Signet", 50),
+    ]);
+
+    const result = await commanderDeckReviewModule.execute(
+      {
+        commander: "Atraxa",
+        decklist: ["Sol Ring", "Arcane Signet"],
+        max_price: 100,
+      },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+
+    const data = result.data as { total_price: number; over_budget: boolean };
+    expect(data.total_price).toBeCloseTo(150, 2);
+    expect(data.over_budget).toBe(true);
+  });
+
+  it("lists cards_without_prices when prices are missing", async () => {
+    await seedAtraxa();
+
+    // Only price one card; the other has no price source.
+    await env.DB.prepare(
+      `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+    )
+      .bind("Sol Ring", 1.5)
+      .run();
+
+    const result = await commanderDeckReviewModule.execute(
+      {
+        commander: "Atraxa",
+        decklist: ["Sol Ring", "Cultivate", "Birds of Paradise"],
+      },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+
+    const data = result.data as { total_price: number; cards_without_prices: string[] };
+    expect(data.total_price).toBeCloseTo(1.5, 2);
+    expect(data.cards_without_prices).toContain("Cultivate");
+    expect(data.cards_without_prices).toContain("Birds of Paradise");
+  });
 });

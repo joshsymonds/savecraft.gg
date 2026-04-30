@@ -25,6 +25,7 @@ interface RecommendationRow {
   inclusion: number;
   potential_decks: number;
   trend_zscore: number;
+  price_usd: number | null;
 }
 
 interface CurveRow {
@@ -56,6 +57,11 @@ export const commanderLookupModule: NativeReferenceModule = {
       type: "integer",
       description: "Max recommendations per category (default 20).",
     },
+    max_price: {
+      type: "number",
+      description:
+        "Max USD price per card (resolves to EDHREC TCGPlayer mid first, then Scryfall default-printing fallback). Recommendations with no price source on either side are excluded when this filter is set.",
+    },
   },
 
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
@@ -68,6 +74,7 @@ export const commanderLookupModule: NativeReferenceModule = {
       1,
       Math.min(100, (query.limit as number | undefined) ?? DEFAULT_LIMIT),
     );
+    const maxPrice = typeof query.max_price === "number" ? query.max_price : undefined;
 
     // 1. Resolve commander: try FTS5 first (handles partial names and token order)
     let commanderRow = await resolveCommander(env, commanderQuery);
@@ -86,34 +93,56 @@ export const commanderLookupModule: NativeReferenceModule = {
     // critical because with ~13 categories × ~100 recs each, an unbounded
     // query can return ~1300 rows per request and exceed D1's per-sub-request
     // row cap.
+    //
+    // Price resolution: COALESCE(EDHREC TCGPlayer, Scryfall default-printing).
+    // EDHREC matches what users see on EDHREC; Scryfall fills in cards EDHREC
+    // hasn't priced. NULL on both means "unknown price" — we exclude those
+    // rows when max_price is set rather than treating NULL as $0.
+    const priceFilter = maxPrice !== undefined
+      ? `AND COALESCE(p.tcgplayer_price, c.price_usd) IS NOT NULL
+         AND COALESCE(p.tcgplayer_price, c.price_usd) <= ?`
+      : "";
+    const priceFilterBindings = maxPrice !== undefined ? [maxPrice] : [];
+
     const recResult = category
       ? await env.DB
           .prepare(
-            `SELECT card_name, category, synergy, inclusion, potential_decks, trend_zscore
-             FROM magic_edh_recommendations
-             WHERE commander_id = ? AND category = ?
-             ORDER BY synergy DESC, inclusion DESC
+            `SELECT
+               r.card_name, r.category, r.synergy, r.inclusion,
+               r.potential_decks, r.trend_zscore,
+               COALESCE(p.tcgplayer_price, c.price_usd) AS price_usd
+             FROM magic_edh_recommendations r
+             LEFT JOIN magic_edh_card_prices p ON p.card_name = r.card_name
+             LEFT JOIN magic_cards c ON c.name = r.card_name AND c.is_default = 1
+             WHERE r.commander_id = ? AND r.category = ?
+             ${priceFilter}
+             ORDER BY r.synergy DESC, r.inclusion DESC
              LIMIT ?`,
           )
-          .bind(commanderId, category, limit)
+          .bind(commanderId, category, ...priceFilterBindings, limit)
           .all<RecommendationRow>()
       : await env.DB
           .prepare(
-            `SELECT card_name, category, synergy, inclusion, potential_decks, trend_zscore
+            `SELECT card_name, category, synergy, inclusion, potential_decks, trend_zscore, price_usd
              FROM (
                SELECT
-                 card_name, category, synergy, inclusion, potential_decks, trend_zscore,
+                 r.card_name, r.category, r.synergy, r.inclusion,
+                 r.potential_decks, r.trend_zscore,
+                 COALESCE(p.tcgplayer_price, c.price_usd) AS price_usd,
                  ROW_NUMBER() OVER (
-                   PARTITION BY category
-                   ORDER BY synergy DESC, inclusion DESC
+                   PARTITION BY r.category
+                   ORDER BY r.synergy DESC, r.inclusion DESC
                  ) AS rn
-               FROM magic_edh_recommendations
-               WHERE commander_id = ?
+               FROM magic_edh_recommendations r
+               LEFT JOIN magic_edh_card_prices p ON p.card_name = r.card_name
+               LEFT JOIN magic_cards c ON c.name = r.card_name AND c.is_default = 1
+               WHERE r.commander_id = ?
+               ${priceFilter}
              )
              WHERE rn <= ?
              ORDER BY category, synergy DESC, inclusion DESC`,
           )
-          .bind(commanderId, limit)
+          .bind(commanderId, ...priceFilterBindings, limit)
           .all<RecommendationRow>();
 
     // Group by category (already SQL-bounded, but keep the bucket for shape).
@@ -126,6 +155,7 @@ export const commanderLookupModule: NativeReferenceModule = {
         inclusion: row.inclusion,
         potential_decks: row.potential_decks,
         trend_zscore: row.trend_zscore,
+        price_usd: row.price_usd,
       });
     }
 

@@ -34,6 +34,9 @@ interface CardRow {
   keywords: string;
   power: string | null;
   toughness: string | null;
+  price_usd: number | null;
+  reserved: number;
+  reprint: number;
 }
 
 function cardRowToResult(row: CardRow): Record<string, unknown> {
@@ -54,6 +57,9 @@ function cardRowToResult(row: CardRow): Record<string, unknown> {
     keywords: JSON.parse(row.keywords || "[]") as string[],
     ...(row.power && { power: row.power }),
     ...(row.toughness && { toughness: row.toughness }),
+    priceUsd: row.price_usd,
+    reserved: row.reserved === 1,
+    reprint: row.reprint === 1,
   };
 }
 
@@ -84,6 +90,8 @@ export const cardSearchModule: NativeReferenceModule = {
     limit: { type: "integer", description: "Max results (default 20)." },
     include_tokens: { type: "boolean", description: "Include token cards in results (default false). Tokens are excluded by default." },
     include_alchemy: { type: "boolean", description: "Include Alchemy rebalanced cards (A- prefix) in results (default false). Alchemy cards are excluded by default since they are digital-only variants." },
+    max_price: { type: "number", description: "Max USD price (Scryfall, default printing). Cards with no known price are excluded when this filter is set." },
+    min_price: { type: "number", description: "Min USD price (Scryfall, default printing). Cards with no known price are excluded when this filter is set." },
   },
 
 
@@ -107,6 +115,8 @@ export const cardSearchModule: NativeReferenceModule = {
     const limit = Math.min(Math.max(typeof query.limit === "number" ? query.limit : DEFAULT_LIMIT, 1), 100);
     const includeTokens = query.include_tokens === true;
     const includeAlchemy = query.include_alchemy === true;
+    const maxPrice = typeof query.max_price === "number" ? query.max_price : undefined;
+    const minPrice = typeof query.min_price === "number" ? query.min_price : undefined;
 
     const hasFtsQuery = name !== "" || text !== "";
 
@@ -236,6 +246,18 @@ export const cardSearchModule: NativeReferenceModule = {
     if (set) {
       conditions.push(`c.set_code = ?${paramIdx++} COLLATE NOCASE`);
       params.push(set);
+    }
+
+    // NULL price_usd auto-fails comparison in SQLite (NULL < N is NULL → falsy
+    // in WHERE), so explicit IS NOT NULL isn't required — but we keep the
+    // contract (cards with unknown prices are excluded) explicit for clarity.
+    if (maxPrice !== undefined) {
+      conditions.push(`c.price_usd IS NOT NULL AND c.price_usd <= ?${paramIdx++}`);
+      params.push(maxPrice);
+    }
+    if (minPrice !== undefined) {
+      conditions.push(`c.price_usd IS NOT NULL AND c.price_usd >= ?${paramIdx++}`);
+      params.push(minPrice);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";

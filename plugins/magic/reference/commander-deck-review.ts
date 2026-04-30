@@ -152,6 +152,12 @@ async function runReview(
       average_count: avgCategoryCounts[category] ?? 0,
     }));
 
+  // Price the user's deck. EDHREC TCGPlayer first, Scryfall fallback,
+  // unknown-price cards excluded from total_price and listed in
+  // cards_without_prices so the LLM can flag them.
+  const maxPrice = typeof query.max_price === "number" ? query.max_price : undefined;
+  const { totalPrice, cardsWithoutPrices } = await priceDecklist(env, deckByLower);
+
   const data: Record<string, unknown> = {
     commander: {
       scryfall_id: commanderRow.scryfall_id,
@@ -162,6 +168,8 @@ async function runReview(
       rank: commanderRow.rank,
     },
     deck_size: deckNames.size,
+    total_price: totalPrice,
+    cards_without_prices: cardsWithoutPrices,
     missing_staples: missingStaples,
     overlap: {
       matching_cards: matching,
@@ -177,11 +185,84 @@ async function runReview(
     },
   };
 
+  if (maxPrice !== undefined) {
+    data.over_budget = totalPrice > maxPrice;
+    data.budget = maxPrice;
+  }
+
   if (includeAverage) {
     data.average_deck = averageDeck;
   }
 
   return { type: "structured", data };
+}
+
+interface PriceLookupRow {
+  card_name: string;
+  price_usd: number | null;
+}
+
+/**
+ * Sum prices across the user's decklist. Returns the running total and a list
+ * of card names that had no price source on either EDHREC or Scryfall —
+ * those cards contribute 0 to the total but the caller should surface them so
+ * the LLM can flag the price uncertainty.
+ *
+ * D1 has a 100-bind-parameter limit per statement; a 100-card Commander deck
+ * fits comfortably. Two queries (EDHREC, then Scryfall fallback) so each stays
+ * under the limit independently.
+ */
+async function priceDecklist(
+  env: Env,
+  deck: Map<string, string>,
+): Promise<{ totalPrice: number; cardsWithoutPrices: string[] }> {
+  const names = [...deck.values()];
+  if (names.length === 0) {
+    return { totalPrice: 0, cardsWithoutPrices: [] };
+  }
+  const placeholders = names.map(() => "?").join(",");
+
+  const [edhRes, scryRes] = await Promise.all([
+    env.DB
+      .prepare(
+        `SELECT card_name, tcgplayer_price AS price_usd
+         FROM magic_edh_card_prices
+         WHERE card_name IN (${placeholders})`,
+      )
+      .bind(...names)
+      .all<PriceLookupRow>(),
+    env.DB
+      .prepare(
+        `SELECT name AS card_name, price_usd
+         FROM magic_cards
+         WHERE is_default = 1 AND name IN (${placeholders})`,
+      )
+      .bind(...names)
+      .all<PriceLookupRow>(),
+  ]);
+
+  // EDHREC wins when both sources have a price for the same name.
+  const priceByName = new Map<string, number>();
+  for (const row of scryRes.results ?? []) {
+    if (row.price_usd != null) priceByName.set(row.card_name, row.price_usd);
+  }
+  for (const row of edhRes.results ?? []) {
+    if (row.price_usd != null) priceByName.set(row.card_name, row.price_usd);
+  }
+
+  let total = 0;
+  const missing: string[] = [];
+  for (const name of names) {
+    const p = priceByName.get(name);
+    if (p == null) {
+      missing.push(name);
+    } else {
+      total += p;
+    }
+  }
+  // Round to cents — SQLite + JS float arithmetic produces dust like 0.7000000000000001.
+  total = Math.round(total * 100) / 100;
+  return { totalPrice: total, cardsWithoutPrices: missing };
 }
 
 export const commanderDeckReviewModule: NativeReferenceModule = {
@@ -218,6 +299,11 @@ export const commanderDeckReviewModule: NativeReferenceModule = {
       type: "string",
       description:
         "Save UUID. Required when using deck_section to reference a deck from save data.",
+    },
+    max_price: {
+      type: "number",
+      description:
+        "USD budget cap. When set, the response includes over_budget (true if total_price exceeds this) and budget (the cap echoed back). Cards without known prices are listed in cards_without_prices regardless.",
     },
   },
   sectionMappings: [

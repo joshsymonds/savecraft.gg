@@ -280,4 +280,100 @@ describe("commander_lookup native module", () => {
     expect(data.themes).toEqual([]);
     expect(data.similar).toEqual([]);
   });
+
+  // ── price filter tests ────────────────────────────────────────
+
+  it("filters recommendations by max_price (uses EDHREC TCGPlayer first)", async () => {
+    await seedAtraxa();
+    // EDHREC card prices: Sol Ring cheap, Tekuthal expensive, Swords mid.
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Sol Ring", 1.5),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Tekuthal, Inquiry Dominus", 18),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Swords to Plowshares", 4),
+    ]);
+
+    const result = await commanderLookupModule.execute(
+      { commander: "Atraxa", max_price: 5 },
+      env as unknown as Env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") return;
+
+    const data = result.data as {
+      recommendations: Record<string, { card_name: string }[]>;
+    };
+
+    const allCards = Object.values(data.recommendations).flat().map((r) => r.card_name);
+    expect(allCards).toContain("Sol Ring");
+    expect(allCards).toContain("Swords to Plowshares");
+    expect(allCards).not.toContain("Tekuthal, Inquiry Dominus");
+  });
+
+  it("falls back to magic_cards.price_usd when EDHREC price is missing", async () => {
+    await seedAtraxa();
+    // Only seed Scryfall price for Sol Ring; no EDHREC entry.
+    await env.DB.prepare(
+      `INSERT INTO magic_cards (scryfall_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default, price_usd)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+    )
+      .bind(
+        "scry-solring",
+        "oracle-solring",
+        "Sol Ring",
+        "{1}",
+        1,
+        "Artifact",
+        "{T}: Add {C}{C}.",
+        "[]",
+        "[]",
+        "{}",
+        "uncommon",
+        "C21",
+        "[]",
+        2.0,
+      )
+      .run();
+
+    const result = await commanderLookupModule.execute(
+      { commander: "Atraxa", max_price: 3 },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+
+    const data = result.data as {
+      recommendations: Record<string, { card_name: string }[]>;
+    };
+    const allCards = Object.values(data.recommendations).flat().map((r) => r.card_name);
+    expect(allCards).toContain("Sol Ring");
+  });
+
+  it("excludes recommendations with no price source when max_price is set", async () => {
+    await seedAtraxa();
+    // Only seed price for Sol Ring; the others have neither EDHREC nor Scryfall prices.
+    await env.DB.prepare(
+      `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+    )
+      .bind("Sol Ring", 1.5)
+      .run();
+
+    const result = await commanderLookupModule.execute(
+      { commander: "Atraxa", max_price: 100 },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+
+    const data = result.data as {
+      recommendations: Record<string, { card_name: string }[]>;
+    };
+    const allCards = Object.values(data.recommendations).flat().map((r) => r.card_name);
+    expect(allCards).toContain("Sol Ring");
+    // The other recs have no price data; they must be excluded under max_price.
+    expect(allCards.length).toBe(1);
+  });
 });

@@ -176,7 +176,7 @@ const statements = [
     breakdown,
     tokenize='porter unicode61'
   )`,
-  // MTG Arena cards + draft ratings (migration 0015)
+  // MTG Arena cards + draft ratings (migration 0015) + pricing (0050)
   `CREATE TABLE IF NOT EXISTS magic_cards (
     scryfall_id TEXT PRIMARY KEY,
     arena_id INTEGER,
@@ -197,7 +197,10 @@ const statements = [
     produced_mana TEXT NOT NULL DEFAULT '[]',
     power TEXT NOT NULL DEFAULT '',
     toughness TEXT NOT NULL DEFAULT '',
-    is_default INTEGER NOT NULL DEFAULT 0
+    is_default INTEGER NOT NULL DEFAULT 0,
+    price_usd REAL,
+    reserved INTEGER NOT NULL DEFAULT 0,
+    reprint INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS idx_magic_cards_arena_id ON magic_cards(arena_id)`,
   `CREATE INDEX IF NOT EXISTS idx_magic_cards_arena_id_back ON magic_cards(arena_id_back) WHERE arena_id_back IS NOT NULL`,
@@ -656,6 +659,15 @@ const statements = [
     commander_count INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS idx_edh_themes_total ON magic_edh_themes(total_count DESC)`,
+  // EDHREC per-card prices (migration 0051)
+  `CREATE TABLE IF NOT EXISTS magic_edh_card_prices (
+    card_name         TEXT PRIMARY KEY,
+    tcgplayer_price   REAL,
+    cardkingdom_price REAL,
+    scg_price         REAL,
+    mtgstocks_price   REAL,
+    priced_at         TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
 ];
 
 for (const sql of statements) {

@@ -64,6 +64,7 @@ export const CLEANUP_TABLES = [
   "poe_uniques",
   "poe_mods_fts",
   "poe_mods",
+  "magic_edh_card_prices",
   "magic_edh_themes",
   "magic_edh_mana_curves",
   "magic_edh_average_decks",

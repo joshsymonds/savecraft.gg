@@ -843,4 +843,82 @@ describe("card_search native module", () => {
     expect(card.keywords).toEqual(["deathtouch"]);
     expect(card.legalities).toEqual({ standard: "banned", historic: "legal" });
   });
+
+  // ── price filter tests ────────────────────────────────────────
+  //
+  // The seeded cards from seedCards() have NULL price_usd by default
+  // (the column allows NULL). Each price-filter test seeds prices
+  // explicitly via UPDATE so we don't have to rewrite the whole seed.
+
+  async function setPrice(scryfallId: string, price: number | null, opts?: { reserved?: number }): Promise<void> {
+    await env.DB.prepare(
+      `UPDATE magic_cards SET price_usd = ?, reserved = ? WHERE scryfall_id = ?`,
+    )
+      .bind(price, opts?.reserved ?? 0, scryfallId)
+      .run();
+  }
+
+  it("filters by max_price (excludes pricier cards)", async () => {
+    await seedCards();
+    await setPrice("scry-1", 25); // Sheoldred — expensive
+    await setPrice("scry-2", 4); // Lightning Bolt — under budget
+    await setPrice("scry-3", 0.5); // Llanowar Elves — cheap
+    await setPrice("scry-6", 1.5); // Sol Ring — under budget
+
+    const result = await cardSearchModule.execute({ max_price: 5, sort: "cmc" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Record<string, unknown>[];
+    const names = cards.map((c) => c.name);
+    expect(names).toContain("Lightning Bolt");
+    expect(names).toContain("Llanowar Elves");
+    expect(names).toContain("Sol Ring");
+    expect(names).not.toContain("Sheoldred, the Apocalypse");
+  });
+
+  it("excludes cards with NULL price when max_price is set", async () => {
+    await seedCards();
+    // Only set price on Sol Ring; the rest stay NULL.
+    await setPrice("scry-6", 1.5);
+
+    const result = await cardSearchModule.execute({ max_price: 100 }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Record<string, unknown>[];
+    expect(cards.length).toBe(1);
+    expect(cards[0]!.name).toBe("Sol Ring");
+  });
+
+  it("filters by min_price (excludes cheaper cards)", async () => {
+    await seedCards();
+    await setPrice("scry-1", 25);
+    await setPrice("scry-2", 4);
+    await setPrice("scry-6", 1.5);
+
+    const result = await cardSearchModule.execute({ min_price: 5 }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Record<string, unknown>[];
+    const names = cards.map((c) => c.name);
+    expect(names).toContain("Sheoldred, the Apocalypse");
+    expect(names).not.toContain("Lightning Bolt");
+    expect(names).not.toContain("Sol Ring");
+  });
+
+  it("surfaces priceUsd and reserved flag in output", async () => {
+    await seedCards();
+    await setPrice("scry-1", 25, { reserved: 1 });
+    await setPrice("scry-6", 1.5);
+
+    const result = await cardSearchModule.execute({ name: "Sheoldred" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const card = (result.data.cards as Record<string, unknown>[])[0]!;
+    expect(card.priceUsd).toBe(25);
+    expect(card.reserved).toBe(true);
+  });
 });
