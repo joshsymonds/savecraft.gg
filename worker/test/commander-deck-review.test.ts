@@ -296,7 +296,7 @@ describe("commander_deck_review native module", () => {
     if (result.type !== "structured") return;
 
     const data = result.data as { total_price: number; cards_without_prices: string[] };
-    expect(data.total_price).toBeCloseTo(4.0, 2);
+    expect(data.total_price).toBeCloseTo(4, 2);
     expect(data.cards_without_prices).toEqual([]);
   });
 

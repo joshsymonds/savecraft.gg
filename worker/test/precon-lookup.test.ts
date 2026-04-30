@@ -27,7 +27,7 @@ describe("precon_lookup native module", () => {
         "Atraxa, Praetors' Voice",
         "atraxa-praetors-voice",
         '["W","U","B","G"]',
-        40000,
+        40_000,
         3,
       ),
       env.DB.prepare(
@@ -38,7 +38,7 @@ describe("precon_lookup native module", () => {
         "Korvold, Fae-Cursed King",
         "korvold-fae-cursed-king",
         '["B","R","G"]',
-        25000,
+        25_000,
         12,
       ),
 

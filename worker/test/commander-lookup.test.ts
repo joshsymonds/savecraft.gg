@@ -338,7 +338,7 @@ describe("commander_lookup native module", () => {
         "uncommon",
         "C21",
         "[]",
-        2.0,
+        2,
       )
       .run();
 

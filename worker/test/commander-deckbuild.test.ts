@@ -25,7 +25,7 @@ describe("commander_deckbuild native module", () => {
         "Atraxa, Praetors' Voice",
         "atraxa-praetors-voice",
         '["W","U","B","G"]',
-        40000,
+        40_000,
         3,
       ),
       env.DB.prepare(`INSERT INTO magic_edh_commanders_fts (scryfall_id, name) VALUES (?, ?)`).bind(
@@ -81,10 +81,10 @@ describe("commander_deckbuild native module", () => {
       ).bind("Cultivate", 0.5),
       env.DB.prepare(
         `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
-      ).bind("Birds of Paradise", 7.0),
+      ).bind("Birds of Paradise", 7),
       env.DB.prepare(
         `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
-      ).bind("Cyclonic Rift", 32.0),
+      ).bind("Cyclonic Rift", 32),
       env.DB.prepare(
         `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
       ).bind("Forest", 0.1),
@@ -284,7 +284,7 @@ describe("commander_deckbuild native module", () => {
       // Upgrade card prices
       env.DB.prepare(
         `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
-      ).bind("Inexorable Tide", 3.0),
+      ).bind("Inexorable Tide", 3),
     ]);
   }
 
@@ -436,7 +436,7 @@ describe("commander_deckbuild native module", () => {
         "rare",
         "LEA",
         "[]",
-        7.0,
+        7,
       )
       .run();
     const result = await commanderDeckbuildModule.execute(
@@ -481,10 +481,10 @@ describe("commander_deckbuild native module", () => {
       // Prices for theme cards
       env.DB.prepare(
         `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
-      ).bind("Phyrexian Crusader", 4.0),
+      ).bind("Phyrexian Crusader", 4),
       env.DB.prepare(
         `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
-      ).bind("Inkmoth Nexus", 25.0),
+      ).bind("Inkmoth Nexus", 25),
     ]);
   }
 

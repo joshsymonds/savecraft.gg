@@ -853,10 +853,10 @@ describe("card_search native module", () => {
   async function setPrice(
     scryfallId: string,
     price: number | null,
-    opts?: { reserved?: number },
+    options?: { reserved?: number },
   ): Promise<void> {
     await env.DB.prepare(`UPDATE magic_cards SET price_usd = ?, reserved = ? WHERE scryfall_id = ?`)
-      .bind(price, opts?.reserved ?? 0, scryfallId)
+      .bind(price, options?.reserved ?? 0, scryfallId)
       .run();
   }
 
