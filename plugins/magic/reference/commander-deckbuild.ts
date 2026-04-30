@@ -44,8 +44,28 @@ interface DeckEntry {
   quantity: number;
   category: string;
   price_usd: number | null;
-  source: "tier" | "must_include";
+  source: "tier" | "must_include" | "precon" | "upgrade";
   game_changer: boolean;
+}
+
+interface PreconRow {
+  slug: string;
+  name: string;
+  msrp_usd: number | null;
+  set_code: string | null;
+  release_year: number | null;
+}
+
+interface PreconDeckRow {
+  card_name: string;
+  quantity: number;
+  category: string;
+}
+
+interface PreconUpgradeRow {
+  card_name: string;
+  action: string;
+  inclusion: number;
 }
 
 /**
@@ -102,6 +122,11 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       description:
         "When true, drops cards on the WotC Game Changers list — used to honor bracket-1/2 constraints. Defaults to true when tier='budget', false otherwise.",
     },
+    starting_point: {
+      type: "string",
+      description:
+        "How to seed the build. 'empty' (default) builds from scratch using the tier's average decklist. 'precon:<slug>' starts with that exact precon. 'precon:auto' picks the most-popular MSRP'd precon for this commander, charges its retail to the budget, then walks the cardstoadd / landstoadd pool to fill remaining budget with upgrades.",
+    },
   },
 
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
@@ -142,6 +167,8 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         ? (query.exclude_game_changers as boolean)
         : tier === "budget";
 
+    const startingPoint = ((query.starting_point as string) ?? "empty").trim();
+
     // Resolve commander.
     const commanderRow = await resolveCommander(env, commanderQuery);
     if (!commanderRow) {
@@ -151,6 +178,15 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       };
     }
     const commanderId = commanderRow.scryfall_id;
+
+    // Precon-starting-point branches off here. The empty path continues below.
+    if (startingPoint.startsWith("precon:")) {
+      return runPreconBuild(env, commanderRow, startingPoint, {
+        maxPrice,
+        excludes,
+        mustInclude,
+      });
+    }
 
     // Load tier metadata + tier deck in parallel.
     const [tierInfoResult, tierDeckResult, gcResult] = await Promise.all([
@@ -347,6 +383,235 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     };
   },
 };
+
+/**
+ * runPreconBuild handles starting_point='precon:auto' and 'precon:<slug>'.
+ * Loads the precon decklist as the foundation, charges MSRP to the budget,
+ * walks the cardstoadd / landstoadd pool to fill remaining budget with
+ * upgrades. Cuts from cardstocut are returned in the diagnostic block but
+ * not removed from `placed` — the user is choosing to keep the precon
+ * intact and add to it (the canonical "buy precon + $60 of singles" path).
+ */
+async function runPreconBuild(
+  env: Env,
+  commanderRow: { scryfall_id: string; name: string; slug: string; color_identity: string },
+  startingPoint: string,
+  opts: {
+    maxPrice: number | undefined;
+    excludes: Set<string>;
+    mustInclude: string[];
+  },
+): Promise<ReferenceResult> {
+  const { maxPrice, excludes, mustInclude } = opts;
+
+  // Resolve precon: explicit slug or auto-pick most-popular MSRP'd precon.
+  let preconRow: PreconRow | undefined;
+  if (startingPoint === "precon:auto") {
+    const result = await env.DB
+      .prepare(
+        `SELECT p.slug, p.name, p.msrp_usd, p.set_code, p.release_year
+         FROM magic_edh_precons p
+         JOIN magic_edh_precon_commanders pc
+           ON pc.precon_slug = p.slug AND pc.commander_name = ? AND pc.is_face = 1
+         WHERE p.msrp_usd IS NOT NULL
+         ORDER BY pc.deck_count DESC
+         LIMIT 1`,
+      )
+      .bind(commanderRow.name)
+      .all<PreconRow>();
+    preconRow = result.results?.[0];
+    if (!preconRow) {
+      return {
+        type: "text",
+        content: `No MSRP'd precon found with ${commanderRow.name} as the face commander. Try starting_point='empty' to build from scratch, or starting_point='precon:<slug>' if you know a specific precon slug.`,
+      };
+    }
+  } else {
+    const slug = startingPoint.slice("precon:".length).trim();
+    if (!slug) {
+      return {
+        type: "text",
+        content: `Invalid starting_point: "${startingPoint}". Use 'empty', 'precon:auto', or 'precon:<slug>'.`,
+      };
+    }
+    const result = await env.DB
+      .prepare(
+        `SELECT slug, name, msrp_usd, set_code, release_year
+         FROM magic_edh_precons WHERE slug = ?`,
+      )
+      .bind(slug)
+      .all<PreconRow>();
+    preconRow = result.results?.[0];
+    if (!preconRow) {
+      return {
+        type: "text",
+        content: `Precon not found: "${slug}". Use precon_lookup to discover valid slugs.`,
+      };
+    }
+  }
+
+  const msrp = preconRow.msrp_usd;
+  if (msrp == null) {
+    return {
+      type: "text",
+      content: `Precon '${preconRow.slug}' has no MSRP in our catalog, so we can't budget against it. Use commander_deckbuild with starting_point='empty' instead, or pull the decklist via precon_lookup.`,
+    };
+  }
+  if (maxPrice !== undefined && maxPrice < msrp) {
+    return {
+      type: "text",
+      content: `Budget $${maxPrice} is below the precon's MSRP ($${msrp}). Raise the budget to at least $${msrp}, or use starting_point='empty' to build at the budget tier without the precon.`,
+    };
+  }
+
+  // Fetch decklist + upgrade pool.
+  const [deckResult, upgradesResult] = await Promise.all([
+    env.DB
+      .prepare(
+        `SELECT card_name, quantity, category
+         FROM magic_edh_precon_decks
+         WHERE precon_slug = ?`,
+      )
+      .bind(preconRow.slug)
+      .all<PreconDeckRow>(),
+    env.DB
+      .prepare(
+        `SELECT card_name, action, inclusion
+         FROM magic_edh_precon_upgrades
+         WHERE precon_slug = ? AND action IN ('add', 'land_add')
+         ORDER BY inclusion DESC`,
+      )
+      .bind(preconRow.slug)
+      .all<PreconUpgradeRow>(),
+  ]);
+
+  const preconDeck = deckResult.results ?? [];
+  const upgrades = upgradesResult.results ?? [];
+
+  // Game changers (always look up for output flagging).
+  const gcResult = await env.DB
+    .prepare(`SELECT card_name FROM magic_game_changers`)
+    .all<{ card_name: string }>();
+  const allGameChangers = new Set(
+    (gcResult.results ?? []).map((r) => r.card_name.toLowerCase()),
+  );
+
+  // Resolve prices for upgrades + must_include. Precon contents don't need
+  // individual prices since they're rolled into MSRP.
+  const priceNames = new Set<string>();
+  for (const u of upgrades) priceNames.add(u.card_name);
+  for (const m of mustInclude) priceNames.add(m);
+  const priceByLower = await batchPriceLookup(env, [...priceNames]);
+
+  // Seed placed[] from the precon decklist. The precon contents charge MSRP
+  // collectively; per-card price_usd stays null so the LLM can see they
+  // came from the box rather than singles.
+  const placed: DeckEntry[] = [];
+  const placedNames = new Set<string>();
+  for (const c of preconDeck) {
+    const lower = c.card_name.toLowerCase();
+    if (excludes.has(lower)) continue; // user opted out
+    placed.push({
+      card_name: c.card_name,
+      quantity: c.quantity,
+      category: c.category,
+      price_usd: null,
+      source: "precon",
+      game_changer: allGameChangers.has(lower),
+    });
+    placedNames.add(lower);
+  }
+
+  let runningTotal = msrp;
+
+  // Pin must_include cards (override budget — explicit user intent).
+  for (const m of mustInclude) {
+    const lower = m.toLowerCase();
+    if (placedNames.has(lower)) continue; // already in precon
+    const price = priceByLower.get(lower);
+    placed.push({
+      card_name: m,
+      quantity: 1,
+      category: "Pinned",
+      price_usd: price ?? null,
+      source: "must_include",
+      game_changer: allGameChangers.has(lower),
+    });
+    placedNames.add(lower);
+    if (price !== undefined) runningTotal += price;
+  }
+
+  // Walk upgrade pool in inclusion-DESC order. Add while budget allows.
+  for (const u of upgrades) {
+    const lower = u.card_name.toLowerCase();
+    if (placedNames.has(lower)) continue; // dedupe vs precon + must_include
+    if (excludes.has(lower)) continue;
+    const price = priceByLower.get(lower);
+    if (price === undefined) continue; // can't certify under budget
+    if (maxPrice !== undefined && runningTotal + price > maxPrice) continue;
+    placed.push({
+      card_name: u.card_name,
+      quantity: 1,
+      category: u.action === "land_add" ? "Land" : "Upgrade",
+      price_usd: price,
+      source: "upgrade",
+      game_changer: allGameChangers.has(lower),
+    });
+    placedNames.add(lower);
+    runningTotal += price;
+  }
+
+  runningTotal = Math.round(runningTotal * 100) / 100;
+
+  const warnings: string[] = [];
+  const cardsWithoutPrices = placed
+    .filter((p) => p.source !== "precon" && p.price_usd == null)
+    .map((p) => p.card_name);
+  if (cardsWithoutPrices.length > 0) {
+    warnings.push(
+      `${cardsWithoutPrices.length} non-precon cards have no known price — total_price excludes them.`,
+    );
+  }
+
+  const categoryBreakdown: Record<string, number> = {};
+  for (const p of placed) {
+    categoryBreakdown[p.category] = (categoryBreakdown[p.category] ?? 0) + 1;
+  }
+
+  return {
+    type: "structured",
+    data: {
+      commander: {
+        name: commanderRow.name,
+        slug: commanderRow.slug,
+        color_identity: JSON.parse(commanderRow.color_identity || "[]") as string[],
+        tier_used: null, // precon path doesn't use tier average
+      },
+      precon: {
+        slug: preconRow.slug,
+        name: preconRow.name,
+        msrp_usd: preconRow.msrp_usd,
+        set_code: preconRow.set_code,
+        release_year: preconRow.release_year,
+      },
+      budget: {
+        max_price: maxPrice ?? null,
+        total_price: runningTotal,
+        precon_msrp: msrp,
+        upgrade_spend: Math.round((runningTotal - msrp) * 100) / 100,
+        remaining: maxPrice !== undefined ? Math.round((maxPrice - runningTotal) * 100) / 100 : null,
+      },
+      deck: placed,
+      category_breakdown: categoryBreakdown,
+      cards_without_prices: cardsWithoutPrices,
+      warnings,
+      attribution: {
+        source: "EDHREC",
+        note: `Precon '${preconRow.slug}' seeds the deck (charged at MSRP $${msrp}). Upgrades drawn from EDHREC's cardstoadd / landstoadd pool, sorted by inclusion. Singles prices via EDHREC TCGPlayer mid (Scryfall fallback).`,
+      },
+    },
+  };
+}
 
 /**
  * Batch-fetch prices for the given card names from EDHREC TCGPlayer first

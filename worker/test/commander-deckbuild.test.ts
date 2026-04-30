@@ -218,4 +218,137 @@ describe("commander_deckbuild native module", () => {
     if (result.type !== "text") return;
     expect(result.content.toLowerCase()).toContain("cedh");
   });
+
+  // ── precon starting_point tests ─────────────────────────────
+
+  async function seedAtraxaPrecon(): Promise<void> {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_precons (slug, name, msrp_usd, set_code, release_year)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).bind("breed-lethality", "Breed Lethality", 30, "C16", 2016),
+      // Precon decklist
+      env.DB.prepare(
+        `INSERT INTO magic_edh_precon_decks (precon_slug, card_name, quantity, category) VALUES (?, ?, ?, ?)`,
+      ).bind("breed-lethality", "Sol Ring", 1, "Artifact"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_precon_decks (precon_slug, card_name, quantity, category) VALUES (?, ?, ?, ?)`,
+      ).bind("breed-lethality", "Cultivate", 1, "Sorcery"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_precon_decks (precon_slug, card_name, quantity, category) VALUES (?, ?, ?, ?)`,
+      ).bind("breed-lethality", "Forest", 7, "Land"),
+      // Upgrade pool — Inexorable Tide (~$3) is recommended add; Frumious is cut
+      env.DB.prepare(
+        `INSERT INTO magic_edh_precon_upgrades (precon_slug, card_name, action, category, inclusion) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("breed-lethality", "Inexorable Tide", "add", "cardstoadd", 93),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_precon_upgrades (precon_slug, card_name, action, category, inclusion) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("breed-lethality", "Frumious Filler", "cut", "cardstocut", 5),
+      // Commander mapping (Atraxa is face)
+      env.DB.prepare(
+        `INSERT INTO magic_edh_precon_commanders (precon_slug, commander_name, deck_count, is_face) VALUES (?, ?, ?, ?)`,
+      ).bind("breed-lethality", "Atraxa, Praetors' Voice", 270, 1),
+      // Upgrade card prices
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Inexorable Tide", 3.0),
+    ]);
+  }
+
+  it("starting_point='precon:auto' seeds deck with precon contents + upgrades", async () => {
+    await seedAtraxa();
+    await seedAtraxaPrecon();
+
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 100, starting_point: "precon:auto" },
+      env as unknown as Env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") return;
+
+    const data = result.data as {
+      precon: { slug: string; msrp_usd: number };
+      deck: { card_name: string; source: string }[];
+      budget: { total_price: number };
+    };
+    expect(data.precon.slug).toBe("breed-lethality");
+    expect(data.precon.msrp_usd).toBe(30);
+    // Deck contains precon staples
+    const sources = new Map(data.deck.map((c) => [c.card_name, c.source]));
+    expect(sources.get("Sol Ring")).toBe("precon");
+    expect(sources.get("Cultivate")).toBe("precon");
+    // Upgrade pool kicked in within remaining budget
+    expect(sources.get("Inexorable Tide")).toBe("upgrade");
+    // Total starts at MSRP plus upgrade prices
+    expect(data.budget.total_price).toBeGreaterThanOrEqual(30);
+    expect(data.budget.total_price).toBeLessThanOrEqual(100);
+  });
+
+  it("starting_point='precon:breed-lethality' exact lookup works", async () => {
+    await seedAtraxa();
+    await seedAtraxaPrecon();
+
+    const result = await commanderDeckbuildModule.execute(
+      {
+        commander: "Atraxa",
+        max_price: 100,
+        starting_point: "precon:breed-lethality",
+      },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as { precon: { slug: string } };
+    expect(data.precon.slug).toBe("breed-lethality");
+  });
+
+  it("returns text when budget below precon MSRP", async () => {
+    await seedAtraxa();
+    await seedAtraxaPrecon();
+
+    const result = await commanderDeckbuildModule.execute(
+      {
+        commander: "Atraxa",
+        max_price: 25, // below the $30 MSRP
+        starting_point: "precon:auto",
+      },
+      env as unknown as Env,
+    );
+    expect(result.type).toBe("text");
+    if (result.type !== "text") return;
+    expect(result.content.toLowerCase()).toMatch(/msrp|budget/);
+  });
+
+  it("starting_point='precon:auto' returns text when commander has no MSRP'd precon", async () => {
+    await seedAtraxa();
+    // No precon seeded — auto-resolution must fail with a clear message.
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 100, starting_point: "precon:auto" },
+      env as unknown as Env,
+    );
+    expect(result.type).toBe("text");
+    if (result.type !== "text") return;
+    expect(result.content.toLowerCase()).toContain("precon");
+  });
+
+  it("upgrade cards already in precon decklist are not duplicated", async () => {
+    await seedAtraxa();
+    await seedAtraxaPrecon();
+    // Add a duplicate-style upgrade where Sol Ring is also in cardstoadd
+    // (synthetic edge case; EDHREC wouldn't normally do this but the
+    // module must dedupe defensively).
+    await env.DB.prepare(
+      `INSERT INTO magic_edh_precon_upgrades (precon_slug, card_name, action, category, inclusion) VALUES (?, ?, ?, ?, ?)`,
+    )
+      .bind("breed-lethality", "Sol Ring", "add", "cardstoadd", 90)
+      .run();
+
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 100, starting_point: "precon:auto" },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as { deck: { card_name: string }[] };
+    const solRingCount = data.deck.filter((c) => c.card_name === "Sol Ring").length;
+    expect(solRingCount).toBe(1);
+  });
 });
