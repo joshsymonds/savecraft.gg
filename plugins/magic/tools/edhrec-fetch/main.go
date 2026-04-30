@@ -39,11 +39,12 @@ func main() {
 		rateLimit    = flag.Float64("rate-limit", 5, "EDHREC requests per second")
 		parallelism  = flag.Int("parallelism", 4, "concurrent commander workers")
 		retry        = flag.Bool("retry", false, "retry cached SQL files from disk")
+		cardsOnly    = flag.Bool("cards-only", false, "skip commander processing; only refresh magic_edh_card_prices using existing D1 data")
 	)
 	flag.Parse()
 
 	if err := run(*cfAccountID, *cfAPIToken, *d1DatabaseID, *commander, *cacheDir,
-		*dryRun, *retry, *rateLimit, *parallelism); err != nil {
+		*dryRun, *retry, *cardsOnly, *rateLimit, *parallelism); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
@@ -68,7 +69,7 @@ type commanderInput struct {
 }
 
 func run(accountID, apiToken, databaseID, commanderFilter, cacheDir string,
-	dryRun, retryMode bool, rateLimit float64, parallelism int) error {
+	dryRun, retryMode, cardsOnly bool, rateLimit float64, parallelism int) error {
 
 	sqlDir := filepath.Join(cacheDir, "sql")
 	jsonDir := filepath.Join(cacheDir, "json")
@@ -83,6 +84,37 @@ func run(accountID, apiToken, databaseID, commanderFilter, cacheDir string,
 
 	if !dryRun && !requireCreds(accountID, apiToken, databaseID) {
 		return errors.New("--d1-database-id (with credentials) or --dry-run required")
+	}
+
+	// Set up shared HTTP client + rate limiter (used by both phases).
+	ctx := context.Background()
+	interval := time.Duration(float64(time.Second) / rateLimit)
+	tokens := make(chan struct{}, 1)
+	tickerDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		// Emit an initial token immediately so the first request doesn't wait.
+		tokens <- struct{}{}
+		for {
+			select {
+			case <-tickerDone:
+				return
+			case <-ticker.C:
+				select {
+				case tokens <- struct{}{}:
+				default:
+				}
+			}
+		}
+	}()
+	defer close(tickerDone)
+	client := newHTTPClient()
+
+	// --cards-only: skip commander processing, refresh prices only.
+	if cardsOnly {
+		return runCardPricesPhase(ctx, client, tokens,
+			accountID, apiToken, databaseID, cacheDir, parallelism, dryRun)
 	}
 
 	// Enumerate commanders to process.
@@ -115,40 +147,10 @@ func run(accountID, apiToken, databaseID, commanderFilter, cacheDir string,
 		existingHashes = h
 	}
 
-	// Rate limiter: tokens drip into the channel at the configured rate.
-	// Workers consume tokens before each HTTP request, so the limit is enforced
-	// at the actual point of network IO — not at goroutine spawn time (which
-	// the ticker-in-caller-loop approach allowed to drift and burst).
-	ctx := context.Background()
-	interval := time.Duration(float64(time.Second) / rateLimit)
-	tokens := make(chan struct{}, 1)
-	tickerDone := make(chan struct{})
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		// Emit an initial token immediately so the first request doesn't wait.
-		tokens <- struct{}{}
-		for {
-			select {
-			case <-tickerDone:
-				return
-			case <-ticker.C:
-				select {
-				case tokens <- struct{}{}:
-				default:
-					// Buffer full — skip this tick so the channel never grows
-					// beyond capacity 1 (prevents bursting).
-				}
-			}
-		}
-	}()
-	defer close(tickerDone)
-
 	sem := make(chan struct{}, parallelism)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	processed, skipped, failed := 0, 0, 0
-	client := newHTTPClient()
 
 	for _, t := range targets {
 		wg.Add(1)
@@ -187,6 +189,14 @@ func run(accountID, apiToken, databaseID, commanderFilter, cacheDir string,
 		if err := rebuildThemesAggregate(accountID, apiToken, databaseID); err != nil {
 			fmt.Fprintf(os.Stderr, "WARN: failed to rebuild magic_edh_themes: %v\n", err)
 		}
+	}
+
+	// Card-price scrape phase — pulls per-card multi-vendor prices from
+	// EDHREC's per-card pages for every name referenced by recommendations
+	// or average decks. Idempotent (wipe-and-replace).
+	if err := runCardPricesPhase(ctx, client, tokens,
+		accountID, apiToken, databaseID, cacheDir, parallelism, dryRun); err != nil {
+		fmt.Fprintf(os.Stderr, "WARN: card prices phase failed: %v\n", err)
 	}
 
 	return nil

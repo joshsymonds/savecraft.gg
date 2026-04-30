@@ -105,3 +105,73 @@ func TestBuildCommanderSQL_EmptyRecs(t *testing.T) {
 		t.Errorf("apostrophe not escaped in test commander name")
 	}
 }
+
+func TestBuildCardPricesSQL_AllVendors(t *testing.T) {
+	tcg := 1.29
+	ck := 1.99
+	scg := 1.49
+	mtgs := 1.19
+	prices := []*CardPrice{
+		{
+			CardName:         "Sol Ring",
+			TCGPlayerPrice:   &tcg,
+			CardKingdomPrice: &ck,
+			SCGPrice:         &scg,
+			MTGStocksPrice:   &mtgs,
+		},
+	}
+	sql := BuildCardPricesSQL(prices)
+	if !strings.Contains(sql, "DELETE FROM magic_edh_card_prices") {
+		t.Errorf("expected DELETE for wipe-and-replace")
+	}
+	if !strings.Contains(sql, "INSERT INTO magic_edh_card_prices") {
+		t.Errorf("expected INSERT")
+	}
+	if !strings.Contains(sql, "Sol Ring") {
+		t.Errorf("expected card name in SQL")
+	}
+	if !strings.Contains(sql, "1.29") {
+		t.Errorf("expected TCGPlayer price 1.29")
+	}
+	if !strings.Contains(sql, "1.99") {
+		t.Errorf("expected Card Kingdom price 1.99")
+	}
+}
+
+func TestBuildCardPricesSQL_NilPricesAsNULL(t *testing.T) {
+	tcg := 5.00
+	prices := []*CardPrice{
+		{
+			CardName:       "Sparse",
+			TCGPlayerPrice: &tcg,
+		},
+	}
+	sql := BuildCardPricesSQL(prices)
+	if !strings.Contains(sql, "5") {
+		t.Errorf("expected TCGPlayer price 5")
+	}
+	if !strings.Contains(sql, "NULL") {
+		t.Errorf("expected NULL for missing vendor prices")
+	}
+}
+
+func TestBuildCardPricesSQL_EscapesApostrophes(t *testing.T) {
+	tcg := 0.50
+	prices := []*CardPrice{
+		{CardName: "Praetor's Counsel", TCGPlayerPrice: &tcg},
+	}
+	sql := BuildCardPricesSQL(prices)
+	if !strings.Contains(sql, "Praetor''s Counsel") {
+		t.Errorf("apostrophe must be SQL-escaped, got SQL: %s", sql)
+	}
+}
+
+func TestBuildCardPricesSQL_Empty(t *testing.T) {
+	sql := BuildCardPricesSQL(nil)
+	if !strings.Contains(sql, "DELETE FROM magic_edh_card_prices") {
+		t.Errorf("expected DELETE even with empty input")
+	}
+	if strings.Contains(sql, "INSERT INTO magic_edh_card_prices") {
+		t.Errorf("should not contain INSERT when no prices")
+	}
+}

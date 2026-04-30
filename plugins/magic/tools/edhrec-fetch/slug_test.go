@@ -26,3 +26,29 @@ func TestCommanderSlug(t *testing.T) {
 		})
 	}
 }
+
+func TestCardSlug(t *testing.T) {
+	// EDHREC's per-card pages slug differently from commander pages: DFCs
+	// resolve to the front-face slug only ("Poppet Stitcher" not "Poppet
+	// Stitcher // Poppet Factory"). Single-faced cards behave like
+	// commanderSlug.
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"single", "Sol Ring", "sol-ring"},
+		{"apostrophe", "Atraxa, Praetors' Voice", "atraxa-praetors-voice"},
+		{"DFC front face only", "Poppet Stitcher // Poppet Factory", "poppet-stitcher"},
+		{"DFC accent + DFC", "Bonecrusher Giant // Stomp", "bonecrusher-giant"},
+		{"already a slug", "demonic-tutor", "demonic-tutor"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := cardSlug(tc.in)
+			if got != tc.want {
+				t.Errorf("cardSlug(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}

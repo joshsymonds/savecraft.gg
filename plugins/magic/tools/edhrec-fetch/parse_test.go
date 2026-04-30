@@ -164,3 +164,105 @@ func TestParseAverageDecksPage(t *testing.T) {
 		t.Errorf("only %d/%d entries have categories", withCat, len(entries))
 	}
 }
+
+func TestParseCardPage_RealSolRing(t *testing.T) {
+	data := loadFixture(t, "sol_ring_card.json")
+	cp, err := ParseCardPage("Sol Ring", data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cp.CardName != "Sol Ring" {
+		t.Errorf("CardName = %q, want %q", cp.CardName, "Sol Ring")
+	}
+	// Sol Ring should have all four primary vendor prices populated.
+	if cp.TCGPlayerPrice == nil || *cp.TCGPlayerPrice <= 0 {
+		t.Errorf("TCGPlayerPrice = %v, want positive", cp.TCGPlayerPrice)
+	}
+	// Sol Ring TCGPlayer mid is typically $1-3.
+	if cp.TCGPlayerPrice != nil && (*cp.TCGPlayerPrice < 0.50 || *cp.TCGPlayerPrice > 10.0) {
+		t.Errorf("TCGPlayerPrice = %v, want in range [0.5, 10] for Sol Ring", *cp.TCGPlayerPrice)
+	}
+	if cp.CardKingdomPrice == nil {
+		t.Errorf("CardKingdomPrice should be present")
+	}
+	if cp.SCGPrice == nil {
+		t.Errorf("SCGPrice should be present")
+	}
+	if cp.MTGStocksPrice == nil {
+		t.Errorf("MTGStocksPrice should be present")
+	}
+}
+
+func TestParseCardPage_TCGPlayerSubTypeFoil(t *testing.T) {
+	// When TCGPlayer's subType is "Foil", we must NOT use that price — only
+	// "Normal" qualifies for tcgplayer_price (foils are a different market).
+	raw := []byte(`{"container":{"json_dict":{"card":{"prices":{
+		"tcgplayer": {"price": 50.0, "subType": "Foil"},
+		"cardkingdom": {"price": 1.99}
+	}}}}}`)
+	cp, err := ParseCardPage("Test Card", raw)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cp.TCGPlayerPrice != nil {
+		t.Errorf("TCGPlayerPrice = %v, want nil for Foil subType", *cp.TCGPlayerPrice)
+	}
+	if cp.CardKingdomPrice == nil || *cp.CardKingdomPrice != 1.99 {
+		t.Errorf("CardKingdomPrice = %v, want 1.99", cp.CardKingdomPrice)
+	}
+}
+
+func TestParseCardPage_MissingVendors(t *testing.T) {
+	// Some cards may have only a subset of vendor prices — missing vendors
+	// should produce nil pointers, not crash.
+	raw := []byte(`{"container":{"json_dict":{"card":{"prices":{
+		"tcgplayer": {"price": 5.00, "subType": "Normal"}
+	}}}}}`)
+	cp, err := ParseCardPage("Sparse Card", raw)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cp.TCGPlayerPrice == nil || *cp.TCGPlayerPrice != 5.00 {
+		t.Errorf("TCGPlayerPrice = %v, want 5.00", cp.TCGPlayerPrice)
+	}
+	if cp.CardKingdomPrice != nil {
+		t.Errorf("CardKingdomPrice should be nil")
+	}
+	if cp.SCGPrice != nil {
+		t.Errorf("SCGPrice should be nil")
+	}
+	if cp.MTGStocksPrice != nil {
+		t.Errorf("MTGStocksPrice should be nil")
+	}
+}
+
+func TestParseCardPage_NullPriceTolerated(t *testing.T) {
+	// A vendor block with explicitly null price must not crash and must produce nil.
+	raw := []byte(`{"container":{"json_dict":{"card":{"prices":{
+		"tcgplayer": {"price": null, "subType": "Normal"},
+		"cardkingdom": {"price": 2.50}
+	}}}}}`)
+	cp, err := ParseCardPage("Null Price Card", raw)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cp.TCGPlayerPrice != nil {
+		t.Errorf("TCGPlayerPrice should be nil for null price, got %v", *cp.TCGPlayerPrice)
+	}
+	if cp.CardKingdomPrice == nil || *cp.CardKingdomPrice != 2.50 {
+		t.Errorf("CardKingdomPrice = %v, want 2.50", cp.CardKingdomPrice)
+	}
+}
+
+func TestParseCardPage_EmptyPrices(t *testing.T) {
+	// Card page with no prices object — all vendor fields nil, no error.
+	raw := []byte(`{"container":{"json_dict":{"card":{}}}}`)
+	cp, err := ParseCardPage("Unpriced Card", raw)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cp.TCGPlayerPrice != nil || cp.CardKingdomPrice != nil ||
+		cp.SCGPrice != nil || cp.MTGStocksPrice != nil {
+		t.Errorf("all vendor prices should be nil for empty prices block")
+	}
+}

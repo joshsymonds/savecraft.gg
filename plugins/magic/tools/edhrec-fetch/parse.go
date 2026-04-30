@@ -347,3 +347,65 @@ func ParseAverageDecksPage(data []byte) ([]AverageDeckEntry, error) {
 	}
 	return out, nil
 }
+
+// ── Card page (json.edhrec.com/pages/cards/{slug}.json) ──
+//
+// Each page has a card.prices object with multiple vendor sub-objects, e.g.:
+//
+//	"tcgplayer":   {"price": 1.29, "subType": "Normal", "priceSource": "midPrice"},
+//	"cardkingdom": {"price": 1.99},
+//	"scg":         {"price": 1.49},
+//	"mtgstocks":   {"price": 1.19}
+//
+// We capture USD-denominated paper-singles vendors only — not cardhoarder
+// (MTGO tickets), tcgl (online platform), face2face (foil/special), or
+// cardmarket (EUR-denominated).
+
+type cardPage struct {
+	Container struct {
+		JSONDict struct {
+			Card struct {
+				Prices map[string]cardPriceVendor `json:"prices"`
+			} `json:"card"`
+		} `json:"json_dict"`
+	} `json:"container"`
+}
+
+type cardPriceVendor struct {
+	Price   *float64 `json:"price"`
+	SubType string   `json:"subType,omitempty"` // TCGPlayer-only: "Normal" or "Foil"
+}
+
+// CardPrice is the parsed multi-vendor price record for one card.
+type CardPrice struct {
+	CardName         string
+	TCGPlayerPrice   *float64 // mid-market, Normal printing only
+	CardKingdomPrice *float64
+	SCGPrice         *float64
+	MTGStocksPrice   *float64
+}
+
+// ParseCardPage parses an EDHREC per-card JSON payload and extracts the
+// vendor prices we care about. The card name is passed in (not parsed from
+// the JSON) so callers can preserve the canonical name they used to slug.
+func ParseCardPage(name string, data []byte) (*CardPrice, error) {
+	var p cardPage
+	if err := json.Unmarshal(data, &p); err != nil {
+		return nil, fmt.Errorf("decode card page: %w", err)
+	}
+	cp := &CardPrice{CardName: name}
+	prices := p.Container.JSONDict.Card.Prices
+	if v, ok := prices["tcgplayer"]; ok && v.SubType == "Normal" {
+		cp.TCGPlayerPrice = v.Price
+	}
+	if v, ok := prices["cardkingdom"]; ok {
+		cp.CardKingdomPrice = v.Price
+	}
+	if v, ok := prices["scg"]; ok {
+		cp.SCGPrice = v.Price
+	}
+	if v, ok := prices["mtgstocks"]; ok {
+		cp.MTGStocksPrice = v.Price
+	}
+	return cp, nil
+}

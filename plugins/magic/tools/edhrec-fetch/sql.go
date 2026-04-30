@@ -155,3 +155,38 @@ func marshalSimilar(similar []SimilarCommander) string {
 func formatFloat(f float64) string {
 	return fmt.Sprintf("%g", f)
 }
+
+// formatPriceLiteral formats a nullable price pointer as a SQL literal.
+// nil → "NULL"; non-nil → numeric literal.
+func formatPriceLiteral(p *float64) string {
+	if p == nil {
+		return "NULL"
+	}
+	return formatFloat(*p)
+}
+
+// BuildCardPricesSQL returns SQL that wipes and repopulates the
+// magic_edh_card_prices table with the given prices. priced_at is set by
+// the column default at INSERT time so the snapshot timestamp reflects when
+// the row landed in D1.
+func BuildCardPricesSQL(prices []*CardPrice) string {
+	var b strings.Builder
+	q := cfapi.SQLQuote
+
+	b.WriteString("DELETE FROM magic_edh_card_prices;\n")
+
+	for _, p := range prices {
+		if p == nil || p.CardName == "" {
+			continue
+		}
+		fmt.Fprintf(&b,
+			"INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price, cardkingdom_price, scg_price, mtgstocks_price) VALUES (%s, %s, %s, %s, %s);\n",
+			q(p.CardName),
+			formatPriceLiteral(p.TCGPlayerPrice),
+			formatPriceLiteral(p.CardKingdomPrice),
+			formatPriceLiteral(p.SCGPrice),
+			formatPriceLiteral(p.MTGStocksPrice),
+		)
+	}
+	return b.String()
+}

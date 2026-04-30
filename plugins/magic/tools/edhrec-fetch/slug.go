@@ -9,6 +9,17 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// cardSlug converts a card name into the slug used by EDHREC's per-card
+// pages (json.edhrec.com/pages/cards/{slug}.json). Differs from
+// commanderSlug for DFCs: a "Front // Back" card slugs to the front face
+// only, since EDHREC indexes cards by their canonical front face.
+func cardSlug(name string) string {
+	if i := strings.Index(name, " // "); i >= 0 {
+		name = name[:i]
+	}
+	return commanderSlug(name)
+}
+
 // commanderSlug converts a card name into the EDHREC URL slug format.
 // Rules observed from json.edhrec.com: lowercase, strip accents, drop
 // apostrophes, replace any non-alphanumeric run with a single hyphen,
