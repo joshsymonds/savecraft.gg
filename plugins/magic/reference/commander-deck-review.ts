@@ -20,6 +20,9 @@ const STAPLE_THRESHOLD = 0.25;
 const MAX_MISSING_STAPLES = 20;
 const MAX_STAPLE_CANDIDATES = 200;
 
+const VALID_TIERS = ["budget", "upgraded", "optimized", "cedh"] as const;
+type Tier = (typeof VALID_TIERS)[number];
+
 interface RecRow {
   card_name: string;
   inclusion: number;
@@ -29,6 +32,13 @@ interface AverageDeckRow {
   card_name: string;
   quantity: number;
   category: string;
+}
+
+interface TierInfoRow {
+  tier: string;
+  avg_price: number;
+  num_decks_avg: number;
+  deck_size: number;
 }
 
 async function runReview(
@@ -55,6 +65,18 @@ async function runReview(
 
   const includeAverage = query.include_average === true;
 
+  const rawTier = ((query.tier as string) ?? "").trim();
+  let tier: Tier | undefined;
+  if (rawTier !== "") {
+    if (!(VALID_TIERS as readonly string[]).includes(rawTier)) {
+      return {
+        type: "text",
+        content: `Invalid tier: "${rawTier}". Must be one of: ${VALID_TIERS.join(", ")}.`,
+      };
+    }
+    tier = rawTier as Tier;
+  }
+
   const commanderRow = await resolveCommander(env, commanderQuery);
   if (!commanderRow) {
     return {
@@ -65,10 +87,39 @@ async function runReview(
 
   const commanderId = commanderRow.scryfall_id;
 
-  // Fire top-cards and average-deck queries in parallel — they're independent
-  // once the commander is resolved.
+  // Fire top-cards, average-deck, and (optional) tier-info queries in
+  // parallel — they're independent once the commander is resolved.
   const minInclusion = Math.floor(commanderRow.deck_count * STAPLE_THRESHOLD);
-  const [topCardsResult, averageResult] = await Promise.all([
+  const averageDecksQuery = tier
+    ? env.DB
+        .prepare(
+          `SELECT card_name, quantity, category
+           FROM magic_edh_average_decks_by_tier
+           WHERE commander_id = ? AND tier = ?`,
+        )
+        .bind(commanderId, tier)
+        .all<AverageDeckRow>()
+    : env.DB
+        .prepare(
+          `SELECT card_name, quantity, category
+           FROM magic_edh_average_decks
+           WHERE commander_id = ?`,
+        )
+        .bind(commanderId)
+        .all<AverageDeckRow>();
+
+  const tierInfoQuery: Promise<{ results?: TierInfoRow[] }> = tier
+    ? env.DB
+        .prepare(
+          `SELECT tier, avg_price, num_decks_avg, deck_size
+           FROM magic_edh_commander_tiers
+           WHERE commander_id = ? AND tier = ?`,
+        )
+        .bind(commanderId, tier)
+        .all<TierInfoRow>()
+    : Promise.resolve({ results: [] });
+
+  const [topCardsResult, averageResult, tierInfoResult] = await Promise.all([
     env.DB.prepare(
       `SELECT card_name, inclusion
          FROM magic_edh_recommendations
@@ -78,14 +129,11 @@ async function runReview(
     )
       .bind(commanderId, minInclusion, MAX_STAPLE_CANDIDATES)
       .all<RecRow>(),
-    env.DB.prepare(
-      `SELECT card_name, quantity, category
-         FROM magic_edh_average_decks
-         WHERE commander_id = ?`,
-    )
-      .bind(commanderId)
-      .all<AverageDeckRow>(),
+    averageDecksQuery,
+    tierInfoQuery,
   ]);
+
+  const tierInfo = tier ? (tierInfoResult.results?.[0] ?? null) : undefined;
 
   const averageDeck = averageResult.results ?? [];
   const averageNameSet = new Set(
@@ -188,6 +236,13 @@ async function runReview(
   if (maxPrice !== undefined) {
     data.over_budget = totalPrice > maxPrice;
     data.budget = maxPrice;
+  }
+
+  // Surface tier_info only when tier was requested. tierInfo === null means
+  // EDHREC didn't publish that tier for this commander; the LLM should
+  // explain rather than treat as error.
+  if (tier !== undefined) {
+    data.tier_info = tierInfo ?? null;
   }
 
   if (includeAverage) {
@@ -304,6 +359,11 @@ export const commanderDeckReviewModule: NativeReferenceModule = {
       type: "number",
       description:
         "USD budget cap. When set, the response includes over_budget (true if total_price exceeds this) and budget (the cap echoed back). Cards without known prices are listed in cards_without_prices regardless.",
+    },
+    tier: {
+      type: "string",
+      description:
+        "Optional EDHREC tier ('budget' | 'upgraded' | 'optimized' | 'cedh'). When set, comparison is against the tier-specific average decklist instead of the cross-tier average, and tier_info metadata is returned. Useful for 'rate my $200 deck against EDHREC's budget Atraxa' queries.",
     },
   },
   sectionMappings: [

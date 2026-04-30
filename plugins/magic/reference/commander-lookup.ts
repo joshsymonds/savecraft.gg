@@ -14,9 +14,12 @@
 import type { Env } from "../../../worker/src/types";
 import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
 import { safeParseJSON } from "../../../worker/src/reference/json";
-import { resolveCommander } from "./commander-resolve";
+import { resolveCommander, type EdhCommanderRow } from "./commander-resolve";
 
 const DEFAULT_LIMIT = 20;
+
+const VALID_TIERS = ["budget", "upgraded", "optimized", "cedh"] as const;
+type Tier = (typeof VALID_TIERS)[number];
 
 interface RecommendationRow {
   card_name: string;
@@ -26,6 +29,19 @@ interface RecommendationRow {
   potential_decks: number;
   trend_zscore: number;
   price_usd: number | null;
+}
+
+interface TierAverageDeckRow {
+  card_name: string;
+  category: string;
+  quantity: number;
+}
+
+interface TierInfoRow {
+  tier: string;
+  avg_price: number;
+  num_decks_avg: number;
+  deck_size: number;
 }
 
 interface CurveRow {
@@ -62,6 +78,11 @@ export const commanderLookupModule: NativeReferenceModule = {
       description:
         "Max USD price per card (resolves to EDHREC TCGPlayer mid first, then Scryfall default-printing fallback). Recommendations with no price source on either side are excluded when this filter is set.",
     },
+    tier: {
+      type: "string",
+      description:
+        "Optional EDHREC power/budget tier: 'budget' (~$150-300), 'upgraded' (~$1k), 'optimized' (~$2-3k), or 'cedh' (~$5k+). When set, recommendations come from the tier-specific average decklist instead of the cross-tier recommendation pool, and tier_info metadata is returned. Useful for 'show me what a budget Atraxa deck includes' style queries.",
+    },
   },
 
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
@@ -76,6 +97,18 @@ export const commanderLookupModule: NativeReferenceModule = {
     );
     const maxPrice = typeof query.max_price === "number" ? query.max_price : undefined;
 
+    const rawTier = ((query.tier as string) ?? "").trim();
+    let tier: Tier | undefined;
+    if (rawTier !== "") {
+      if (!(VALID_TIERS as readonly string[]).includes(rawTier)) {
+        return {
+          type: "text",
+          content: `Invalid tier: "${rawTier}". Must be one of: ${VALID_TIERS.join(", ")}.`,
+        };
+      }
+      tier = rawTier as Tier;
+    }
+
     // 1. Resolve commander: try FTS5 first (handles partial names and token order)
     let commanderRow = await resolveCommander(env, commanderQuery);
     if (!commanderRow) {
@@ -87,12 +120,19 @@ export const commanderLookupModule: NativeReferenceModule = {
 
     const commanderId = commanderRow.scryfall_id;
 
-    // 2. Fetch recommendations. When filtering to one category, use a simple
-    // LIMIT. When returning all categories, use a window-function-backed
-    // per-category LIMIT so the server caps each bucket at `limit` rows —
-    // critical because with ~13 categories × ~100 recs each, an unbounded
-    // query can return ~1300 rows per request and exceed D1's per-sub-request
-    // row cap.
+    // 2a. Tier mode: pull recommendations from the tier-specific average deck
+    // and surface tier_info metadata. Returns early since the tier path doesn't
+    // need the recommendation pool / window function used by the default path.
+    if (tier !== undefined) {
+      return runTierLookup(env, commanderRow, tier);
+    }
+
+    // 2b. Default mode: fetch recommendations from the cross-tier pool. When
+    // filtering to one category, use a simple LIMIT. When returning all
+    // categories, use a window-function-backed per-category LIMIT so the
+    // server caps each bucket at `limit` rows — critical because with ~13
+    // categories × ~100 recs each, an unbounded query can return ~1300 rows
+    // per request and exceed D1's per-sub-request row cap.
     //
     // Price resolution: COALESCE(EDHREC TCGPlayer, Scryfall default-printing).
     // EDHREC matches what users see on EDHREC; Scryfall fills in cards EDHREC
@@ -198,4 +238,77 @@ export const commanderLookupModule: NativeReferenceModule = {
     };
   },
 };
+
+async function runTierLookup(
+  env: Env,
+  commanderRow: EdhCommanderRow,
+  tier: Tier,
+): Promise<ReferenceResult> {
+  const commanderId = commanderRow.scryfall_id;
+
+  const [tierMetaResult, tierDeckResult] = await Promise.all([
+    env.DB
+      .prepare(
+        `SELECT tier, avg_price, num_decks_avg, deck_size
+         FROM magic_edh_commander_tiers
+         WHERE commander_id = ? AND tier = ?`,
+      )
+      .bind(commanderId, tier)
+      .all<TierInfoRow>(),
+    env.DB
+      .prepare(
+        `SELECT card_name, category, quantity
+         FROM magic_edh_average_decks_by_tier
+         WHERE commander_id = ? AND tier = ?
+         ORDER BY category, card_name`,
+      )
+      .bind(commanderId, tier)
+      .all<TierAverageDeckRow>(),
+  ]);
+
+  const tierInfo = tierMetaResult.results?.[0] ?? null;
+  const deck = tierDeckResult.results ?? [];
+
+  // Group by category (mirrors the default path's recommendations shape).
+  const recommendations: Record<string, { card_name: string; quantity: number }[]> = {};
+  for (const row of deck) {
+    const cat = row.category || "uncategorized";
+    const bucket = recommendations[cat] ?? (recommendations[cat] = []);
+    bucket.push({ card_name: row.card_name, quantity: row.quantity });
+  }
+
+  const themes = safeParseJSON<Array<{ slug: string; value: string; count: number }>>(
+    commanderRow.themes,
+    [],
+  );
+  const similar = safeParseJSON<Array<{ id: string; name: string }>>(commanderRow.similar, []);
+  const colorIdentity = safeParseJSON<string[]>(commanderRow.color_identity, []);
+
+  // Empty deck + null tier_info means EDHREC didn't publish this tier for the
+  // commander. Caller still gets a structured response so the LLM can
+  // explain the gap rather than treating it as an error.
+  return {
+    type: "structured",
+    data: {
+      commander: {
+        scryfall_id: commanderRow.scryfall_id,
+        name: commanderRow.name,
+        slug: commanderRow.slug,
+        color_identity: colorIdentity,
+        deck_count: commanderRow.deck_count,
+        rank: commanderRow.rank,
+        salt: commanderRow.salt,
+      },
+      tier_info: tierInfo,
+      themes,
+      similar,
+      recommendations,
+      attribution: {
+        source: "EDHREC",
+        url: `https://edhrec.com/commanders/${commanderRow.slug}/${tier}`,
+        note: `Tier-specific average decklist. recommendations[category] entries reflect what an empirical ${tier}-tier ${commanderRow.name} deck typically runs.`,
+      },
+    },
+  };
+}
 

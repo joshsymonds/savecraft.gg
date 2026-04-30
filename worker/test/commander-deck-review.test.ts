@@ -351,4 +351,62 @@ describe("commander_deck_review native module", () => {
     expect(data.cards_without_prices).toContain("Cultivate");
     expect(data.cards_without_prices).toContain("Birds of Paradise");
   });
+
+  // ── tier comparison tests ─────────────────────────────────────
+
+  it("compares against tier-specific average deck when tier is set", async () => {
+    await seedAtraxa();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "budget", 174, 4072, 84),
+      // Budget tier has different cards than the default average
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "budget", "Sol Ring", 1, "artifacts"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "budget", "Cultivate", 1, "sorceries"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "budget", "Forest", 8, "basics"),
+    ]);
+
+    const result = await commanderDeckReviewModule.execute(
+      {
+        commander: "Atraxa",
+        decklist: ["Sol Ring", "Cultivate"],
+        tier: "budget",
+      },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+
+    const data = result.data as {
+      tier_info: { tier: string; avg_price: number };
+      overlap: { matching_cards: number; total_average: number };
+    };
+    expect(data.tier_info.tier).toBe("budget");
+    expect(data.tier_info.avg_price).toBe(174);
+    // Decklist matches 2 of 3 cards in the tier's average (Sol Ring, Cultivate; Forest absent).
+    expect(data.overlap.matching_cards).toBe(2);
+    expect(data.overlap.total_average).toBe(3);
+  });
+
+  it("returns warning when tier has no data for this commander", async () => {
+    await seedAtraxa();
+    // No tier rows seeded.
+
+    const result = await commanderDeckReviewModule.execute(
+      {
+        commander: "Atraxa",
+        decklist: ["Sol Ring"],
+        tier: "cedh",
+      },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as { tier_info: unknown };
+    expect(data.tier_info).toBeNull();
+  });
 });

@@ -20,7 +20,7 @@ import { buildJSONSubsetExpr, isValidColors } from "./wubrg";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
-const VALID_MODES = new Set(["top", "themes", "by_colors"]);
+const VALID_MODES = new Set(["top", "themes", "by_colors", "cheapest"]);
 
 interface CommanderRow {
   scryfall_id: string;
@@ -50,6 +50,11 @@ async function runTrends(
 
   if (mode === "themes") {
     return runThemesMode(env, limit);
+  }
+
+  if (mode === "cheapest") {
+    const maxAvgPrice = typeof query.max_avg_price === "number" ? query.max_avg_price : undefined;
+    return runCheapestMode(env, limit, maxAvgPrice);
   }
 
   // top + by_colors both return ranked commander lists; they differ only in WHERE clause.
@@ -119,6 +124,66 @@ interface ThemeAggregateRow {
   commander_count: number;
 }
 
+interface CheapestRow {
+  scryfall_id: string;
+  name: string;
+  slug: string;
+  color_identity: string;
+  deck_count: number;
+  rank: number | null;
+  budget_avg_price: number;
+  budget_num_decks_avg: number;
+}
+
+async function runCheapestMode(
+  env: Env,
+  limit: number,
+  maxAvgPrice: number | undefined,
+): Promise<ReferenceResult> {
+  const priceCap = maxAvgPrice !== undefined ? "AND t.avg_price <= ?" : "";
+  const binds: unknown[] = [];
+  if (maxAvgPrice !== undefined) binds.push(maxAvgPrice);
+  binds.push(limit);
+
+  const sql = `
+    SELECT
+      c.scryfall_id, c.name, c.slug, c.color_identity, c.deck_count, c.rank,
+      t.avg_price AS budget_avg_price,
+      t.num_decks_avg AS budget_num_decks_avg
+    FROM magic_edh_commanders c
+    JOIN magic_edh_commander_tiers t
+      ON t.commander_id = c.scryfall_id AND t.tier = 'budget'
+    WHERE 1=1 ${priceCap}
+    ORDER BY t.avg_price ASC, c.deck_count DESC
+    LIMIT ?
+  `;
+
+  const result = await env.DB.prepare(sql).bind(...binds).all<CheapestRow>();
+  const commanders = (result.results ?? []).map((row) => ({
+    scryfall_id: row.scryfall_id,
+    name: row.name,
+    slug: row.slug,
+    color_identity: safeParseJSON<string[]>(row.color_identity, []),
+    deck_count: row.deck_count,
+    rank: row.rank,
+    budget_avg_price: row.budget_avg_price,
+    budget_num_decks_avg: row.budget_num_decks_avg,
+  }));
+
+  return {
+    type: "structured",
+    data: {
+      mode: "cheapest",
+      commanders,
+      count: commanders.length,
+      attribution: {
+        source: "EDHREC",
+        note: "Commanders ranked by lowest budget-tier avg_price. Tied prices break by EDHREC popularity (deck_count DESC).",
+      },
+    },
+  };
+}
+
 async function runThemesMode(
   env: Env,
   limit: number,
@@ -156,18 +221,23 @@ export const commanderTrendsModule: NativeReferenceModule = {
   name: "Commander Trends",
   description: [
     "Top Magic: The Gathering Commanders and popular themes from EDHREC — answers 'what's hot in Commander right now?'",
-    "USE PROACTIVELY when a player asks about popular commanders, trending decks, what they should build next, or wants ideas filtered by color identity.",
-    "Three modes: `mode=top` (top commanders by deck count, the default), `mode=themes` (popular themes aggregated across all commanders, with total counts and commander coverage), `mode=by_colors` (top commanders whose color identity is a subset of the provided colors — e.g. colors='BG' returns mono-B, mono-G, BG, and colorless commanders).",
+    "USE PROACTIVELY when a player asks about popular commanders, trending decks, what they should build next, or wants ideas filtered by color identity, or asks for cheap/budget commander suggestions.",
+    "Four modes: `mode=top` (top commanders by deck count, the default), `mode=themes` (popular themes aggregated across all commanders, with total counts and commander coverage), `mode=by_colors` (top commanders whose color identity is a subset of the provided colors — e.g. colors='BG' returns mono-B, mono-G, BG, and colorless commanders), `mode=cheapest` (commanders ranked by lowest budget-tier average price; pass `max_avg_price` to cap by USD).",
   ].join(" "),
   parameters: {
     mode: {
       type: "string",
-      description: "One of: top (default), themes, by_colors.",
+      description: "One of: top (default), themes, by_colors, cheapest.",
     },
     colors: {
       type: "string",
       description:
         "For mode=by_colors: WUBRG letters representing the colors your deck can support. Subset semantics — a 'BG' filter returns BG, mono-B, mono-G, and colorless commanders, but not BRG (has R) or WBG (has W). Use empty string '' for colorless-only.",
+    },
+    max_avg_price: {
+      type: "number",
+      description:
+        "For mode=cheapest: USD ceiling on the budget-tier average price. Returns only commanders whose budget-tier deck typically costs less than this.",
     },
     limit: {
       type: "integer",

@@ -220,4 +220,65 @@ describe("commander_trends native module", () => {
     expect(data.mode).toBe("top");
     expect(data.commanders.length).toBe(4);
   });
+
+  // ── cheapest mode (tier filtering) ─────────────────────────────
+
+  it("mode=cheapest orders by budget tier avg_price ascending", async () => {
+    await seedCommanders();
+
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("atraxa-id", "budget", 174, 4072, 84),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("korvold-id", "budget", 95, 2500, 90),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("kozilek-id", "budget", 220, 800, 80),
+    ]);
+
+    const result = await commanderTrendsModule.execute(
+      { mode: "cheapest" },
+      env as unknown as Env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") return;
+    const data = result.data as {
+      mode: string;
+      commanders: { name: string; budget_avg_price: number }[];
+    };
+    expect(data.mode).toBe("cheapest");
+    // Korvold ($95) < Atraxa ($174) < Kozilek ($220). 4th seeded commander
+    // (no budget tier row) is excluded.
+    expect(data.commanders.length).toBe(3);
+    expect(data.commanders[0]?.name).toBe("Korvold, Fae-Cursed King");
+    expect(data.commanders[0]?.budget_avg_price).toBe(95);
+    expect(data.commanders[1]?.name).toBe("Atraxa, Praetors' Voice");
+    expect(data.commanders[2]?.name).toBe("Kozilek, Butcher of Truth");
+  });
+
+  it("mode=cheapest with max_avg_price ceiling", async () => {
+    await seedCommanders();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("atraxa-id", "budget", 174, 4072, 84),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("korvold-id", "budget", 95, 2500, 90),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("kozilek-id", "budget", 220, 800, 80),
+    ]);
+
+    const result = await commanderTrendsModule.execute(
+      { mode: "cheapest", max_avg_price: 100 },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") return;
+    const data = result.data as { commanders: { name: string }[] };
+    expect(data.commanders.length).toBe(1);
+    expect(data.commanders[0]?.name).toBe("Korvold, Fae-Cursed King");
+  });
 });

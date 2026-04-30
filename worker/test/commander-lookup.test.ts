@@ -376,4 +376,95 @@ describe("commander_lookup native module", () => {
     // The other recs have no price data; they must be excluded under max_price.
     expect(allCards.length).toBe(1);
   });
+
+  // ── tier filter tests ─────────────────────────────────────────
+
+  async function seedAtraxaTiers(): Promise<void> {
+    const atraxaId = "d0d33d52-3d28-4635-b985-51e126289259";
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(atraxaId, "budget", 174, 4072, 84),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(atraxaId, "cedh", 5688, 147, 94),
+      // Budget tier has cheap staples
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(atraxaId, "budget", "Sol Ring", 1, "artifacts"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(atraxaId, "budget", "Cultivate", 1, "sorceries"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(atraxaId, "budget", "Forest", 8, "basics"),
+      // cEDH tier has different cards
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(atraxaId, "cedh", "Mana Crypt", 1, "manaartifacts"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(atraxaId, "cedh", "Demonic Tutor", 1, "sorceries"),
+    ]);
+  }
+
+  it("returns budget-tier deck when tier='budget' is set", async () => {
+    await seedAtraxa();
+    await seedAtraxaTiers();
+
+    const result = await commanderLookupModule.execute(
+      { commander: "Atraxa", tier: "budget" },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+
+    const data = result.data as {
+      recommendations: Record<string, { card_name: string; quantity: number }[]>;
+      tier_info: { tier: string; avg_price: number; num_decks_avg: number; deck_size: number };
+    };
+
+    expect(data.tier_info).toBeDefined();
+    expect(data.tier_info.tier).toBe("budget");
+    expect(data.tier_info.avg_price).toBe(174);
+
+    const allCards = Object.values(data.recommendations).flat().map((r) => r.card_name);
+    expect(allCards).toContain("Sol Ring");
+    expect(allCards).toContain("Cultivate");
+    expect(allCards).toContain("Forest");
+    // cEDH-only cards must not appear
+    expect(allCards).not.toContain("Mana Crypt");
+    expect(allCards).not.toContain("Demonic Tutor");
+  });
+
+  it("returns cedh-tier deck when tier='cedh' is set", async () => {
+    await seedAtraxa();
+    await seedAtraxaTiers();
+
+    const result = await commanderLookupModule.execute(
+      { commander: "Atraxa", tier: "cedh" },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+
+    const data = result.data as {
+      recommendations: Record<string, { card_name: string }[]>;
+      tier_info: { avg_price: number };
+    };
+    expect(data.tier_info.avg_price).toBe(5688);
+    const allCards = Object.values(data.recommendations).flat().map((r) => r.card_name);
+    expect(allCards).toContain("Mana Crypt");
+    expect(allCards).not.toContain("Sol Ring"); // budget-only
+  });
+
+  it("rejects invalid tier values", async () => {
+    await seedAtraxa();
+
+    const result = await commanderLookupModule.execute(
+      { commander: "Atraxa", tier: "casual" },
+      env as unknown as Env,
+    );
+    expect(result.type).toBe("text");
+    if (result.type !== "text") return;
+    expect(result.content).toContain("tier");
+  });
 });
