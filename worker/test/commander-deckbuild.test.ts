@@ -452,6 +452,110 @@ describe("commander_deckbuild native module", () => {
     expect(data.attribution.priced_at).toMatch(/^\d{4}-\d{2}-\d{2}/);
   });
 
+  // ── theme parameter ──────────────────────────────────────────
+
+  async function seedAtraxaInfectTheme(): Promise<void> {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_theme_meta (commander_id, theme_slug, theme_value, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "infect", "Infect", 1391, 5594, 90),
+      // Theme deck — distinct from the budget tier seed (different cards)
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_theme (commander_id, theme_slug, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "infect", "Phyrexian Crusader", 1, "Creature"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_theme (commander_id, theme_slug, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "infect", "Inkmoth Nexus", 1, "Land"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_theme (commander_id, theme_slug, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "infect", "Forest", 8, "Land"),
+      // Prices for theme cards
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Phyrexian Crusader", 4.0),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Inkmoth Nexus", 25.0),
+    ]);
+  }
+
+  it("theme='infect' returns infect-theme deck instead of cross-theme tier average", async () => {
+    await seedAtraxa();
+    await seedAtraxaInfectTheme();
+
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 200, theme: "infect" },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+
+    const data = result.data as {
+      theme_info: { theme_slug: string; theme_value: string; avg_price: number };
+      deck: { card_name: string }[];
+    };
+    expect(data.theme_info.theme_slug).toBe("infect");
+    expect(data.theme_info.avg_price).toBe(1391);
+    const names = data.deck.map((c) => c.card_name);
+    expect(names).toContain("Phyrexian Crusader");
+    expect(names).toContain("Inkmoth Nexus");
+    // Budget-tier seeded card NOT present (theme path bypasses tier deck)
+    expect(names).not.toContain("Cyclonic Rift");
+  });
+
+  it("returns text when theme is unknown for the commander", async () => {
+    await seedAtraxa();
+    // No theme rows seeded.
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", theme: "tribal-zombies" },
+      env as unknown as Env,
+    );
+    expect(result.type).toBe("text");
+    if (result.type !== "text") return;
+    expect(result.content.toLowerCase()).toContain("theme");
+  });
+
+  it("budget_mode='target' allows total_price to exceed max_price by ≤10%", async () => {
+    await seedAtraxa();
+    // Budget tier seeded earlier sums to less than max_price for these
+    // tests. To exercise target mode, we need a scenario where the next
+    // card would push over ceiling but stays under 1.1× max_price.
+    // Sol Ring ($1.5) + Birds of Paradise ($7.0) + Cyclonic Rift ($32) +
+    // Cultivate ($0.5) + Forest×8 ($0.8) = $41.8. With max_price=$40 in
+    // ceiling mode, Cyclonic Rift drops out (would push past $40). In
+    // target mode at $40 with 10% slack ($44 ceiling), Rift fits.
+    const result = await commanderDeckbuildModule.execute(
+      {
+        commander: "Atraxa",
+        max_price: 40,
+        budget_mode: "target",
+        exclude_game_changers: false,
+      },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as {
+      budget: { mode: string; total_price: number };
+      deck: { card_name: string }[];
+    };
+    expect(data.budget.mode).toBe("target");
+    // Total may exceed max_price (40) but must stay within 1.1× = 44.
+    expect(data.budget.total_price).toBeLessThanOrEqual(44);
+  });
+
+  it("budget_mode='ceiling' (default) never exceeds max_price", async () => {
+    await seedAtraxa();
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 40, exclude_game_changers: false },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as {
+      budget: { mode: string; total_price: number };
+    };
+    expect(data.budget.mode).toBe("ceiling");
+    expect(data.budget.total_price).toBeLessThanOrEqual(40);
+  });
+
   it("caps mana base at 40% of budget by substituting basics for expensive lands", async () => {
     await seedAtraxa();
     // Replace seeded Forest with an expensive nonbasic so the cap kicks in.

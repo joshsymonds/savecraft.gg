@@ -724,6 +724,24 @@ const statements = [
     is_face        INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (precon_slug, commander_name)
   )`,
+  // EDHREC per-commander per-theme average decks (migration 0055)
+  `CREATE TABLE IF NOT EXISTS magic_edh_commander_theme_meta (
+    commander_id  TEXT NOT NULL,
+    theme_slug    TEXT NOT NULL,
+    theme_value   TEXT NOT NULL,
+    avg_price     REAL NOT NULL DEFAULT 0,
+    num_decks_avg INTEGER NOT NULL DEFAULT 0,
+    deck_size     INTEGER NOT NULL DEFAULT 100,
+    PRIMARY KEY (commander_id, theme_slug)
+  )`,
+  `CREATE TABLE IF NOT EXISTS magic_edh_average_decks_by_theme (
+    commander_id  TEXT NOT NULL,
+    theme_slug    TEXT NOT NULL,
+    card_name     TEXT NOT NULL,
+    quantity      INTEGER NOT NULL DEFAULT 1,
+    category      TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (commander_id, theme_slug, card_name)
+  )`,
 ];
 
 for (const sql of statements) {

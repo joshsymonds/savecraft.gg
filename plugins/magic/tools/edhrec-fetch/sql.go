@@ -12,7 +12,7 @@ import (
 // BuildCommanderSQL returns a SQL blob that deletes and re-inserts all rows
 // for a single commander across all EDHREC tables. Safe to import as one
 // transaction via cfapi.ImportD1SQL.
-func BuildCommanderSQL(pc *ParsedCommander, combos []Combo, avg []AverageDeckEntry, tiers map[string]*TierBundle) string {
+func BuildCommanderSQL(pc *ParsedCommander, combos []Combo, avg []AverageDeckEntry, tiers map[string]*TierBundle, themes []*ThemeBundle) string {
 	var b strings.Builder
 	q := cfapi.SQLQuote
 	id := q(pc.ScryfallID)
@@ -30,6 +30,9 @@ func BuildCommanderSQL(pc *ParsedCommander, combos []Combo, avg []AverageDeckEnt
 	// leave orphaned rows.
 	fmt.Fprintf(&b, "DELETE FROM magic_edh_commander_tiers WHERE commander_id = %s;\n", id)
 	fmt.Fprintf(&b, "DELETE FROM magic_edh_average_decks_by_tier WHERE commander_id = %s;\n", id)
+	// Theme tables — same wipe-and-replace contract per commander.
+	fmt.Fprintf(&b, "DELETE FROM magic_edh_commander_theme_meta WHERE commander_id = %s;\n", id)
+	fmt.Fprintf(&b, "DELETE FROM magic_edh_average_decks_by_theme WHERE commander_id = %s;\n", id)
 
 	// ── Commander row ────────────────────────────────────────
 	themesJSON := marshalThemes(pc.Themes)
@@ -146,6 +149,29 @@ func BuildCommanderSQL(pc *ParsedCommander, combos []Combo, avg []AverageDeckEnt
 				}
 				fmt.Fprintf(&b, "(%s, %s, %s, %d, %s)",
 					id, q(tierName), q(e.CardName), e.Quantity, q(e.Category),
+				)
+			}
+			b.WriteString(";\n")
+		}
+	}
+
+	// ── Theme metadata + per-theme average decks ──────────────
+	for _, th := range themes {
+		if th == nil || th.Slug == "" || th.Meta == nil {
+			continue
+		}
+		fmt.Fprintf(&b,
+			"INSERT INTO magic_edh_commander_theme_meta (commander_id, theme_slug, theme_value, avg_price, num_decks_avg, deck_size) VALUES (%s, %s, %s, %s, %d, %d);\n",
+			id, q(th.Slug), q(th.Value), formatFloat(th.Meta.AvgPrice), th.Meta.NumDecksAvg, th.Meta.DeckSize,
+		)
+		if len(th.Decks) > 0 {
+			b.WriteString("INSERT INTO magic_edh_average_decks_by_theme (commander_id, theme_slug, card_name, quantity, category) VALUES ")
+			for i, e := range th.Decks {
+				if i > 0 {
+					b.WriteString(", ")
+				}
+				fmt.Fprintf(&b, "(%s, %s, %s, %d, %s)",
+					id, q(th.Slug), q(e.CardName), e.Quantity, q(e.Category),
 				)
 			}
 			b.WriteString(";\n")

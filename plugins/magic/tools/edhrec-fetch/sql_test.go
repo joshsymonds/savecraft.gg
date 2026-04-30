@@ -22,7 +22,7 @@ func TestBuildCommanderSQL(t *testing.T) {
 		t.Fatalf("parse average: %v", err)
 	}
 
-	sql := BuildCommanderSQL(pc, combos, avg, nil)
+	sql := BuildCommanderSQL(pc, combos, avg, nil, nil)
 
 	// All seven tables cleared
 	for _, table := range []string{
@@ -82,7 +82,7 @@ func TestBuildCommanderSQL_EmptyRecs(t *testing.T) {
 		Name:       "Test's Commander",
 		Slug:       "tests-commander",
 	}
-	sql := BuildCommanderSQL(pc, nil, nil, nil)
+	sql := BuildCommanderSQL(pc, nil, nil, nil, nil)
 
 	// Still has the commander insert
 	if !strings.Contains(sql, "INSERT INTO magic_edh_commanders ") {
@@ -188,7 +188,7 @@ func TestBuildCommanderSQL_TierData(t *testing.T) {
 			Decks: []AverageDeckEntry{{CardName: "Mana Crypt", Quantity: 1, Category: "manaartifacts"}},
 		},
 	}
-	sql := BuildCommanderSQL(pc, nil, nil, tiers)
+	sql := BuildCommanderSQL(pc, nil, nil, tiers, nil)
 
 	// Tier-meta inserts
 	if !strings.Contains(sql, "INSERT INTO magic_edh_commander_tiers") {
@@ -216,7 +216,7 @@ func TestBuildCommanderSQL_NoTierData(t *testing.T) {
 		Name:       "Atraxa",
 		Slug:       "atraxa-praetors-voice",
 	}
-	sql := BuildCommanderSQL(pc, nil, nil, nil)
+	sql := BuildCommanderSQL(pc, nil, nil, nil, nil)
 
 	// Without tier data, no tier-related INSERTs.
 	if strings.Contains(sql, "INSERT INTO magic_edh_commander_tiers") {
@@ -249,7 +249,7 @@ func TestBuildCommanderSQL_TierZeroDeckSize(t *testing.T) {
 			Decks: nil,
 		},
 	}
-	sql := BuildCommanderSQL(pc, nil, nil, tiers)
+	sql := BuildCommanderSQL(pc, nil, nil, tiers, nil)
 	if !strings.Contains(sql, "INSERT INTO magic_edh_commander_tiers") {
 		t.Errorf("expected tier metadata INSERT even when zero-valued")
 	}

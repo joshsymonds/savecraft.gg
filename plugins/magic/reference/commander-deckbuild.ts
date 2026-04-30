@@ -142,10 +142,20 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       description:
         "When true, drops cards on the WotC Game Changers list — used to honor bracket-1/2 constraints. Defaults to true when tier='budget', false otherwise.",
     },
+    budget_mode: {
+      type: "string",
+      description:
+        "How strictly to honor max_price. 'ceiling' (default) never exceeds max_price — drops slots if needed. 'target' aims at max_price ± 10%, allowing a slight overshoot to fill the deck. Useful when 'around $100' is closer to user intent than 'strictly under $100'.",
+    },
     starting_point: {
       type: "string",
       description:
         "How to seed the build. 'empty' (default) builds from scratch using the tier's average decklist. 'precon:<slug>' starts with that exact precon. 'precon:auto' picks the most-popular MSRP'd precon for this commander, charges its retail to the budget, then walks the cardstoadd / landstoadd pool to fill remaining budget with upgrades.",
+    },
+    theme: {
+      type: "string",
+      description:
+        "Optional theme slug (e.g. 'infect', 'tokens', '+1-1-counters'). When set, the build mirrors EDHREC's per-theme average decklist for this commander instead of the cross-theme tier average. Useful for archetype-specific builds — 'infect Atraxa' will run a different deck shape than 'planeswalker Atraxa'. Returns text fallback when EDHREC has no data for that theme on this commander.",
     },
   },
 
@@ -187,7 +197,24 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         ? (query.exclude_game_changers as boolean)
         : tier === "budget";
 
+    const rawBudgetMode = ((query.budget_mode as string) ?? "ceiling").trim();
+    if (rawBudgetMode !== "ceiling" && rawBudgetMode !== "target") {
+      return {
+        type: "text",
+        content: `Invalid budget_mode: "${rawBudgetMode}". Must be 'ceiling' or 'target'.`,
+      };
+    }
+    const budgetMode = rawBudgetMode as "ceiling" | "target";
+    // 'target' allows a 10% overshoot; 'ceiling' is a hard cap.
+    const effectiveCap =
+      maxPrice !== undefined
+        ? budgetMode === "target"
+          ? maxPrice * 1.1
+          : maxPrice
+        : undefined;
+
     const startingPoint = ((query.starting_point as string) ?? "empty").trim();
+    const theme = ((query.theme as string) ?? "").trim();
 
     // Resolve commander.
     const commanderRow = await resolveCommander(env, commanderQuery);
@@ -205,6 +232,20 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         maxPrice,
         excludes,
         mustInclude,
+        budgetMode,
+      });
+    }
+
+    // Theme-mode branches off too. Theme path mirrors a per-theme average
+    // decklist (Atraxa+infect ≠ Atraxa+planeswalkers) instead of the
+    // cross-theme tier average.
+    if (theme !== "") {
+      return runThemeBuild(env, commanderRow, theme, {
+        maxPrice,
+        excludes,
+        mustInclude,
+        budgetMode,
+        excludeGameChangers,
       });
     }
 
@@ -327,8 +368,8 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       const price = resolved?.price ?? null;
       const cost = (price ?? 0) * c.quantity;
 
-      if (maxPrice !== undefined && price != null) {
-        if (runningTotal + cost > maxPrice) {
+      if (effectiveCap !== undefined && price != null) {
+        if (runningTotal + cost > effectiveCap) {
           dropped.push({ card_name: c.card_name, reason: "would_exceed_budget" });
           continue;
         }
@@ -424,6 +465,7 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         },
         budget: {
           max_price: maxPrice ?? null,
+          mode: budgetMode,
           total_price: runningTotal,
           remaining: maxPrice !== undefined ? Math.round((maxPrice - runningTotal) * 100) / 100 : null,
         },
@@ -459,9 +501,16 @@ async function runPreconBuild(
     maxPrice: number | undefined;
     excludes: Set<string>;
     mustInclude: string[];
+    budgetMode: "ceiling" | "target";
   },
 ): Promise<ReferenceResult> {
-  const { maxPrice, excludes, mustInclude } = opts;
+  const { maxPrice, excludes, mustInclude, budgetMode } = opts;
+  const effectiveCap =
+    maxPrice !== undefined
+      ? budgetMode === "target"
+        ? maxPrice * 1.1
+        : maxPrice
+      : undefined;
 
   // Resolve precon: explicit slug or auto-pick most-popular MSRP'd precon.
   let preconRow: PreconRow | undefined;
@@ -612,7 +661,7 @@ async function runPreconBuild(
     const resolved = priceByLower.get(lower);
     const price = resolved?.price ?? null;
     if (price == null) continue; // can't certify under budget
-    if (maxPrice !== undefined && runningTotal + price > maxPrice) continue;
+    if (effectiveCap !== undefined && runningTotal + price > effectiveCap) continue;
     placed.push({
       card_name: u.card_name,
       quantity: 1,
@@ -661,6 +710,7 @@ async function runPreconBuild(
       },
       budget: {
         max_price: maxPrice ?? null,
+        mode: budgetMode,
         total_price: runningTotal,
         precon_msrp: msrp,
         upgrade_spend: Math.round((runningTotal - msrp) * 100) / 100,
@@ -674,6 +724,209 @@ async function runPreconBuild(
         source: "EDHREC",
         priced_at: priceLookup.pricedAt,
         note: `Precon '${preconRow.slug}' seeds the deck (charged at MSRP $${msrp}). Upgrades drawn from EDHREC's cardstoadd / landstoadd pool, sorted by inclusion. Singles prices via EDHREC TCGPlayer mid (Scryfall fallback).`,
+      },
+    },
+  };
+}
+
+interface ThemeMetaRow {
+  theme_slug: string;
+  theme_value: string;
+  avg_price: number;
+  num_decks_avg: number;
+  deck_size: number;
+}
+
+interface ThemeDeckRow {
+  card_name: string;
+  quantity: number;
+  category: string;
+}
+
+/**
+ * runThemeBuild handles the `theme` parameter. Mirrors the theme-specific
+ * average decklist instead of the cross-theme tier average. Greedy fill +
+ * filters apply the same as the empty-path build, but the deck rows come
+ * from magic_edh_average_decks_by_theme rather than magic_edh_average_decks_by_tier.
+ */
+async function runThemeBuild(
+  env: Env,
+  commanderRow: { scryfall_id: string; name: string; slug: string; color_identity: string },
+  theme: string,
+  opts: {
+    maxPrice: number | undefined;
+    excludes: Set<string>;
+    mustInclude: string[];
+    budgetMode: "ceiling" | "target";
+    excludeGameChangers: boolean;
+  },
+): Promise<ReferenceResult> {
+  const { maxPrice, excludes, mustInclude, budgetMode, excludeGameChangers } = opts;
+  const commanderId = commanderRow.scryfall_id;
+  const effectiveCap =
+    maxPrice !== undefined
+      ? budgetMode === "target"
+        ? maxPrice * 1.1
+        : maxPrice
+      : undefined;
+
+  const [themeMetaResult, themeDeckResult, gcResult] = await Promise.all([
+    env.DB
+      .prepare(
+        `SELECT theme_slug, theme_value, avg_price, num_decks_avg, deck_size
+         FROM magic_edh_commander_theme_meta
+         WHERE commander_id = ? AND theme_slug = ?`,
+      )
+      .bind(commanderId, theme)
+      .all<ThemeMetaRow>(),
+    env.DB
+      .prepare(
+        `SELECT card_name, quantity, category
+         FROM magic_edh_average_decks_by_theme
+         WHERE commander_id = ? AND theme_slug = ?`,
+      )
+      .bind(commanderId, theme)
+      .all<ThemeDeckRow>(),
+    env.DB
+      .prepare(`SELECT card_name FROM magic_game_changers`)
+      .all<{ card_name: string }>(),
+  ]);
+
+  const themeInfo = themeMetaResult.results?.[0];
+  const themeDeck = themeDeckResult.results ?? [];
+
+  if (!themeInfo || themeDeck.length === 0) {
+    return {
+      type: "text",
+      content: `No theme data for ${commanderRow.name} with theme='${theme}'. EDHREC may not have indexed this theme on this commander, or the theme slug is wrong (try slugs like 'infect', 'tokens', '+1-1-counters'). Use commander_lookup to see this commander's known themes.`,
+    };
+  }
+
+  const allGameChangers = new Set(
+    (gcResult.results ?? []).map((r) => r.card_name.toLowerCase()),
+  );
+  const gameChangerSet = excludeGameChangers ? allGameChangers : new Set<string>();
+
+  const allNames = new Set<string>();
+  for (const c of themeDeck) allNames.add(c.card_name);
+  for (const m of mustInclude) allNames.add(m);
+  const priceLookup = await resolveCardPrices(env, [...allNames]);
+  const priceByLower = priceLookup.prices;
+
+  const placed: DeckEntry[] = [];
+  let runningTotal = 0;
+  const slotsTarget = themeInfo.deck_size;
+  const dropped: { card_name: string; reason: string }[] = [];
+
+  // Pin must_include first.
+  const mustIncludeLowerSet = new Set(mustInclude.map((m) => m.toLowerCase()));
+  for (const m of mustInclude) {
+    const lower = m.toLowerCase();
+    const resolved = priceByLower.get(lower);
+    placed.push({
+      card_name: m,
+      quantity: 1,
+      category: "Pinned",
+      price_usd: resolved?.price ?? null,
+      source: "must_include",
+      game_changer: allGameChangers.has(lower),
+      reserved: resolved?.reserved ?? false,
+    });
+    if (resolved?.price != null) runningTotal += resolved.price;
+  }
+
+  // Walk theme deck.
+  for (const c of themeDeck) {
+    if (placed.length >= slotsTarget) break;
+    const lower = c.card_name.toLowerCase();
+    if (mustIncludeLowerSet.has(lower)) continue;
+    if (excludes.has(lower)) {
+      dropped.push({ card_name: c.card_name, reason: "excludes" });
+      continue;
+    }
+    if (gameChangerSet.has(lower)) {
+      dropped.push({ card_name: c.card_name, reason: "game_changer" });
+      continue;
+    }
+    const resolved = priceByLower.get(lower);
+    const price = resolved?.price ?? null;
+    const cost = (price ?? 0) * c.quantity;
+    if (effectiveCap !== undefined && price != null && runningTotal + cost > effectiveCap) {
+      dropped.push({ card_name: c.card_name, reason: "would_exceed_budget" });
+      continue;
+    }
+    placed.push({
+      card_name: c.card_name,
+      quantity: c.quantity,
+      category: c.category,
+      price_usd: price,
+      source: "tier",
+      game_changer: allGameChangers.has(lower),
+      reserved: resolved?.reserved ?? false,
+    });
+    runningTotal += cost;
+  }
+
+  runningTotal = Math.round(runningTotal * 100) / 100;
+  const slotsRemaining = Math.max(0, slotsTarget - placed.length);
+
+  const warnings: string[] = [];
+  if (maxPrice !== undefined && maxPrice < themeInfo.avg_price) {
+    warnings.push(
+      `Budget $${maxPrice} is below the empirical floor of the '${theme}' theme on ${commanderRow.name} ($${themeInfo.avg_price} avg from ${themeInfo.num_decks_avg} decks). Output reflects aggressive cost-cutting.`,
+    );
+  }
+  if (slotsRemaining > 0) {
+    warnings.push(
+      `${slotsRemaining} of ${slotsTarget} slots unfilled. Consider raising the budget or relaxing exclude_game_changers.`,
+    );
+  }
+  const cardsWithoutPrices = placed
+    .filter((p) => p.price_usd == null)
+    .map((p) => p.card_name);
+  if (cardsWithoutPrices.length > 0) {
+    warnings.push(
+      `${cardsWithoutPrices.length} cards have no known price — total_price excludes them.`,
+    );
+  }
+
+  const categoryBreakdown: Record<string, number> = {};
+  for (const p of placed) {
+    categoryBreakdown[p.category] = (categoryBreakdown[p.category] ?? 0) + 1;
+  }
+
+  return {
+    type: "structured",
+    data: {
+      commander: {
+        name: commanderRow.name,
+        slug: commanderRow.slug,
+        color_identity: safeParseJSON<string[]>(commanderRow.color_identity, []),
+        tier_used: null,
+      },
+      theme_info: {
+        theme_slug: themeInfo.theme_slug,
+        theme_value: themeInfo.theme_value,
+        avg_price: themeInfo.avg_price,
+        num_decks_avg: themeInfo.num_decks_avg,
+        deck_size: themeInfo.deck_size,
+        data_confidence: dataConfidence(themeInfo.num_decks_avg),
+      },
+      budget: {
+        max_price: maxPrice ?? null,
+        mode: budgetMode,
+        total_price: runningTotal,
+        remaining: maxPrice !== undefined ? Math.round((maxPrice - runningTotal) * 100) / 100 : null,
+      },
+      deck: placed,
+      category_breakdown: categoryBreakdown,
+      slots_remaining: slotsRemaining,
+      cards_without_prices: cardsWithoutPrices,
+      warnings,
+      attribution: {
+        source: "EDHREC",
+        priced_at: priceLookup.pricedAt,
+        note: `Mirrors EDHREC's ${themeInfo.theme_value} theme decklist for ${commanderRow.name} ($${themeInfo.avg_price} avg from ${themeInfo.num_decks_avg} decks).`,
       },
     },
   };

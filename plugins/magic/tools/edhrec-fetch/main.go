@@ -423,9 +423,42 @@ func processCommander(ctx context.Context, client *http.Client, target commander
 		_ = cacheWrite(jsonDir, slug+"_tier_"+tier+".json", data)
 	}
 
+	// Fetch the top-N theme endpoints. Themes are sorted DESC by deck-count
+	// in pc.Themes (EDHREC's panels.taglinks ordering); we keep the top
+	// `maxThemesPerCommander` to bound scrape volume per commander.
+	themes := make([]*ThemeBundle, 0, maxThemesPerCommander)
+	for i, th := range pc.Themes {
+		if i >= maxThemesPerCommander {
+			break
+		}
+		if th.Slug == "" {
+			continue
+		}
+		data, err := rateLimitedFetch(themePageURL(slug, th.Slug))
+		if err != nil {
+			var nf errNotFound
+			if !errors.As(err, &nf) {
+				fmt.Printf("  %s: WARN theme %s: %v\n", slug, th.Slug, err)
+			}
+			continue
+		}
+		meta, decks, perr := ParseTierPage(data) // identical JSON shape
+		if perr != nil {
+			fmt.Printf("  %s: WARN theme %s parse: %v\n", slug, th.Slug, perr)
+			continue
+		}
+		themes = append(themes, &ThemeBundle{
+			Slug:  th.Slug,
+			Value: th.Value,
+			Meta:  meta,
+			Decks: decks,
+		})
+		_ = cacheWrite(jsonDir, slug+"_theme_"+th.Slug+".json", data)
+	}
+
 	_ = cacheWrite(jsonDir, slug+"_commander.json", commanderData)
 
-	sql := BuildCommanderSQL(pc, combos, avg, tiers)
+	sql := BuildCommanderSQL(pc, combos, avg, tiers, themes)
 	_ = cacheWrite(sqlDir, slug+".sql", []byte(sql))
 
 	if dryRun {

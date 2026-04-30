@@ -89,6 +89,21 @@ func preconPageURL(slug string) string {
 	return fmt.Sprintf("%s/pages/precon/%s.json", edhrecBaseURL, slug)
 }
 
+// themePageURL points at the theme-specific average-decks endpoint —
+// same JSON shape as the tier endpoints. EDHREC keys these by slug
+// (e.g. "infect", "tokens"), matching the slugs we capture in
+// magic_edh_commanders.themes.
+func themePageURL(commanderSlug, themeSlug string) string {
+	return fmt.Sprintf("%s/pages/average-decks/%s/%s.json", edhrecBaseURL, commanderSlug, themeSlug)
+}
+
+// maxThemesPerCommander caps how many themes we fetch for a given
+// commander. Themes are sorted by deck-count in EDHREC's response, so we
+// keep the top N. Five strikes a balance between capturing distinctive
+// archetypes (infect, +1+1, tokens for Atraxa) and bounding scrape cost
+// (5 × ~2000 commanders = ~10k requests at 5 req/s = ~33 min).
+const maxThemesPerCommander = 5
+
 // contentHash returns a hex SHA-256 of the input bytes.
 func contentHash(data []byte) string {
 	sum := sha256.Sum256(data)

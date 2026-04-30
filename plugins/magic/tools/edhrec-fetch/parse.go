@@ -411,6 +411,16 @@ type TierBundle struct {
 	Decks []AverageDeckEntry
 }
 
+// ThemeBundle pairs the per-commander-per-theme metadata with the average
+// decklist EDHREC publishes for that combination. Reuses the tier parser
+// since the JSON shape is identical.
+type ThemeBundle struct {
+	Slug  string
+	Value string // human-readable display name from the parent commander page
+	Meta  *TierMeta
+	Decks []AverageDeckEntry
+}
+
 // ParseTierPage parses an EDHREC tier endpoint payload. The deck array
 // uses the same "1 Card Name" / "10 Forest" string format as the default
 // average-decks page, so we reuse the same line-parsing path. Empty
