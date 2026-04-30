@@ -85,6 +85,10 @@ func tierPageURL(slug, tier string) string {
 //	budget (~$150-300) < upgraded (~$1k) < optimized (~$2-3k) < cedh ($5k+)
 var tierNames = []string{"budget", "upgraded", "optimized", "cedh"}
 
+func preconPageURL(slug string) string {
+	return fmt.Sprintf("%s/pages/precon/%s.json", edhrecBaseURL, slug)
+}
+
 // contentHash returns a hex SHA-256 of the input bytes.
 func contentHash(data []byte) string {
 	sum := sha256.Sum256(data)

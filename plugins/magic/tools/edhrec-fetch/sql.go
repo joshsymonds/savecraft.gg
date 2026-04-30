@@ -202,6 +202,90 @@ func formatPriceLiteral(p *float64) string {
 	return formatFloat(*p)
 }
 
+// BuildPreconSQL emits wipe-and-replace SQL for the four precon tables.
+// commanderIDByName resolves precon commander references to scryfall_ids;
+// missing entries produce a NULL commander_id row that downstream queries
+// can ignore. nil precons input still emits the wipes for idempotency.
+func BuildPreconSQL(precons []*ParsedPrecon) string {
+	var b strings.Builder
+	q := cfapi.SQLQuote
+
+	b.WriteString("DELETE FROM magic_edh_precons;\n")
+	b.WriteString("DELETE FROM magic_edh_precon_decks;\n")
+	b.WriteString("DELETE FROM magic_edh_precon_upgrades;\n")
+	b.WriteString("DELETE FROM magic_edh_precon_commanders;\n")
+
+	for _, p := range precons {
+		if p == nil || p.Slug == "" {
+			continue
+		}
+		// Header row
+		msrp := "NULL"
+		if p.MSRPUSD > 0 {
+			msrp = formatFloat(p.MSRPUSD)
+		}
+		setCode := "NULL"
+		if p.SetCode != "" {
+			setCode = q(p.SetCode)
+		}
+		year := "NULL"
+		if p.Year > 0 {
+			year = fmt.Sprintf("%d", p.Year)
+		}
+		fmt.Fprintf(&b,
+			"INSERT INTO magic_edh_precons (slug, name, msrp_usd, set_code, release_year) VALUES (%s, %s, %s, %s, %s);\n",
+			q(p.Slug), q(p.Name), msrp, setCode, year,
+		)
+
+		// Decklist
+		if len(p.Deck) > 0 {
+			b.WriteString("INSERT INTO magic_edh_precon_decks (precon_slug, card_name, quantity, category) VALUES ")
+			for i, e := range p.Deck {
+				if i > 0 {
+					b.WriteString(", ")
+				}
+				fmt.Fprintf(&b, "(%s, %s, %d, %s)",
+					q(p.Slug), q(e.CardName), e.Quantity, q(e.Category))
+			}
+			b.WriteString(";\n")
+		}
+
+		// Upgrades
+		if len(p.Upgrades) > 0 {
+			b.WriteString("INSERT INTO magic_edh_precon_upgrades (precon_slug, card_name, action, category, inclusion) VALUES ")
+			for i, u := range p.Upgrades {
+				if i > 0 {
+					b.WriteString(", ")
+				}
+				fmt.Fprintf(&b, "(%s, %s, %s, %s, %d)",
+					q(p.Slug), q(u.CardName), q(u.Action), q(u.Category), u.Inclusion)
+			}
+			b.WriteString(";\n")
+		}
+
+		// Commander references — store the EDHREC name verbatim. Downstream
+		// JOIN to magic_edh_commanders.name will succeed for known commanders
+		// and skip the rest.
+		if len(p.Commanders) > 0 {
+			b.WriteString("INSERT INTO magic_edh_precon_commanders (precon_slug, commander_name, deck_count, is_face) VALUES ")
+			for i, c := range p.Commanders {
+				if i > 0 {
+					b.WriteString(", ")
+				}
+				face := 0
+				if c.IsFace {
+					face = 1
+				}
+				fmt.Fprintf(&b, "(%s, %s, %d, %d)",
+					q(p.Slug), q(c.CommanderName), c.DeckCount, face)
+			}
+			b.WriteString(";\n")
+		}
+	}
+
+	return b.String()
+}
+
 // BuildCardPricesSQL returns SQL that wipes and repopulates the
 // magic_edh_card_prices table with the given prices. priced_at is set by
 // the column default at INSERT time so the snapshot timestamp reflects when

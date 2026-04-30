@@ -151,6 +151,7 @@ func run(accountID, apiToken, databaseID, commanderFilter, cacheDir string,
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	processed, skipped, failed := 0, 0, 0
+	preconSlugSet := map[string]bool{}
 
 	for _, t := range targets {
 		wg.Add(1)
@@ -159,7 +160,7 @@ func run(accountID, apiToken, databaseID, commanderFilter, cacheDir string,
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			status := processCommander(ctx, client, target, existingHashes, tokens,
+			status, slugs := processCommander(ctx, client, target, existingHashes, tokens,
 				accountID, apiToken, databaseID, jsonDir, sqlDir, dryRun)
 
 			mu.Lock()
@@ -171,6 +172,9 @@ func run(accountID, apiToken, databaseID, commanderFilter, cacheDir string,
 				skipped++
 			case statusFailed:
 				failed++
+			}
+			for _, s := range slugs {
+				preconSlugSet[s] = true
 			}
 		}(t)
 	}
@@ -200,6 +204,19 @@ func run(accountID, apiToken, databaseID, commanderFilter, cacheDir string,
 		if err := refreshGameChangers(accountID, apiToken, databaseID); err != nil {
 			fmt.Fprintf(os.Stderr, "WARN: failed to refresh game changers: %v\n", err)
 		}
+	}
+
+	// Precons phase — fetches each unique precon discovered across all
+	// commanders, parses + applies hardcoded MSRP, writes 4 tables. Runs
+	// before card-prices so any cards in cardstoadd lists pick up prices
+	// in the next phase.
+	preconSlugs := make([]string, 0, len(preconSlugSet))
+	for s := range preconSlugSet {
+		preconSlugs = append(preconSlugs, s)
+	}
+	if err := runPreconsPhase(ctx, client, tokens, preconSlugs,
+		accountID, apiToken, databaseID, cacheDir, parallelism, dryRun); err != nil {
+		fmt.Fprintf(os.Stderr, "WARN: precons phase failed: %v\n", err)
 	}
 
 	// Card-price scrape phase — pulls per-card multi-vendor prices from
@@ -294,18 +311,21 @@ const (
 )
 
 // processCommander fetches one commander and imports its data. It prints
-// progress to stdout and returns a status for the summary counters.
+// progress to stdout and returns a status for the summary counters plus
+// the precon slugs discovered on this commander's links panel (used by
+// the post-loop precons phase to enumerate the unique set across all
+// commanders).
 func processCommander(ctx context.Context, client *http.Client, target commanderInput,
 	existingHashes map[string]string, tokens <-chan struct{},
 	accountID, apiToken, databaseID, jsonDir, sqlDir string, dryRun bool,
-) processStatus {
+) (processStatus, []string) {
 	slug := target.Slug
 	if slug == "" && target.Name != "" {
 		slug = commanderSlug(target.Name)
 	}
 	if slug == "" {
 		fmt.Printf("  SKIP: empty slug for %+v\n", target)
-		return statusFailed
+		return statusFailed, nil
 	}
 
 	// Per-commander timeout so a single stuck HTTP call can't block forever
@@ -330,27 +350,32 @@ func processCommander(ctx context.Context, client *http.Client, target commander
 		var nf errNotFound
 		if errors.As(err, &nf) {
 			fmt.Printf("  %s: no data (HTTP %d)\n", slug, nf.StatusCode)
-			return statusSkipped
+			return statusSkipped, nil
 		}
 		fmt.Printf("  %s: FAIL commander: %v\n", slug, err)
-		return statusFailed
+		return statusFailed, nil
 	}
+
+	// Always discover precon slugs even if the rest of processing skips —
+	// the precons phase needs them, and skip-on-unchanged shouldn't drop
+	// the discovery signal.
+	preconSlugs := discoverPreconSlugs(commanderData)
 
 	// Check content hash against pipeline state
 	hash := contentHash(commanderData)
 	if existingHashes[slug] == hash {
 		fmt.Printf("  %s: unchanged, skipping\n", slug)
-		return statusSkipped
+		return statusSkipped, preconSlugs
 	}
 
 	pc, err := ParseCommanderPage(commanderData)
 	if err != nil {
 		fmt.Printf("  %s: FAIL parse: %v\n", slug, err)
-		return statusFailed
+		return statusFailed, preconSlugs
 	}
 	if pc.ScryfallID == "" {
 		fmt.Printf("  %s: no scryfall ID in response, skipping\n", slug)
-		return statusSkipped
+		return statusSkipped, preconSlugs
 	}
 
 	// Fetch combos (non-fatal on not-found)
@@ -405,12 +430,12 @@ func processCommander(ctx context.Context, client *http.Client, target commander
 
 	if dryRun {
 		fmt.Printf("  %s: DRY RUN — SQL cached (%d bytes)\n", slug, len(sql))
-		return statusOK
+		return statusOK, preconSlugs
 	}
 
 	if err := cfapi.ImportD1SQL(accountID, databaseID, apiToken, sql); err != nil {
 		fmt.Printf("  %s: FAIL import: %v\n", slug, err)
-		return statusFailed
+		return statusFailed, preconSlugs
 	}
 
 	// Row count estimate for pipeline state. Includes the new tier rows
@@ -432,7 +457,7 @@ func processCommander(ctx context.Context, client *http.Client, target commander
 
 	fmt.Printf("  %s: OK (%d recs, %d combos, %d avg entries)\n",
 		slug, len(pc.Recs), len(combos), len(avg))
-	return statusOK
+	return statusOK, preconSlugs
 }
 
 // enumerateCommanders queries magic_cards for legal commanders.

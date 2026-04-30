@@ -299,6 +299,69 @@ func TestBuildGameChangersSQL_Empty(t *testing.T) {
 	}
 }
 
+func TestBuildPreconSQL_HappyPath(t *testing.T) {
+	precon := &ParsedPrecon{
+		Slug:    "breed-lethality",
+		Name:    "Breed Lethality",
+		MSRPUSD: 30,
+		SetCode: "C16",
+		Year:    2016,
+		Deck: []AverageDeckEntry{
+			{CardName: "Sol Ring", Quantity: 1, Category: "Artifact"},
+			{CardName: "Forest", Quantity: 7, Category: "Land"},
+		},
+		Upgrades: []PreconUpgrade{
+			{CardName: "Inexorable Tide", Action: "add", Category: "cardstoadd", Inclusion: 93},
+			{CardName: "Frumious Bandersnatch", Action: "cut", Category: "cardstocut"},
+		},
+		Commanders: []PreconCommanderRef{
+			{CommanderName: "Atraxa, Praetors' Voice", DeckCount: 269, IsFace: true},
+		},
+	}
+	sql := BuildPreconSQL([]*ParsedPrecon{precon})
+
+	for _, table := range []string{
+		"DELETE FROM magic_edh_precons",
+		"DELETE FROM magic_edh_precon_decks",
+		"DELETE FROM magic_edh_precon_upgrades",
+		"DELETE FROM magic_edh_precon_commanders",
+	} {
+		if !strings.Contains(sql, table) {
+			t.Errorf("missing DELETE: %s", table)
+		}
+	}
+	for _, ins := range []string{
+		"INSERT INTO magic_edh_precons",
+		"INSERT INTO magic_edh_precon_decks",
+		"INSERT INTO magic_edh_precon_upgrades",
+		"INSERT INTO magic_edh_precon_commanders",
+	} {
+		if !strings.Contains(sql, ins) {
+			t.Errorf("missing INSERT: %s", ins)
+		}
+	}
+	if !strings.Contains(sql, "Praetors'' Voice") {
+		t.Errorf("apostrophe must be SQL-escaped")
+	}
+	if !strings.Contains(sql, "Inexorable Tide") {
+		t.Errorf("upgrade card name missing")
+	}
+	if !strings.Contains(sql, "Sol Ring") {
+		t.Errorf("deck card missing")
+	}
+}
+
+func TestBuildPreconSQL_Empty(t *testing.T) {
+	sql := BuildPreconSQL(nil)
+	// Wipe-only when no precons.
+	if !strings.Contains(sql, "DELETE FROM magic_edh_precons") {
+		t.Errorf("expected DELETE for wipe even with empty input")
+	}
+	if strings.Contains(sql, "INSERT INTO magic_edh_precons") {
+		t.Errorf("should not INSERT with empty input")
+	}
+}
+
 func TestGameChangersDiff(t *testing.T) {
 	wotc := []string{"Mana Crypt", "Demonic Tutor", "Mystical Tutor"}
 	derived := map[string]int{

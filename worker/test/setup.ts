@@ -694,6 +694,36 @@ const statements = [
     source    TEXT NOT NULL DEFAULT 'wotc-official',
     added_at  TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  // EDHREC precon data (migration 0054)
+  `CREATE TABLE IF NOT EXISTS magic_edh_precons (
+    slug         TEXT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    msrp_usd     REAL,
+    set_code     TEXT,
+    release_year INTEGER
+  )`,
+  `CREATE TABLE IF NOT EXISTS magic_edh_precon_decks (
+    precon_slug TEXT NOT NULL,
+    card_name   TEXT NOT NULL,
+    quantity    INTEGER NOT NULL DEFAULT 1,
+    category    TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (precon_slug, card_name)
+  )`,
+  `CREATE TABLE IF NOT EXISTS magic_edh_precon_upgrades (
+    precon_slug TEXT NOT NULL,
+    card_name   TEXT NOT NULL,
+    action      TEXT NOT NULL,
+    category    TEXT,
+    inclusion   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (precon_slug, card_name, action)
+  )`,
+  `CREATE TABLE IF NOT EXISTS magic_edh_precon_commanders (
+    precon_slug    TEXT NOT NULL,
+    commander_name TEXT NOT NULL,
+    deck_count     INTEGER NOT NULL DEFAULT 0,
+    is_face        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (precon_slug, commander_name)
+  )`,
 ];
 
 for (const sql of statements) {

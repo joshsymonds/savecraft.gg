@@ -317,3 +317,116 @@ func TestParseTierPage_EmptyResponse(t *testing.T) {
 		t.Errorf("expected no decks, got %d", len(decks))
 	}
 }
+
+func TestParsePreconPage_BreedLethality(t *testing.T) {
+	data := loadFixture(t, "breed_lethality.json")
+	pp, err := ParsePreconPage("breed-lethality", data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if pp.Slug != "breed-lethality" {
+		t.Errorf("Slug = %q", pp.Slug)
+	}
+	// Decklist should contain both lands and non-lands. The commander itself
+	// is excluded from the deck (it lives on its own).
+	if len(pp.Deck) < 80 {
+		t.Errorf("Deck length = %d, want at least 80 cards", len(pp.Deck))
+	}
+	// Atraxa is the face commander (highest count).
+	if len(pp.Commanders) == 0 {
+		t.Fatal("expected at least one commander reference")
+	}
+	face := pp.Commanders[0]
+	if face.CommanderName != "Atraxa, Praetors' Voice" {
+		t.Errorf("face commander = %q, want Atraxa", face.CommanderName)
+	}
+	if !face.IsFace {
+		t.Errorf("first commander should be marked IsFace")
+	}
+	if face.DeckCount < 100 {
+		t.Errorf("face deck count = %d, want > 100", face.DeckCount)
+	}
+	// Upgrade pool: cardstoadd entries.
+	addCount := 0
+	cutCount := 0
+	for _, u := range pp.Upgrades {
+		switch u.Action {
+		case "add", "land_add":
+			addCount++
+		case "cut", "land_cut":
+			cutCount++
+		}
+	}
+	if addCount < 30 {
+		t.Errorf("expected at least 30 'add' upgrades, got %d", addCount)
+	}
+	if cutCount < 20 {
+		t.Errorf("expected at least 20 'cut' upgrades, got %d", cutCount)
+	}
+	// Specific entry (Inexorable Tide is in the cardstoadd list).
+	foundInexorable := false
+	for _, u := range pp.Upgrades {
+		if u.CardName == "Inexorable Tide" && u.Action == "add" {
+			foundInexorable = true
+			break
+		}
+	}
+	if !foundInexorable {
+		t.Errorf("expected Inexorable Tide in add upgrades")
+	}
+}
+
+func TestParsePreconPage_DeckCardsShape(t *testing.T) {
+	// The peculiar [name, quantity] tuple shape per type. Parser must handle:
+	//   "cards": {"Land": [["Forest", 7], ["Island", 4]], "Creature": [["Atraxa", 1]]}
+	raw := []byte(`{
+		"deck": {
+			"commander": ["Atraxa, Praetors' Voice"],
+			"cards": {
+				"Land":     [["Forest", 7], ["Island", 4]],
+				"Creature": [["Birds of Paradise", 1]]
+			}
+		},
+		"precon_commander_counts": [],
+		"container": {"json_dict": {"cardlists": []}}
+	}`)
+	pp, err := ParsePreconPage("test-slug", raw)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(pp.Deck) != 3 {
+		t.Errorf("Deck length = %d, want 3 (Forest, Island, Birds)", len(pp.Deck))
+	}
+	byName := map[string]AverageDeckEntry{}
+	for _, e := range pp.Deck {
+		byName[e.CardName] = e
+	}
+	if byName["Forest"].Quantity != 7 {
+		t.Errorf("Forest quantity = %d, want 7", byName["Forest"].Quantity)
+	}
+	if byName["Forest"].Category != "Land" {
+		t.Errorf("Forest category = %q, want Land", byName["Forest"].Category)
+	}
+	if byName["Birds of Paradise"].Quantity != 1 {
+		t.Errorf("Birds quantity = %d, want 1", byName["Birds of Paradise"].Quantity)
+	}
+}
+
+func TestDiscoverPreconSlugs(t *testing.T) {
+	data := loadFixture(t, "atraxa_commander.json")
+	slugs := discoverPreconSlugs(data)
+	// Atraxa's commander page links to /precon/breed-lethality.
+	if len(slugs) == 0 {
+		t.Fatal("expected at least one precon slug from Atraxa's links")
+	}
+	found := false
+	for _, s := range slugs {
+		if s == "breed-lethality" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected breed-lethality in slugs, got %v", slugs)
+	}
+}

@@ -524,3 +524,198 @@ func ParseCardPage(name string, data []byte) (*CardPrice, error) {
 	}
 	return cp, nil
 }
+
+// ── Precon page (json.edhrec.com/pages/precon/{slug}.json) ──
+//
+// Decklist shape is unusual: deck.cards is keyed by card type ("Land",
+// "Creature", etc.), each value is an array of [name, quantity] 2-tuples
+// rather than an object array. We unmarshal into [][]json.RawMessage and
+// hand-decode each pair.
+
+type preconPage struct {
+	Deck                  preconDeck         `json:"deck"`
+	PreconCommanderCounts []preconCommanderC `json:"precon_commander_counts"`
+	Container             struct {
+		JSONDict struct {
+			CardLists []commanderCardList `json:"cardlists"`
+		} `json:"json_dict"`
+	} `json:"container"`
+}
+
+type preconDeck struct {
+	Commander []string                       `json:"commander"`
+	Cards     map[string][][]json.RawMessage `json:"cards"`
+}
+
+type preconCommanderC struct {
+	Value string `json:"value"`
+	Count int    `json:"count"`
+	Href  string `json:"href"`
+}
+
+// ParsedPrecon is the structured result for one precon.
+type ParsedPrecon struct {
+	Slug       string
+	Name       string  // pulled from preconMSRP table — empty when unknown
+	MSRPUSD    float64 // from preconMSRP table — 0 when unknown
+	SetCode    string
+	Year       int
+	Deck       []AverageDeckEntry // (CardName, Quantity, Category=cardType)
+	Upgrades   []PreconUpgrade
+	Commanders []PreconCommanderRef
+}
+
+// PreconUpgrade represents one entry in the add/cut pools EDHREC publishes
+// for upgrading a precon. Action ∈ {"add","cut","land_add","land_cut"} maps
+// from the cardlist tag.
+type PreconUpgrade struct {
+	CardName  string
+	Action    string
+	Category  string // EDHREC tag (cardstoadd, landstocut, etc.) preserved for traceability
+	Inclusion int    // raw inclusion count (across upgraders' decks)
+}
+
+// PreconCommanderRef is one of the commanders the precon can be helmed by.
+// IsFace=true marks the dominant choice (highest deck_count).
+type PreconCommanderRef struct {
+	CommanderName string
+	DeckCount     int
+	IsFace        bool
+}
+
+// preconCardlistAction maps EDHREC's cardlist tag to the canonical action
+// label we store. Tags outside this map are ignored (topcommanders is data
+// for PreconCommanderRef, not Upgrades).
+var preconCardlistAction = map[string]string{
+	"cardstoadd": "add",
+	"cardstocut": "cut",
+	"landstoadd": "land_add",
+	"landstocut": "land_cut",
+}
+
+// ParsePreconPage parses an EDHREC precon JSON payload. The slug isn't in
+// the response; callers pass the slug they used to fetch it.
+func ParsePreconPage(slug string, data []byte) (*ParsedPrecon, error) {
+	var p preconPage
+	if err := json.Unmarshal(data, &p); err != nil {
+		return nil, fmt.Errorf("decode precon page: %w", err)
+	}
+	pp := &ParsedPrecon{Slug: slug}
+
+	// Decklist: walk cards-by-type, decode each [name, quantity] tuple.
+	commanderSet := map[string]bool{}
+	for _, c := range p.Deck.Commander {
+		commanderSet[c] = true
+	}
+	for cardType, pairs := range p.Deck.Cards {
+		for _, pair := range pairs {
+			if len(pair) != 2 {
+				continue
+			}
+			var name string
+			var qty int
+			if err := json.Unmarshal(pair[0], &name); err != nil {
+				continue
+			}
+			if err := json.Unmarshal(pair[1], &qty); err != nil {
+				continue
+			}
+			if name == "" {
+				continue
+			}
+			// Skip the commander itself — it's tracked separately under
+			// Commanders, including it in Deck would inflate deck_count and
+			// confuse downstream "is this card in the precon?" checks.
+			if commanderSet[name] {
+				continue
+			}
+			pp.Deck = append(pp.Deck, AverageDeckEntry{
+				CardName: name,
+				Quantity: qty,
+				Category: cardType,
+			})
+		}
+	}
+
+	// Upgrades: from cardlists with tags in preconCardlistAction.
+	for _, cl := range p.Container.JSONDict.CardLists {
+		action, ok := preconCardlistAction[cl.Tag]
+		if !ok {
+			continue
+		}
+		for _, cv := range cl.CardViews {
+			if cv.Name == "" {
+				continue
+			}
+			pp.Upgrades = append(pp.Upgrades, PreconUpgrade{
+				CardName:  cv.Name,
+				Action:    action,
+				Category:  cl.Tag,
+				Inclusion: cv.Inclusion,
+			})
+		}
+	}
+
+	// Commanders: precon_commander_counts in input order — EDHREC sorts by
+	// count DESC, so the first entry is the face commander.
+	for i, c := range p.PreconCommanderCounts {
+		if c.Value == "" {
+			continue
+		}
+		pp.Commanders = append(pp.Commanders, PreconCommanderRef{
+			CommanderName: c.Value,
+			DeckCount:     c.Count,
+			IsFace:        i == 0,
+		})
+	}
+
+	return pp, nil
+}
+
+// ── Precon discovery ──
+
+type linksPanel struct {
+	Items []struct {
+		Href  string `json:"href"`
+		Value string `json:"value"`
+	} `json:"items"`
+}
+
+type panelsWithLinks struct {
+	Panels struct {
+		Links []linksPanel `json:"links"`
+	} `json:"panels"`
+}
+
+// discoverPreconSlugs walks a commander page's panels.links for hrefs of
+// the form /precon/{slug} and returns the unique slug set. Callers across
+// many commanders aggregate these for the runPreconsPhase.
+func discoverPreconSlugs(commanderPageJSON []byte) []string {
+	var p panelsWithLinks
+	if err := json.Unmarshal(commanderPageJSON, &p); err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, group := range p.Panels.Links {
+		for _, item := range group.Items {
+			const prefix = "/precon/"
+			if !strings.HasPrefix(item.Href, prefix) {
+				continue
+			}
+			slug := strings.TrimPrefix(item.Href, prefix)
+			// EDHREC includes alternate-commander-keyed paths:
+			//   /precon/breed-lethality/ishai-...-tymna...
+			// The first segment is the precon slug itself; drop the rest.
+			if i := strings.Index(slug, "/"); i >= 0 {
+				slug = slug[:i]
+			}
+			if slug == "" || seen[slug] {
+				continue
+			}
+			seen[slug] = true
+			out = append(out, slug)
+		}
+	}
+	return out
+}
