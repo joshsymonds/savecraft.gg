@@ -409,4 +409,43 @@ describe("commander_deck_review native module", () => {
     const data = result.data as { tier_info: unknown };
     expect(data.tier_info).toBeNull();
   });
+
+  it("flags Game Changers in user deck when tier='budget' is set", async () => {
+    await seedAtraxa();
+    // Seed game changers and tier metadata.
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO magic_game_changers (card_name) VALUES (?)`).bind("Cyclonic Rift"),
+      env.DB.prepare(`INSERT INTO magic_game_changers (card_name) VALUES (?)`).bind("Demonic Tutor"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "budget", 174, 4072, 84),
+    ]);
+
+    const decklist = ["Sol Ring", "Cyclonic Rift", "Demonic Tutor", "Cultivate"];
+    const result = await commanderDeckReviewModule.execute(
+      { commander: "Atraxa", decklist, tier: "budget" },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as { tier_mismatches: { game_changers: string[] } };
+    expect(data.tier_mismatches).toBeDefined();
+    expect(data.tier_mismatches.game_changers).toContain("Cyclonic Rift");
+    expect(data.tier_mismatches.game_changers).toContain("Demonic Tutor");
+    expect(data.tier_mismatches.game_changers).not.toContain("Sol Ring");
+  });
+
+  it("does not flag Game Changers when tier is not set", async () => {
+    await seedAtraxa();
+    await env.DB.prepare(`INSERT INTO magic_game_changers (card_name) VALUES (?)`)
+      .bind("Cyclonic Rift")
+      .run();
+
+    const result = await commanderDeckReviewModule.execute(
+      { commander: "Atraxa", decklist: ["Sol Ring", "Cyclonic Rift"] },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as { tier_mismatches?: unknown };
+    expect(data.tier_mismatches).toBeUndefined();
+  });
 });

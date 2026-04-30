@@ -39,14 +39,50 @@ interface PriceLookupRow {
   price_usd: number | null;
 }
 
+interface ScryfallSidecarRow {
+  card_name: string;
+  reserved: number;
+}
+
+interface PricedAtRow {
+  priced_at: string | null;
+}
+
+interface ResolvedPrice {
+  price: number | null;
+  reserved: boolean;
+}
+
 interface DeckEntry {
   card_name: string;
   quantity: number;
   category: string;
   price_usd: number | null;
-  source: "tier" | "must_include" | "precon" | "upgrade";
+  source: "tier" | "must_include" | "precon" | "upgrade" | "basic_substitution";
   game_changer: boolean;
+  reserved: boolean;
 }
+
+/**
+ * Derive a data_confidence label from the tier's num_decks_avg. EDHREC's
+ * tier endpoints can have wildly different sample sizes — e.g. Atraxa
+ * budget has 4072 decks, but cedh has 147; for an off-meta commander a
+ * tier might have <50 decks. Surfacing this lets the LLM caveat its
+ * recommendation appropriately.
+ */
+function dataConfidence(numDecksAvg: number): "low" | "medium" | "high" {
+  if (numDecksAvg >= 1000) return "high";
+  if (numDecksAvg >= 100) return "medium";
+  return "low";
+}
+
+const COLOR_TO_BASIC: Record<string, string> = {
+  W: "Plains",
+  U: "Island",
+  B: "Swamp",
+  R: "Mountain",
+  G: "Forest",
+};
 
 interface PreconRow {
   slug: string;
@@ -257,10 +293,17 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         dropped.push({ card_name: c.card_name, reason: "game_changer" });
         continue;
       }
-      const price = priceByLower.get(lower);
+      const resolved = priceByLower.get(lower);
       // Single-card sanity: if max_price is set and the card costs >half the
-      // budget on its own, skip — it'd starve the rest of the deck.
-      if (maxPrice !== undefined && price !== undefined && price > maxPrice / 2) {
+      // budget on its own, skip — it'd starve the rest of the deck. Lands
+      // get a free pass here since the mana base re-allocation step below
+      // handles them differently (swap for basics rather than skip).
+      if (
+        maxPrice !== undefined &&
+        resolved?.price != null &&
+        resolved.price > maxPrice / 2 &&
+        c.category !== "Land"
+      ) {
         dropped.push({ card_name: c.card_name, reason: "single_card_too_expensive" });
         continue;
       }
@@ -278,26 +321,28 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     const mustIncludeLowerSet = new Set(mustInclude.map((m) => m.toLowerCase()));
     for (const m of mustInclude) {
       const lower = m.toLowerCase();
-      const price = priceByLower.get(lower);
+      const resolved = priceByLower.get(lower);
       placed.push({
         card_name: m,
         quantity: 1,
         category: "Pinned",
-        price_usd: price ?? null,
+        price_usd: resolved?.price ?? null,
         source: "must_include",
         game_changer: allGameChangers.has(lower),
+        reserved: resolved?.reserved ?? false,
       });
-      if (price !== undefined) runningTotal += price * 1;
+      if (resolved?.price != null) runningTotal += resolved.price;
     }
 
     for (const c of filtered) {
       if (placed.length >= slotsTarget) break;
       const lower = c.card_name.toLowerCase();
       if (mustIncludeLowerSet.has(lower)) continue; // already pinned
-      const price = priceByLower.get(lower);
+      const resolved = priceByLower.get(lower);
+      const price = resolved?.price ?? null;
       const cost = (price ?? 0) * c.quantity;
 
-      if (maxPrice !== undefined && price !== undefined) {
+      if (maxPrice !== undefined && price != null) {
         if (runningTotal + cost > maxPrice) {
           dropped.push({ card_name: c.card_name, reason: "would_exceed_budget" });
           continue;
@@ -307,11 +352,26 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         card_name: c.card_name,
         quantity: c.quantity,
         category: c.category,
-        price_usd: price ?? null,
+        price_usd: price,
         source: "tier",
         game_changer: allGameChangers.has(lower),
+        reserved: resolved?.reserved ?? false,
       });
       runningTotal += cost;
+    }
+
+    // Mana base re-allocation: cap land spend at 40% of max_price by
+    // swapping the most-expensive lands for basics in the commander's
+    // color identity. Heuristic — works well for budget tier where the
+    // tier average's land list still includes shocks/duals that bust the
+    // cap on small budgets.
+    const colorIdentity = JSON.parse(commanderRow.color_identity || "[]") as string[];
+    const manaBaseSubs: { out: string; in: string; saved: number }[] = [];
+    if (maxPrice !== undefined && colorIdentity.length > 0) {
+      const landCap = maxPrice * 0.4;
+      const reallocResult = reallocateManaBase(placed, colorIdentity, landCap);
+      manaBaseSubs.push(...reallocResult.substitutions);
+      runningTotal -= reallocResult.savings;
     }
 
     runningTotal = Math.round(runningTotal * 100) / 100;
@@ -350,13 +410,27 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       categoryBreakdown[p.category] = (categoryBreakdown[p.category] ?? 0) + 1;
     }
 
+    runningTotal = Math.round(runningTotal * 100) / 100;
+
+    if (manaBaseSubs.length > 0) {
+      warnings.push(
+        `Mana base re-allocated to fit budget: ${manaBaseSubs.length} expensive lands swapped for ${manaBaseSubs[0]!.in}.`,
+      );
+    }
+
+    // Surface the most-recent EDHREC priced_at across the deck so the LLM
+    // can caveat staleness. Only the EDHREC side has a priced_at column;
+    // Scryfall-only prices contribute nothing to this timestamp.
+    const placedNames = placed.map((p) => p.card_name);
+    const pricedAt = await maxPricedAt(env, placedNames);
+
     return {
       type: "structured",
       data: {
         commander: {
           name: commanderRow.name,
           slug: commanderRow.slug,
-          color_identity: JSON.parse(commanderRow.color_identity || "[]") as string[],
+          color_identity: colorIdentity,
           tier_used: tier,
         },
         tier_info: {
@@ -364,6 +438,7 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
           avg_price: tierInfo.avg_price,
           num_decks_avg: tierInfo.num_decks_avg,
           deck_size: tierInfo.deck_size,
+          data_confidence: dataConfidence(tierInfo.num_decks_avg),
         },
         budget: {
           max_price: maxPrice ?? null,
@@ -374,9 +449,11 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         category_breakdown: categoryBreakdown,
         slots_remaining: slotsRemaining,
         cards_without_prices: cardsWithoutPrices,
+        mana_base_substitutions: manaBaseSubs,
         warnings,
         attribution: {
           source: "EDHREC",
+          priced_at: pricedAt,
           note: `Mirrors EDHREC's '${tier}'-tier average decklist for ${commanderRow.name}. Prices from EDHREC TCGPlayer mid (Scryfall fallback).`,
         },
       },
@@ -511,6 +588,7 @@ async function runPreconBuild(
   for (const c of preconDeck) {
     const lower = c.card_name.toLowerCase();
     if (excludes.has(lower)) continue; // user opted out
+    const resolved = priceByLower.get(lower);
     placed.push({
       card_name: c.card_name,
       quantity: c.quantity,
@@ -518,6 +596,7 @@ async function runPreconBuild(
       price_usd: null,
       source: "precon",
       game_changer: allGameChangers.has(lower),
+      reserved: resolved?.reserved ?? false,
     });
     placedNames.add(lower);
   }
@@ -528,17 +607,18 @@ async function runPreconBuild(
   for (const m of mustInclude) {
     const lower = m.toLowerCase();
     if (placedNames.has(lower)) continue; // already in precon
-    const price = priceByLower.get(lower);
+    const resolved = priceByLower.get(lower);
     placed.push({
       card_name: m,
       quantity: 1,
       category: "Pinned",
-      price_usd: price ?? null,
+      price_usd: resolved?.price ?? null,
       source: "must_include",
       game_changer: allGameChangers.has(lower),
+      reserved: resolved?.reserved ?? false,
     });
     placedNames.add(lower);
-    if (price !== undefined) runningTotal += price;
+    if (resolved?.price != null) runningTotal += resolved.price;
   }
 
   // Walk upgrade pool in inclusion-DESC order. Add while budget allows.
@@ -546,8 +626,9 @@ async function runPreconBuild(
     const lower = u.card_name.toLowerCase();
     if (placedNames.has(lower)) continue; // dedupe vs precon + must_include
     if (excludes.has(lower)) continue;
-    const price = priceByLower.get(lower);
-    if (price === undefined) continue; // can't certify under budget
+    const resolved = priceByLower.get(lower);
+    const price = resolved?.price ?? null;
+    if (price == null) continue; // can't certify under budget
     if (maxPrice !== undefined && runningTotal + price > maxPrice) continue;
     placed.push({
       card_name: u.card_name,
@@ -556,6 +637,7 @@ async function runPreconBuild(
       price_usd: price,
       source: "upgrade",
       game_changer: allGameChangers.has(lower),
+      reserved: resolved?.reserved ?? false,
     });
     placedNames.add(lower);
     runningTotal += price;
@@ -614,16 +696,19 @@ async function runPreconBuild(
 }
 
 /**
- * Batch-fetch prices for the given card names from EDHREC TCGPlayer first
- * (M1.2 data), Scryfall default-printing as fallback (M1.1 data). Returns
- * a Map keyed by lowercase card name → resolved price. Cards without a
- * price source are absent from the map.
+ * Batch-fetch prices + Reserved List flags for the given card names.
+ * Prices: EDHREC TCGPlayer first (M1.2), Scryfall default-printing fallback
+ * (M1.1). Reserved flag: only Scryfall has it.
+ *
+ * Returns a Map keyed by lowercase card name → {price, reserved}. Cards
+ * absent from both sources are still in the map with {price: null,
+ * reserved: false} so callers can distinguish "looked up" from "didn't ask".
  */
 async function batchPriceLookup(
   env: Env,
   names: string[],
-): Promise<Map<string, number>> {
-  const result = new Map<string, number>();
+): Promise<Map<string, ResolvedPrice>> {
+  const result = new Map<string, ResolvedPrice>();
   if (names.length === 0) return result;
 
   const placeholders = names.map(() => "?").join(",");
@@ -638,20 +723,147 @@ async function batchPriceLookup(
       .all<PriceLookupRow>(),
     env.DB
       .prepare(
-        `SELECT name AS card_name, price_usd
+        `SELECT name AS card_name, price_usd, reserved
          FROM magic_cards
          WHERE is_default = 1 AND name IN (${placeholders})`,
       )
       .bind(...names)
-      .all<PriceLookupRow>(),
+      .all<PriceLookupRow & ScryfallSidecarRow>(),
   ]);
 
-  // Scryfall first; EDHREC overrides because that's what's shown on EDHREC.
+  // Scryfall first — establishes baseline price + reserved flag.
   for (const row of scryRes.results ?? []) {
-    if (row.price_usd != null) result.set(row.card_name.toLowerCase(), row.price_usd);
+    result.set(row.card_name.toLowerCase(), {
+      price: row.price_usd,
+      reserved: row.reserved === 1,
+    });
   }
+  // EDHREC TCGPlayer overrides the price (matches what users see on EDHREC).
+  // Reserved flag stays from Scryfall since EDHREC doesn't carry it.
   for (const row of edhRes.results ?? []) {
-    if (row.price_usd != null) result.set(row.card_name.toLowerCase(), row.price_usd);
+    if (row.price_usd != null) {
+      const lower = row.card_name.toLowerCase();
+      const existing = result.get(lower);
+      result.set(lower, {
+        price: row.price_usd,
+        reserved: existing?.reserved ?? false,
+      });
+    }
   }
   return result;
+}
+
+/**
+ * reallocateManaBase enforces a soft cap on land spend. When the placed
+ * deck's land subtotal exceeds `landCap`, swap the most-expensive lands
+ * for basics in the commander's color identity until the cap is met.
+ *
+ * Two-stage strategy: prefer to bump the quantity on an existing basic
+ * (so the deck contains "12 Forest" instead of "11 Forest + 1 Plains" if
+ * G is in identity but the existing basic is Plains). When no basic of an
+ * appropriate color is in the deck, append a new basic entry.
+ *
+ * Mutates `placed` in-place. Returns the substitution log + total savings
+ * so the caller can subtract from runningTotal.
+ */
+function reallocateManaBase(
+  placed: DeckEntry[],
+  colorIdentity: string[],
+  landCap: number,
+): { substitutions: { out: string; in: string; saved: number }[]; savings: number } {
+  // Compute current land subtotal (only counts lands with known prices).
+  const subtotal = placed
+    .filter((p) => p.category === "Land" && p.price_usd != null)
+    .reduce((s, p) => s + (p.price_usd ?? 0) * p.quantity, 0);
+  if (subtotal <= landCap) return { substitutions: [], savings: 0 };
+
+  // Sort lands by price DESC; we'll swap the costliest ones first.
+  const lands = placed
+    .map((p, i) => ({ entry: p, index: i }))
+    .filter(({ entry }) => entry.category === "Land")
+    .sort((a, b) => (b.entry.price_usd ?? 0) - (a.entry.price_usd ?? 0));
+
+  const subs: { out: string; in: string; saved: number }[] = [];
+  let savings = 0;
+  let remaining = subtotal;
+
+  // Pick the basic to substitute. Prefer one in commander's color identity;
+  // fall back to a colorless wasteland if no colors (shouldn't happen for
+  // EDH commanders but defensive).
+  const preferredBasic =
+    colorIdentity.find((c) => COLOR_TO_BASIC[c]) !== undefined
+      ? COLOR_TO_BASIC[colorIdentity.find((c) => COLOR_TO_BASIC[c])!]!
+      : "Wastes";
+
+  for (const { entry, index } of lands) {
+    if (remaining <= landCap) break;
+    if (entry.price_usd == null) continue;
+    // Skip cards that ARE basics (we'd be swapping a basic for itself).
+    const lower = entry.card_name.toLowerCase();
+    if (
+      lower === "forest" ||
+      lower === "island" ||
+      lower === "plains" ||
+      lower === "mountain" ||
+      lower === "swamp" ||
+      lower === "wastes"
+    )
+      continue;
+
+    const saved = entry.price_usd * entry.quantity;
+    subs.push({ out: entry.card_name, in: preferredBasic, saved });
+    savings += saved;
+    remaining -= saved;
+
+    // Replace the entry: bump existing basic if present, else swap in place.
+    const existingBasicIdx = placed.findIndex(
+      (p) => p.card_name === preferredBasic && p.category === "Land",
+    );
+    if (existingBasicIdx >= 0) {
+      placed[existingBasicIdx]!.quantity += entry.quantity;
+      placed[index] = {
+        ...entry,
+        // Mark it for removal — we splice below
+        card_name: "__REMOVED__",
+      };
+    } else {
+      placed[index] = {
+        card_name: preferredBasic,
+        quantity: entry.quantity,
+        category: "Land",
+        price_usd: 0,
+        source: "basic_substitution",
+        game_changer: false,
+        reserved: false,
+      };
+    }
+  }
+
+  // Remove "__REMOVED__" placeholder entries created during dedupe.
+  for (let i = placed.length - 1; i >= 0; i--) {
+    if (placed[i]!.card_name === "__REMOVED__") {
+      placed.splice(i, 1);
+    }
+  }
+
+  return { substitutions: subs, savings: Math.round(savings * 100) / 100 };
+}
+
+/**
+ * Most-recent `priced_at` from the EDHREC card-prices table for the given
+ * names. Returns null when no rows match. Surfaced in the deckbuild
+ * attribution block so the LLM can caveat staleness.
+ */
+async function maxPricedAt(env: Env, names: string[]): Promise<string | null> {
+  if (names.length === 0) return null;
+  const placeholders = names.map(() => "?").join(",");
+  const result = await env.DB
+    .prepare(
+      `SELECT MAX(priced_at) AS priced_at
+       FROM magic_edh_card_prices
+       WHERE card_name IN (${placeholders})`,
+    )
+    .bind(...names)
+    .all<PricedAtRow>();
+  return result.results?.[0]?.priced_at ?? null;
 }

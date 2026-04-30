@@ -119,7 +119,23 @@ async function runReview(
         .all<TierInfoRow>()
     : Promise.resolve({ results: [] });
 
-  const [topCardsResult, averageResult, tierInfoResult] = await Promise.all([
+  // Game changers in user's deck — only relevant when tier is set, but
+  // batched in the same parallel block to keep latency low.
+  const gameChangersQuery: Promise<{ results?: { card_name: string }[] }> = tier
+    ? (() => {
+        const placeholders = [...deckByLower.values()].map(() => "?").join(",");
+        if (placeholders === "") return Promise.resolve({ results: [] });
+        return env.DB
+          .prepare(
+            `SELECT card_name FROM magic_game_changers
+             WHERE card_name IN (${placeholders})`,
+          )
+          .bind(...deckByLower.values())
+          .all<{ card_name: string }>();
+      })()
+    : Promise.resolve({ results: [] });
+
+  const [topCardsResult, averageResult, tierInfoResult, gameChangersResult] = await Promise.all([
     env.DB.prepare(
       `SELECT card_name, inclusion
          FROM magic_edh_recommendations
@@ -131,6 +147,7 @@ async function runReview(
       .all<RecRow>(),
     averageDecksQuery,
     tierInfoQuery,
+    gameChangersQuery,
   ]);
 
   const tierInfo = tier ? (tierInfoResult.results?.[0] ?? null) : undefined;
@@ -243,6 +260,19 @@ async function runReview(
   // explain rather than treat as error.
   if (tier !== undefined) {
     data.tier_info = tierInfo ?? null;
+
+    // tier_mismatches: cards in the user's deck that violate the chosen
+    // tier's expected constraints. For now, just game changers — at the
+    // budget tier these push the deck toward bracket 3+. Future additions
+    // could include "fast mana not in budget tier" etc.
+    const gcInDeck = (gameChangersResult.results ?? [])
+      .map((r) => r.card_name)
+      .filter((name) => deckByLower.has(name.toLowerCase()));
+    if (gcInDeck.length > 0 || tier === "budget") {
+      data.tier_mismatches = {
+        game_changers: gcInDeck,
+      };
+    }
   }
 
   if (includeAverage) {
