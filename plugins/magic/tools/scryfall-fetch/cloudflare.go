@@ -15,12 +15,36 @@ func cardEmbeddingText(c ScryfallCard) string {
 	return c.Name + " " + c.TypeLine + " " + c.OracleText
 }
 
+// buildOracleMinPriceMap returns oracle_id → minimum non-NULL paper price
+// across all printings. Used to backfill the default printing's price when
+// it happens to be a digital-only / Judge promo / foreign-only release with
+// no paper price (e.g. Tropical Island's J21 Judge promo). Singles buyers
+// will pay the cheapest legal printing's price, so MIN is the right metric.
+func buildOracleMinPriceMap(cards []ScryfallCard) map[string]float64 {
+	m := make(map[string]float64)
+	for _, c := range cards {
+		p := parsePrice(c.Prices.USD)
+		if p == nil {
+			continue
+		}
+		if existing, ok := m[c.OracleID]; !ok || *p < existing {
+			m[c.OracleID] = *p
+		}
+	}
+	return m
+}
+
 // buildCardSQL generates SQL that wipes and repopulates magic_cards and
 // magic_cards_fts with all cards from Scryfall. scryfall-fetch owns the
 // full table lifecycle — no other tool writes to these tables.
 func buildCardSQL(cards []ScryfallCard, aliases []CardAlias) string {
 	var b strings.Builder
 	q := cfapi.SQLQuote
+
+	// Pre-compute fallback prices: when the default printing has no paper
+	// price (digital-only, Judge promo, etc.), default rows fall back to the
+	// minimum priced sibling printing.
+	oracleMinPrice := buildOracleMinPriceMap(cards)
 
 	// Wipe all tables before repopulating.
 	b.WriteString("DELETE FROM magic_cards_fts;\n")
@@ -54,9 +78,15 @@ func buildCardSQL(cards []ScryfallCard, aliases []CardAlias) string {
 		}
 
 		// price_usd is nullable — Scryfall returns null/empty for unpriced cards.
+		// For default rows with no own price, fall back to the cheapest sibling
+		// printing's price (Tropical-Island-style multi-printing case).
 		priceUSD := "NULL"
 		if p := parsePrice(c.Prices.USD); p != nil {
 			priceUSD = strconv.FormatFloat(*p, 'f', -1, 64)
+		} else if c.IsDefault {
+			if min, ok := oracleMinPrice[c.OracleID]; ok {
+				priceUSD = strconv.FormatFloat(min, 'f', -1, 64)
+			}
 		}
 
 		reserved := 0

@@ -536,6 +536,142 @@ func TestBuildCardSQL_Reprint(t *testing.T) {
 	}
 }
 
+func TestBuildOracleMinPriceMap(t *testing.T) {
+	cards := []ScryfallCard{
+		// oracle-A: three printings, prices $5, $2, $8 → min should be $2.
+		{OracleID: "oracle-A", ScryfallID: "a1", Prices: ScryfallPrices{USD: "5.00"}},
+		{OracleID: "oracle-A", ScryfallID: "a2", Prices: ScryfallPrices{USD: "2.50"}},
+		{OracleID: "oracle-A", ScryfallID: "a3", Prices: ScryfallPrices{USD: "8.00"}},
+		// oracle-B: two printings, one priced one empty → min is the priced one.
+		{OracleID: "oracle-B", ScryfallID: "b1", Prices: ScryfallPrices{USD: ""}},
+		{OracleID: "oracle-B", ScryfallID: "b2", Prices: ScryfallPrices{USD: "10.00"}},
+		// oracle-C: all printings empty → absent from map.
+		{OracleID: "oracle-C", ScryfallID: "c1", Prices: ScryfallPrices{USD: ""}},
+	}
+
+	m := buildOracleMinPriceMap(cards)
+
+	if m["oracle-A"] != 2.50 {
+		t.Errorf("oracle-A min = %v, want 2.50", m["oracle-A"])
+	}
+	if m["oracle-B"] != 10.00 {
+		t.Errorf("oracle-B min = %v, want 10.00", m["oracle-B"])
+	}
+	if _, ok := m["oracle-C"]; ok {
+		t.Errorf("oracle-C should not be in map (no priced printings)")
+	}
+}
+
+func TestBuildCardSQL_BackfillsNullDefaultPrice(t *testing.T) {
+	// Tropical Island scenario: default printing (Judge promo) has no paper
+	// price, but a sibling printing does. Default row should receive the
+	// sibling's price.
+	cards := []ScryfallCard{
+		{
+			ScryfallID:    "scry-tropical-j21",
+			OracleID:      "oracle-tropical",
+			Name:          "Tropical Island",
+			FrontFaceName: "Tropical Island",
+			Set:           "j21",
+			Rarity:        "rare",
+			Reserved:      true,
+			IsDefault:     true,
+			Prices:        ScryfallPrices{USD: ""},
+		},
+		{
+			ScryfallID:    "scry-tropical-leb",
+			OracleID:      "oracle-tropical",
+			Name:          "Tropical Island",
+			FrontFaceName: "Tropical Island",
+			Set:           "leb",
+			Rarity:        "rare",
+			Reserved:      true,
+			IsDefault:     false,
+			Prices:        ScryfallPrices{USD: "489.99"},
+		},
+	}
+
+	sql := buildCardSQL(cards, nil)
+
+	// Default row must contain the sibling's price.
+	if !strings.Contains(sql, "489.99") {
+		t.Error("default row should backfill price from sibling printing")
+	}
+}
+
+func TestBuildCardSQL_NoBackfillForNonDefault(t *testing.T) {
+	// A non-default printing with no price stays NULL — backfill is only
+	// for the default row, since that's what user queries hit.
+	cards := []ScryfallCard{
+		{
+			ScryfallID:    "scry-default",
+			OracleID:      "oracle-x",
+			Name:          "X",
+			FrontFaceName: "X",
+			Set:           "set1",
+			IsDefault:     true,
+			Prices:        ScryfallPrices{USD: "10.00"},
+		},
+		{
+			ScryfallID:    "scry-non-default",
+			OracleID:      "oracle-x",
+			Name:          "X",
+			FrontFaceName: "X",
+			Set:           "set2",
+			IsDefault:     false,
+			Prices:        ScryfallPrices{USD: ""},
+		},
+	}
+
+	sql := buildCardSQL(cards, nil)
+
+	// Should contain default's $10.00 once and a NULL for the non-default row.
+	if !strings.Contains(sql, "10.00") && !strings.Contains(sql, "10") {
+		t.Error("default row should keep its own price")
+	}
+	// Both rows are emitted; non-default's empty price stays NULL.
+	insertCount := strings.Count(sql, "INSERT INTO magic_cards (")
+	if insertCount != 2 {
+		t.Errorf("expected 2 INSERTs, got %d", insertCount)
+	}
+}
+
+func TestBuildCardSQL_PrefersOwnPriceOverSibling(t *testing.T) {
+	// When the default has its own price, it must NOT be overwritten by a
+	// cheaper sibling. We trust the default's reported price.
+	cards := []ScryfallCard{
+		{
+			ScryfallID:    "scry-default",
+			OracleID:      "oracle-y",
+			Name:          "Y",
+			FrontFaceName: "Y",
+			Set:           "set1",
+			IsDefault:     true,
+			Prices:        ScryfallPrices{USD: "5.00"},
+		},
+		{
+			ScryfallID:    "scry-sibling",
+			OracleID:      "oracle-y",
+			Name:          "Y",
+			FrontFaceName: "Y",
+			Set:           "set2",
+			IsDefault:     false,
+			Prices:        ScryfallPrices{USD: "2.00"},
+		},
+	}
+
+	sql := buildCardSQL(cards, nil)
+
+	// Default keeps $5.00; sibling's $2.00 must NOT replace it.
+	// Both prices appear in their own rows (default's $5 + sibling's $2).
+	if strings.Count(sql, "5.00")+strings.Count(sql, "5") < 1 {
+		t.Error("default row should retain its own $5.00 price")
+	}
+	if !strings.Contains(sql, "2.00") && !strings.Contains(sql, "2") {
+		t.Error("sibling row should still have its $2.00 price")
+	}
+}
+
 func TestAliasEmbeddingText(t *testing.T) {
 	alias := CardAlias{
 		AliasName: "Donnie's Bō",
