@@ -12,8 +12,18 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
+
+// importMu serializes D1 bulk imports within a single process. Cloudflare's
+// bulk-import API allows only one in-flight import per database, but its
+// bookmark consistency under contention is fragile — concurrent ingest+poll
+// loops periodically race and one of them gets "Not currently import at
+// bookmark X" errors. Letting each goroutine wait its turn at this mutex
+// eliminates the race entirely. Fetch concurrency (HTTP) still parallelizes;
+// only the import call is serialized.
+var importMu sync.Mutex
 
 // QueryD1 executes a read-only SQL query against a D1 database and returns
 // the result rows as a slice of maps (column name → value).
@@ -72,12 +82,17 @@ func JSONArray(s []string) string {
 }
 
 // ImportD1SQL uses the D1 bulk import API to execute a large SQL string.
-// If another import is active on the same database, waits with jittered
-// exponential backoff (up to ~5 minutes total) before retrying.
-// If D1 loses track of an import (stale bookmark), the entire import is
-// restarted from scratch (up to 3 attempts).
+// Acquires importMu so concurrent callers within the process serialize their
+// imports — see comment on importMu. If another import is active on the
+// same database (e.g. another process), the inner initImport retry waits
+// with jittered exponential backoff. If D1 loses track of an import
+// (stale bookmark), the entire import is restarted from scratch (up to 6
+// attempts with jittered linear backoff).
 func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
-	const maxAttempts = 3
+	importMu.Lock()
+	defer importMu.Unlock()
+
+	const maxAttempts = 6
 
 	for attempt := range maxAttempts {
 		err := importD1SQLOnce(accountID, databaseID, apiToken, sql)
@@ -87,7 +102,11 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 		if !isBookmarkError(err) || attempt == maxAttempts-1 {
 			return err
 		}
-		wait := time.Duration(5*(attempt+1)) * time.Second
+		// Linear backoff with ±50% jitter so retries from concurrent failures
+		// (cross-process) don't all collide on the same wakeup tick.
+		base := time.Duration(5*(attempt+1)) * time.Second
+		jitter := time.Duration(rand.Int64N(int64(base / 2)))
+		wait := base + jitter
 		fmt.Fprintf(os.Stderr, "  D1 stale bookmark, restarting import in %v (attempt %d/%d)\n", wait, attempt+1, maxAttempts)
 		time.Sleep(wait)
 	}
