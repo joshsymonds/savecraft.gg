@@ -112,9 +112,13 @@ in {
         Type = "oneshot";
         User = cfg.user;
         ExecStart = "${pkgs.bash}/bin/bash ${refreshScript}";
-        # 4h budget: scryfall + rules + 17lands ≈ 30min, edhrec ≈ 100min
-        # (commanders + ~25k card pages at 5 req/s), run twice for staging+prod.
-        TimeoutStartSec = "4h";
+        # 6h budget. Cold cache cost per env: scryfall+rules+17lands ≈ 25min,
+        # edhrec commanders ≈ 100min, edhrec card prices ≈ 90min. Run twice
+        # (staging+prod) ≈ 7h worst-case; warm runs (after the first cold pass)
+        # are much shorter thanks to per-commander hash-skip and unchanged-card
+        # price skip. 6h is the sweet spot: covers any single warm-cache run
+        # comfortably and one cold-cache half (whichever side missed).
+        TimeoutStartSec = "6h";
         Environment = [
           "HOME=/home/${cfg.user}"
           "PATH=${lib.makeBinPath [pkgs.bash pkgs.coreutils pkgs.git pkgs.nix]}:/home/${cfg.user}/.nix-profile/bin"
