@@ -13,12 +13,12 @@
     echo "=== ${env}: scryfall-fetch ==="
     go run ./tools/scryfall-fetch \
       --d1-database-id=${d1Id} \
-      --vectorize-index=mtga-cards${vectorizeSuffix}
+      --vectorize-index=magic-cards${vectorizeSuffix}
 
     echo "=== ${env}: rules-fetch ==="
     go run ./tools/rules-fetch \
       --d1-database-id=${d1Id} \
-      --vectorize-index=mtga-rules${vectorizeSuffix}
+      --vectorize-index=magic-rules${vectorizeSuffix}
 
     echo "=== ${env}: 17lands-fetch ==="
     go run ./tools/17lands-fetch \
