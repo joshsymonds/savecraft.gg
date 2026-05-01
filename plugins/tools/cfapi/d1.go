@@ -99,7 +99,7 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 		if err == nil {
 			return nil
 		}
-		if !isBookmarkError(err) || attempt == maxAttempts-1 {
+		if !isRetryable(err) || attempt == maxAttempts-1 {
 			return err
 		}
 		// Linear backoff with ±50% jitter so retries from concurrent failures
@@ -107,7 +107,7 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 		base := time.Duration(5*(attempt+1)) * time.Second
 		jitter := time.Duration(rand.Int64N(int64(base / 2)))
 		wait := base + jitter
-		fmt.Fprintf(os.Stderr, "  D1 stale bookmark, restarting import in %v (attempt %d/%d)\n", wait, attempt+1, maxAttempts)
+		fmt.Fprintf(os.Stderr, "  D1 transient error, restarting import in %v (attempt %d/%d): %v\n", wait, attempt+1, maxAttempts, err)
 		time.Sleep(wait)
 	}
 	return fmt.Errorf("unreachable")
@@ -116,9 +116,29 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 // errStaleBookmark is returned when D1 loses track of an in-progress import.
 var errStaleBookmark = errors.New("stale bookmark")
 
-// isBookmarkError checks if an error is a stale bookmark error.
-func isBookmarkError(err error) bool {
-	return errors.Is(err, errStaleBookmark)
+// isRetryable returns true for transient errors that should restart the import
+// from scratch. Covers stale bookmarks (D1 lost track of the import) and
+// transient Cloudflare infrastructure errors that surface in either ingest or
+// poll responses.
+func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, errStaleBookmark) {
+		return true
+	}
+	msg := err.Error()
+	// (10043) is a generic CF-side internal error; the message points users
+	// at cloudflarestatus.com. Observed when D1's backend couldn't fetch the
+	// uploaded SQL from R2 during ingest. Always transient.
+	if strings.Contains(msg, "(10043)") {
+		return true
+	}
+	// D1 backend Durable Object reset mid-import; safe to restart.
+	if strings.Contains(msg, "D1_RESET_DO") {
+		return true
+	}
+	return false
 }
 
 func importD1SQLOnce(accountID, databaseID, apiToken, sql string) error {

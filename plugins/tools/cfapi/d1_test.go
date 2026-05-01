@@ -3,6 +3,7 @@ package cfapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -161,6 +162,29 @@ func TestPollRetryableError(t *testing.T) {
 	}
 	if isPollRetryableError("some permanent error") {
 		t.Error("unknown errors should not be retryable by default")
+	}
+}
+
+func TestIsRetryable(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"stale bookmark sentinel", errStaleBookmark, true},
+		{"wrapped stale bookmark", fmt.Errorf("import: %w", errStaleBookmark), true},
+		{"CF 10043 ingest get", errors.New("ingest: get: Please look at https://www.cloudflarestatus.com for issues or contact customer support. (10043)"), true},
+		{"D1_RESET_DO mid-import", errors.New(`{"D1_RESET_DO":true}`), true},
+		{"permanent SQL error", errors.New("ingest: no such table: magic_cards: SQLITE_ERROR"), false},
+		{"unknown error", errors.New("something unexpected"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isRetryable(tt.err); got != tt.want {
+				t.Errorf("isRetryable(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
 	}
 }
 
