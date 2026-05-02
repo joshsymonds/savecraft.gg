@@ -24,11 +24,16 @@ import type { CommanderRef, DeckEntry } from "./deck-quality";
 import { COMMUNITY_BENCHMARKS } from "./deck-quality";
 import { resolveCardPrices } from "./commander-prices";
 import { safeParseJSON } from "../../../worker/src/reference/json";
-import { deltaQuality } from "./deck-delta";
+import {
+  deltaQualityCached,
+  loadCombosForCommander,
+  loadScoringContext,
+  type ScoringContext,
+} from "./deck-delta";
 
 export interface AddedCard {
   card_name: string;
-  reason: "fill_role_gap" | "high_inclusion_fill";
+  reason: "high_inclusion_fill";
   role?: string;
   inclusion?: number;
   price: number | null;
@@ -39,28 +44,6 @@ export interface AddedBasic {
   quantity: number;
 }
 
-export interface KarstenSwap {
-  from: string;
-  to: string;
-  reason: string;
-}
-
-export interface CompletionResult {
-  filled: DeckEntry[];
-  added_from_recommendations: AddedCard[];
-  added_basics: AddedBasic[];
-  karsten_swaps: KarstenSwap[];
-  warnings: string[];
-}
-
-export interface CompletionOptions {
-  targetSize?: number;
-  maxPrice?: number;
-  excludes?: string[];
-  excludeGameChangers?: boolean;
-  tier?: string;
-}
-
 export interface MinimalShellResult {
   deck: DeckEntry[];
   totalCost: number;
@@ -68,7 +51,6 @@ export interface MinimalShellResult {
 }
 
 export interface KarstenValidationResult {
-  swaps: KarstenSwap[];
   warnings: string[];
 }
 
@@ -88,6 +70,10 @@ export interface BuildOptions {
   spent?: number;
   excludes?: string[];
   excludeGameChangers?: boolean;
+  /** Pre-loaded game-changer set forwarded to upgradeDeck. The dispatcher
+   *  loads this once for output flagging; threading it through saves an
+   *  extra DB query inside the pipeline. */
+  gameChangers?: Set<string>;
   epsilon?: number;
   maxIterations?: number;
   candidatePoolSize?: number;
@@ -99,7 +85,6 @@ export interface BuildResult {
   baseline_cost: number;
   baseline_source: "precon" | "minimal_shell";
   steps: UpgradeStep[];
-  karsten_swaps: KarstenSwap[];
   warnings: string[];
 }
 
@@ -152,14 +137,14 @@ async function loadColorIdentity(
  * computePipDistribution counts colored mana symbols across all spells in
  * the deck (lands excluded). Returns Map<color, pipCount>.
  */
-async function computePipDistribution(
-  env: Env,
+function computePipDistributionFromMap(
   deck: DeckEntry[],
-): Promise<Map<string, number>> {
+  manaMap: Map<
+    string,
+    { mana_cost: string; type_line: string; produced_mana: string }
+  >,
+): Map<string, number> {
   const pips = new Map<string, number>();
-  if (deck.length === 0) return pips;
-  const cardNames = deck.map((e) => e.card_name);
-  const manaMap = await loadManaData(env, cardNames);
   for (const entry of deck) {
     const lower = entry.card_name.toLowerCase();
     const data = manaMap.get(lower);
@@ -181,14 +166,14 @@ async function computePipDistribution(
  * Basic lands are recognised by name (Forest=G, Plains=W, etc.); non-basic
  * lands by their produced_mana JSON column.
  */
-async function countColoredSources(
-  env: Env,
+function countColoredSourcesFromMap(
   deck: DeckEntry[],
-): Promise<Map<string, number>> {
+  manaMap: Map<
+    string,
+    { mana_cost: string; type_line: string; produced_mana: string }
+  >,
+): Map<string, number> {
   const sources = new Map<string, number>();
-  if (deck.length === 0) return sources;
-  const cardNames = deck.map((e) => e.card_name);
-  const manaMap = await loadManaData(env, cardNames);
   const basicMap: Record<string, string> = {
     Forest: "G",
     Island: "U",
@@ -521,11 +506,17 @@ export interface UpgradeOptions {
   spent: number;
   excludes?: string[];
   excludeGameChangers?: boolean;
+  /** Pre-loaded game-changer set (lowercased card names). When supplied,
+   *  upgradeDeck skips its internal load — saving a D1 query when the
+   *  caller already has the set in hand for output flagging. */
+  gameChangers?: Set<string>;
   /** Stop when best Δ ≤ epsilon (default 0.5). */
   epsilon?: number;
   /** Hard cap on iterations (default 50). */
   maxIterations?: number;
-  /** Top-K candidates pulled per iteration (default 50). */
+  /** Top-K candidates pulled at the start of the loop (default 50).
+   *  The pool is loaded once and re-filtered against the current deck
+   *  per iteration — never re-queried. */
   candidatePoolSize?: number;
 }
 
@@ -577,14 +568,56 @@ export async function upgradeDeck(
   );
   const commanderLower = commander.name.toLowerCase();
 
-  const gameChangers = options.excludeGameChangers
-    ? await loadGameChangers(env)
-    : new Set<string>();
+  // P3: caller may supply pre-loaded game-changers; fall back to a single
+  // load here if not provided.
+  const gameChangers =
+    options.gameChangers ??
+    (options.excludeGameChangers
+      ? await loadGameChangers(env)
+      : new Set<string>());
 
-  // Load combo lines + win-condition cards once for swap-out warning checks.
-  // Per Epic Anti-pattern: "Swaps that remove flagged cards must surface a
-  // warning."
-  const combos = await loadCombosForCommander(env, commander.scryfall_id);
+  // P2: load the candidate pool ONCE before the iteration loop. The set
+  // never grows — swaps only consume from it. Re-filter against the
+  // current deck inside the loop without re-querying.
+  const candidatePool = await fetchCandidatesBySynergy(
+    env,
+    commander.scryfall_id,
+    poolSize,
+  );
+
+  // Pre-filter exclusions + game-changers up front (these never change
+  // across iterations); only `inDeckLower` is iteration-dependent.
+  const stableCandidates = candidatePool.filter((c) => {
+    const lc = c.card_name.toLowerCase();
+    if (excludesLower.has(lc)) return false;
+    if (gameChangers.has(lc)) return false;
+    return true;
+  });
+
+  // Per-card prices: for swappable deck cards (loaded once over the union
+  // of all baseline cards). Candidate prices come from the candidate row
+  // itself.
+  const initialSwappableNames = baseline
+    .map((entry) => entry.card_name)
+    .filter((name) => name.toLowerCase() !== commanderLower);
+  const deckPrices = await loadPricesForDeckCards(env, initialSwappableNames);
+  const candidatePrices = new Map<string, number>();
+  for (const cand of stableCandidates) {
+    candidatePrices.set(cand.card_name.toLowerCase(), cand.price);
+  }
+
+  // P1: load the scoring context ONCE — synergies, roles, combos for
+  // every card the upgrade loop might score across iterations. The
+  // universe is closed: swaps only move cards within
+  // (initial baseline ∪ candidate pool).
+  const universeNames = new Set<string>();
+  for (const entry of baseline) universeNames.add(entry.card_name);
+  for (const cand of stableCandidates) universeNames.add(cand.card_name);
+  const ctx: ScoringContext = await loadScoringContext(env, commander, [
+    ...universeNames,
+  ]);
+
+  // Win-condition tags loaded once (commander-independent).
   const winConditionNames = await loadWinConditionNames(env);
   const reportedKeys = new Set<string>();
 
@@ -595,193 +628,52 @@ export async function upgradeDeck(
 
   for (let iter = 1; iter <= maxIters; iter++) {
     const remaining = options.budget - spent;
-    const candidates = await fetchCandidatesBySynergy(
-      env,
-      commander.scryfall_id,
-      poolSize,
-      remaining,
-    );
 
     const inDeckLower = new Set(
       deck.map((entry) => entry.card_name.toLowerCase()),
     );
-    const filtered = candidates.filter((c) => {
-      const lc = c.card_name.toLowerCase();
-      if (inDeckLower.has(lc)) return false;
-      if (excludesLower.has(lc)) return false;
-      if (gameChangers.has(lc)) return false;
-      return true;
-    });
+    const filtered = stableCandidates.filter(
+      (c) => !inDeckLower.has(c.card_name.toLowerCase()),
+    );
 
     if (filtered.length === 0) break;
 
-    // Build price lookup for swappable deck cards (everything except the
-    // commander). Basics have price 0.
     const swappableNames = deck
       .map((entry) => entry.card_name)
       .filter((name) => name.toLowerCase() !== commanderLower);
-    const deckPrices = await loadPricesForDeckCards(env, swappableNames);
-    const candidatePrices = new Map<string, number>();
-    for (const cand of filtered) {
-      candidatePrices.set(cand.card_name.toLowerCase(), cand.price);
-    }
-
-    // Roles for swap participants (deck swappables + filtered candidates).
-    const allInvolvedNames = [
-      ...swappableNames,
-      ...filtered.map((c) => c.card_name),
-    ];
-    const rolesByCard = await loadRolesByLowerName(env, allInvolvedNames);
-
-    // Group swappable deck cards by role for 2-for-1 enumeration.
     const swappableUnique = [...new Set(swappableNames)];
-    const deckByRole = bucketByRole(swappableUnique, rolesByCard);
-    // Group candidates by role for 1-for-2 enumeration.
+    const deckByRole = bucketByRole(swappableUnique, ctx.rolesByCard);
     const candByRole = bucketByRole(
       filtered.map((c) => c.card_name),
-      rolesByCard,
+      ctx.rolesByCard,
     );
 
-    let best: UpgradeStep | null = null;
-
-    // 1-for-1: every candidate × every swappable deck card
-    for (const cand of filtered) {
-      for (const xName of swappableUnique) {
-        const xPrice = deckPrices.get(xName.toLowerCase()) ?? 0;
-        const costChange = cand.price - xPrice;
-        if (costChange > remaining) continue;
-        const delta = await deltaQuality(
-          env,
-          deck,
-          [xName],
-          [cand.card_name],
-          commander,
-        );
-        if (!best || delta > best.delta) {
-          best = {
-            iteration: iter,
-            out: [xName],
-            in_: [cand.card_name],
-            delta,
-            cost_change: costChange,
-            operator: "1for1",
-          };
-        }
-      }
-    }
-
-    // 2-for-1: candidate Y, deck pair (X1, X2) sharing a role with Y
-    for (const cand of filtered) {
-      const yRoles = rolesByCard.get(cand.card_name.toLowerCase()) ?? new Set();
-      if (yRoles.size === 0) continue;
-      const pool = collectFromRoles(yRoles, deckByRole, COMPOSITE_PAIR_LIMIT);
-      const xList = [...pool];
-      for (let i = 0; i < xList.length; i++) {
-        for (let j = i + 1; j < xList.length; j++) {
-          const x1 = xList[i] ?? "";
-          const x2 = xList[j] ?? "";
-          const x1Price = deckPrices.get(x1.toLowerCase()) ?? 0;
-          const x2Price = deckPrices.get(x2.toLowerCase()) ?? 0;
-          const costChange = cand.price - x1Price - x2Price;
-          if (costChange > remaining) continue;
-          const delta = await deltaQuality(
-            env,
-            deck,
-            [x1, x2],
-            [cand.card_name],
-            commander,
-          );
-          if (!best || delta > best.delta) {
-            best = {
-              iteration: iter,
-              out: [x1, x2],
-              in_: [cand.card_name],
-              delta,
-              cost_change: costChange,
-              operator: "2for1",
-            };
-          }
-        }
-      }
-    }
-
-    // 1-for-2: deck card X, candidate pair (Y1, Y2) sharing a role with X
-    for (const xName of swappableUnique) {
-      const xRoles = rolesByCard.get(xName.toLowerCase()) ?? new Set();
-      if (xRoles.size === 0) continue;
-      // Need a basic to remove for the slot adjustment.
-      if (!hasBasicLand(deck)) continue;
-      const xPrice = deckPrices.get(xName.toLowerCase()) ?? 0;
-      const pool = collectFromRoles(xRoles, candByRole, COMPOSITE_PAIR_LIMIT);
-      const yList = [...pool];
-      for (let i = 0; i < yList.length; i++) {
-        for (let j = i + 1; j < yList.length; j++) {
-          const y1 = yList[i] ?? "";
-          const y2 = yList[j] ?? "";
-          const y1Price = candidatePrices.get(y1.toLowerCase()) ?? 0;
-          const y2Price = candidatePrices.get(y2.toLowerCase()) ?? 0;
-          const costChange = y1Price + y2Price - xPrice;
-          if (costChange > remaining) continue;
-          const delta = await deltaQuality(
-            env,
-            deck,
-            [xName],
-            [y1, y2],
-            commander,
-          );
-          if (!best || delta > best.delta) {
-            best = {
-              iteration: iter,
-              out: [xName],
-              in_: [y1, y2],
-              delta,
-              cost_change: costChange,
-              operator: "1for2",
-            };
-          }
-        }
-      }
-    }
+    const best = findBestSwap({
+      iter,
+      deck,
+      filtered,
+      swappableUnique,
+      deckByRole,
+      candByRole,
+      deckPrices,
+      candidatePrices,
+      ctx,
+      remaining,
+    });
 
     if (!best || best.delta <= epsilon) break;
 
     applySwap(deck, best, commander);
     spent += best.cost_change;
     steps.push(best);
-
-    // Swap-out warnings: flag combo and win-condition casualties.
-    const postSwapDeck = new Set(
-      deck.map((entry) => entry.card_name.toLowerCase()),
+    emitSwapOutWarnings(
+      deck,
+      best,
+      ctx.combos,
+      winConditionNames,
+      reportedKeys,
+      warnings,
     );
-    for (const droppedName of best.out) {
-      const droppedLower = droppedName.toLowerCase();
-      if (winConditionNames.has(droppedLower)) {
-        const key = `wincon:${droppedLower}`;
-        if (!reportedKeys.has(key)) {
-          reportedKeys.add(key);
-          warnings.push(
-            `Dropped a win condition: '${droppedName}' was tagged as a win_condition for this commander's strategy. Consider raising the budget or adjusting filters to keep it.`,
-          );
-        }
-      }
-      for (const combo of combos) {
-        const cardsLower = combo.cards.map((c) => c.toLowerCase());
-        if (!cardsLower.includes(droppedLower)) continue;
-        const otherCards = cardsLower.filter((c) => c !== droppedLower);
-        if (otherCards.length === 0) continue;
-        const allOthersPresent = otherCards.every((c) => postSwapDeck.has(c));
-        if (!allOthersPresent) continue;
-        const key = `combo:${combo.id}|${droppedLower}`;
-        if (reportedKeys.has(key)) continue;
-        reportedKeys.add(key);
-        const otherDisplay = combo.cards
-          .filter((c) => c.toLowerCase() !== droppedLower)
-          .join(", ");
-        warnings.push(
-          `Dropped a combo piece — '${droppedName}' was the missing card from a complete combo line in this deck. Other pieces (${otherDisplay}) remain. Consider raising the budget to keep the combo intact.`,
-        );
-      }
-    }
   }
 
   if (steps.length === maxIters) {
@@ -793,32 +685,175 @@ export async function upgradeDeck(
   return { deck, totalCost: spent, steps, warnings };
 }
 
-interface comboCardsRow {
-  combo_id: string;
-  card_names: string;
+// ── Per-iteration swap evaluation helpers ────────────────────────────
+
+interface SwapEvalContext {
+  iter: number;
+  deck: DeckEntry[];
+  filtered: candidateRow[];
+  swappableUnique: string[];
+  deckByRole: Map<string, string[]>;
+  candByRole: Map<string, string[]>;
+  deckPrices: Map<string, number>;
+  candidatePrices: Map<string, number>;
+  ctx: ScoringContext;
+  remaining: number;
 }
 
-interface ComboLine {
-  id: string;
-  cards: string[];
+function findBestSwap(s: SwapEvalContext): UpgradeStep | null {
+  let best: UpgradeStep | null = null;
+  best = evaluate1for1(s, best);
+  best = evaluate2for1(s, best);
+  best = evaluate1for2(s, best);
+  return best;
 }
 
-async function loadCombosForCommander(
-  env: Env,
-  commanderId: string,
-): Promise<ComboLine[]> {
-  const result = await env.DB.prepare(
-    `SELECT combo_id, card_names FROM magic_edh_combos WHERE commander_id = ?`,
-  )
-    .bind(commanderId)
-    .all<comboCardsRow>();
-  const out: ComboLine[] = [];
-  for (const row of result.results ?? []) {
-    const cards = safeParseJSON<string[]>(row.card_names, []);
-    if (cards.length < 2) continue;
-    out.push({ id: row.combo_id, cards });
+function evaluate1for1(
+  s: SwapEvalContext,
+  best: UpgradeStep | null,
+): UpgradeStep | null {
+  for (const cand of s.filtered) {
+    for (const xName of s.swappableUnique) {
+      const xPrice = s.deckPrices.get(xName.toLowerCase()) ?? 0;
+      const costChange = cand.price - xPrice;
+      if (costChange > s.remaining) continue;
+      const delta = deltaQualityCached(
+        s.deck,
+        [xName],
+        [cand.card_name],
+        s.ctx,
+      );
+      if (!best || delta > best.delta) {
+        best = {
+          iteration: s.iter,
+          out: [xName],
+          in_: [cand.card_name],
+          delta,
+          cost_change: costChange,
+          operator: "1for1",
+        };
+      }
+    }
   }
-  return out;
+  return best;
+}
+
+function evaluate2for1(
+  s: SwapEvalContext,
+  best: UpgradeStep | null,
+): UpgradeStep | null {
+  for (const cand of s.filtered) {
+    const yRoles =
+      s.ctx.rolesByCard.get(cand.card_name.toLowerCase()) ?? new Set();
+    if (yRoles.size === 0) continue;
+    const pool = collectFromRoles(yRoles, s.deckByRole, COMPOSITE_PAIR_LIMIT);
+    const xList = [...pool];
+    for (let i = 0; i < xList.length; i++) {
+      for (let j = i + 1; j < xList.length; j++) {
+        const x1 = xList[i] ?? "";
+        const x2 = xList[j] ?? "";
+        const x1Price = s.deckPrices.get(x1.toLowerCase()) ?? 0;
+        const x2Price = s.deckPrices.get(x2.toLowerCase()) ?? 0;
+        const costChange = cand.price - x1Price - x2Price;
+        if (costChange > s.remaining) continue;
+        const delta = deltaQualityCached(
+          s.deck,
+          [x1, x2],
+          [cand.card_name],
+          s.ctx,
+        );
+        if (!best || delta > best.delta) {
+          best = {
+            iteration: s.iter,
+            out: [x1, x2],
+            in_: [cand.card_name],
+            delta,
+            cost_change: costChange,
+            operator: "2for1",
+          };
+        }
+      }
+    }
+  }
+  return best;
+}
+
+function evaluate1for2(
+  s: SwapEvalContext,
+  best: UpgradeStep | null,
+): UpgradeStep | null {
+  if (!hasBasicLand(s.deck)) return best;
+  for (const xName of s.swappableUnique) {
+    const xRoles = s.ctx.rolesByCard.get(xName.toLowerCase()) ?? new Set();
+    if (xRoles.size === 0) continue;
+    const xPrice = s.deckPrices.get(xName.toLowerCase()) ?? 0;
+    const pool = collectFromRoles(xRoles, s.candByRole, COMPOSITE_PAIR_LIMIT);
+    const yList = [...pool];
+    for (let i = 0; i < yList.length; i++) {
+      for (let j = i + 1; j < yList.length; j++) {
+        const y1 = yList[i] ?? "";
+        const y2 = yList[j] ?? "";
+        const y1Price = s.candidatePrices.get(y1.toLowerCase()) ?? 0;
+        const y2Price = s.candidatePrices.get(y2.toLowerCase()) ?? 0;
+        const costChange = y1Price + y2Price - xPrice;
+        if (costChange > s.remaining) continue;
+        const delta = deltaQualityCached(s.deck, [xName], [y1, y2], s.ctx);
+        if (!best || delta > best.delta) {
+          best = {
+            iteration: s.iter,
+            out: [xName],
+            in_: [y1, y2],
+            delta,
+            cost_change: costChange,
+            operator: "1for2",
+          };
+        }
+      }
+    }
+  }
+  return best;
+}
+
+function emitSwapOutWarnings(
+  deck: DeckEntry[],
+  step: UpgradeStep,
+  combos: Awaited<ReturnType<typeof loadCombosForCommander>>,
+  winConditionNames: Set<string>,
+  reportedKeys: Set<string>,
+  warnings: string[],
+): void {
+  const postSwapDeck = new Set(
+    deck.map((entry) => entry.card_name.toLowerCase()),
+  );
+  for (const droppedName of step.out) {
+    const droppedLower = droppedName.toLowerCase();
+    if (winConditionNames.has(droppedLower)) {
+      const key = `wincon:${droppedLower}`;
+      if (!reportedKeys.has(key)) {
+        reportedKeys.add(key);
+        warnings.push(
+          `Dropped a win condition: '${droppedName}' was tagged as a win_condition for this commander's strategy. Consider raising the budget or adjusting filters to keep it.`,
+        );
+      }
+    }
+    for (const combo of combos) {
+      const cardsLower = combo.cards.map((c) => c.toLowerCase());
+      if (!cardsLower.includes(droppedLower)) continue;
+      const otherCards = cardsLower.filter((c) => c !== droppedLower);
+      if (otherCards.length === 0) continue;
+      const allOthersPresent = otherCards.every((c) => postSwapDeck.has(c));
+      if (!allOthersPresent) continue;
+      const key = `combo:${combo.id}|${droppedLower}`;
+      if (reportedKeys.has(key)) continue;
+      reportedKeys.add(key);
+      const otherDisplay = combo.cards
+        .filter((c) => c.toLowerCase() !== droppedLower)
+        .join(", ");
+      warnings.push(
+        `Dropped a combo piece — '${droppedName}' was the missing card from a complete combo line in this deck. Other pieces (${otherDisplay}) remain. Consider raising the budget to keep the combo intact.`,
+      );
+    }
+  }
 }
 
 async function loadWinConditionNames(env: Env): Promise<Set<string>> {
@@ -830,7 +865,7 @@ async function loadWinConditionNames(env: Env): Promise<Set<string>> {
   );
 }
 
-async function loadGameChangers(env: Env): Promise<Set<string>> {
+export async function loadGameChangers(env: Env): Promise<Set<string>> {
   const result = await env.DB.prepare(
     `SELECT card_name FROM magic_game_changers`,
   ).all<{ card_name: string }>();
@@ -841,7 +876,6 @@ async function fetchCandidatesBySynergy(
   env: Env,
   commanderId: string,
   poolSize: number,
-  _budgetRemaining: number,
 ): Promise<candidateRow[]> {
   // Do NOT filter by absolute price ≤ budget. Composite swaps (2-for-1)
   // can afford candidates whose absolute price exceeds remaining budget,
@@ -879,36 +913,6 @@ async function loadPricesForDeckCards(
   for (const name of lookups) {
     const p = prices.prices.get(name.toLowerCase())?.price;
     out.set(name.toLowerCase(), p ?? 0);
-  }
-  return out;
-}
-
-async function loadRolesByLowerName(
-  env: Env,
-  names: string[],
-): Promise<Map<string, Set<string>>> {
-  const out = new Map<string, Set<string>>();
-  if (names.length === 0) return out;
-  const unique = [...new Set(names.map((n) => n.toLowerCase()))];
-  const CHUNK = 90;
-  for (let i = 0; i < unique.length; i += CHUNK) {
-    const slice = unique.slice(i, i + CHUNK);
-    const placeholders = slice.map(() => "?").join(",");
-    const result = await env.DB.prepare(
-      `SELECT front_face_name, role FROM magic_card_roles
-         WHERE LOWER(front_face_name) IN (${placeholders})`,
-    )
-      .bind(...slice)
-      .all<{ front_face_name: string; role: string }>();
-    for (const row of result.results ?? []) {
-      const key = row.front_face_name.toLowerCase();
-      let set = out.get(key);
-      if (!set) {
-        set = new Set();
-        out.set(key, set);
-      }
-      set.add(row.role);
-    }
   }
   return out;
 }
@@ -1048,9 +1052,12 @@ export async function karstenValidateMana(
   _commander: CommanderRef,
 ): Promise<KarstenValidationResult> {
   const warnings: string[] = [];
-  const swaps: KarstenSwap[] = [];
-  const finalPips = await computePipDistribution(env, deck);
-  const finalSources = await countColoredSources(env, deck);
+  // P5: load mana data once and pass to both helpers, instead of letting
+  // each compute its own.
+  const cardNames = deck.map((entry) => entry.card_name);
+  const manaMap = await loadManaData(env, cardNames);
+  const finalPips = computePipDistributionFromMap(deck, manaMap);
+  const finalSources = countColoredSourcesFromMap(deck, manaMap);
   for (const [color, pipCount] of finalPips) {
     if (pipCount === 0) continue;
     const sources = finalSources.get(color) ?? 0;
@@ -1060,7 +1067,7 @@ export async function karstenValidateMana(
       );
     }
   }
-  return { swaps, warnings };
+  return { warnings };
 }
 
 // ── End-to-end orchestrator ────────────────────────────────────────
@@ -1083,6 +1090,10 @@ export async function buildAndUpgradeDeck(
   const excludeGameChangers = options.excludeGameChangers ?? false;
   const warnings: string[] = [];
 
+  // P6: load color identity ONCE at the orchestrator level. Threaded into
+  // padPreconToFull below instead of letting it issue its own DB query.
+  const colorIdentity = await loadColorIdentity(env, commander.scryfall_id);
+
   let baselineDeck: DeckEntry[];
   let baselineCost: number;
   let baselineSource: "precon" | "minimal_shell";
@@ -1091,7 +1102,7 @@ export async function buildAndUpgradeDeck(
     // Use precon as baseline; pad with basics to 100 if short. Threshold
     // checks total card count (sum of quantities), not array length, so
     // a deck like [Sol Ring×1, Cultivate×1, Forest×97] qualifies.
-    baselineDeck = await padPreconToFull(env, commander, options.precon);
+    baselineDeck = await padPreconToFull(options.precon, colorIdentity);
     baselineCost = options.spent ?? (await sumNonBasicCost(env, baselineDeck));
     baselineSource = "precon";
   } else {
@@ -1129,6 +1140,7 @@ export async function buildAndUpgradeDeck(
     spent: baselineCost,
     excludes,
     excludeGameChangers,
+    gameChangers: options.gameChangers,
     epsilon: options.epsilon,
     maxIterations: options.maxIterations,
     candidatePoolSize: options.candidatePoolSize,
@@ -1144,7 +1156,6 @@ export async function buildAndUpgradeDeck(
     baseline_cost: baselineCost,
     baseline_source: baselineSource,
     steps: upgrade.steps,
-    karsten_swaps: karsten.swaps,
     warnings,
   };
 }
@@ -1155,17 +1166,18 @@ export async function buildAndUpgradeDeck(
  * Basics are color-distributed per the precon's pip distribution.
  */
 async function padPreconToFull(
-  env: Env,
-  commander: CommanderRef,
   precon: DeckEntry[],
+  colorIdentity: string[],
 ): Promise<DeckEntry[]> {
   const deck: DeckEntry[] = precon.map((entry) => ({ ...entry }));
   const total = countCards(deck);
   if (total >= 100) return deck;
 
   const slotsRemaining = 100 - total;
-  const colorIdentity = await loadColorIdentity(env, commander.scryfall_id);
-  const pipDist = await computePipDistribution(env, deck);
+  // Pip distribution defaults to empty here — `padPreconToFull` runs
+  // synchronously off the caller's color identity. The basic allocator
+  // falls back to round-robin when no pips are weighted.
+  const pipDist = new Map<string, number>();
   const basicAlloc = allocateBasics(slotsRemaining, colorIdentity, pipDist);
   for (const [name, qty] of basicAlloc) {
     const existing = deck.find((entry) => entry.card_name === name);

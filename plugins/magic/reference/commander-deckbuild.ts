@@ -19,7 +19,11 @@ import type {
 import { safeParseJSON } from "../../../worker/src/reference/json";
 import { resolveCardPrices } from "./commander-prices";
 import { resolveCommander } from "./commander-resolve";
-import { buildAndUpgradeDeck, type CompletionResult } from "./deck-completion";
+import {
+  buildAndUpgradeDeck,
+  loadGameChangers,
+  type AddedCard,
+} from "./deck-completion";
 import {
   assessQuality,
   type DeckEntry as RawDeckEntry,
@@ -57,6 +61,39 @@ function deriveCategory(cardName: string, typeLine: string): string {
 interface typeLineRow {
   front_face_name: string;
   type_line: string;
+}
+
+/**
+ * reconstructCompletion adapts a `BuildResult` from the marginal-utility
+ * pipeline back into the legacy `CompletionResult` shape consumed by
+ * `trimCompletion`. Centralized so the three module paths (empty-tier,
+ * precon, theme) share one mapping rather than duplicating it.
+ */
+function reconstructCompletion(
+  buildResult: { steps: { in_: string[] }[]; warnings: string[] },
+  placed: DeckEntry[],
+  priceByLower: Map<string, { price: number | null; reserved: boolean }>,
+): {
+  added_from_recommendations: AddedCard[];
+  added_basics: { name: string; quantity: number }[];
+  karsten_warnings: string[];
+} {
+  return {
+    added_from_recommendations: buildResult.steps.flatMap((step) =>
+      step.in_.map((name) => ({
+        card_name: name,
+        reason: "high_inclusion_fill" as const,
+        inclusion: undefined,
+        price: priceByLower.get(name.toLowerCase())?.price ?? null,
+      })),
+    ),
+    added_basics: placed
+      .filter((p) => BASIC_LAND_NAMES.has(p.card_name))
+      .map((p) => ({ name: p.card_name, quantity: p.quantity })),
+    karsten_warnings: buildResult.warnings.filter((w) =>
+      w.includes("Mana base thin"),
+    ),
+  };
 }
 
 async function loadTypeLines(
@@ -324,15 +361,9 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       };
     }
 
-    // Always look up game changers for output flagging.
-    const allGameChangersResult = await env.DB.prepare(
-      `SELECT card_name FROM magic_game_changers`,
-    ).all<{ card_name: string }>();
-    const allGameChangers = new Set(
-      (allGameChangersResult.results ?? []).map((r) =>
-        r.card_name.toLowerCase(),
-      ),
-    );
+    // P3: load game-changers ONCE per request and thread through to the
+    // pipeline (also used for output flagging).
+    const allGameChangers = await loadGameChangers(env);
 
     const colorIdentity = safeParseJSON<string[]>(
       commanderRow.color_identity,
@@ -346,6 +377,7 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       budget: effectiveCap ?? Number.MAX_SAFE_INTEGER,
       excludes: [...excludes],
       excludeGameChangers,
+      gameChangers: allGameChangers,
       mustInclude,
     });
 
@@ -393,60 +425,19 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     }
 
     const runningTotal = Math.round(buildResult.totalCost * 100) / 100;
-    const totalCount = placed.reduce((s, p) => s + p.quantity, 0);
-    const slotsRemaining = Math.max(0, 99 - totalCount);
 
-    // Reconstruct the `completion` block from BuildResult for back-compat:
-    // upgrade-introduced cards become `added_from_recommendations`; basic
-    // lands in the deck become `added_basics`; Karsten warnings filter out
-    // from the aggregated warnings list.
-    const completion: CompletionResult = {
-      filled: [],
-      added_from_recommendations: buildResult.steps.flatMap((step) =>
-        step.in_.map((name) => ({
-          card_name: name,
-          reason: "high_inclusion_fill" as const,
-          inclusion: undefined,
-          price: priceByLower.get(name.toLowerCase())?.price ?? null,
-        })),
-      ),
-      added_basics: placed
-        .filter((p) => BASIC_LAND_NAMES.has(p.card_name))
-        .map((p) => ({ name: p.card_name, quantity: p.quantity })),
-      karsten_swaps: [],
-      warnings: buildResult.warnings.filter((w) =>
-        w.includes("Mana base thin"),
-      ),
-    };
+    const completion = reconstructCompletion(buildResult, placed, priceByLower);
 
-    // Strategic warnings (combo casualties from `dropped`) no longer apply —
-    // the new pipeline doesn't track per-card budget rejection. Pass empty
-    // to preserve the helper signature; warnings list won't be augmented.
-    const dropped: { card_name: string; reason: string }[] = [];
-
-    // M3.2-style strategic warning placeholder (intentionally empty).
-    const manaBaseSubs: { out: string; in: string; saved: number }[] = [];
-
-    // Warnings.
     const warnings: string[] = [];
     if (maxPrice !== undefined && maxPrice < tierInfo.avg_price) {
       warnings.push(
         `Budget $${maxPrice} is below the empirical floor of the '${tier}' tier ($${tierInfo.avg_price} avg from ${tierInfo.num_decks_avg} decks). Output reflects aggressive cost-cutting beyond what the data supports.`,
       );
     }
-    // slots_remaining is always 0 with the new pipeline (deck always 100
-    // cards), but keep the warning shape if a future pipeline change leaves
-    // it unfilled.
-    if (slotsRemaining > 0) {
-      warnings.push(
-        `${slotsRemaining} of 99 slots unfilled. Consider raising the budget or relaxing exclude_game_changers.`,
-      );
-    }
     // BuildResult.warnings already contains baseline + upgrade + Karsten
-    // diagnostics. Surface them in the user-facing list.
+    // diagnostics. Surface them in the user-facing list (Karsten warnings
+    // are already echoed in completion.karsten_warnings; skip duplicates).
     for (const warning of buildResult.warnings) {
-      // Karsten warnings are already echoed in completion.karsten_warnings;
-      // skip them here to avoid duplicate output.
       if (warning.includes("Mana base thin")) continue;
       warnings.push(warning);
     }
@@ -459,18 +450,11 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       );
     }
 
-    // Category breakdown.
     const categoryBreakdown: Record<string, number> = {};
     for (const p of placed) {
       categoryBreakdown[p.category] = (categoryBreakdown[p.category] ?? 0) + 1;
     }
 
-    // M3.2: surface combo / win-condition casualties from budget cuts.
-    warnings.push(
-      ...(await buildStrategicWarnings(env, commanderId, placed, dropped)),
-    );
-
-    // M4: assess quality on the completed 99-card deck.
     const quality: QualityReport = await assessQuality(
       env,
       placed.map((p) => ({ card_name: p.card_name, quantity: p.quantity })),
@@ -508,22 +492,12 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         },
         deck: placed.map(trimDeckEntry),
         category_breakdown: categoryBreakdown,
-        slots_remaining: slotsRemaining,
+        slots_remaining: 0,
         ...(cardsWithoutPrices.length > 0
           ? { cards_without_prices: cardsWithoutPrices }
           : {}),
-        ...(manaBaseSubs.length > 0
-          ? { mana_base_substitutions: manaBaseSubs }
-          : {}),
         quality: trimQuality(quality, verbosity),
-        completion: trimCompletion(
-          {
-            added_from_recommendations: completion.added_from_recommendations,
-            added_basics: completion.added_basics,
-            karsten_warnings: completion.warnings,
-          },
-          verbosity,
-        ),
+        completion: trimCompletion(completion, verbosity),
         warnings,
         attribution: {
           source: "EDHREC",
@@ -744,23 +718,11 @@ async function runPreconBuild(
   const runningTotal = Math.round(buildResult.totalCost * 100) / 100;
   const upgradeSpend = Math.round((runningTotal - msrp) * 100) / 100;
 
-  // Reconstruct the `completion` block from BuildResult for back-compat.
-  const preconCompletion: CompletionResult = {
-    filled: [],
-    added_from_recommendations: buildResult.steps.flatMap((step) =>
-      step.in_.map((name) => ({
-        card_name: name,
-        reason: "high_inclusion_fill" as const,
-        inclusion: undefined,
-        price: priceByLower.get(name.toLowerCase())?.price ?? null,
-      })),
-    ),
-    added_basics: placed
-      .filter((p) => BASIC_LAND_NAMES.has(p.card_name))
-      .map((p) => ({ name: p.card_name, quantity: p.quantity })),
-    karsten_swaps: [],
-    warnings: buildResult.warnings.filter((w) => w.includes("Mana base thin")),
-  };
+  const preconCompletion = reconstructCompletion(
+    buildResult,
+    placed,
+    priceByLower,
+  );
 
   const warnings: string[] = [];
   for (const warning of buildResult.warnings) {
@@ -823,15 +785,7 @@ async function runPreconBuild(
         ? { cards_without_prices: cardsWithoutPrices }
         : {}),
       quality: trimQuality(preconQuality, verbosity),
-      completion: trimCompletion(
-        {
-          added_from_recommendations:
-            preconCompletion.added_from_recommendations,
-          added_basics: preconCompletion.added_basics,
-          karsten_warnings: preconCompletion.warnings,
-        },
-        verbosity,
-      ),
+      completion: trimCompletion(preconCompletion, verbosity),
       warnings,
       attribution: {
         source: "EDHREC",
@@ -955,6 +909,7 @@ async function runThemeBuild(
     precon: themeEntries,
     excludes: [...excludes],
     excludeGameChangers,
+    gameChangers: allGameChangers,
     mustInclude,
   });
 
@@ -999,26 +954,12 @@ async function runThemeBuild(
   }
 
   const runningTotal = Math.round(buildResult.totalCost * 100) / 100;
-  const totalCount = placed.reduce((s, p) => s + p.quantity, 0);
-  const slotsRemaining = Math.max(0, 99 - totalCount);
 
-  // Reconstruct the `completion` block from BuildResult for back-compat.
-  const themeCompletion: CompletionResult = {
-    filled: [],
-    added_from_recommendations: buildResult.steps.flatMap((step) =>
-      step.in_.map((name) => ({
-        card_name: name,
-        reason: "high_inclusion_fill" as const,
-        inclusion: undefined,
-        price: priceByLower.get(name.toLowerCase())?.price ?? null,
-      })),
-    ),
-    added_basics: placed
-      .filter((p) => BASIC_LAND_NAMES.has(p.card_name))
-      .map((p) => ({ name: p.card_name, quantity: p.quantity })),
-    karsten_swaps: [],
-    warnings: buildResult.warnings.filter((w) => w.includes("Mana base thin")),
-  };
+  const themeCompletion = reconstructCompletion(
+    buildResult,
+    placed,
+    priceByLower,
+  );
 
   const warnings: string[] = [];
   if (maxPrice !== undefined && maxPrice < themeInfo.avg_price) {
@@ -1026,16 +967,8 @@ async function runThemeBuild(
       `Budget $${maxPrice} is below the empirical floor of the '${theme}' theme on ${commanderRow.name} ($${themeInfo.avg_price} avg from ${themeInfo.num_decks_avg} decks). Output reflects aggressive cost-cutting.`,
     );
   }
-  // slots_remaining is always 0 with the new pipeline (deck always 100
-  // cards), but keep the warning shape for forward-compat.
-  if (slotsRemaining > 0) {
-    warnings.push(
-      `${slotsRemaining} of 99 slots unfilled. Consider raising the budget or relaxing exclude_game_changers.`,
-    );
-  }
-  // BuildResult diagnostics from baseline + upgrade + Karsten phases.
   for (const warning of buildResult.warnings) {
-    if (warning.includes("Mana base thin")) continue; // already in completion.karsten_warnings
+    if (warning.includes("Mana base thin")) continue;
     warnings.push(warning);
   }
   const cardsWithoutPrices = placed
@@ -1046,10 +979,6 @@ async function runThemeBuild(
       `${cardsWithoutPrices.length} cards have no known price — total_price excludes them.`,
     );
   }
-
-  // Strategic warnings (combo casualties from `dropped`) no longer apply —
-  // the new pipeline doesn't track per-card budget rejection. Will be
-  // re-enabled in M7.5e via swap-out hooks in upgradeDeck.
 
   const categoryBreakdown: Record<string, number> = {};
   for (const p of placed) {
@@ -1094,20 +1023,12 @@ async function runThemeBuild(
       },
       deck: placed.map(trimDeckEntry),
       category_breakdown: categoryBreakdown,
-      slots_remaining: slotsRemaining,
+      slots_remaining: 0,
       ...(cardsWithoutPrices.length > 0
         ? { cards_without_prices: cardsWithoutPrices }
         : {}),
       quality: trimQuality(themeQuality, verbosity),
-      completion: trimCompletion(
-        {
-          added_from_recommendations:
-            themeCompletion.added_from_recommendations,
-          added_basics: themeCompletion.added_basics,
-          karsten_warnings: themeCompletion.warnings,
-        },
-        verbosity,
-      ),
+      completion: trimCompletion(themeCompletion, verbosity),
       warnings,
       attribution: {
         source: "EDHREC",
@@ -1116,105 +1037,6 @@ async function runThemeBuild(
       },
     },
   };
-}
-
-interface comboLineRow {
-  combo_id: string;
-  card_names: string;
-  results: string;
-}
-
-interface winConRow {
-  front_face_name: string;
-}
-
-/**
- * buildStrategicWarnings surfaces budget-cut casualties that hurt the
- * deck's strategy: combo lines that would have been intact, and explicit
- * win-condition cards. Per epic Requirement 8 — these warnings name the
- * dropped card and the affected strategy so the user knows what just
- * broke.
- *
- * Combo logic: a dropped combo piece warns ONLY when every other card in
- * the combo line is in `placed`. If multiple combo cards were cut at once,
- * the combo wasn't going to fire anyway — no point naming a "broken"
- * strategy that wasn't intact even pre-cut.
- *
- * Win-condition logic: any dropped card tagged `win_condition` warns,
- * since these are explicitly the deck's kill conditions and dropping one
- * narrows the strategy.
- *
- * No new code paths in the cut decision itself (M3.2 is warnings-only;
- * actual prefer-keep swap-in/out is deferred to a future enhancement).
- */
-async function buildStrategicWarnings(
-  env: Env,
-  commanderId: string,
-  placed: DeckEntry[],
-  dropped: { card_name: string; reason: string }[],
-): Promise<string[]> {
-  const warnings: string[] = [];
-  if (dropped.length === 0) return warnings;
-
-  const placedLower = new Set(placed.map((p) => p.card_name.toLowerCase()));
-  const droppedLower = new Set(dropped.map((d) => d.card_name.toLowerCase()));
-
-  const [comboRes, winConRes] = await Promise.all([
-    env.DB.prepare(
-      `SELECT combo_id, card_names, results FROM magic_edh_combos WHERE commander_id = ?`,
-    )
-      .bind(commanderId)
-      .all<comboLineRow>(),
-    env.DB.prepare(
-      `SELECT DISTINCT front_face_name FROM magic_card_roles WHERE role = 'win_condition'`,
-    ).all<winConRow>(),
-  ]);
-
-  // Combo: walk every combo for the commander, check intact-modulo-this-drop.
-  // De-duplicate on (combo_id, dropped_card) so a combo affecting multiple
-  // dropped cards still warns once per dropped card without flooding.
-  const reportedCombo = new Set<string>();
-  for (const row of comboRes.results ?? []) {
-    const cards = safeParseJSON<string[]>(row.card_names, []);
-    if (cards.length < 2) continue;
-    const cardsLower = cards.map((c) => c.toLowerCase());
-    // Find dropped cards that ARE part of this combo.
-    const droppedFromCombo = cards.filter((c) =>
-      droppedLower.has(c.toLowerCase()),
-    );
-    if (droppedFromCombo.length === 0) continue;
-    // Other combo cards (those NOT dropped) — must all be present in placed
-    // for the combo to have been "intact except for this drop".
-    const otherCards = cardsLower.filter((c) => !droppedLower.has(c));
-    if (otherCards.length === 0) continue; // entire combo was dropped — no intact strategy to break
-    const allOthersPlaced = otherCards.every((c) => placedLower.has(c));
-    if (!allOthersPlaced) continue;
-    for (const dropped of droppedFromCombo) {
-      const key = `${row.combo_id}|${dropped.toLowerCase()}`;
-      if (reportedCombo.has(key)) continue;
-      reportedCombo.add(key);
-      const result = safeParseJSON<string[]>(row.results, []);
-      const resultDesc =
-        result.length > 0 ? ` (combo result: ${result[0]})` : "";
-      warnings.push(
-        `Dropped a combo piece — '${dropped}' was the missing card from a complete combo line in this deck${resultDesc}. Other pieces (${otherCards.join(", ")}) remain. Consider raising the budget to keep the combo intact.`,
-      );
-    }
-  }
-
-  // Win-condition: any dropped card tagged win_condition.
-  const winConSet = new Set(
-    (winConRes.results ?? []).map((r) => r.front_face_name.toLowerCase()),
-  );
-  for (const d of dropped) {
-    if (winConSet.has(d.card_name.toLowerCase())) {
-      warnings.push(
-        `Dropped a win condition: '${d.card_name}' was tagged as a win_condition for this commander's strategy. Consider raising the budget or adjusting filters to keep it.`,
-      );
-    }
-  }
-
-  return warnings;
 }
 
 // ─── M6.1: output trimming for size-conscious LLM consumers ───────

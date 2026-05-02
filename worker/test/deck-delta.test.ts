@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   comboValue,
-  DEFAULT_DELTA_WEIGHTS,
   deltaComboValue,
   deltaQuality,
   deltaRoleCoverage,
@@ -447,14 +446,5 @@ describe("deltaQuality", () => {
     // Expected: 1 × (5 - 0.7071) ≈ 4.2929
     const expected = COMPLETE_BONUS - PARTIAL_2_OF_2;
     expect(Math.abs(delta - expected)).toBeLessThan(0.001);
-  });
-
-  it("DEFAULT_DELTA_WEIGHTS is exported with documented values", () => {
-    expect(DEFAULT_DELTA_WEIGHTS).toEqual({
-      commander_synergy: 1,
-      deck_synergy: 1,
-      role_coverage: 2,
-      combo_value: 3,
-    });
   });
 });

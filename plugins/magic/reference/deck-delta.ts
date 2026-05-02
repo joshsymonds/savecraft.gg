@@ -111,15 +111,23 @@ export async function logCommanderSynergy(
 }
 
 /**
- * roleCoverage queries magic_card_roles for the deck's cards, counts each
- * core role, and returns sigmoid-scored coverage per role.
+ * roleCoverage queries magic_card_roles for the deck's cards (or uses a
+ * precomputed role map when supplied), counts each core role, and returns
+ * sigmoid-scored coverage per role. Hot-path callers should always
+ * supply `rolesByCard` to avoid a DB round-trip per call.
  */
 export async function roleCoverage(
   env: Env,
   deck: DeckEntry[],
   _commander: CommanderRef,
+  rolesByCard?: Map<string, Set<string>>,
 ): Promise<RoleCoverage> {
-  const roleCounts = await countRolesForDeck(env, deck);
+  const roleCounts = rolesByCard
+    ? countRolesFromMap(
+        deck.map((entry) => entry.card_name),
+        rolesByCard,
+      )
+    : await countRolesForDeck(env, deck);
   return {
     ramp: coverageScore(
       roleCounts.get(ROLE_TAG.ramp) ?? 0,
@@ -192,9 +200,12 @@ async function countRolesForDeck(
 }
 
 /**
- * loadRolesByCard returns Map<lowercase_card_name, Set<role>>.
+ * loadRolesByCard returns Map<lowercase_card_name, Set<role>>. Exported so
+ * callers in deck-completion.ts can share a single role lookup across
+ * helpers (e.g. precomputed once per upgrade-loop iteration to keep
+ * deltaQualityCached pure).
  */
-async function loadRolesByCard(
+export async function loadRolesByCard(
   env: Env,
   names: string[],
 ): Promise<Map<string, Set<string>>> {
@@ -279,7 +290,7 @@ interface ComboLine {
   cards: string[];
 }
 
-async function loadCombosForCommander(
+export async function loadCombosForCommander(
   env: Env,
   commanderId: string,
 ): Promise<ComboLine[]> {
@@ -291,7 +302,7 @@ async function loadCombosForCommander(
   const out: ComboLine[] = [];
   for (const row of result.results ?? []) {
     const cards = safeParseJSON<string[]>(row.card_names, []);
-    if (cards.length === 0) continue;
+    if (cards.length < 2) continue; // a 1-card combo is not a combo
     out.push({ id: row.combo_id, cards });
   }
   return out;
@@ -391,10 +402,13 @@ export const DEFAULT_DELTA_WEIGHTS: DeltaWeights = {
  *
  * The Δquality term from Epic Requirement 5 (assessQuality vector) is
  * deferred. Its composition vector overlaps with ΔRoleCoverage (double-
- * counting), and computing it per swap requires multiple D1 queries. M7.6
- * spot-checks will determine whether the missing curve / bracket-consistency
- * signal causes visible failures; if so, add a cheap-incremental version in
- * a follow-up task.
+ * counting), and computing it per swap requires multiple D1 queries.
+ *
+ * **Hot-path callers should use `deltaQualityCached`** (pure function,
+ * no DB access). This async variant re-fetches everything per call and is
+ * O(swap-count × queries-per-swap); on a typical iteration that's >10k DB
+ * round-trips, blowing past Cloudflare Workers' subrequest cap. The async
+ * version is retained for unit-test convenience and ad-hoc scoring.
  */
 export async function deltaQuality(
   env: Env,
@@ -415,6 +429,185 @@ export async function deltaQuality(
   const synergyIn = synergyInValues.reduce((sum, v) => sum + v, 0);
   const synergyDelta = synergyIn - synergyOut;
   const synergyCoeff = weights.commander_synergy + weights.deck_synergy;
+  return (
+    synergyCoeff * synergyDelta +
+    weights.role_coverage * roleDelta +
+    weights.combo_value * comboDelta
+  );
+}
+
+// ── Cached / pure-function primitives for hot-path use ─────────────
+
+/**
+ * ScoringContext is the precomputed bundle the upgrade loop loads ONCE
+ * per iteration and reuses across all swap evaluations. With this in
+ * hand, deltaQualityCached has zero DB access — it's pure CPU, scoring
+ * thousands of candidate swaps in milliseconds rather than blowing past
+ * Workers' subrequest cap.
+ */
+export interface ScoringContext {
+  /** Map<lowercased card name, signedLog(synergy)>. 0 for cards without
+   *  a recommendation row (treated as neutral). */
+  synergyByCard: Map<string, number>;
+  /** Map<lowercased card name, set of role tags>. Empty set / missing
+   *  entry both mean "no role tags". */
+  rolesByCard: Map<string, Set<string>>;
+  /** Combo lines for this commander. */
+  combos: ComboLine[];
+}
+
+/**
+ * loadScoringContext fetches synergy + roles + combos for the universe
+ * of cards the upgrade loop will see. Pass the union of (initial deck
+ * cards ∪ candidate pool) — the upgrade loop only swaps within that
+ * universe, so the context never goes stale across iterations.
+ *
+ * Three D1 queries total (one for synergies, one chunked for roles,
+ * one for combos). Combos are commander-scoped and don't depend on
+ * names.
+ */
+export async function loadScoringContext(
+  env: Env,
+  commander: CommanderRef,
+  cardNames: string[],
+): Promise<ScoringContext> {
+  const [synergyByCard, rolesByCard, combos] = await Promise.all([
+    loadSynergiesByCard(env, commander.scryfall_id, cardNames),
+    loadRolesByCard(env, cardNames),
+    loadCombosForCommander(env, commander.scryfall_id),
+  ]);
+  return { synergyByCard, rolesByCard, combos };
+}
+
+interface synergyByCardRow {
+  card_name: string;
+  synergy: number;
+}
+
+/**
+ * loadSynergiesByCard batch-fetches signedLog(synergy) for every card
+ * in `names`. Cards without a recommendation row map to 0 (neutral).
+ */
+async function loadSynergiesByCard(
+  env: Env,
+  commanderId: string,
+  names: string[],
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (names.length === 0) return out;
+  const unique = [...new Set(names.map((n) => n.toLowerCase()))];
+  const CHUNK = 90;
+  for (let i = 0; i < unique.length; i += CHUNK) {
+    const slice = unique.slice(i, i + CHUNK);
+    const placeholders = slice.map(() => "?").join(",");
+    const result = await env.DB.prepare(
+      `SELECT card_name, MAX(synergy) AS synergy
+         FROM magic_edh_recommendations
+         WHERE commander_id = ? AND LOWER(card_name) IN (${placeholders})
+         GROUP BY card_name`,
+    )
+      .bind(commanderId, ...slice)
+      .all<synergyByCardRow>();
+    for (const row of result.results ?? []) {
+      out.set(row.card_name.toLowerCase(), signedLog(row.synergy));
+    }
+  }
+  // Cards not in the result set get 0 (neutral) implicitly via
+  // `out.get(...) ?? 0` at call sites.
+  return out;
+}
+
+/**
+ * logCommanderSynergyCached is the pure-function counterpart to
+ * `logCommanderSynergy`. Returns 0 for unknown cards (matching the
+ * async version's missing-row default).
+ */
+export function logCommanderSynergyCached(
+  ctx: ScoringContext,
+  card: string,
+): number {
+  return ctx.synergyByCard.get(card.toLowerCase()) ?? 0;
+}
+
+/**
+ * deltaRoleCoverageCached is the pure-function counterpart to
+ * `deltaRoleCoverage`. Operates on the precomputed rolesByCard map.
+ */
+export function deltaRoleCoverageCached(
+  deck: DeckEntry[],
+  cardsOut: string[],
+  cardsIn: string[],
+  rolesByCard: Map<string, Set<string>>,
+): number {
+  const beforeCounts = countRolesFromMap(
+    deck.map((entry) => entry.card_name),
+    rolesByCard,
+  );
+  const beforeSum = sumCoverage(beforeCounts);
+
+  const afterDeck = new Set<string>(
+    deck.map((entry) => entry.card_name.toLowerCase()),
+  );
+  for (const name of cardsOut) afterDeck.delete(name.toLowerCase());
+  for (const name of cardsIn) afterDeck.add(name.toLowerCase());
+  const afterCounts = countRolesFromMap([...afterDeck], rolesByCard);
+  const afterSum = sumCoverage(afterCounts);
+
+  return afterSum - beforeSum;
+}
+
+/**
+ * deltaComboValueCached is the pure-function counterpart to
+ * `deltaComboValue`. Operates on the precomputed combos list.
+ */
+export function deltaComboValueCached(
+  deck: DeckEntry[],
+  cardsOut: string[],
+  cardsIn: string[],
+  combos: ComboLine[],
+): number {
+  const beforeSet = new Set(deck.map((entry) => entry.card_name.toLowerCase()));
+  const afterSet = new Set(beforeSet);
+  for (const name of cardsOut) afterSet.delete(name.toLowerCase());
+  for (const name of cardsIn) afterSet.add(name.toLowerCase());
+  let before = 0;
+  let after = 0;
+  for (const combo of combos) {
+    before += scoreCombo(beforeSet, combo.cards);
+    after += scoreCombo(afterSet, combo.cards);
+  }
+  return after - before;
+}
+
+/**
+ * deltaQualityCached is the pure-function counterpart to `deltaQuality`.
+ * Used by upgradeDeck on the hot inner loop — zero DB access; scoring
+ * runs at memory speed.
+ */
+export function deltaQualityCached(
+  deck: DeckEntry[],
+  cardsOut: string[],
+  cardsIn: string[],
+  ctx: ScoringContext,
+  weights: DeltaWeights = DEFAULT_DELTA_WEIGHTS,
+): number {
+  let synergyOut = 0;
+  for (const name of cardsOut) {
+    synergyOut += logCommanderSynergyCached(ctx, name);
+  }
+  let synergyIn = 0;
+  for (const name of cardsIn) {
+    synergyIn += logCommanderSynergyCached(ctx, name);
+  }
+  const synergyDelta = synergyIn - synergyOut;
+  const synergyCoeff = weights.commander_synergy + weights.deck_synergy;
+  const roleDelta = deltaRoleCoverageCached(
+    deck,
+    cardsOut,
+    cardsIn,
+    ctx.rolesByCard,
+  );
+  const comboDelta = deltaComboValueCached(deck, cardsOut, cardsIn, ctx.combos);
   return (
     synergyCoeff * synergyDelta +
     weights.role_coverage * roleDelta +

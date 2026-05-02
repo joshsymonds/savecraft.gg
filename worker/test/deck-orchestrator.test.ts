@@ -142,9 +142,11 @@ describe("buildAndUpgradeDeck", () => {
       budget: 5,
     });
 
-    expect(result.warnings.length).toBeGreaterThan(0);
-    // At minimum, role lower-bound warnings from buildMinimalShell should
-    // surface (no role-tagged cards fit the $5 budget cleanly).
+    // Baseline phase: minimal-shell role-floor warnings surface for ramp,
+    // card_draw, removal, and win_condition (no role-tagged recs fit the
+    // $5 budget). Each warning includes "lower bound … not met".
+    const baselineWarning = result.warnings.find((w) => w.includes("lower bound"));
+    expect(baselineWarning).toBeDefined();
   });
 
   it("populates baseline_cost separately from totalCost", async () => {
@@ -194,6 +196,5 @@ describe("karstenValidateMana", () => {
     ];
     const result = await karstenValidateMana(env as unknown as Env, deck, COMMANDER);
     expect(result.warnings).toEqual([]);
-    expect(result.swaps).toEqual([]);
   });
 });
