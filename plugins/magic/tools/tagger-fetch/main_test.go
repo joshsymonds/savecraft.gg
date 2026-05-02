@@ -197,6 +197,15 @@ func TestTaggerRolesContainsExpectedMappings(t *testing.T) {
 		{"counterspell", []string{"removal"}},
 		{"extra-turn", []string{"extra_turn"}},
 		{"win-condition", []string{"win_condition"}},
+		// M1.2: authoritative tags discovered via deeper probing of
+		// Scryfall Tagger.
+		{"mass-land-denial", []string{"land_destruction"}},
+		{"card-advantage", []string{"card_draw"}},
+		{"cantrip", []string{"card_draw"}},
+		{"wheel", []string{"card_draw"}},
+		{"mana-dork", []string{"ramp"}},
+		{"mana-rock", []string{"ramp"}},
+		{"moxen", []string{"ramp"}},
 	}
 	for _, tt := range tests {
 		got, ok := taggerRoles[tt.tag]
@@ -206,6 +215,53 @@ func TestTaggerRolesContainsExpectedMappings(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, tt.expectedRoles) {
 			t.Errorf("taggerRoles[%q] = %v, want %v", tt.tag, got, tt.expectedRoles)
+		}
+	}
+}
+
+func TestMassLandDenialMapsToLandDestruction(t *testing.T) {
+	// mass-land-denial is the bracket-critical tag — MLD floors decks at
+	// Bracket 4 in the WotC framework. The mapping must produce role
+	// "land_destruction" so bracket detection in the deck-quality library
+	// can find it.
+	roles, ok := taggerRoles["mass-land-denial"]
+	if !ok {
+		t.Fatal("mass-land-denial missing from taggerRoles")
+	}
+	if len(roles) != 1 || roles[0] != "land_destruction" {
+		t.Errorf("mass-land-denial → %v, want [land_destruction]", roles)
+	}
+}
+
+func TestNewCardDrawTagsAllProduceCardDraw(t *testing.T) {
+	// card-advantage / cantrip / wheel all produce card_draw role. Composition
+	// assessment counts card_draw against the 8-10 community benchmark; if any
+	// of these maps to a different role, the composition output will undercount
+	// the deck's card-draw slot.
+	for _, tag := range []string{"card-advantage", "cantrip", "wheel"} {
+		roles, ok := taggerRoles[tag]
+		if !ok {
+			t.Errorf("%s missing from taggerRoles", tag)
+			continue
+		}
+		if len(roles) != 1 || roles[0] != "card_draw" {
+			t.Errorf("%s → %v, want [card_draw]", tag, roles)
+		}
+	}
+}
+
+func TestNewRampTagsAllProduceRamp(t *testing.T) {
+	// mana-dork / mana-rock / moxen all produce ramp role. Without these,
+	// composition would miss creature-based ramp (Llanowar Elves, Birds of
+	// Paradise) and the iconic mana rocks that aren't tagged function:ramp.
+	for _, tag := range []string{"mana-dork", "mana-rock", "moxen"} {
+		roles, ok := taggerRoles[tag]
+		if !ok {
+			t.Errorf("%s missing from taggerRoles", tag)
+			continue
+		}
+		if len(roles) != 1 || roles[0] != "ramp" {
+			t.Errorf("%s → %v, want [ramp]", tag, roles)
 		}
 	}
 }

@@ -45,16 +45,18 @@ import (
 // Scryfall (each returns ≥1 card via function:<tag> search). Verified
 // 2026-05-01.
 //
-// NOT included (no Scryfall function tag returns results):
+// NOT included (verified to return 0 cards across all sets):
 //   - mana-fixer / mana-fixing: detectFixingLands derives this from
 //     produced_mana on lands, which covers the common case (dual lands,
-//     triomes); spells like Sol Ring stay un-tagged here and would need a
-//     ramp tag instead (which DOES exist).
-//   - land-destruction / mass-land-destruction: no Scryfall tag exists.
-//     M1.2 will introduce a hand-curated list since this signal is needed
-//     for bracket detection (MLD floors at Bracket 4).
-//   - fast-mana: no Scryfall tag. Hand-curated in M1.2 (the canonical
-//     list — Mana Crypt, Jeweled Lotus, etc. — is small and stable).
+//     triomes). Non-land fixers (Chromatic Lantern, Arcane Signet) still
+//     get tagged via mana-rock → ramp below.
+//   - fast-mana: no Scryfall tag exists. Not needed for our use case —
+//     bracket detection uses the Game Changers list (53 cards) which WotC
+//     explicitly designed to capture fast-mana-as-bracket-signal. Every
+//     canonical fast-mana card (Mana Crypt, Jeweled Lotus, Mana Vault,
+//     Grim Monolith, Lotus Petal, Mox Diamond, Chrome Mox) is on Game
+//     Changers AND has function:ramp; Sol Ring is the only exception (WotC
+//     deliberately excluded it because of bracket-1 ubiquity).
 var taggerRoles = map[string][]string{
 	"ramp":          {"ramp"},
 	"draw":          {"card_draw"},
@@ -65,6 +67,16 @@ var taggerRoles = map[string][]string{
 	"counterspell":  {"removal"},
 	"extra-turn":    {"extra_turn"},
 	"win-condition": {"win_condition"},
+	// M1.2 additions — authoritative Scryfall tags discovered via deeper
+	// probing. Counts are total cards across all sets (verified
+	// 2026-05-01 via api.scryfall.com/cards/search?q=function:<tag>).
+	"mass-land-denial": {"land_destruction"}, // 108 — bracket-critical, MLD floors at Bracket 4
+	"card-advantage":   {"card_draw"},        // 5991 — broader than `draw`; catches Rhystic Study, Phyrexian Arena, Mystic Remora, Esper Sentinel
+	"cantrip":          {"card_draw"},        // 603 — replace-itself effects (Brainstorm, Ponder)
+	"wheel":            {"card_draw"},        // 135 — Wheel of Fortune, Windfall, Time Spiral
+	"mana-dork":        {"ramp"},             // 414 — creature-based ramp (Llanowar Elves, Birds of Paradise)
+	"mana-rock":        {"ramp"},             // 368 — generic mana rocks (Sol Ring, Arcane Signet, Commander's Sphere)
+	"moxen":            {"ramp"},             // 13 — the Moxen specifically
 }
 
 // taggedCard is the raw shape returned from a Scryfall function-tag search,
