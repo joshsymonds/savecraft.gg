@@ -24,6 +24,7 @@ import type { CommanderRef, DeckEntry } from "./deck-quality";
 import { COMMUNITY_BENCHMARKS, assessComposition } from "./deck-quality";
 import { resolveCardPrices } from "./commander-prices";
 import { safeParseJSON } from "../../../worker/src/reference/json";
+import { deltaQuality } from "./deck-delta";
 
 export interface AddedCard {
   card_name: string;
@@ -175,7 +176,12 @@ export async function completeDeck(
     // target by 2-3x in observed cases (Edgar Markov $500: ramp went 22 vs
     // target 7-11). The role-gap fill should bring a "low" role up to "ok",
     // not past "high".
-    const roleData = (compInitial as unknown as Record<string, { count: number; target_range: [number, number] }>)[role];
+    const roleData = (
+      compInitial as unknown as Record<
+        string,
+        { count: number; target_range: [number, number] }
+      >
+    )[role];
     const upperBound = roleData?.target_range?.[1] ?? Infinity;
     let currentRoleCount = roleData?.count ?? 0;
     if (currentRoleCount >= upperBound) continue; // already at upper bound — skip
@@ -532,9 +538,7 @@ export async function buildMinimalShell(
   let totalCost = 0;
 
   // The deck starts with the commander.
-  const deck: DeckEntry[] = [
-    { card_name: commander.name, quantity: 1 },
-  ];
+  const deck: DeckEntry[] = [{ card_name: commander.name, quantity: 1 }];
   inDeck.add(commander.name.toLowerCase());
 
   // Game-changer filter set (loaded once if needed).
@@ -746,4 +750,454 @@ function allocateBasics(
     if (i > slots * 2) break;
   }
   return out;
+}
+
+// ── Marginal-utility upgrade loop ────────────────────────────────
+
+const BASIC_LAND_NAMES = new Set([
+  "Plains",
+  "Island",
+  "Swamp",
+  "Mountain",
+  "Forest",
+  "Wastes",
+]);
+
+const COMPOSITE_PAIR_LIMIT = 20; // top-K candidates per role for composite swaps
+
+export interface UpgradeOptions {
+  /** Total budget cap. The loop's spent never exceeds this. */
+  budget: number;
+  /** Cost of the baseline deck — already counted against budget. */
+  spent: number;
+  excludes?: string[];
+  excludeGameChangers?: boolean;
+  /** Stop when best Δ ≤ epsilon (default 0.5). */
+  epsilon?: number;
+  /** Hard cap on iterations (default 50). */
+  maxIterations?: number;
+  /** Top-K candidates pulled per iteration (default 50). */
+  candidatePoolSize?: number;
+}
+
+export interface UpgradeStep {
+  iteration: number;
+  out: string[];
+  in_: string[];
+  delta: number;
+  cost_change: number;
+  operator: "1for1" | "2for1" | "1for2";
+}
+
+export interface UpgradeResult {
+  deck: DeckEntry[];
+  totalCost: number;
+  steps: UpgradeStep[];
+  warnings: string[];
+}
+
+interface candidateRow {
+  card_name: string;
+  synergy: number;
+  inclusion: number;
+  price: number;
+}
+
+/**
+ * upgradeDeck applies marginal-utility hill-climbing to a 100-card baseline.
+ * Per iteration: enumerate top-K recommendations within remaining budget,
+ * score 1-for-1 / 2-for-1 / 1-for-2 swaps via deltaQuality, apply the best
+ * if Δ > epsilon, terminate otherwise. Composite swaps (2-for-1, 1-for-2)
+ * are restricted to same-role pairs to bound enumeration cost. Composite
+ * swaps adjust basic-land count to maintain 100 cards.
+ *
+ * Per Epic Anti-pattern: terminates by quality plateau, NOT budget exhaustion.
+ * A $300 deck may not use the full budget if no swap improves quality by ε.
+ */
+export async function upgradeDeck(
+  env: Env,
+  baseline: DeckEntry[],
+  commander: CommanderRef,
+  options: UpgradeOptions,
+): Promise<UpgradeResult> {
+  const epsilon = options.epsilon ?? 0.5;
+  const maxIters = options.maxIterations ?? 50;
+  const poolSize = options.candidatePoolSize ?? 50;
+  const excludesLower = new Set(
+    (options.excludes ?? []).map((s) => s.toLowerCase()),
+  );
+  const commanderLower = commander.name.toLowerCase();
+
+  const gameChangers = options.excludeGameChangers
+    ? await loadGameChangers(env)
+    : new Set<string>();
+
+  const deck: DeckEntry[] = baseline.map((entry) => ({ ...entry }));
+  let spent = options.spent;
+  const steps: UpgradeStep[] = [];
+  const warnings: string[] = [];
+
+  for (let iter = 1; iter <= maxIters; iter++) {
+    const remaining = options.budget - spent;
+    const candidates = await fetchCandidatesBySynergy(
+      env,
+      commander.scryfall_id,
+      poolSize,
+      remaining,
+    );
+
+    const inDeckLower = new Set(
+      deck.map((entry) => entry.card_name.toLowerCase()),
+    );
+    const filtered = candidates.filter((c) => {
+      const lc = c.card_name.toLowerCase();
+      if (inDeckLower.has(lc)) return false;
+      if (excludesLower.has(lc)) return false;
+      if (gameChangers.has(lc)) return false;
+      return true;
+    });
+
+    if (filtered.length === 0) break;
+
+    // Build price lookup for swappable deck cards (everything except the
+    // commander). Basics have price 0.
+    const swappableNames = deck
+      .map((entry) => entry.card_name)
+      .filter((name) => name.toLowerCase() !== commanderLower);
+    const deckPrices = await loadPricesForDeckCards(env, swappableNames);
+    const candidatePrices = new Map<string, number>();
+    for (const cand of filtered) {
+      candidatePrices.set(cand.card_name.toLowerCase(), cand.price);
+    }
+
+    // Roles for swap participants (deck swappables + filtered candidates).
+    const allInvolvedNames = [
+      ...swappableNames,
+      ...filtered.map((c) => c.card_name),
+    ];
+    const rolesByCard = await loadRolesByLowerName(env, allInvolvedNames);
+
+    // Group swappable deck cards by role for 2-for-1 enumeration.
+    const swappableUnique = [...new Set(swappableNames)];
+    const deckByRole = bucketByRole(swappableUnique, rolesByCard);
+    // Group candidates by role for 1-for-2 enumeration.
+    const candByRole = bucketByRole(
+      filtered.map((c) => c.card_name),
+      rolesByCard,
+    );
+
+    let best: UpgradeStep | null = null;
+
+    // 1-for-1: every candidate × every swappable deck card
+    for (const cand of filtered) {
+      for (const xName of swappableUnique) {
+        const xPrice = deckPrices.get(xName.toLowerCase()) ?? 0;
+        const costChange = cand.price - xPrice;
+        if (costChange > remaining) continue;
+        const delta = await deltaQuality(
+          env,
+          deck,
+          [xName],
+          [cand.card_name],
+          commander,
+        );
+        if (!best || delta > best.delta) {
+          best = {
+            iteration: iter,
+            out: [xName],
+            in_: [cand.card_name],
+            delta,
+            cost_change: costChange,
+            operator: "1for1",
+          };
+        }
+      }
+    }
+
+    // 2-for-1: candidate Y, deck pair (X1, X2) sharing a role with Y
+    for (const cand of filtered) {
+      const yRoles = rolesByCard.get(cand.card_name.toLowerCase()) ?? new Set();
+      if (yRoles.size === 0) continue;
+      const pool = collectFromRoles(yRoles, deckByRole, COMPOSITE_PAIR_LIMIT);
+      const xList = [...pool];
+      for (let i = 0; i < xList.length; i++) {
+        for (let j = i + 1; j < xList.length; j++) {
+          const x1 = xList[i] ?? "";
+          const x2 = xList[j] ?? "";
+          const x1Price = deckPrices.get(x1.toLowerCase()) ?? 0;
+          const x2Price = deckPrices.get(x2.toLowerCase()) ?? 0;
+          const costChange = cand.price - x1Price - x2Price;
+          if (costChange > remaining) continue;
+          const delta = await deltaQuality(
+            env,
+            deck,
+            [x1, x2],
+            [cand.card_name],
+            commander,
+          );
+          if (!best || delta > best.delta) {
+            best = {
+              iteration: iter,
+              out: [x1, x2],
+              in_: [cand.card_name],
+              delta,
+              cost_change: costChange,
+              operator: "2for1",
+            };
+          }
+        }
+      }
+    }
+
+    // 1-for-2: deck card X, candidate pair (Y1, Y2) sharing a role with X
+    for (const xName of swappableUnique) {
+      const xRoles = rolesByCard.get(xName.toLowerCase()) ?? new Set();
+      if (xRoles.size === 0) continue;
+      // Need a basic to remove for the slot adjustment.
+      if (!hasBasicLand(deck)) continue;
+      const xPrice = deckPrices.get(xName.toLowerCase()) ?? 0;
+      const pool = collectFromRoles(xRoles, candByRole, COMPOSITE_PAIR_LIMIT);
+      const yList = [...pool];
+      for (let i = 0; i < yList.length; i++) {
+        for (let j = i + 1; j < yList.length; j++) {
+          const y1 = yList[i] ?? "";
+          const y2 = yList[j] ?? "";
+          const y1Price = candidatePrices.get(y1.toLowerCase()) ?? 0;
+          const y2Price = candidatePrices.get(y2.toLowerCase()) ?? 0;
+          const costChange = y1Price + y2Price - xPrice;
+          if (costChange > remaining) continue;
+          const delta = await deltaQuality(
+            env,
+            deck,
+            [xName],
+            [y1, y2],
+            commander,
+          );
+          if (!best || delta > best.delta) {
+            best = {
+              iteration: iter,
+              out: [xName],
+              in_: [y1, y2],
+              delta,
+              cost_change: costChange,
+              operator: "1for2",
+            };
+          }
+        }
+      }
+    }
+
+    if (!best || best.delta <= epsilon) break;
+
+    applySwap(deck, best, commander);
+    spent += best.cost_change;
+    steps.push(best);
+  }
+
+  if (steps.length === maxIters) {
+    warnings.push(
+      `Hit MAX_ITERATIONS (${String(maxIters)}); possible oscillation — terminating early.`,
+    );
+  }
+
+  return { deck, totalCost: spent, steps, warnings };
+}
+
+async function loadGameChangers(env: Env): Promise<Set<string>> {
+  const result = await env.DB.prepare(
+    `SELECT card_name FROM magic_game_changers`,
+  ).all<{ card_name: string }>();
+  return new Set((result.results ?? []).map((r) => r.card_name.toLowerCase()));
+}
+
+async function fetchCandidatesBySynergy(
+  env: Env,
+  commanderId: string,
+  poolSize: number,
+  _budgetRemaining: number,
+): Promise<candidateRow[]> {
+  // Do NOT filter by absolute price ≤ budget. Composite swaps (2-for-1)
+  // can afford candidates whose absolute price exceeds remaining budget,
+  // because the offsetting cost of removed deck cards reduces the net
+  // cost_change. The per-swap evaluation enforces the budget correctly.
+  const result = await env.DB.prepare(
+    `SELECT r.card_name AS card_name,
+            MAX(r.synergy) AS synergy,
+            MAX(r.inclusion) AS inclusion,
+            COALESCE(p.tcgplayer_price, 0) AS price
+       FROM magic_edh_recommendations r
+       LEFT JOIN magic_edh_card_prices p ON LOWER(r.card_name) = LOWER(p.card_name)
+       WHERE r.commander_id = ?
+       GROUP BY r.card_name, p.tcgplayer_price
+       ORDER BY synergy DESC, inclusion DESC, r.card_name ASC
+       LIMIT ?`,
+  )
+    .bind(commanderId, poolSize)
+    .all<candidateRow>();
+  return result.results ?? [];
+}
+
+async function loadPricesForDeckCards(
+  env: Env,
+  names: string[],
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (names.length === 0) return out;
+  // Skip basic-land lookups (always free). Pass original casing to
+  // resolveCardPrices since it queries with case-sensitive IN clauses;
+  // results are keyed lowercase regardless of input casing.
+  const lookups = [...new Set(names.filter((n) => !BASIC_LAND_NAMES.has(n)))];
+  if (lookups.length === 0) return out;
+  const prices = await resolveCardPrices(env, lookups);
+  for (const name of lookups) {
+    const p = prices.prices.get(name.toLowerCase())?.price;
+    out.set(name.toLowerCase(), p ?? 0);
+  }
+  return out;
+}
+
+async function loadRolesByLowerName(
+  env: Env,
+  names: string[],
+): Promise<Map<string, Set<string>>> {
+  const out = new Map<string, Set<string>>();
+  if (names.length === 0) return out;
+  const unique = [...new Set(names.map((n) => n.toLowerCase()))];
+  const CHUNK = 90;
+  for (let i = 0; i < unique.length; i += CHUNK) {
+    const slice = unique.slice(i, i + CHUNK);
+    const placeholders = slice.map(() => "?").join(",");
+    const result = await env.DB.prepare(
+      `SELECT front_face_name, role FROM magic_card_roles
+         WHERE LOWER(front_face_name) IN (${placeholders})`,
+    )
+      .bind(...slice)
+      .all<{ front_face_name: string; role: string }>();
+    for (const row of result.results ?? []) {
+      const key = row.front_face_name.toLowerCase();
+      let set = out.get(key);
+      if (!set) {
+        set = new Set();
+        out.set(key, set);
+      }
+      set.add(row.role);
+    }
+  }
+  return out;
+}
+
+/**
+ * bucketByRole returns Map<role, card_names[]> with cards listed in input
+ * order (input is already pre-sorted by relevance — synergy DESC for
+ * candidates, deck order for swappables).
+ */
+function bucketByRole(
+  names: string[],
+  rolesByCard: Map<string, Set<string>>,
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const name of names) {
+    const roles = rolesByCard.get(name.toLowerCase());
+    if (!roles) continue;
+    for (const role of roles) {
+      let list = out.get(role);
+      if (!list) {
+        list = [];
+        out.set(role, list);
+      }
+      list.push(name);
+    }
+  }
+  return out;
+}
+
+function collectFromRoles(
+  roles: Set<string>,
+  byRole: Map<string, string[]>,
+  limitPerRole: number,
+): Set<string> {
+  const out = new Set<string>();
+  for (const role of roles) {
+    const list = byRole.get(role);
+    if (!list) continue;
+    for (let i = 0; i < Math.min(limitPerRole, list.length); i++) {
+      const item = list[i];
+      if (item !== undefined) out.add(item);
+    }
+  }
+  return out;
+}
+
+function hasBasicLand(deck: DeckEntry[]): boolean {
+  for (const entry of deck) {
+    if (BASIC_LAND_NAMES.has(entry.card_name) && (entry.quantity ?? 1) > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function pickBasicToRemove(deck: DeckEntry[]): string | null {
+  for (const entry of deck) {
+    if (BASIC_LAND_NAMES.has(entry.card_name) && (entry.quantity ?? 1) > 0) {
+      return entry.card_name;
+    }
+  }
+  return null;
+}
+
+function pickBasicToAdd(deck: DeckEntry[]): string {
+  // Prefer adding to an already-present basic so the deck stays as-is in
+  // structure. Fall back to Plains if no basic is in the deck.
+  for (const entry of deck) {
+    if (BASIC_LAND_NAMES.has(entry.card_name)) return entry.card_name;
+  }
+  return "Plains";
+}
+
+function applySwap(
+  deck: DeckEntry[],
+  step: UpgradeStep,
+  commander: CommanderRef,
+): void {
+  for (const name of step.out) decrementCard(deck, name, commander);
+  for (const name of step.in_) incrementCard(deck, name);
+  // Composite swap basic-land slot adjustments.
+  if (step.operator === "2for1") {
+    const basic = pickBasicToAdd(deck);
+    incrementCard(deck, basic);
+  } else if (step.operator === "1for2") {
+    const basic = pickBasicToRemove(deck);
+    if (basic) decrementCard(deck, basic, commander);
+  }
+}
+
+function decrementCard(
+  deck: DeckEntry[],
+  name: string,
+  commander: CommanderRef,
+): void {
+  if (name.toLowerCase() === commander.name.toLowerCase()) return;
+  const idx = deck.findIndex(
+    (entry) => entry.card_name.toLowerCase() === name.toLowerCase(),
+  );
+  if (idx < 0) return;
+  const entry = deck[idx]!;
+  const qty = entry.quantity ?? 1;
+  if (qty > 1) {
+    entry.quantity = qty - 1;
+  } else {
+    deck.splice(idx, 1);
+  }
+}
+
+function incrementCard(deck: DeckEntry[], name: string): void {
+  const existing = deck.find(
+    (entry) => entry.card_name.toLowerCase() === name.toLowerCase(),
+  );
+  if (existing) {
+    existing.quantity = (existing.quantity ?? 1) + 1;
+  } else {
+    deck.push({ card_name: name, quantity: 1 });
+  }
 }
