@@ -76,6 +76,10 @@ export interface BuildOptions {
   budget: number;
   /** If supplied and length ≥ 60, used as baseline (padded with basics to 100). */
   precon?: DeckEntry[];
+  /** Cards forced into the final deck regardless of budget. Per existing
+   *  semantics: "added even when over budget". The upgrade loop may swap them
+   *  out only if a swap improves Δquality by > epsilon. */
+  mustInclude?: string[];
   excludes?: string[];
   excludeGameChangers?: boolean;
   epsilon?: number;
@@ -1305,6 +1309,22 @@ export async function buildAndUpgradeDeck(
     warnings.push(...shell.warnings);
   }
 
+  // Apply must_includes: pin user-specified cards by swapping them in for
+  // the cheapest disposable baseline card (basic land preferred). Per the
+  // existing semantics, must_includes are added even when over budget.
+  if (options.mustInclude && options.mustInclude.length > 0) {
+    const mustResult = await applyMustIncludes(
+      env,
+      baselineDeck,
+      baselineCost,
+      options.mustInclude,
+      commander,
+    );
+    baselineDeck = mustResult.deck;
+    baselineCost = mustResult.cost;
+    warnings.push(...mustResult.warnings);
+  }
+
   const upgrade = await upgradeDeck(env, baselineDeck, commander, {
     budget: options.budget,
     spent: baselineCost,
@@ -1360,13 +1380,71 @@ async function padPreconToFull(
 }
 
 /**
+ * applyMustIncludes injects user-pinned cards into the baseline by swapping
+ * them in for the cheapest disposable card (basic land preferred). The
+ * upgrade loop may swap them out later only if a swap improves Δquality
+ * past epsilon — preserving "must_include" intent loosely while letting
+ * the algorithm do its job.
+ */
+async function applyMustIncludes(
+  env: Env,
+  deck: DeckEntry[],
+  baselineCost: number,
+  mustInclude: string[],
+  commander: CommanderRef,
+): Promise<{ deck: DeckEntry[]; cost: number; warnings: string[] }> {
+  const warnings: string[] = [];
+  const inDeck = new Set(deck.map((entry) => entry.card_name.toLowerCase()));
+  const toAdd = mustInclude.filter((name) => !inDeck.has(name.toLowerCase()));
+  if (toAdd.length === 0) return { deck, cost: baselineCost, warnings };
+
+  const prices = await resolveCardPrices(env, toAdd);
+  let cost = baselineCost;
+
+  for (const name of toAdd) {
+    // Prefer swapping out a basic land — free, no role coverage loss.
+    let swappedOut: string | null = null;
+    for (const entry of deck) {
+      if (BASIC_LAND_NAMES.has(entry.card_name) && (entry.quantity ?? 1) > 0) {
+        swappedOut = entry.card_name;
+        break;
+      }
+    }
+    if (swappedOut === null) {
+      // No basics available — fall back to the last non-commander, non-basic
+      // card. This is a baseline filler; the upgrade loop would target it
+      // anyway. Walk in reverse so the most-recently added baseline card
+      // (likely the lowest-priority filler) is consumed first.
+      const commanderLower = commander.name.toLowerCase();
+      for (let i = deck.length - 1; i >= 0; i--) {
+        const entry = deck[i]!;
+        if (entry.card_name.toLowerCase() === commanderLower) continue;
+        if (BASIC_LAND_NAMES.has(entry.card_name)) continue;
+        swappedOut = entry.card_name;
+        break;
+      }
+    }
+    if (swappedOut === null) {
+      warnings.push(
+        `must_include "${name}": no swap target found in baseline.`,
+      );
+      continue;
+    }
+
+    decrementCard(deck, swappedOut, commander);
+    incrementCard(deck, name);
+
+    const newPrice = prices.prices.get(name.toLowerCase())?.price ?? 0;
+    cost += newPrice;
+  }
+  return { deck, cost, warnings };
+}
+
+/**
  * sumNonBasicCost computes the total tcgplayer price of all non-basic cards
  * in the deck (basics are free). Used to compute baseline_cost for a precon.
  */
-async function sumNonBasicCost(
-  env: Env,
-  deck: DeckEntry[],
-): Promise<number> {
+async function sumNonBasicCost(env: Env, deck: DeckEntry[]): Promise<number> {
   const nonBasicNames = deck
     .filter((entry) => !BASIC_LAND_NAMES.has(entry.card_name))
     .map((entry) => entry.card_name);

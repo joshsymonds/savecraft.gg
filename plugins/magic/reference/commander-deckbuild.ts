@@ -19,8 +19,70 @@ import type {
 import { safeParseJSON } from "../../../worker/src/reference/json";
 import { resolveCardPrices } from "./commander-prices";
 import { resolveCommander } from "./commander-resolve";
-import { completeDeck, type CompletionResult } from "./deck-completion";
+import {
+  buildAndUpgradeDeck,
+  completeDeck,
+  type CompletionResult,
+} from "./deck-completion";
 import { assessQuality, type QualityReport } from "./deck-quality";
+
+const BASIC_LAND_NAMES = new Set([
+  "Plains",
+  "Island",
+  "Swamp",
+  "Mountain",
+  "Forest",
+  "Wastes",
+]);
+
+/**
+ * deriveCategory infers a category label from a Scryfall type_line string.
+ * Used to populate the structured output's per-card `category` field
+ * after buildAndUpgradeDeck (which doesn't track categories).
+ */
+function deriveCategory(cardName: string, typeLine: string): string {
+  if (BASIC_LAND_NAMES.has(cardName)) return "basics";
+  const t = typeLine.toLowerCase();
+  if (t.includes("land")) return "Land";
+  if (t.includes("creature")) return "Creature";
+  if (t.includes("planeswalker")) return "Planeswalker";
+  if (t.includes("battle")) return "Battle";
+  if (t.includes("artifact")) return "Artifact";
+  if (t.includes("enchantment")) return "Enchantment";
+  if (t.includes("sorcery")) return "Sorcery";
+  if (t.includes("instant")) return "Instant";
+  return "Other";
+}
+
+interface typeLineRow {
+  front_face_name: string;
+  type_line: string;
+}
+
+async function loadTypeLines(
+  env: Env,
+  names: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (names.length === 0) return out;
+  const unique = [...new Set(names.map((n) => n.toLowerCase()))];
+  const CHUNK = 90;
+  for (let i = 0; i < unique.length; i += CHUNK) {
+    const slice = unique.slice(i, i + CHUNK);
+    const placeholders = slice.map(() => "?").join(",");
+    const result = await env.DB.prepare(
+      `SELECT front_face_name, type_line FROM magic_cards
+         WHERE LOWER(front_face_name) IN (${placeholders})
+           AND is_default = 1 AND type_line != 'Card // Card'`,
+    )
+      .bind(...slice)
+      .all<typeLineRow>();
+    for (const row of result.results ?? []) {
+      out.set(row.front_face_name.toLowerCase(), row.type_line ?? "");
+    }
+  }
+  return out;
+}
 
 const VALID_TIERS = ["budget", "upgraded", "optimized", "cedh"] as const;
 type Tier = (typeof VALID_TIERS)[number];
@@ -283,226 +345,128 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       });
     }
 
-    // Load tier metadata + tier deck in parallel.
-    const [tierInfoResult, tierDeckResult, gcResult] = await Promise.all([
-      env.DB.prepare(
-        `SELECT tier, avg_price, num_decks_avg, deck_size
-           FROM magic_edh_commander_tiers
-           WHERE commander_id = ? AND tier = ?`,
-      )
-        .bind(commanderId, tier)
-        .all<TierInfoRow>(),
-      env.DB.prepare(
-        `SELECT card_name, quantity, category
-           FROM magic_edh_average_decks_by_tier
-           WHERE commander_id = ? AND tier = ?`,
-      )
-        .bind(commanderId, tier)
-        .all<TierDeckRow>(),
-      excludeGameChangers
-        ? env.DB.prepare(`SELECT card_name FROM magic_game_changers`).all<{
-            card_name: string;
-          }>()
-        : Promise.resolve({ results: [] as { card_name: string }[] }),
-    ]);
-
+    // Load tier metadata for warnings layer (data confidence + budget-vs-
+    // tier-floor warning). With the marginal-utility pipeline the tier deck
+    // itself is no longer the baseline — buildMinimalShell handles that —
+    // but tier_info is still surfaced for context.
+    const tierInfoResult = await env.DB.prepare(
+      `SELECT tier, avg_price, num_decks_avg, deck_size
+         FROM magic_edh_commander_tiers
+         WHERE commander_id = ? AND tier = ?`,
+    )
+      .bind(commanderId, tier)
+      .all<TierInfoRow>();
     const tierInfo = tierInfoResult.results?.[0];
-    const tierDeck = tierDeckResult.results ?? [];
 
-    if (!tierInfo || tierDeck.length === 0) {
+    if (!tierInfo) {
       return {
         type: "text",
-        content: `No data for ${commanderRow.name} at tier='${tier}'. EDHREC may not have indexed this tier yet (rare commanders) or the chosen tier doesn't fit this commander. Try a different tier or omit the parameter.`,
+        content: `No tier metadata for ${commanderRow.name} at tier='${tier}'. EDHREC may not have indexed this tier yet for this commander. Try a different tier or omit the parameter.`,
       };
     }
 
-    const gameChangerSet = new Set(
-      (gcResult.results ?? []).map((r) => r.card_name.toLowerCase()),
-    );
-    // Always look up the full game-changer set for output flagging, even
-    // when not used as a filter.
-    const allGameChangersResult = excludeGameChangers
-      ? gcResult
-      : await env.DB.prepare(`SELECT card_name FROM magic_game_changers`).all<{
-          card_name: string;
-        }>();
+    // Always look up game changers for output flagging.
+    const allGameChangersResult = await env.DB.prepare(
+      `SELECT card_name FROM magic_game_changers`,
+    ).all<{ card_name: string }>();
     const allGameChangers = new Set(
       (allGameChangersResult.results ?? []).map((r) =>
         r.card_name.toLowerCase(),
       ),
     );
 
-    // Resolve prices for the tier deck + must_include cards.
-    const allNames = new Set<string>();
-    for (const c of tierDeck) allNames.add(c.card_name);
-    for (const m of mustInclude) allNames.add(m);
-    const namesArr = [...allNames];
-    const priceLookup = await resolveCardPrices(env, namesArr);
-    const priceByLower = priceLookup.prices;
-
-    // Filter tier deck.
-    const filtered: TierDeckRow[] = [];
-    const dropped: { card_name: string; reason: string }[] = [];
-    for (const c of tierDeck) {
-      const lower = c.card_name.toLowerCase();
-      if (excludes.has(lower)) {
-        dropped.push({ card_name: c.card_name, reason: "excludes" });
-        continue;
-      }
-      if (excludeGameChangers && gameChangerSet.has(lower)) {
-        dropped.push({ card_name: c.card_name, reason: "game_changer" });
-        continue;
-      }
-      const resolved = priceByLower.get(lower);
-      // Single-card sanity: if max_price is set and the card costs >half the
-      // budget on its own, skip — it'd starve the rest of the deck. Lands
-      // get a free pass here since the mana base re-allocation step below
-      // handles them differently (swap for basics rather than skip).
-      if (
-        maxPrice !== undefined &&
-        resolved?.price != null &&
-        resolved.price > maxPrice / 2 &&
-        c.category !== "Land"
-      ) {
-        dropped.push({
-          card_name: c.card_name,
-          reason: "single_card_too_expensive",
-        });
-        continue;
-      }
-      filtered.push(c);
-    }
-
-    // Greedy fill in (basics → lands → others, then alphabetical) order.
-    // EDHREC publishes the tier deck as flat strings with no inclusion/
-    // synergy metadata, so we can't rank by "what's most-included" — but we
-    // can guarantee a mana base by always placing basics + lands first.
-    // Without this, alphabetical greedy walk on upgraded/optimized tiers
-    // burns budget on early-letter expensive value cards (Anointed
-    // Procession, Demonic Tutor, Cavern of Souls) before reaching M/P/S
-    // basics, leaving the deck unplayable at sub-floor budgets.
-    const orderedFiltered = filtered.slice().sort((a, b) => {
-      const ra = categoryRank(a.category);
-      const rb = categoryRank(b.category);
-      if (ra !== rb) return ra - rb;
-      return a.card_name.localeCompare(b.card_name);
-    });
-
-    const placed: DeckEntry[] = [];
-    let runningTotal = 0;
-    const slotsTarget = tierInfo.deck_size;
-
-    // Pin must_include first — these are user intent and override budget.
-    const mustIncludeLowerSet = new Set(
-      mustInclude.map((m) => m.toLowerCase()),
-    );
-    for (const m of mustInclude) {
-      const lower = m.toLowerCase();
-      const resolved = priceByLower.get(lower);
-      placed.push({
-        card_name: m,
-        quantity: 1,
-        category: "Pinned",
-        price_usd: resolved?.price ?? null,
-        source: "must_include",
-        game_changer: allGameChangers.has(lower),
-        reserved: resolved?.reserved ?? false,
-      });
-      if (resolved?.price != null) runningTotal += resolved.price;
-    }
-
-    for (const c of orderedFiltered) {
-      if (placed.length >= slotsTarget) break;
-      const lower = c.card_name.toLowerCase();
-      if (mustIncludeLowerSet.has(lower)) continue; // already pinned
-      const resolved = priceByLower.get(lower);
-      const price = resolved?.price ?? null;
-      const cost = (price ?? 0) * c.quantity;
-
-      if (effectiveCap !== undefined && price != null) {
-        if (runningTotal + cost > effectiveCap) {
-          dropped.push({
-            card_name: c.card_name,
-            reason: "would_exceed_budget",
-          });
-          continue;
-        }
-      }
-      placed.push({
-        card_name: c.card_name,
-        quantity: c.quantity,
-        category: c.category,
-        price_usd: price,
-        source: "tier",
-        game_changer: allGameChangers.has(lower),
-        reserved: resolved?.reserved ?? false,
-      });
-      runningTotal += cost;
-    }
-
-    // Mana base re-allocation: cap land spend at 40% of max_price by
-    // swapping the most-expensive lands for basics in the commander's
-    // color identity. Heuristic — works well for budget tier where the
-    // tier average's land list still includes shocks/duals that bust the
-    // cap on small budgets.
     const colorIdentity = safeParseJSON<string[]>(
       commanderRow.color_identity,
       [],
     );
-    const manaBaseSubs: { out: string; in: string; saved: number }[] = [];
-    if (maxPrice !== undefined && colorIdentity.length > 0) {
-      const landCap = maxPrice * 0.4;
-      const reallocResult = reallocateManaBase(placed, colorIdentity, landCap);
-      manaBaseSubs.push(...reallocResult.substitutions);
-      runningTotal -= reallocResult.savings;
-    }
-
-    // M4: pad shell to 99 cards via completeDeck. Adds high-inclusion
-    // recommendations (filtered by role gaps first) + Karsten-aware basic
-    // padding. Honors the same budget + excludes filters.
     const commanderRef = { scryfall_id: commanderId, name: commanderRow.name };
-    const completion: CompletionResult = await completeDeck(
-      env,
-      placed.map((p) => ({ card_name: p.card_name, quantity: p.quantity })),
-      commanderRef,
-      {
-        targetSize: 99,
-        maxPrice: effectiveCap,
-        excludes: [...excludes],
-        excludeGameChangers,
-        tier,
-      },
+
+    // Run the marginal-utility pipeline: minimal-shell baseline → upgrade
+    // loop → Karsten validation. Always returns 100 cards.
+    const buildResult = await buildAndUpgradeDeck(env, commanderRef, {
+      budget: effectiveCap ?? Number.MAX_SAFE_INTEGER,
+      excludes: [...excludes],
+      excludeGameChangers,
+      mustInclude,
+    });
+
+    // Resolve prices + type lines for everything in the resulting deck so we
+    // can build the structured output schema (categories, GC flags, etc.).
+    const deckNames = buildResult.deck.map((entry) => entry.card_name);
+    const [priceLookup, typeLines] = await Promise.all([
+      resolveCardPrices(env, deckNames),
+      loadTypeLines(env, deckNames),
+    ]);
+    const priceByLower = priceLookup.prices;
+
+    // Map BuildResult.deck → DeckEntry[] (the structured output's `placed`).
+    // Exclude the commander (it's surfaced separately in `data.commander`).
+    const commanderLower = commanderRow.name.toLowerCase();
+    const mustIncludeLowerSet = new Set(
+      mustInclude.map((m) => m.toLowerCase()),
     );
-    for (const added of completion.added_from_recommendations) {
+    const upgradeInLower = new Set(
+      buildResult.steps.flatMap((step) => step.in_).map((n) => n.toLowerCase()),
+    );
+
+    const placed: DeckEntry[] = [];
+    for (const entry of buildResult.deck) {
+      const lower = entry.card_name.toLowerCase();
+      if (lower === commanderLower) continue;
+      const isBasic = BASIC_LAND_NAMES.has(entry.card_name);
+      const resolved = priceByLower.get(lower);
+      const typeLine = typeLines.get(lower) ?? "";
+
+      let source: DeckEntry["source"] = "tier";
+      if (mustIncludeLowerSet.has(lower)) source = "must_include";
+      else if (isBasic) source = "basic_substitution";
+      else if (upgradeInLower.has(lower)) source = "upgrade";
+
       placed.push({
-        card_name: added.card_name,
-        quantity: 1,
-        category: "completion",
-        price_usd: added.price ?? null,
-        source: "tier",
-        game_changer: false, // excludeGCs filter already applied if set
-        reserved: false,
-      });
-      if (added.price != null) runningTotal += added.price;
-    }
-    for (const basic of completion.added_basics) {
-      placed.push({
-        card_name: basic.name,
-        quantity: basic.quantity,
-        category: "basics",
-        price_usd: 0,
-        source: "basic_substitution",
-        game_changer: false,
-        reserved: false,
+        card_name: entry.card_name,
+        quantity: entry.quantity ?? 1,
+        category: deriveCategory(entry.card_name, typeLine),
+        price_usd: isBasic ? 0 : (resolved?.price ?? null),
+        source,
+        game_changer: allGameChangers.has(lower),
+        reserved: resolved?.reserved ?? false,
       });
     }
 
-    runningTotal = Math.round(runningTotal * 100) / 100;
-    // Slots target was the tier's deck_size (~67-89); after completion the
-    // deck holds 99 non-commander cards — slots_remaining is now relative
-    // to the legal-deck size (99), not the tier shell size.
+    const runningTotal = Math.round(buildResult.totalCost * 100) / 100;
     const totalCount = placed.reduce((s, p) => s + p.quantity, 0);
     const slotsRemaining = Math.max(0, 99 - totalCount);
+
+    // Reconstruct the `completion` block from BuildResult for back-compat:
+    // upgrade-introduced cards become `added_from_recommendations`; basic
+    // lands in the deck become `added_basics`; Karsten warnings filter out
+    // from the aggregated warnings list.
+    const completion: CompletionResult = {
+      filled: [],
+      added_from_recommendations: buildResult.steps.flatMap((step) =>
+        step.in_.map((name) => ({
+          card_name: name,
+          reason: "high_inclusion_fill" as const,
+          inclusion: undefined,
+          price: priceByLower.get(name.toLowerCase())?.price ?? null,
+        })),
+      ),
+      added_basics: placed
+        .filter((p) => BASIC_LAND_NAMES.has(p.card_name))
+        .map((p) => ({ name: p.card_name, quantity: p.quantity })),
+      karsten_swaps: [],
+      warnings: buildResult.warnings.filter((w) =>
+        w.includes("Mana base thin"),
+      ),
+    };
+
+    // Strategic warnings (combo casualties from `dropped`) no longer apply —
+    // the new pipeline doesn't track per-card budget rejection. Pass empty
+    // to preserve the helper signature; warnings list won't be augmented.
+    const dropped: { card_name: string; reason: string }[] = [];
+
+    // M3.2-style strategic warning placeholder (intentionally empty).
+    const manaBaseSubs: { out: string; in: string; saved: number }[] = [];
 
     // Warnings.
     const warnings: string[] = [];
@@ -511,18 +475,21 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         `Budget $${maxPrice} is below the empirical floor of the '${tier}' tier ($${tierInfo.avg_price} avg from ${tierInfo.num_decks_avg} decks). Output reflects aggressive cost-cutting beyond what the data supports.`,
       );
     }
+    // slots_remaining is always 0 with the new pipeline (deck always 100
+    // cards), but keep the warning shape if a future pipeline change leaves
+    // it unfilled.
     if (slotsRemaining > 0) {
       warnings.push(
-        `${slotsRemaining} of ${slotsTarget} slots unfilled. Consider raising the budget or relaxing exclude_game_changers.`,
+        `${slotsRemaining} of 99 slots unfilled. Consider raising the budget or relaxing exclude_game_changers.`,
       );
     }
-    const droppedSingle = dropped.filter(
-      (d) => d.reason === "single_card_too_expensive",
-    );
-    if (droppedSingle.length > 0) {
-      warnings.push(
-        `${droppedSingle.length} cards skipped because their per-card price would exceed half the budget: ${droppedSingle.map((d) => d.card_name).join(", ")}.`,
-      );
+    // BuildResult.warnings already contains baseline + upgrade + Karsten
+    // diagnostics. Surface them in the user-facing list.
+    for (const warning of buildResult.warnings) {
+      // Karsten warnings are already echoed in completion.karsten_warnings;
+      // skip them here to avoid duplicate output.
+      if (warning.includes("Mana base thin")) continue;
+      warnings.push(warning);
     }
     const cardsWithoutPrices = placed
       .filter((p) => p.price_usd == null)
@@ -537,14 +504,6 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     const categoryBreakdown: Record<string, number> = {};
     for (const p of placed) {
       categoryBreakdown[p.category] = (categoryBreakdown[p.category] ?? 0) + 1;
-    }
-
-    runningTotal = Math.round(runningTotal * 100) / 100;
-
-    if (manaBaseSubs.length > 0) {
-      warnings.push(
-        `Mana base re-allocated to fit budget: ${manaBaseSubs.length} expensive lands swapped for ${manaBaseSubs[0]!.in}.`,
-      );
     }
 
     // M3.2: surface combo / win-condition casualties from budget cuts.
@@ -1215,7 +1174,8 @@ async function runThemeBuild(
       quality: trimQuality(themeQuality, verbosity),
       completion: trimCompletion(
         {
-          added_from_recommendations: themeCompletion.added_from_recommendations,
+          added_from_recommendations:
+            themeCompletion.added_from_recommendations,
           added_basics: themeCompletion.added_basics,
           karsten_warnings: themeCompletion.warnings,
         },
@@ -1462,10 +1422,7 @@ function trimDeckEntry(entry: DeckEntry): Record<string, unknown> {
  * 3, and leaves the rest of the structure intact. At verbosity=full,
  * returns the QualityReport unchanged.
  */
-function trimQuality(
-  quality: QualityReport,
-  verbosity: Verbosity,
-): unknown {
+function trimQuality(quality: QualityReport, verbosity: Verbosity): unknown {
   if (verbosity === "full") return quality;
   const trimmedComposition: Record<string, unknown> = {};
   for (const [role, roleData] of Object.entries(quality.composition)) {
