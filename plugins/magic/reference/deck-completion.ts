@@ -80,6 +80,12 @@ export interface BuildOptions {
    *  semantics: "added even when over budget". The upgrade loop may swap them
    *  out only if a swap improves Δquality by > epsilon. */
   mustInclude?: string[];
+  /** Override baseline_cost. When omitted, computed from precon (sum of
+   *  non-basic prices) or from buildMinimalShell.totalCost. Used by callers
+   *  with an externally-tracked baseline cost — e.g. the precon path
+   *  passes MSRP here so the upgrade loop budgets against
+   *  remaining = budget − MSRP rather than budget − (per-card precon sum). */
+  spent?: number;
   excludes?: string[];
   excludeGameChangers?: boolean;
   epsilon?: number;
@@ -1290,10 +1296,12 @@ export async function buildAndUpgradeDeck(
   let baselineCost: number;
   let baselineSource: "precon" | "minimal_shell";
 
-  if (options.precon && options.precon.length >= 60) {
-    // Use precon as baseline; pad with basics to 100 if short.
+  if (options.precon && countCards(options.precon) >= 60) {
+    // Use precon as baseline; pad with basics to 100 if short. Threshold
+    // checks total card count (sum of quantities), not array length, so
+    // a deck like [Sol Ring×1, Cultivate×1, Forest×97] qualifies.
     baselineDeck = await padPreconToFull(env, commander, options.precon);
-    baselineCost = await sumNonBasicCost(env, baselineDeck);
+    baselineCost = options.spent ?? (await sumNonBasicCost(env, baselineDeck));
     baselineSource = "precon";
   } else {
     const shell = await buildMinimalShell(
@@ -1304,7 +1312,7 @@ export async function buildAndUpgradeDeck(
       excludeGameChangers,
     );
     baselineDeck = shell.deck;
-    baselineCost = shell.totalCost;
+    baselineCost = options.spent ?? shell.totalCost;
     baselineSource = "minimal_shell";
     warnings.push(...shell.warnings);
   }

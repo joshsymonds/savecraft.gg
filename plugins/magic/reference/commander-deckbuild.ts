@@ -24,7 +24,11 @@ import {
   completeDeck,
   type CompletionResult,
 } from "./deck-completion";
-import { assessQuality, type QualityReport } from "./deck-quality";
+import {
+  assessQuality,
+  type DeckEntry as RawDeckEntry,
+  type QualityReport,
+} from "./deck-quality";
 
 const BASIC_LAND_NAMES = new Set([
   "Plains",
@@ -667,157 +671,147 @@ async function runPreconBuild(
     };
   }
 
-  // Fetch decklist + upgrade pool.
-  const [deckResult, upgradesResult] = await Promise.all([
-    env.DB.prepare(
-      `SELECT card_name, quantity, category
-         FROM magic_edh_precon_decks
-         WHERE precon_slug = ?`,
-    )
-      .bind(preconRow.slug)
-      .all<PreconDeckRow>(),
-    env.DB.prepare(
-      `SELECT card_name, action, inclusion
-         FROM magic_edh_precon_upgrades
-         WHERE precon_slug = ? AND action IN ('add', 'land_add')
-         ORDER BY inclusion DESC`,
-    )
-      .bind(preconRow.slug)
-      .all<PreconUpgradeRow>(),
-  ]);
-
+  // Fetch decklist (upgrade pool no longer used — replaced by upgradeDeck's
+  // marginal-utility loop pulling from magic_edh_recommendations).
+  const deckResult = await env.DB.prepare(
+    `SELECT card_name, quantity, category
+       FROM magic_edh_precon_decks
+       WHERE precon_slug = ?`,
+  )
+    .bind(preconRow.slug)
+    .all<PreconDeckRow>();
   const preconDeck = deckResult.results ?? [];
-  const upgrades = upgradesResult.results ?? [];
 
-  // Game changers (always look up for output flagging).
-  const gcResult = await env.DB.prepare(
-    `SELECT card_name FROM magic_game_changers`,
-  ).all<{ card_name: string }>();
-  const allGameChangers = new Set(
-    (gcResult.results ?? []).map((r) => r.card_name.toLowerCase()),
-  );
-
-  // Resolve prices for upgrades + must_include. Precon contents don't need
-  // individual prices since they're rolled into MSRP.
-  const priceNames = new Set<string>();
-  for (const u of upgrades) priceNames.add(u.card_name);
-  for (const m of mustInclude) priceNames.add(m);
-  const priceLookup = await resolveCardPrices(env, [...priceNames]);
-  const priceByLower = priceLookup.prices;
-
-  // Seed placed[] from the precon decklist. The precon contents charge MSRP
-  // collectively; per-card price_usd stays null so the LLM can see they
-  // came from the box rather than singles.
-  const placed: DeckEntry[] = [];
-  const placedNames = new Set<string>();
-  for (const c of preconDeck) {
-    const lower = c.card_name.toLowerCase();
-    if (excludes.has(lower)) continue; // user opted out
-    const resolved = priceByLower.get(lower);
-    placed.push({
-      card_name: c.card_name,
-      quantity: c.quantity,
-      category: c.category,
-      price_usd: null,
-      source: "precon",
-      game_changer: allGameChangers.has(lower),
-      reserved: resolved?.reserved ?? false,
-    });
-    placedNames.add(lower);
+  if (preconDeck.length === 0) {
+    return {
+      type: "text",
+      content: `Precon '${preconRow.slug}' has no decklist in our catalog. Try a different precon, or use starting_point='empty'.`,
+    };
   }
 
-  let runningTotal = msrp;
-
-  // Pin must_include cards (override budget — explicit user intent).
-  for (const m of mustInclude) {
-    const lower = m.toLowerCase();
-    if (placedNames.has(lower)) continue; // already in precon
-    const resolved = priceByLower.get(lower);
-    placed.push({
-      card_name: m,
-      quantity: 1,
-      category: "Pinned",
-      price_usd: resolved?.price ?? null,
-      source: "must_include",
-      game_changer: allGameChangers.has(lower),
-      reserved: resolved?.reserved ?? false,
-    });
-    placedNames.add(lower);
-    if (resolved?.price != null) runningTotal += resolved.price;
-  }
-
-  // Walk upgrade pool in inclusion-DESC order. Add while budget allows.
-  for (const u of upgrades) {
-    const lower = u.card_name.toLowerCase();
-    if (placedNames.has(lower)) continue; // dedupe vs precon + must_include
-    if (excludes.has(lower)) continue;
-    const resolved = priceByLower.get(lower);
-    const price = resolved?.price ?? null;
-    if (price == null) continue; // can't certify under budget
-    if (effectiveCap !== undefined && runningTotal + price > effectiveCap)
-      continue;
-    placed.push({
-      card_name: u.card_name,
-      quantity: 1,
-      category: u.action === "land_add" ? "Land" : "Upgrade",
-      price_usd: price,
-      source: "upgrade",
-      game_changer: allGameChangers.has(lower),
-      reserved: resolved?.reserved ?? false,
-    });
-    placedNames.add(lower);
-    runningTotal += price;
-  }
-
-  // M4: pad to 99 cards via completeDeck. The precon path's main "drop"
-  // mechanism is the upgrade-pool walk's `continue` on budget-busts, so
-  // there's no `dropped[]` to pass to buildStrategicWarnings — but
-  // completion still applies for filling slots.
   const preconCommanderRef = {
     scryfall_id: commanderRow.scryfall_id,
     name: commanderRow.name,
   };
-  const preconCompletion: CompletionResult = await completeDeck(
-    env,
-    placed.map((p) => ({ card_name: p.card_name, quantity: p.quantity })),
-    preconCommanderRef,
-    {
-      targetSize: 99,
-      maxPrice: effectiveCap,
-      excludes: [...excludes],
-      // Precon path doesn't propagate excludeGameChangers; precons themselves
-      // can include GC cards (Sol Ring is bracket-1 legal anyway). Mirror
-      // that policy in completion — don't add the extra filter here.
-      excludeGameChangers: false,
-    },
+  const preconLowerSet = new Set(
+    preconDeck.map((c) => c.card_name.toLowerCase()),
   );
-  for (const added of preconCompletion.added_from_recommendations) {
+
+  // Build the precon DeckEntry list for the orchestrator. Filter excludes
+  // upfront so the upgrade loop doesn't re-introduce them. Add commander.
+  const preconEntries: RawDeckEntry[] = [
+    { card_name: commanderRow.name, quantity: 1 },
+    ...preconDeck
+      .filter((c) => !excludes.has(c.card_name.toLowerCase()))
+      .map((c) => ({ card_name: c.card_name, quantity: c.quantity })),
+  ];
+
+  // Run the marginal-utility pipeline. Pass spent=msrp so the upgrade loop
+  // budgets against (budget − MSRP), not (budget − sum-of-precon-singles).
+  // excludeGameChangers stays false: precons themselves can include GC cards
+  // (Sol Ring is bracket-1 legal); mirror the prior policy.
+  const buildResult = await buildAndUpgradeDeck(env, preconCommanderRef, {
+    budget: effectiveCap ?? Number.MAX_SAFE_INTEGER,
+    precon: preconEntries,
+    spent: msrp,
+    excludes: [...excludes],
+    excludeGameChangers: false,
+    mustInclude,
+  });
+
+  // Resolve prices + type lines for the resulting deck.
+  const deckNames = buildResult.deck.map((entry) => entry.card_name);
+  const [priceLookup, typeLines, gcResult] = await Promise.all([
+    resolveCardPrices(env, deckNames),
+    loadTypeLines(env, deckNames),
+    env.DB.prepare(`SELECT card_name FROM magic_game_changers`).all<{
+      card_name: string;
+    }>(),
+  ]);
+  const priceByLower = priceLookup.prices;
+  const allGameChangers = new Set(
+    (gcResult.results ?? []).map((r) => r.card_name.toLowerCase()),
+  );
+
+  const commanderLower = commanderRow.name.toLowerCase();
+  const mustIncludeLowerSet = new Set(mustInclude.map((m) => m.toLowerCase()));
+  const upgradeInLower = new Set(
+    buildResult.steps.flatMap((step) => step.in_).map((n) => n.toLowerCase()),
+  );
+
+  // Map BuildResult.deck → DeckEntry[]. Source rules:
+  //   - mustInclude  → "must_include"
+  //   - in precon    → "precon" (price_usd null, rolled into MSRP)
+  //   - basic land   → "basic_substitution"
+  //   - upgrade.in_  → "upgrade"
+  //   - else         → "precon" (basics added by orchestrator's pad-to-100)
+  const placed: DeckEntry[] = [];
+  for (const entry of buildResult.deck) {
+    const lower = entry.card_name.toLowerCase();
+    if (lower === commanderLower) continue;
+    const isBasic = BASIC_LAND_NAMES.has(entry.card_name);
+    const fromPrecon = preconLowerSet.has(lower);
+    const resolved = priceByLower.get(lower);
+    const typeLine = typeLines.get(lower) ?? "";
+
+    let source: DeckEntry["source"];
+    let priceUsd: number | null;
+    if (mustIncludeLowerSet.has(lower)) {
+      source = "must_include";
+      priceUsd = resolved?.price ?? null;
+    } else if (fromPrecon) {
+      source = "precon";
+      priceUsd = null; // rolled into MSRP
+    } else if (isBasic) {
+      source = "basic_substitution";
+      priceUsd = 0;
+    } else if (upgradeInLower.has(lower)) {
+      source = "upgrade";
+      priceUsd = resolved?.price ?? null;
+    } else {
+      // Fallback — orchestrator-added card not in precon, not a basic, not
+      // an upgrade. Treat as precon (rare).
+      source = "precon";
+      priceUsd = null;
+    }
+
     placed.push({
-      card_name: added.card_name,
-      quantity: 1,
-      category: "completion",
-      price_usd: added.price ?? null,
-      source: "upgrade",
-      game_changer: false,
-      reserved: false,
-    });
-    if (added.price != null) runningTotal += added.price;
-  }
-  for (const basic of preconCompletion.added_basics) {
-    placed.push({
-      card_name: basic.name,
-      quantity: basic.quantity,
-      category: "basics",
-      price_usd: 0,
-      source: "basic_substitution",
-      game_changer: false,
-      reserved: false,
+      card_name: entry.card_name,
+      quantity: entry.quantity ?? 1,
+      category: deriveCategory(entry.card_name, typeLine),
+      price_usd: priceUsd,
+      source,
+      game_changer: allGameChangers.has(lower),
+      reserved: resolved?.reserved ?? false,
     });
   }
 
-  runningTotal = Math.round(runningTotal * 100) / 100;
+  const runningTotal = Math.round(buildResult.totalCost * 100) / 100;
+  const upgradeSpend = Math.round((runningTotal - msrp) * 100) / 100;
+
+  // Reconstruct the `completion` block from BuildResult for back-compat.
+  const preconCompletion: CompletionResult = {
+    filled: [],
+    added_from_recommendations: buildResult.steps.flatMap((step) =>
+      step.in_.map((name) => ({
+        card_name: name,
+        reason: "high_inclusion_fill" as const,
+        inclusion: undefined,
+        price: priceByLower.get(name.toLowerCase())?.price ?? null,
+      })),
+    ),
+    added_basics: placed
+      .filter((p) => BASIC_LAND_NAMES.has(p.card_name))
+      .map((p) => ({ name: p.card_name, quantity: p.quantity })),
+    karsten_swaps: [],
+    warnings: buildResult.warnings.filter((w) => w.includes("Mana base thin")),
+  };
 
   const warnings: string[] = [];
+  for (const warning of buildResult.warnings) {
+    if (warning.includes("Mana base thin")) continue;
+    warnings.push(warning);
+  }
   const cardsWithoutPrices = placed
     .filter((p) => p.source !== "precon" && p.price_usd == null)
     .map((p) => p.card_name);
@@ -832,7 +826,6 @@ async function runPreconBuild(
     categoryBreakdown[p.category] = (categoryBreakdown[p.category] ?? 0) + 1;
   }
 
-  // M4: assess quality on the completed precon-based deck.
   const preconQuality: QualityReport = await assessQuality(
     env,
     placed.map((p) => ({ card_name: p.card_name, quantity: p.quantity })),
@@ -863,7 +856,7 @@ async function runPreconBuild(
         mode: budgetMode,
         total_price: runningTotal,
         precon_msrp: msrp,
-        upgrade_spend: Math.round((runningTotal - msrp) * 100) / 100,
+        upgrade_spend: upgradeSpend,
         remaining:
           maxPrice !== undefined
             ? Math.round((maxPrice - runningTotal) * 100) / 100
@@ -888,7 +881,7 @@ async function runPreconBuild(
       attribution: {
         source: "EDHREC",
         priced_at: priceLookup.pricedAt,
-        note: `Precon '${preconRow.slug}' seeds the deck (charged at MSRP $${msrp}). Upgrades drawn from EDHREC's cardstoadd / landstoadd pool, sorted by inclusion, then padded to 99 via completion. Singles prices via EDHREC TCGPlayer mid (Scryfall fallback).`,
+        note: `Precon '${preconRow.slug}' seeds the deck (charged at MSRP $${msrp}). Upgrades drawn from EDHREC recommendations via marginal-utility hill-climbing. Singles prices via EDHREC TCGPlayer mid (Scryfall fallback).`,
       },
     },
   };

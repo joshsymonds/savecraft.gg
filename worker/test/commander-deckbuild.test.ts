@@ -312,9 +312,11 @@ describe("commander_deckbuild native module", () => {
       env.DB.prepare(
         `INSERT INTO magic_edh_precon_decks (precon_slug, card_name, quantity, category) VALUES (?, ?, ?, ?)`,
       ).bind("breed-lethality", "Cultivate", 1, "Sorcery"),
+      // Realistic precon size — quantity 97 of Forest pads to 99 non-commander
+      // cards (clears the orchestrator's ≥60-card threshold).
       env.DB.prepare(
         `INSERT INTO magic_edh_precon_decks (precon_slug, card_name, quantity, category) VALUES (?, ?, ?, ?)`,
-      ).bind("breed-lethality", "Forest", 7, "Land"),
+      ).bind("breed-lethality", "Forest", 97, "Land"),
       // Upgrade pool — Inexorable Tide (~$3) is recommended add; Frumious is cut
       env.DB.prepare(
         `INSERT INTO magic_edh_precon_upgrades (precon_slug, card_name, action, category, inclusion) VALUES (?, ?, ?, ?, ?)`,
@@ -330,6 +332,18 @@ describe("commander_deckbuild native module", () => {
       env.DB.prepare(
         `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
       ).bind("Inexorable Tide", 3),
+      // M7+ pipeline reads from magic_edh_recommendations for upgrade
+      // candidates (instead of magic_edh_precon_upgrades). Mirror the
+      // expected upgrade in the recommendations table.
+      env.DB.prepare(
+        `INSERT INTO magic_edh_recommendations (commander_id, card_name, category, synergy, inclusion) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "Inexorable Tide", "topcards", 4, 9300),
+      env.DB.prepare(
+        `INSERT INTO magic_cards (oracle_id, front_face_name, name, type_line, set_code, is_default) VALUES (?, ?, ?, ?, ?, 1)`,
+      ).bind("tide-id", "Inexorable Tide", "Inexorable Tide", "Enchantment", "MBS"),
+      env.DB.prepare(
+        `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("tide-id", "Inexorable Tide", "win_condition", "MBS"),
     ]);
   }
 
