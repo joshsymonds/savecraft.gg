@@ -47,6 +47,27 @@ interface DeckEntry {
   reserved: boolean;
 }
 
+// Greedy fill ordering. Without this, the tier deck arrives in primary-key
+// order (alphabetical by card_name); when budget < tier floor, alphabetically-
+// early expensive cards eat the budget before cheap basics are reached and
+// the resulting deck has no mana base. Bucket order: basics first (always
+// cheap, always essential), lands second (mana fixing), everything else last.
+function categoryRank(category: string): number {
+  const c = (category ?? "").toLowerCase();
+  if (c === "basics") return 0;
+  if (c === "land" || c === "lands") return 1;
+  return 2;
+}
+
+// EDHREC writes categories as lowercase plurals ("lands", "basics");
+// internal callers and tests sometimes use the singular capitalised form
+// ("Land"). Match all of them so reallocateManaBase actually fires in
+// production instead of silently no-op'ing on shape-mismatch.
+function isLandCategory(category: string): boolean {
+  const c = (category ?? "").toLowerCase();
+  return c === "land" || c === "lands" || c === "basics";
+}
+
 /**
  * Derive a data_confidence label from the tier's num_decks_avg. EDHREC's
  * tier endpoints can have wildly different sample sizes — e.g. Atraxa
@@ -336,9 +357,21 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       filtered.push(c);
     }
 
-    // Greedy fill in inclusion-DESC order. The tier average is already
-    // ordered by category for grouping purposes; here we just walk it and
-    // accept while budget allows.
+    // Greedy fill in (basics → lands → others, then alphabetical) order.
+    // EDHREC publishes the tier deck as flat strings with no inclusion/
+    // synergy metadata, so we can't rank by "what's most-included" — but we
+    // can guarantee a mana base by always placing basics + lands first.
+    // Without this, alphabetical greedy walk on upgraded/optimized tiers
+    // burns budget on early-letter expensive value cards (Anointed
+    // Procession, Demonic Tutor, Cavern of Souls) before reaching M/P/S
+    // basics, leaving the deck unplayable at sub-floor budgets.
+    const orderedFiltered = filtered.slice().sort((a, b) => {
+      const ra = categoryRank(a.category);
+      const rb = categoryRank(b.category);
+      if (ra !== rb) return ra - rb;
+      return a.card_name.localeCompare(b.card_name);
+    });
+
     const placed: DeckEntry[] = [];
     let runningTotal = 0;
     const slotsTarget = tierInfo.deck_size;
@@ -360,7 +393,7 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       if (resolved?.price != null) runningTotal += resolved.price;
     }
 
-    for (const c of filtered) {
+    for (const c of orderedFiltered) {
       if (placed.length >= slotsTarget) break;
       const lower = c.card_name.toLowerCase();
       if (mustIncludeLowerSet.has(lower)) continue; // already pinned
@@ -952,14 +985,14 @@ function reallocateManaBase(
 ): { substitutions: { out: string; in: string; saved: number }[]; savings: number } {
   // Compute current land subtotal (only counts lands with known prices).
   const subtotal = placed
-    .filter((p) => p.category === "Land" && p.price_usd != null)
+    .filter((p) => isLandCategory(p.category) && p.price_usd != null)
     .reduce((s, p) => s + (p.price_usd ?? 0) * p.quantity, 0);
   if (subtotal <= landCap) return { substitutions: [], savings: 0 };
 
   // Sort lands by price DESC; we'll swap the costliest ones first.
   const lands = placed
     .map((p, i) => ({ entry: p, index: i }))
-    .filter(({ entry }) => entry.category === "Land")
+    .filter(({ entry }) => isLandCategory(entry.category))
     .sort((a, b) => (b.entry.price_usd ?? 0) - (a.entry.price_usd ?? 0));
 
   const subs: { out: string; in: string; saved: number }[] = [];
@@ -1001,7 +1034,7 @@ function reallocateManaBase(
 
     // Replace the entry: bump existing basic if present, else swap in place.
     const existingBasicIdx = placed.findIndex(
-      (p) => p.card_name === preferredBasic && p.category === "Land",
+      (p) => p.card_name === preferredBasic && isLandCategory(p.category),
     );
     if (existingBasicIdx >= 0) {
       placed[existingBasicIdx]!.quantity += entry.quantity;
@@ -1010,7 +1043,7 @@ function reallocateManaBase(
       placed[index] = {
         card_name: preferredBasic,
         quantity: entry.quantity,
-        category: "Land",
+        category: "basics",
         price_usd: 0,
         source: "basic_substitution",
         game_changer: false,

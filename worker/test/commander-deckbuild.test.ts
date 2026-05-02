@@ -551,6 +551,107 @@ describe("commander_deckbuild native module", () => {
     expect(data.budget.total_price).toBeLessThanOrEqual(44);
   });
 
+  it("places basics + lands before non-lands when budget forces cuts", async () => {
+    // Reproduces the Edgar Markov $500 production failure: alphabetical
+    // greedy walk burned the budget on early-letter expensive non-land cards
+    // and ran out before reaching M/P/S basics. The fix sorts basics first,
+    // lands second, others last — guaranteeing a mana base whenever budget
+    // permits.
+    const EDGAR_ID = "edgar-id";
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commanders (scryfall_id, name, slug, color_identity, deck_count, rank)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      ).bind(EDGAR_ID, "Edgar Markov", "edgar-markov", '["R","W","B"]', 4485, 1),
+      env.DB.prepare(`INSERT INTO magic_edh_commanders_fts (scryfall_id, name) VALUES (?, ?)`).bind(
+        EDGAR_ID,
+        "Edgar Markov",
+      ),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_commander_tiers (commander_id, tier, avg_price, num_decks_avg, deck_size) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(EDGAR_ID, "budget", 100, 4485, 99),
+
+      // 5 alphabetically-early non-land cards at $1.30 each — under
+      // single-card sanity cap ($7/2 = $3.50). Each is plausibly-named
+      // so the test reads as realistic.
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(EDGAR_ID, "budget", "Anguished Unmaking", 1, "instants"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(EDGAR_ID, "budget", "Blood Artist", 1, "creatures"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(EDGAR_ID, "budget", "Cordial Vampire", 1, "creatures"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(EDGAR_ID, "budget", "Drana, Liberator of Malakir", 1, "creatures"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(EDGAR_ID, "budget", "Edgar, Charmed Groom", 1, "creatures"),
+
+      // Late-alphabet basics (production-shape "basics" lowercase plural)
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(EDGAR_ID, "budget", "Mountain", 10, "basics"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(EDGAR_ID, "budget", "Plains", 10, "basics"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(EDGAR_ID, "budget", "Swamp", 10, "basics"),
+
+      // Prices
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Anguished Unmaking", 1.3),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Blood Artist", 1.3),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Cordial Vampire", 1.3),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Drana, Liberator of Malakir", 1.3),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Edgar, Charmed Groom", 1.3),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Mountain", 0.13),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Plains", 0.13),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Swamp", 0.13),
+    ]);
+
+    // Budget $7: under alphabetical greedy, 5 × $1.30 = $6.50 fills, leaving
+    // $0.50 — not enough for any 10-pack of basics ($1.30 each), so the
+    // deck ends up with ZERO basics. With the fix, basics ($3.90) go in
+    // first, then 2 non-lands ($2.60) fit — final $6.50, ALL basics + 2
+    // staples.
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Edgar Markov", max_price: 7 },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as {
+      deck: { card_name: string; category: string }[];
+      budget: { total_price: number };
+    };
+    const names = data.deck.map((c) => c.card_name);
+
+    // The functional-deck assertion: a 99-card slot count without basics
+    // is not a usable Magic deck. All three colors' basics must appear.
+    expect(names).toContain("Mountain");
+    expect(names).toContain("Plains");
+    expect(names).toContain("Swamp");
+    expect(data.budget.total_price).toBeLessThanOrEqual(7);
+  });
+
   it("budget_mode='ceiling' (default) never exceeds max_price", async () => {
     await seedAtraxa();
     const result = await commanderDeckbuildModule.execute(
