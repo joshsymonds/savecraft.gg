@@ -213,8 +213,11 @@ func run() error {
 		}
 	}
 
-	// Phase 1: Fetch Scryfall Tagger function tags (4 sets concurrently).
-	sem := make(chan struct{}, 2) // Low concurrency to stay within Scryfall rate limits.
+	// Phase 1: Fetch Scryfall Tagger function tags. Concurrency=1 enforces
+	// a strict global rate ceiling — Scryfall caps API usage at 10 req/s
+	// and warns of network blocks on violations. With per-request 150ms
+	// sleeps below, that's ~6.7 req/s effective, comfortably under cap.
+	sem := make(chan struct{}, 1)
 	results := make([]setResult, len(targetSets))
 	var wg sync.WaitGroup
 
@@ -676,7 +679,7 @@ func fetchTaggedCards(setCode string, tag string) ([]taggedCard, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 
 	for pageURL := searchURL; pageURL != ""; {
-		time.Sleep(50 * time.Millisecond) // Scryfall rate limit.
+		time.Sleep(150 * time.Millisecond) // Scryfall caps at 10 req/s; pacing under that.
 
 		body, statusCode, err := scryfallGet(client, pageURL)
 		if err != nil {
