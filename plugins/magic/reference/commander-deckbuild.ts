@@ -180,12 +180,18 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       description:
         "Optional theme slug (e.g. 'infect', 'tokens', '+1-1-counters'). When set, the build mirrors EDHREC's per-theme average decklist for this commander instead of the cross-theme tier average. Useful for archetype-specific builds — 'infect Atraxa' will run a different deck shape than 'planeswalker Atraxa'. Returns text fallback when EDHREC has no data for that theme on this commander.",
     },
+    verbosity: {
+      type: "string",
+      description:
+        "Output detail level. 'summary' (default) trims redundant fields — composition.X.cards arrays are omitted (names already in deck), completion.added_from_recommendations is truncated to top 10 with +N more indicator, default-false flags (game_changer, reserved) are stripped. 'full' returns every field for debugging or UIs that consume the full breakdown.",
+    },
   },
 
   async execute(
     query: Record<string, unknown>,
     env: Env,
   ): Promise<ReferenceResult> {
+    const verbosity = parseVerbosity(query);
     const commanderQuery = ((query.commander as string) ?? "").trim();
     if (!commanderQuery) {
       return { type: "text", content: "Missing required parameter: commander" };
@@ -259,6 +265,7 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         excludes,
         mustInclude,
         budgetMode,
+        verbosity,
       });
     }
 
@@ -272,6 +279,7 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         mustInclude,
         budgetMode,
         excludeGameChangers,
+        verbosity,
       });
     }
 
@@ -580,17 +588,24 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
               ? Math.round((maxPrice - runningTotal) * 100) / 100
               : null,
         },
-        deck: placed,
+        deck: placed.map(trimDeckEntry),
         category_breakdown: categoryBreakdown,
         slots_remaining: slotsRemaining,
-        cards_without_prices: cardsWithoutPrices,
-        mana_base_substitutions: manaBaseSubs,
-        quality,
-        completion: {
-          added_from_recommendations: completion.added_from_recommendations,
-          added_basics: completion.added_basics,
-          karsten_warnings: completion.warnings,
-        },
+        ...(cardsWithoutPrices.length > 0
+          ? { cards_without_prices: cardsWithoutPrices }
+          : {}),
+        ...(manaBaseSubs.length > 0
+          ? { mana_base_substitutions: manaBaseSubs }
+          : {}),
+        quality: trimQuality(quality, verbosity),
+        completion: trimCompletion(
+          {
+            added_from_recommendations: completion.added_from_recommendations,
+            added_basics: completion.added_basics,
+            karsten_warnings: completion.warnings,
+          },
+          verbosity,
+        ),
         warnings,
         attribution: {
           source: "EDHREC",
@@ -624,9 +639,10 @@ async function runPreconBuild(
     excludes: Set<string>;
     mustInclude: string[];
     budgetMode: "ceiling" | "target";
+    verbosity: Verbosity;
   },
 ): Promise<ReferenceResult> {
-  const { maxPrice, excludes, mustInclude, budgetMode } = opts;
+  const { maxPrice, excludes, mustInclude, budgetMode, verbosity } = opts;
   const effectiveCap =
     maxPrice !== undefined
       ? budgetMode === "target"
@@ -894,15 +910,21 @@ async function runPreconBuild(
             ? Math.round((maxPrice - runningTotal) * 100) / 100
             : null,
       },
-      deck: placed,
+      deck: placed.map(trimDeckEntry),
       category_breakdown: categoryBreakdown,
-      cards_without_prices: cardsWithoutPrices,
-      quality: preconQuality,
-      completion: {
-        added_from_recommendations: preconCompletion.added_from_recommendations,
-        added_basics: preconCompletion.added_basics,
-        karsten_warnings: preconCompletion.warnings,
-      },
+      ...(cardsWithoutPrices.length > 0
+        ? { cards_without_prices: cardsWithoutPrices }
+        : {}),
+      quality: trimQuality(preconQuality, verbosity),
+      completion: trimCompletion(
+        {
+          added_from_recommendations:
+            preconCompletion.added_from_recommendations,
+          added_basics: preconCompletion.added_basics,
+          karsten_warnings: preconCompletion.warnings,
+        },
+        verbosity,
+      ),
       warnings,
       attribution: {
         source: "EDHREC",
@@ -948,10 +970,17 @@ async function runThemeBuild(
     mustInclude: string[];
     budgetMode: "ceiling" | "target";
     excludeGameChangers: boolean;
+    verbosity: Verbosity;
   },
 ): Promise<ReferenceResult> {
-  const { maxPrice, excludes, mustInclude, budgetMode, excludeGameChangers } =
-    opts;
+  const {
+    maxPrice,
+    excludes,
+    mustInclude,
+    budgetMode,
+    excludeGameChangers,
+    verbosity,
+  } = opts;
   const commanderId = commanderRow.scryfall_id;
   const effectiveCap =
     maxPrice !== undefined
@@ -1177,16 +1206,21 @@ async function runThemeBuild(
             ? Math.round((maxPrice - runningTotal) * 100) / 100
             : null,
       },
-      deck: placed,
+      deck: placed.map(trimDeckEntry),
       category_breakdown: categoryBreakdown,
       slots_remaining: slotsRemaining,
-      cards_without_prices: cardsWithoutPrices,
-      quality: themeQuality,
-      completion: {
-        added_from_recommendations: themeCompletion.added_from_recommendations,
-        added_basics: themeCompletion.added_basics,
-        karsten_warnings: themeCompletion.warnings,
-      },
+      ...(cardsWithoutPrices.length > 0
+        ? { cards_without_prices: cardsWithoutPrices }
+        : {}),
+      quality: trimQuality(themeQuality, verbosity),
+      completion: trimCompletion(
+        {
+          added_from_recommendations: themeCompletion.added_from_recommendations,
+          added_basics: themeCompletion.added_basics,
+          karsten_warnings: themeCompletion.warnings,
+        },
+        verbosity,
+      ),
       warnings,
       attribution: {
         source: "EDHREC",
@@ -1393,4 +1427,95 @@ async function buildStrategicWarnings(
   }
 
   return warnings;
+}
+
+// ─── M6.1: output trimming for size-conscious LLM consumers ───────
+
+type Verbosity = "summary" | "full";
+
+function parseVerbosity(query: Record<string, unknown>): Verbosity {
+  const raw = ((query.verbosity as string) ?? "summary").trim();
+  return raw === "full" ? "full" : "summary";
+}
+
+/**
+ * trimDeckEntry omits default-false flags (game_changer, reserved) from
+ * per-card output. ~30 chars saved per card × 99 cards ≈ 3KB per deck.
+ * Keeps every other field unchanged.
+ */
+function trimDeckEntry(entry: DeckEntry): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    card_name: entry.card_name,
+    quantity: entry.quantity,
+    category: entry.category,
+    price_usd: entry.price_usd,
+    source: entry.source,
+  };
+  if (entry.game_changer) out.game_changer = true;
+  if (entry.reserved) out.reserved = true;
+  return out;
+}
+
+/**
+ * trimQuality strips composition.X.cards[] arrays at summary verbosity
+ * (names duplicate what's already in the deck[] field), caps reasons at
+ * 3, and leaves the rest of the structure intact. At verbosity=full,
+ * returns the QualityReport unchanged.
+ */
+function trimQuality(
+  quality: QualityReport,
+  verbosity: Verbosity,
+): unknown {
+  if (verbosity === "full") return quality;
+  const trimmedComposition: Record<string, unknown> = {};
+  for (const [role, roleData] of Object.entries(quality.composition)) {
+    const data = roleData as {
+      count: number;
+      target_range: [number, number];
+      target_source: string;
+      status: string;
+      cards: string[];
+    };
+    trimmedComposition[role] = {
+      count: data.count,
+      target_range: data.target_range,
+      target_source: data.target_source,
+      status: data.status,
+      // cards[] omitted — same names appear in deck[].
+    };
+  }
+  return {
+    ...quality,
+    bracket: {
+      ...quality.bracket,
+      reasons: quality.bracket.reasons.slice(0, 3),
+    },
+    composition: trimmedComposition,
+  };
+}
+
+/**
+ * trimCompletion truncates added_from_recommendations to 10 entries +
+ * an "added_more_count" indicator when summary is requested. Basics and
+ * karsten_warnings stay full — basics are tiny (5 entries max) and
+ * warnings are actionable.
+ */
+function trimCompletion(
+  completion: {
+    added_from_recommendations: { card_name: string }[];
+    added_basics: { name: string; quantity: number }[];
+    karsten_warnings: string[];
+  },
+  verbosity: Verbosity,
+): unknown {
+  if (verbosity === "full") return completion;
+  const all = completion.added_from_recommendations;
+  const top = all.slice(0, 10);
+  const more = Math.max(0, all.length - 10);
+  return {
+    added_from_recommendations: top,
+    added_more_count: more,
+    added_basics: completion.added_basics,
+    karsten_warnings: completion.karsten_warnings,
+  };
 }

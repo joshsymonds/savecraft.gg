@@ -251,6 +251,11 @@ async function runReview(
     tier,
   );
 
+  // M6.1: trim quality output for size-conscious LLM consumers.
+  const verbosity =
+    ((query.verbosity as string) ?? "summary") === "full" ? "full" : "summary";
+  const trimmedQuality = trimReviewQuality(quality, verbosity);
+
   const data: Record<string, unknown> = {
     commander: {
       scryfall_id: commanderRow.scryfall_id,
@@ -271,7 +276,7 @@ async function runReview(
     },
     extras,
     category_breakdown: categoryBreakdown,
-    quality,
+    quality: trimmedQuality,
     attribution: {
       source: "EDHREC",
       url: `https://edhrec.com/commanders/${commanderRow.slug}`,
@@ -356,6 +361,11 @@ export const commanderDeckReviewModule: NativeReferenceModule = {
       description:
         "Optional EDHREC tier ('budget' | 'upgraded' | 'optimized' | 'cedh'). When set, comparison is against the tier-specific average decklist instead of the cross-tier average, and tier_info metadata is returned. Useful for 'rate my $200 deck against EDHREC's budget Atraxa' queries.",
     },
+    verbosity: {
+      type: "string",
+      description:
+        "Output detail level. 'summary' (default) trims redundant fields — composition.X.cards arrays are omitted (names already in deck), reasons capped at 3. 'full' returns every field for debugging or UIs that consume the full breakdown.",
+    },
   },
   sectionMappings: [
     {
@@ -401,6 +411,43 @@ function parseDecklist(entries: unknown[]): Map<string, string> {
     }
   }
   return result;
+}
+
+/**
+ * trimReviewQuality strips composition.X.cards[] arrays at summary
+ * verbosity (the names duplicate what's in the user's submitted decklist
+ * already), and caps bracket.reasons at 3. At verbosity=full, the full
+ * QualityReport is returned unchanged.
+ */
+function trimReviewQuality(
+  quality: Awaited<ReturnType<typeof assessQuality>>,
+  verbosity: "summary" | "full",
+): unknown {
+  if (verbosity === "full") return quality;
+  const trimmedComposition: Record<string, unknown> = {};
+  for (const [role, roleData] of Object.entries(quality.composition)) {
+    const data = roleData as {
+      count: number;
+      target_range: [number, number];
+      target_source: string;
+      status: string;
+    };
+    trimmedComposition[role] = {
+      count: data.count,
+      target_range: data.target_range,
+      target_source: data.target_source,
+      status: data.status,
+      // cards[] omitted — names appear in the user's decklist input.
+    };
+  }
+  return {
+    ...quality,
+    bracket: {
+      ...quality.bracket,
+      reasons: quality.bracket.reasons.slice(0, 3),
+    },
+    composition: trimmedComposition,
+  };
 }
 
 /**
