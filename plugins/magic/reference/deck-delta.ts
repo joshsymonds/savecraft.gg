@@ -12,12 +12,17 @@
  *     role scores in [0, 1].
  *   - deltaRoleCoverage: change in summed role coverage when swapping
  *     cards in/out of a deck.
- *
- * Combo-value scoring and the combined Δ wrapper come in M7.3.
+ *   - comboValue: per-commander combo scoring. Each combo with k of n
+ *     cards present contributes (k/n)^0.5 for partial completion, or a
+ *     large constant B for complete combos.
+ *   - deltaComboValue: change in summed combo value after a swap.
+ *   - deltaQuality: combined Δ wrapper that the upgrade loop calls per
+ *     swap candidate. Combines synergy + role + combo terms.
  */
 import type { Env } from "../../../worker/src/types";
 import type { CommanderRef, DeckEntry } from "./deck-quality";
 import { COMMUNITY_BENCHMARKS } from "./deck-quality";
+import { safeParseJSON } from "../../../worker/src/reference/json";
 
 // Sharpness of the role-coverage sigmoid. At this value, count=lower maps to
 // ~0.018, count=midpoint to 0.5, count=upper to ~0.982. Steep enough to hit
@@ -256,5 +261,163 @@ function sumCoverage(counts: Map<string, number>): number {
       counts.get(ROLE_TAG.win_conditions) ?? 0,
       ...COMMUNITY_BENCHMARKS.win_conditions,
     )
+  );
+}
+
+// ── Combo scoring ──────────────────────────────────────────────────
+
+const PARTIAL_COMBO_EXPONENT = 0.5;
+const COMPLETE_COMBO_BONUS = 5;
+
+interface comboCardsRow {
+  combo_id: string;
+  card_names: string;
+}
+
+interface ComboLine {
+  id: string;
+  cards: string[];
+}
+
+async function loadCombosForCommander(
+  env: Env,
+  commanderId: string,
+): Promise<ComboLine[]> {
+  const result = await env.DB.prepare(
+    `SELECT combo_id, card_names FROM magic_edh_combos WHERE commander_id = ?`,
+  )
+    .bind(commanderId)
+    .all<comboCardsRow>();
+  const out: ComboLine[] = [];
+  for (const row of result.results ?? []) {
+    const cards = safeParseJSON<string[]>(row.card_names, []);
+    if (cards.length === 0) continue;
+    out.push({ id: row.combo_id, cards });
+  }
+  return out;
+}
+
+/**
+ * scoreCombo: 0 if no combo cards present; (k/n)^p for partial completion;
+ * COMPLETE_COMBO_BONUS for full completion.
+ */
+function scoreCombo(deckSet: Set<string>, comboCards: string[]): number {
+  let present = 0;
+  for (const name of comboCards) {
+    if (deckSet.has(name.toLowerCase())) present += 1;
+  }
+  if (present === 0) return 0;
+  if (present === comboCards.length) return COMPLETE_COMBO_BONUS;
+  return Math.pow(present / comboCards.length, PARTIAL_COMBO_EXPONENT);
+}
+
+/**
+ * comboValue sums combo scores across this commander's combos. Each combo
+ * contributes (k/n)^0.5 for partial presence (0 < k < n) or
+ * COMPLETE_COMBO_BONUS for full completion (k == n).
+ */
+export async function comboValue(
+  env: Env,
+  deck: DeckEntry[],
+  commander: CommanderRef,
+): Promise<number> {
+  const combos = await loadCombosForCommander(env, commander.scryfall_id);
+  const deckSet = new Set(deck.map((entry) => entry.card_name.toLowerCase()));
+  let total = 0;
+  for (const combo of combos) total += scoreCombo(deckSet, combo.cards);
+  return total;
+}
+
+/**
+ * deltaComboValue returns the change in summed combo value when removing
+ * `cardsOut` from `deck` and adding `cardsIn`. Single combo lookup feeds
+ * before/after scoring.
+ */
+export async function deltaComboValue(
+  env: Env,
+  deck: DeckEntry[],
+  cardsOut: string[],
+  cardsIn: string[],
+  commander: CommanderRef,
+): Promise<number> {
+  const combos = await loadCombosForCommander(env, commander.scryfall_id);
+  const beforeSet = new Set(deck.map((entry) => entry.card_name.toLowerCase()));
+  const afterSet = new Set(beforeSet);
+  for (const name of cardsOut) afterSet.delete(name.toLowerCase());
+  for (const name of cardsIn) afterSet.add(name.toLowerCase());
+  let before = 0;
+  let after = 0;
+  for (const combo of combos) {
+    before += scoreCombo(beforeSet, combo.cards);
+    after += scoreCombo(afterSet, combo.cards);
+  }
+  return after - before;
+}
+
+// ── Combined Δquality wrapper ──────────────────────────────────────
+
+export interface DeltaWeights {
+  /** w_inc: coefficient on Δlog(commander synergy) for the cards being swapped. */
+  commander_synergy: number;
+  /**
+   * Effective coefficient on the deck-synergy term (w_syn × |D|). In the
+   * proxy regime, deck-synergy ≈ logCommanderSynergy of the swapped card,
+   * so this value adds to commander_synergy. When pairwise data ships, this
+   * becomes a separate signal.
+   */
+  deck_synergy: number;
+  /** w_role: coefficient on ΔRoleCoverage. */
+  role_coverage: number;
+  /** w_combo: coefficient on ΔComboValue. */
+  combo_value: number;
+}
+
+export const DEFAULT_DELTA_WEIGHTS: DeltaWeights = {
+  commander_synergy: 1,
+  deck_synergy: 1,
+  role_coverage: 2,
+  combo_value: 3,
+};
+
+/**
+ * deltaQuality is the combined Δ formula evaluated by the upgrade loop per
+ * swap candidate. Positive return value means the swap improves the deck.
+ *
+ * Formula (in the proxy regime — deck-synergy uses commander-synergy as a
+ * stand-in until pairwise card co-occurrence data ships):
+ *   Δ = (w_inc + w_syn) · [Σ logCS(cardsIn) − Σ logCS(cardsOut)]
+ *     + w_role  · ΔRoleCoverage(deck, cardsOut, cardsIn)
+ *     + w_combo · ΔComboValue(deck, cardsOut, cardsIn)
+ *
+ * The Δquality term from Epic Requirement 5 (assessQuality vector) is
+ * deferred. Its composition vector overlaps with ΔRoleCoverage (double-
+ * counting), and computing it per swap requires multiple D1 queries. M7.6
+ * spot-checks will determine whether the missing curve / bracket-consistency
+ * signal causes visible failures; if so, add a cheap-incremental version in
+ * a follow-up task.
+ */
+export async function deltaQuality(
+  env: Env,
+  deck: DeckEntry[],
+  cardsOut: string[],
+  cardsIn: string[],
+  commander: CommanderRef,
+  weights: DeltaWeights = DEFAULT_DELTA_WEIGHTS,
+): Promise<number> {
+  const [synergyOutValues, synergyInValues, roleDelta, comboDelta] =
+    await Promise.all([
+      Promise.all(cardsOut.map((c) => logCommanderSynergy(env, commander, c))),
+      Promise.all(cardsIn.map((c) => logCommanderSynergy(env, commander, c))),
+      deltaRoleCoverage(env, deck, cardsOut, cardsIn, commander),
+      deltaComboValue(env, deck, cardsOut, cardsIn, commander),
+    ]);
+  const synergyOut = synergyOutValues.reduce((sum, v) => sum + v, 0);
+  const synergyIn = synergyInValues.reduce((sum, v) => sum + v, 0);
+  const synergyDelta = synergyIn - synergyOut;
+  const synergyCoeff = weights.commander_synergy + weights.deck_synergy;
+  return (
+    synergyCoeff * synergyDelta +
+    weights.role_coverage * roleDelta +
+    weights.combo_value * comboDelta
   );
 }

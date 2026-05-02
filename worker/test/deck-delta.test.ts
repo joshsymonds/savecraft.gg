@@ -2,6 +2,10 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  comboValue,
+  DEFAULT_DELTA_WEIGHTS,
+  deltaComboValue,
+  deltaQuality,
   deltaRoleCoverage,
   logCommanderSynergy,
   roleCoverage,
@@ -289,5 +293,168 @@ describe("deltaRoleCoverage", () => {
     const a = await deltaRoleCoverage(env as unknown as Env, deck, [], ["NewRamp"], COMMANDER);
     const b = await deltaRoleCoverage(env as unknown as Env, deck, [], ["NewRamp"], COMMANDER);
     expect(a).toBe(b);
+  });
+});
+
+async function seedCombo(comboId: string, cardNames: string[]): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO magic_edh_combos (commander_id, combo_id, card_names) VALUES (?, ?, ?)`,
+  )
+    .bind(ATRAXA_ID, comboId, JSON.stringify(cardNames))
+    .run();
+}
+
+const PARTIAL_2_OF_2 = Math.sqrt(0.5); // ≈ 0.7071: (k/n)^0.5 with k=1, n=2
+const COMPLETE_BONUS = 5;
+
+describe("comboValue", () => {
+  beforeEach(async () => {
+    await cleanAll();
+    await seedCommander();
+  });
+
+  it("returns 0 for an empty deck", async () => {
+    await seedCombo("c1", ["CardA", "CardB"]);
+    const result = await comboValue(env as unknown as Env, [], COMMANDER);
+    expect(result).toBe(0);
+  });
+
+  it("returns (k/n)^0.5 ≈ 0.7071 for a 2-card combo with 1 card present", async () => {
+    await seedCombo("c1", ["CardA", "CardB"]);
+    await seedCards([{ name: "CardA", type: "Artifact", roles: [] }]);
+    const deck = makeDeck([{ name: "CardA" }]);
+
+    const result = await comboValue(env as unknown as Env, deck, COMMANDER);
+    expect(Math.abs(result - PARTIAL_2_OF_2)).toBeLessThan(0.001);
+  });
+
+  it("returns COMPLETE_BONUS for a 2-card combo with both cards present", async () => {
+    await seedCombo("c1", ["CardA", "CardB"]);
+    await seedCards([
+      { name: "CardA", type: "Artifact", roles: [] },
+      { name: "CardB", type: "Artifact", roles: [] },
+    ]);
+    const deck = makeDeck([{ name: "CardA" }, { name: "CardB" }]);
+
+    const result = await comboValue(env as unknown as Env, deck, COMMANDER);
+    expect(result).toBe(COMPLETE_BONUS);
+  });
+
+  it("sums across multiple combos", async () => {
+    await seedCombo("c1", ["CardA", "CardB"]);
+    await seedCombo("c2", ["CardC", "CardD"]);
+    await seedCards([
+      { name: "CardA", type: "Artifact", roles: [] },
+      { name: "CardB", type: "Artifact", roles: [] },
+      { name: "CardC", type: "Artifact", roles: [] },
+    ]);
+    // c1 complete (5), c2 partial 1/2 (≈0.7071) → total ≈ 5.7071
+    const deck = makeDeck([{ name: "CardA" }, { name: "CardB" }, { name: "CardC" }]);
+
+    const result = await comboValue(env as unknown as Env, deck, COMMANDER);
+    expect(Math.abs(result - (COMPLETE_BONUS + PARTIAL_2_OF_2))).toBeLessThan(0.001);
+  });
+});
+
+describe("deltaComboValue", () => {
+  beforeEach(async () => {
+    await cleanAll();
+    await seedCommander();
+  });
+
+  it("returns positive Δ when adding the missing card of a 2-card combo", async () => {
+    await seedCombo("c1", ["CardA", "CardB"]);
+    await seedCards([
+      { name: "CardA", type: "Artifact", roles: [] },
+      { name: "CardB", type: "Artifact", roles: [] },
+    ]);
+    const deck = makeDeck([{ name: "CardA" }]);
+
+    const delta = await deltaComboValue(env as unknown as Env, deck, [], ["CardB"], COMMANDER);
+    expect(Math.abs(delta - (COMPLETE_BONUS - PARTIAL_2_OF_2))).toBeLessThan(0.001);
+  });
+
+  it("returns negative Δ when removing one card from a complete combo", async () => {
+    await seedCombo("c1", ["CardA", "CardB"]);
+    await seedCards([
+      { name: "CardA", type: "Artifact", roles: [] },
+      { name: "CardB", type: "Artifact", roles: [] },
+    ]);
+    const deck = makeDeck([{ name: "CardA" }, { name: "CardB" }]);
+
+    const delta = await deltaComboValue(env as unknown as Env, deck, ["CardB"], [], COMMANDER);
+    expect(Math.abs(delta - (PARTIAL_2_OF_2 - COMPLETE_BONUS))).toBeLessThan(0.001);
+  });
+
+  it("is deterministic — same swap returns identical Δ", async () => {
+    await seedCombo("c1", ["CardA", "CardB"]);
+    await seedCards([
+      { name: "CardA", type: "Artifact", roles: [] },
+      { name: "CardB", type: "Artifact", roles: [] },
+    ]);
+    const deck = makeDeck([{ name: "CardA" }]);
+
+    const a = await deltaComboValue(env as unknown as Env, deck, [], ["CardB"], COMMANDER);
+    const b = await deltaComboValue(env as unknown as Env, deck, [], ["CardB"], COMMANDER);
+    expect(a).toBe(b);
+  });
+});
+
+describe("deltaQuality", () => {
+  beforeEach(async () => {
+    await cleanAll();
+    await seedCommander();
+  });
+
+  it("returns positive Δ when adding a high-synergy ramp card to an empty deck", async () => {
+    // Deck of 8 ramp cards (well below midpoint), add a 9th. Card has high
+    // commander synergy. ΔRoleCoverage is small but positive; ΔlogSynergy is
+    // positive; ΔComboValue is 0 (no combos seeded).
+    const cards = Array.from({ length: 8 }, (_, index) => ({
+      name: `BaseRamp${String(index)}`,
+      type: "Sorcery",
+      roles: ["ramp"],
+    }));
+    await seedCards([...cards, { name: "BigRamp", type: "Sorcery", roles: ["ramp"] }]);
+    await seedRecommendation("BigRamp", 5);
+    const deck = makeDeck(cards);
+
+    const delta = await deltaQuality(env as unknown as Env, deck, [], ["BigRamp"], COMMANDER);
+    expect(delta).toBeGreaterThan(0);
+  });
+
+  it("returns 0 for a no-op swap (empty cardsOut and cardsIn)", async () => {
+    const delta = await deltaQuality(env as unknown as Env, [], [], [], COMMANDER);
+    expect(delta).toBe(0);
+  });
+
+  it("respects custom weights — zeroing all but combo isolates combo contribution", async () => {
+    // Setup: 2-card combo, deck has 1 card, swap in the second to complete.
+    // Weights: only combo_value=1, all others 0. Δ = combo_value × ΔComboValue.
+    await seedCombo("c1", ["CardA", "CardB"]);
+    await seedCards([
+      { name: "CardA", type: "Artifact", roles: [] },
+      { name: "CardB", type: "Artifact", roles: [] },
+    ]);
+    const deck = makeDeck([{ name: "CardA" }]);
+
+    const delta = await deltaQuality(env as unknown as Env, deck, [], ["CardB"], COMMANDER, {
+      commander_synergy: 0,
+      deck_synergy: 0,
+      role_coverage: 0,
+      combo_value: 1,
+    });
+    // Expected: 1 × (5 - 0.7071) ≈ 4.2929
+    const expected = COMPLETE_BONUS - PARTIAL_2_OF_2;
+    expect(Math.abs(delta - expected)).toBeLessThan(0.001);
+  });
+
+  it("DEFAULT_DELTA_WEIGHTS is exported with documented values", () => {
+    expect(DEFAULT_DELTA_WEIGHTS).toEqual({
+      commander_synergy: 1,
+      deck_synergy: 1,
+      role_coverage: 2,
+      combo_value: 3,
+    });
   });
 });
