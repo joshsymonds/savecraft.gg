@@ -453,7 +453,10 @@ async function loadTypeLinesForCards(
     const slice = cardNames.slice(i, i + CHUNK);
     const placeholders = slice.map(() => "?").join(",");
     const result = await env.DB.prepare(
-      `SELECT front_face_name, type_line FROM magic_cards WHERE LOWER(front_face_name) IN (${placeholders}) AND is_default = 1`,
+      // Filter "Card // Card" placeholder rows that some art-series /
+      // alt-print entries leak into is_default=1. They have no real
+      // type_line and clobber canonical rows under last-wins map insertion.
+      `SELECT front_face_name, type_line FROM magic_cards WHERE LOWER(front_face_name) IN (${placeholders}) AND is_default = 1 AND type_line != 'Card // Card'`,
     )
       .bind(...slice.map((n) => n.toLowerCase()))
       .all<typeLineRow>();
@@ -773,7 +776,7 @@ async function loadCMCsForCards(
     const placeholders = slice.map(() => "?").join(",");
     const result = await env.DB.prepare(
       `SELECT front_face_name, cmc, type_line FROM magic_cards
-         WHERE LOWER(front_face_name) IN (${placeholders}) AND is_default = 1`,
+         WHERE LOWER(front_face_name) IN (${placeholders}) AND is_default = 1 AND type_line != 'Card // Card'`,
     )
       .bind(...slice.map((n) => n.toLowerCase()))
       .all<cmcRow>();

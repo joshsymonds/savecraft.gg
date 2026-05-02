@@ -157,6 +157,16 @@ export async function completeDeck(
 
   for (const role of lowRoles) {
     if (countCards(filled) >= target) break;
+    // Cap role-fill at target_range upper bound. Without this, Phase 1 keeps
+    // adding role-tagged cards from the recommendation pool until either the
+    // total deck size or budget is exhausted — overshooting the structural
+    // target by 2-3x in observed cases (Edgar Markov $500: ramp went 22 vs
+    // target 7-11). The role-gap fill should bring a "low" role up to "ok",
+    // not past "high".
+    const roleData = (compInitial as unknown as Record<string, { count: number; target_range: [number, number] }>)[role];
+    const upperBound = roleData?.target_range?.[1] ?? Infinity;
+    let currentRoleCount = roleData?.count ?? 0;
+    if (currentRoleCount >= upperBound) continue; // already at upper bound — skip
     const candidates = await fetchRecommendationsForRole(
       env,
       commander.scryfall_id,
@@ -171,6 +181,7 @@ export async function completeDeck(
     let added = 0;
     for (const cand of candidates) {
       if (countCards(filled) >= target) break;
+      if (currentRoleCount >= upperBound) break;
       const lower = cand.card_name.toLowerCase();
       if (inDeck.has(lower)) continue;
       if (excludesLower.has(lower)) continue;
@@ -192,6 +203,7 @@ export async function completeDeck(
         price,
       });
       if (price != null) currentSpend += price;
+      currentRoleCount += 1;
       added += 1;
     }
     if (added === 0) {
@@ -460,7 +472,7 @@ async function loadManaData(
     const result = await env.DB.prepare(
       `SELECT front_face_name, mana_cost, type_line, produced_mana
          FROM magic_cards
-         WHERE LOWER(front_face_name) IN (${placeholders}) AND is_default = 1`,
+         WHERE LOWER(front_face_name) IN (${placeholders}) AND is_default = 1 AND type_line != 'Card // Card'`,
     )
       .bind(...slice.map((n) => n.toLowerCase()))
       .all<manaRow>();

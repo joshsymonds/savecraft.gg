@@ -284,4 +284,34 @@ describe("completeDeck", () => {
     // No role-gap recommendations were available, so we should see warning
     expect(result.warnings.length).toBeGreaterThan(0);
   });
+
+  it("M6.2: role-fill stops at target upper bound, not when budget/total exhausts", async () => {
+    // Seed 30 ramp recommendations (more than the community benchmark
+    // upper bound of 12). Empty shell. Without the fix, completion adds
+    // all 30 ramp cards. With the fix, it stops at 12.
+    const rampCards = Array.from({ length: 30 }, (_, index) => ({
+      name: `RampOverflow${String(index)}`,
+      type: "Sorcery",
+      roles: ["ramp"],
+      cmc: 3,
+      mana_cost: "{2}{G}",
+    }));
+    await seedCards(rampCards);
+    await seedRecommendations(
+      rampCards.map((c, index) => ({
+        card_name: c.name,
+        category: "manaartifacts",
+        inclusion: 10_000 - index,
+      })),
+    );
+
+    const result = await completeDeck(env as unknown as Env, [], COMMANDER);
+
+    // Community benchmark upper bound for ramp is 12 (target [10, 12]).
+    const rampAdded = result.added_from_recommendations.filter(
+      (a) => a.reason === "fill_role_gap" && a.role === "ramp",
+    );
+    expect(rampAdded.length).toBeLessThanOrEqual(12);
+    expect(rampAdded.length).toBeGreaterThanOrEqual(10);
+  });
 });
