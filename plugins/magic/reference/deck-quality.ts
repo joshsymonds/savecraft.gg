@@ -508,3 +508,268 @@ async function deriveTierTargets(
     tutors: tierTolerance(counts.tutors),
   };
 }
+
+// ─── M2.3: aggregate quality score ───────────────────────────────────
+
+export interface QualityVectors {
+  /** Karsten color-source health, 0-100. M2.3 uses a land-count proxy; M3.1 will replace with full Karsten. */
+  mana_base: number;
+  /** CMC distribution sanity, 0-100. M2.3 returns a neutral default for incomplete decks. */
+  curve: number;
+  /** Composition health, 0-100. Derived from CompositionAssessment statuses (ok=full, high=partial, low=zero). */
+  composition: number;
+  /** How well the deck's structural shape matches its bracket placement, 0-100. */
+  bracket_consistency: number;
+  /** Percentage match against the commander's tier-average decklist, 0-100. */
+  edhrec_overlap: number;
+}
+
+export interface QualityWeights {
+  mana_base: number;
+  curve: number;
+  composition: number;
+  bracket_consistency: number;
+  edhrec_overlap: number;
+}
+
+export interface QualityReport {
+  bracket: BracketAssessment;
+  composition: CompositionAssessment;
+  vectors: QualityVectors;
+  /**
+   * Aggregate 0-100 score. The calibration test
+   * (deck-quality-calibration.test.ts) gates whether this number means
+   * anything — if calibration fails in CI, the deck-quality library should
+   * be edited to drop this field rather than ship a miscalibrated number.
+   * Per-vector breakdown is the actually-actionable output; the score is
+   * convenience for at-a-glance comparison.
+   */
+  score: number;
+  weights: QualityWeights;
+}
+
+/**
+ * Aggregate score weights. Sum to 1.0. Tunable via the calibration test —
+ * adjust here if calibration ordering or invariants fail.
+ */
+export const WEIGHTS: QualityWeights = {
+  mana_base: 0.2,
+  curve: 0.15,
+  composition: 0.3,
+  bracket_consistency: 0.2,
+  edhrec_overlap: 0.15,
+};
+
+interface tierCardRow {
+  card_name: string;
+}
+
+interface cmcRow {
+  front_face_name: string;
+  cmc: number;
+  type_line: string;
+}
+
+/**
+ * assessQuality runs all three scoring layers (bracket, composition,
+ * vectors) and combines into a structured report with an aggregate score.
+ * Single entry point for both commander_deckbuild and commander_deck_review.
+ */
+export async function assessQuality(
+  env: Env,
+  deck: DeckEntry[],
+  commander: CommanderRef,
+  tier?: string,
+): Promise<QualityReport> {
+  const [bracket, composition, edhrecOverlap, curve] = await Promise.all([
+    assessBracket(env, deck, commander),
+    assessComposition(env, deck, commander, tier),
+    edhrecOverlapVector(env, deck, commander, tier),
+    curveVector(env, deck),
+  ]);
+
+  const compositionVec = compositionVector(composition);
+  const manaBase = manaBaseVector(composition);
+  const bracketConsistency = bracketConsistencyVector(bracket, composition);
+
+  const vectors: QualityVectors = {
+    mana_base: manaBase,
+    curve,
+    composition: compositionVec,
+    bracket_consistency: bracketConsistency,
+    edhrec_overlap: edhrecOverlap,
+  };
+
+  const score = Math.round(
+    vectors.mana_base * WEIGHTS.mana_base +
+      vectors.curve * WEIGHTS.curve +
+      vectors.composition * WEIGHTS.composition +
+      vectors.bracket_consistency * WEIGHTS.bracket_consistency +
+      vectors.edhrec_overlap * WEIGHTS.edhrec_overlap,
+  );
+
+  return {
+    bracket,
+    composition,
+    vectors,
+    score,
+    weights: WEIGHTS,
+  };
+}
+
+/**
+ * compositionVector counts how many of the 7 role buckets land in healthy
+ * status bands. ok = full credit, high = partial (over-stocked but not
+ * broken), low = zero.
+ */
+function compositionVector(comp: CompositionAssessment): number {
+  const buckets = [
+    comp.lands,
+    comp.ramp,
+    comp.card_draw,
+    comp.removal,
+    comp.win_conditions,
+    comp.boardwipes,
+    comp.tutors,
+  ];
+  let total = 0;
+  for (const b of buckets) {
+    if (b.status === "ok") total += 1;
+    else if (b.status === "high") total += 0.7;
+    // low contributes 0
+  }
+  return Math.round((total / buckets.length) * 100);
+}
+
+/**
+ * manaBaseVector — M2.3 placeholder using land count. M3.1 replaces this
+ * with full Karsten color-source analysis once the deck completion path
+ * needs to enforce color balance.
+ */
+function manaBaseVector(comp: CompositionAssessment): number {
+  const lands = comp.lands.count;
+  if (lands >= 36) return 100;
+  if (lands >= 33) return 85;
+  if (lands >= 30) return 70;
+  if (lands >= 25) return 50;
+  if (lands >= 20) return 30;
+  if (lands === 0) return 0; // empty deck
+  return 15;
+}
+
+/**
+ * bracketConsistencyVector measures whether the deck's structural shape
+ * matches its bracket placement. Higher brackets get a higher base score
+ * (more reward when composition holds), but missing-role penalties scale
+ * with bracket too — a bracket-5 deck with low ramp is more broken than a
+ * bracket-1 deck with low ramp.
+ */
+function bracketConsistencyVector(
+  bracket: BracketAssessment,
+  comp: CompositionAssessment,
+): number {
+  const lowCount = [
+    comp.lands,
+    comp.ramp,
+    comp.card_draw,
+    comp.removal,
+    comp.win_conditions,
+  ].filter((b) => b.status === "low").length;
+
+  // Base scales with bracket: bracket 1 = 68, bracket 5 = 100. Higher
+  // brackets reward optimization signals.
+  const base = 60 + bracket.tier * 8;
+  // Penalty per low-status role, scaled by bracket level.
+  const penalty = lowCount * (5 + bracket.tier * 2);
+
+  return Math.max(0, Math.min(100, base - penalty));
+}
+
+/**
+ * edhrecOverlapVector returns the % of user's deck cards that appear in
+ * the commander's tier-average decklist. If no tier average exists, returns
+ * 50 (neutral — can't penalise unknown).
+ */
+async function edhrecOverlapVector(
+  env: Env,
+  deck: DeckEntry[],
+  commander: CommanderRef,
+  tier?: string,
+): Promise<number> {
+  if (deck.length === 0) return 0;
+  const targetTier = tier ?? "budget";
+  const result = await env.DB
+    .prepare(
+      `SELECT card_name FROM magic_edh_average_decks_by_tier
+       WHERE commander_id = ? AND tier = ?`,
+    )
+    .bind(commander.scryfall_id, targetTier)
+    .all<tierCardRow>();
+  const tierCards = result.results ?? [];
+  if (tierCards.length === 0) return 50; // no data — neutral
+
+  const tierLower = new Set(tierCards.map((r) => r.card_name.toLowerCase()));
+  const deckLower = new Set(deck.map((c) => c.card_name.toLowerCase()));
+  let matches = 0;
+  for (const card of deckLower) {
+    if (tierLower.has(card)) matches += 1;
+  }
+  // Denominator: tier size (overlap as fraction of the consensus shell).
+  return Math.min(100, Math.round((matches / tierCards.length) * 100));
+}
+
+/**
+ * curveVector — M2.3 placeholder. Real CMC analysis joins to magic_cards.cmc;
+ * for empty/incomplete decks (lookup misses), returns a neutral 75 so the
+ * vector doesn't collapse the aggregate. M3 will tighten this once curve
+ * targets exist.
+ */
+async function curveVector(env: Env, deck: DeckEntry[]): Promise<number> {
+  if (deck.length === 0) return 0;
+  const cardNames = deck.map((c) => c.card_name);
+  const cmcMap = await loadCMCsForCards(env, cardNames);
+  const nonLandCmcs: number[] = [];
+  for (const entry of deck) {
+    const row = cmcMap.get(entry.card_name.toLowerCase());
+    if (!row) continue;
+    if (row.type_line.includes("Land")) continue;
+    nonLandCmcs.push(row.cmc);
+  }
+  if (nonLandCmcs.length === 0) return 75; // no data; neutral
+  const avg = nonLandCmcs.reduce((s, c) => s + c, 0) / nonLandCmcs.length;
+  // EDH typical avg CMC band: 3.0-3.5. Drop linearly outside.
+  if (avg >= 3.0 && avg <= 3.5) return 100;
+  if (avg >= 2.5 && avg < 3.0) return 90;
+  if (avg > 3.5 && avg <= 4.0) return 90;
+  if (avg >= 2.0 && avg < 2.5) return 75;
+  if (avg > 4.0 && avg <= 4.5) return 75;
+  return 60;
+}
+
+async function loadCMCsForCards(
+  env: Env,
+  cardNames: string[],
+): Promise<Map<string, { cmc: number; type_line: string }>> {
+  const out = new Map<string, { cmc: number; type_line: string }>();
+  if (cardNames.length === 0) return out;
+  const CHUNK = 90;
+  for (let i = 0; i < cardNames.length; i += CHUNK) {
+    const slice = cardNames.slice(i, i + CHUNK);
+    const placeholders = slice.map(() => "?").join(",");
+    const result = await env.DB
+      .prepare(
+        `SELECT front_face_name, cmc, type_line FROM magic_cards
+         WHERE LOWER(front_face_name) IN (${placeholders}) AND is_default = 1`,
+      )
+      .bind(...slice.map((n) => n.toLowerCase()))
+      .all<cmcRow>();
+    for (const row of result.results ?? []) {
+      out.set(row.front_face_name.toLowerCase(), {
+        cmc: row.cmc,
+        type_line: row.type_line ?? "",
+      });
+    }
+  }
+  return out;
+}
+
