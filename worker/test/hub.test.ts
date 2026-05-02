@@ -2000,6 +2000,10 @@ describe("SourceHub", () => {
     });
     expect(resp.status).toBe(200);
 
+    // Wait for state to propagate from SourceHub through UserHub before
+    // a fresh UI connection reads the cached state.
+    await new Promise((r) => setTimeout(r, 200));
+
     // Verify save is gone from SourceState
     const ui2 = await connectWs("/ws/ui", userUuid);
     const state2 = requireInnerPayload(await waitForRelayedMessage(ui2), "sourceState");
@@ -2014,6 +2018,9 @@ describe("SourceHub", () => {
       headers: { Authorization: `Bearer ${userUuid}` },
     });
     expect(restoreResp.status).toBe(200);
+
+    // Wait for state to propagate before a fresh UI connection reads cache.
+    await new Promise((r) => setTimeout(r, 200));
 
     // Verify save reappears in SourceState
     const ui3 = await connectWs("/ws/ui", userUuid);

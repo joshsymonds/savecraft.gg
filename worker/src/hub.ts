@@ -697,6 +697,23 @@ export class SourceHub extends DurableObject<Env> {
 
   // ── Internal helpers ──────────────────────────────────────────────
 
+  /**
+   * Send a message to a WebSocket, swallowing the synchronous "send after
+   * close" error. The Hibernation API briefly exposes sockets in a
+   * closed-but-not-yet-purged state to `getWebSockets()`, and any caller
+   * iterating that set can hit `TypeError: Can't call WebSocket send() after
+   * close()` if a peer disconnects mid-broadcast.
+   */
+  private safeSend(ws: WebSocket, msg: ArrayBuffer | ArrayBufferView | string): void {
+    try {
+      ws.send(msg);
+    } catch (error) {
+      this.debugLog.push("warn", "ws.send failed (likely closed)", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   private async loadState(): Promise<SourceState> {
     const stored = await this.ctx.storage.get(STATE_KEY);
     if (!stored) return { sources: [] };
@@ -900,7 +917,7 @@ export class SourceHub extends DurableObject<Env> {
       }).finish();
 
       this.debugLog.push("info", "source update available", { version: manifest.version });
-      ws.send(updateMsg);
+      this.safeSend(ws, updateMsg);
     } catch (error) {
       this.debugLog.push("error", "source update check failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -940,7 +957,8 @@ export class SourceHub extends DurableObject<Env> {
       const rejection = await this.checkPushRejection(sourceId, gameId, saveName);
       if (rejection) {
         this.debugLog.push("warn", rejection.reason, { gameId, saveName, sourceId });
-        ws.send(
+        this.safeSend(
+          ws,
           Message.encode({
             payload: {
               $case: "pushSaveResult",
@@ -989,7 +1007,7 @@ export class SourceHub extends DurableObject<Env> {
           },
         },
       }).finish();
-      ws.send(resultMsg);
+      this.safeSend(ws, resultMsg);
 
       this.debugLog.push("info", "pushSave completed", { saveUuid, gameId, changed });
 
@@ -1293,7 +1311,7 @@ export class SourceHub extends DurableObject<Env> {
       payload: { $case: "configUpdate", configUpdate: { games } },
     }).finish();
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
-      daemonWs.send(msg);
+      this.safeSend(daemonWs, msg);
     }
 
     await this.removeStaleStateEntries(disabledGameIds, games);
@@ -1419,7 +1437,7 @@ export class SourceHub extends DurableObject<Env> {
         }).finish();
         const daemons = this.ctx.getWebSockets("daemon");
         for (const ws of daemons) {
-          ws.send(msg);
+          this.safeSend(ws, msg);
         }
         this.debugLog.push("info", "pushed SourceUpdateAvailable", {
           version: body.version,
@@ -1467,7 +1485,7 @@ export class SourceHub extends DurableObject<Env> {
       payload: { $case: "rescanGame", rescanGame: { gameId: body.gameId } },
     }).finish();
     for (const ws of daemonSockets) {
-      ws.send(msg);
+      this.safeSend(ws, msg);
     }
     return Response.json({ sent: true, daemon_count: daemonSockets.length });
   }
@@ -1568,7 +1586,7 @@ export class SourceHub extends DurableObject<Env> {
       },
     }).finish();
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
-      daemonWs.send(linkedMsg);
+      this.safeSend(daemonWs, linkedMsg);
     }
     this.debugLog.push("info", "pushed SourceLinked to daemon", {
       userUuid: body.userUuid,
@@ -1591,7 +1609,7 @@ export class SourceHub extends DurableObject<Env> {
         const msg = Message.encode({
           payload: { $case: "sourceLinked", sourceLinked: { userUuid } },
         }).finish();
-        ws.send(msg);
+        this.safeSend(ws, msg);
         this.debugLog.push("info", "notified daemon: already linked", { userUuid });
       } else {
         // Check if we already have a valid link code (e.g. from registration).
@@ -1615,7 +1633,7 @@ export class SourceHub extends DurableObject<Env> {
                 refreshLinkCodeResult: { linkCode: existing.link_code, expiresAt },
               },
             }).finish();
-            ws.send(resultMsg);
+            this.safeSend(ws, resultMsg);
             this.debugLog.push("info", "re-sent existing link code", { sourceUuid });
             return;
           }
@@ -1652,7 +1670,7 @@ export class SourceHub extends DurableObject<Env> {
           refreshLinkCodeResult: { linkCode, expiresAt },
         },
       }).finish();
-      ws.send(resultMsg);
+      this.safeSend(ws, resultMsg);
 
       this.debugLog.push("info", "refreshed link code", { sourceUuid });
     } catch (error) {
@@ -1711,7 +1729,7 @@ export class SourceHub extends DurableObject<Env> {
           refreshLinkCodeResult: { linkCode, expiresAt },
         },
       }).finish();
-      ws.send(resultMsg);
+      this.safeSend(ws, resultMsg);
 
       this.debugLog.push("info", "source unlinked", { sourceUuid });
     } catch (error) {
