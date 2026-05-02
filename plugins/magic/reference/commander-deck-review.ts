@@ -16,6 +16,7 @@ import type {
 import { safeParseJSON } from "../../../worker/src/reference/json";
 import { resolveCardPrices, resolveGameChangers } from "./commander-prices";
 import { resolveCommander } from "./commander-resolve";
+import { assessQuality } from "./deck-quality";
 
 const STAPLE_THRESHOLD = 0.25;
 const MAX_MISSING_STAPLES = 20;
@@ -236,6 +237,20 @@ async function runReview(
   }
   totalPrice = Math.round(totalPrice * 100) / 100;
 
+  // M5: quality assessment via the shared deck-quality library — same
+  // schema as commander_deckbuild's output. Re-parse the decklist with
+  // quantities preserved (parseDecklist discards them) so basic-land
+  // counts feed the lands composition + Karsten-proxy vectors correctly.
+  const deckEntriesForQuality = parseDecklistWithQuantity(rawDecklist).map(
+    ({ name, quantity }) => ({ card_name: name, quantity }),
+  );
+  const quality = await assessQuality(
+    env,
+    deckEntriesForQuality,
+    { scryfall_id: commanderRow.scryfall_id, name: commanderRow.name },
+    tier,
+  );
+
   const data: Record<string, unknown> = {
     commander: {
       scryfall_id: commanderRow.scryfall_id,
@@ -256,6 +271,7 @@ async function runReview(
     },
     extras,
     category_breakdown: categoryBreakdown,
+    quality,
     attribution: {
       source: "EDHREC",
       url: `https://edhrec.com/commanders/${commanderRow.slug}`,
@@ -385,4 +401,35 @@ function parseDecklist(entries: unknown[]): Map<string, string> {
     }
   }
   return result;
+}
+
+/**
+ * parseDecklistWithQuantity preserves quantity from "N Card Name" prefixes
+ * AND counts repeated entries — both common decklist formats. Used by
+ * assessQuality where basic-land counts genuinely matter (lands composition,
+ * Karsten-proxy mana_base vector). The plain parseDecklist above keeps
+ * its quantity-agnostic semantics for missing_staples / overlap / extras
+ * which are about card presence, not slot counts.
+ */
+function parseDecklistWithQuantity(
+  entries: unknown[],
+): { name: string; quantity: number }[] {
+  const counts = new Map<string, { name: string; quantity: number }>();
+  const re = /^(\d+)\s+(.+)$/;
+  for (const raw of entries) {
+    if (typeof raw !== "string") continue;
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const match = trimmed.match(re);
+    const qty = match ? Number.parseInt(match[1] ?? "1", 10) : 1;
+    const name = (match ? match[2]! : trimmed).trim();
+    const lower = name.toLowerCase();
+    const existing = counts.get(lower);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      counts.set(lower, { name, quantity: qty });
+    }
+  }
+  return [...counts.values()];
 }

@@ -452,4 +452,73 @@ describe("commander_deck_review native module", () => {
     const data = result.data as { tier_mismatches?: unknown };
     expect(data.tier_mismatches).toBeUndefined();
   });
+
+  // ── M5: deck-quality wired into review output ──────────────────
+
+  it("output includes quality block populated by assessQuality", async () => {
+    await seedAtraxa();
+    const result = await commanderDeckReviewModule.execute(
+      {
+        commander: "Atraxa",
+        decklist: ["1 Sol Ring", "1 Cultivate", "10 Forest"],
+      },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as {
+      quality?: {
+        bracket: { tier: number };
+        composition: { lands: { count: number; status: string } };
+        vectors: { mana_base: number; composition: number };
+        score: number;
+        weights: Record<string, number>;
+      };
+    };
+    expect(data.quality).toBeDefined();
+    expect(data.quality?.bracket.tier).toBeGreaterThanOrEqual(1);
+    expect(data.quality?.bracket.tier).toBeLessThanOrEqual(5);
+    expect(data.quality?.score).toBeGreaterThanOrEqual(0);
+    expect(data.quality?.score).toBeLessThanOrEqual(100);
+    expect(data.quality?.weights).toBeDefined();
+  });
+
+  it("quality counts quantity-prefixed basics correctly (10 Forest = 10 lands)", async () => {
+    await seedAtraxa();
+    await env.DB.prepare(
+      `INSERT INTO magic_cards (oracle_id, front_face_name, name, type_line, set_code, is_default, mana_cost, cmc, produced_mana)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind("forest-id", "Forest", "Forest", "Basic Land — Forest", "TST", 1, "", 0, '["G"]')
+      .run();
+    const result = await commanderDeckReviewModule.execute(
+      {
+        commander: "Atraxa",
+        decklist: ["10 Forest"],
+      },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as {
+      quality: { composition: { lands: { count: number } } };
+    };
+    expect(data.quality.composition.lands.count).toBe(10);
+  });
+
+  it("quality falls back to community benchmark when no tier provided", async () => {
+    await seedAtraxa();
+    const result = await commanderDeckReviewModule.execute(
+      {
+        commander: "Atraxa",
+        decklist: ["Sol Ring", "Cultivate"],
+      },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as {
+      quality: {
+        composition: { ramp: { target_source: string } };
+      };
+    };
+    expect(data.quality.composition.ramp.target_source).toBe("community_benchmark");
+  });
 });
