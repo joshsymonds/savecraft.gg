@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -213,24 +214,41 @@ func run() error {
 		}
 	}
 
-	// Phase 1: Fetch Scryfall Tagger function tags. Concurrency=1 enforces
-	// a strict global rate ceiling — Scryfall caps API usage at 10 req/s
-	// and warns of network blocks on violations. With per-request 150ms
-	// sleeps below, that's ~6.7 req/s effective, comfortably under cap.
-	sem := make(chan struct{}, 1)
-	results := make([]setResult, len(targetSets))
-	var wg sync.WaitGroup
+	// Phase 1: Fetch Scryfall Tagger function tags.
+	//
+	// Two paths: --all-cards uses 16 global queries (one per tag, no set
+	// filter) cross-referenced against magic_cards in memory — covers all
+	// 785 sets in ~5-10 minutes. Per-set / single-set mode does 16 queries
+	// per set (12,560+ for full scope) and would trivially blow Scryfall's
+	// 10 req/s cap.
+	//
+	// Both paths use the existing setResult shape so Phase 2 + import
+	// logic is shared.
+	var results []setResult
+	if *allCards {
+		var err error
+		results, err = runGlobalPhase1(targetSets, *cfAccountID, *d1DatabaseID, *cfAPIToken)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Concurrency=1 enforces strict global rate ceiling. With per-request
+		// 150ms sleeps below, that's ~6.7 req/s effective, under cap.
+		sem := make(chan struct{}, 1)
+		results = make([]setResult, len(targetSets))
+		var wg sync.WaitGroup
 
-	for i, setCode := range targetSets {
-		wg.Add(1)
-		go func(idx int, sc string) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			results[idx] = fetchSetTags(sc)
-		}(i, setCode)
+		for i, setCode := range targetSets {
+			wg.Add(1)
+			go func(idx int, sc string) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				results[idx] = fetchSetTags(sc)
+			}(i, setCode)
+		}
+		wg.Wait()
 	}
-	wg.Wait()
 
 	// Merge Phase 1 results and deduplicate.
 	seen := make(map[roleKey]struct{})
@@ -271,7 +289,10 @@ func run() error {
 		return nil
 	}
 
-	// Phase 2: Derive creature roles from magic_cards type_line in D1 (4 sets concurrently).
+	// Phase 2: Derive creature roles from magic_cards type_line in D1.
+	// D1 reads aren't rate-limited like Scryfall, so concurrency=8 here
+	// (Phase 1's semaphore concurrency=1 was Scryfall-driven).
+	p2Sem := make(chan struct{}, 8)
 	p2Results := make([]phase2Result, len(targetSets))
 	var wg2 sync.WaitGroup
 
@@ -279,8 +300,8 @@ func run() error {
 		wg2.Add(1)
 		go func(idx int, sc string) {
 			defer wg2.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			p2Sem <- struct{}{}
+			defer func() { <-p2Sem }()
 
 			creatures, allCards, err := fetchCreaturesAndAllCards(*cfAccountID, *d1DatabaseID, *cfAPIToken, sc)
 			p2Results[idx] = phase2Result{
@@ -511,6 +532,164 @@ func fetchAllSetCodes(accountID, databaseID, apiToken string) ([]string, error) 
 	return codes, nil
 }
 
+// cardPrinting captures one (oracle_id, set_code, front_face_name) row from
+// magic_cards. Used to attribute a global Scryfall tag query result back
+// to the specific sets the card appears in.
+type cardPrinting struct {
+	FrontFaceName string
+	SetCode       string
+}
+
+// loadAllDefaultCards returns a map from oracle_id to every default printing
+// of that card (front-face name + set_code). One D1 query covers all
+// magic_cards rows; callers cross-reference against Scryfall tag results
+// to attribute roles per (oracle_id, set_code) without per-set Scryfall
+// queries.
+func loadAllDefaultCards(accountID, databaseID, apiToken string) (map[string][]cardPrinting, error) {
+	sql := "SELECT oracle_id, front_face_name, set_code FROM magic_cards WHERE is_default = 1"
+	rows, err := cfapi.QueryD1(accountID, databaseID, apiToken, sql)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]cardPrinting, len(rows))
+	for _, row := range rows {
+		oid, _ := row["oracle_id"].(string)
+		ffn, _ := row["front_face_name"].(string)
+		sc, _ := row["set_code"].(string)
+		if oid == "" || sc == "" {
+			continue
+		}
+		out[oid] = append(out[oid], cardPrinting{
+			FrontFaceName: ffn,
+			SetCode:       strings.ToUpper(sc),
+		})
+	}
+	return out, nil
+}
+
+// fetchTaggedCardsGlobal queries Scryfall for every card with a given
+// function tag, across all sets. Used by --all-cards mode: 16 global
+// queries total instead of 16 × N per-set queries. Returns oracle_ids
+// only — the caller cross-references against magic_cards to attribute
+// per-set role entries.
+func fetchTaggedCardsGlobal(tag string) ([]taggedCard, error) {
+	query := fmt.Sprintf("function:%s", tag)
+	searchURL := "https://api.scryfall.com/cards/search?q=" + url.QueryEscape(query)
+
+	var cards []taggedCard
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	for pageURL := searchURL; pageURL != ""; {
+		time.Sleep(150 * time.Millisecond) // Scryfall caps at 10 req/s; pacing under that.
+
+		body, statusCode, err := scryfallGet(client, pageURL)
+		if err != nil {
+			return nil, err
+		}
+
+		// 404 = no results for this query (rare for a global tag query, but possible).
+		if statusCode == http.StatusNotFound {
+			return nil, nil
+		}
+		if statusCode != http.StatusOK {
+			return nil, fmt.Errorf("HTTP %d: %s", statusCode, string(body[:min(len(body), 200)]))
+		}
+
+		var list scryfallList
+		if err := json.Unmarshal(body, &list); err != nil {
+			return nil, fmt.Errorf("decode: %w", err)
+		}
+
+		for _, card := range list.Data {
+			frontFace := card.Name
+			if before, _, ok := strings.Cut(card.Name, " // "); ok {
+				frontFace = before
+			}
+			cards = append(cards, taggedCard{
+				OracleID:      card.OracleID,
+				FrontFaceName: frontFace,
+			})
+		}
+
+		if list.HasMore && list.NextPage != "" {
+			pageURL = list.NextPage
+		} else {
+			pageURL = ""
+		}
+	}
+
+	return cards, nil
+}
+
+// runGlobalPhase1 fetches role data via 16 global Scryfall queries (one per
+// tag) plus 1 D1 query for the card→set crossreference table. Returns the
+// same setResult shape the per-set path produces so downstream Phase 2 +
+// import logic doesn't change.
+//
+// This is the --all-cards path; per-set queries would be 12,560 calls
+// (16 tags × 785 sets) and trivially exceed Scryfall's 10 req/s cap.
+func runGlobalPhase1(targetSets []string, accountID, databaseID, apiToken string) ([]setResult, error) {
+	fmt.Println("Phase 1 (global): loading magic_cards lookup...")
+	cards, err := loadAllDefaultCards(accountID, databaseID, apiToken)
+	if err != nil {
+		return nil, fmt.Errorf("loading magic_cards: %w", err)
+	}
+	fmt.Printf("Phase 1 (global): %d unique oracle_ids loaded\n", len(cards))
+
+	// Pre-allocate per-set results so attribution is O(1).
+	bySet := make(map[string]*setResult, len(targetSets))
+	for _, sc := range targetSets {
+		bySet[sc] = &setResult{
+			SetCode:   sc,
+			TagCounts: make(map[string]int),
+		}
+	}
+
+	// One Scryfall query per tag, fanned out to every (oracle_id, set_code)
+	// in our card map.
+	for tag, roles := range taggerRoles {
+		fmt.Printf("Phase 1 (global): fetching function:%s...\n", tag)
+		taggedCards, err := fetchTaggedCardsGlobal(tag)
+		if err != nil {
+			return nil, fmt.Errorf("fetching tag %s: %w", tag, err)
+		}
+		seen := make(map[string]bool, len(taggedCards))
+		for _, tc := range taggedCards {
+			if seen[tc.OracleID] {
+				continue
+			}
+			seen[tc.OracleID] = true
+			printings, ok := cards[tc.OracleID]
+			if !ok {
+				continue // tag-matched card not in our magic_cards (foreign printings, online-only, etc.)
+			}
+			for _, p := range printings {
+				res, ok := bySet[p.SetCode]
+				if !ok {
+					continue // set in magic_cards but not in targetSets (shouldn't happen if both come from same source)
+				}
+				for _, role := range roles {
+					res.Entries = append(res.Entries, roleEntry{
+						OracleID:      tc.OracleID,
+						FrontFaceName: p.FrontFaceName,
+						Role:          role,
+						SetCode:       p.SetCode,
+					})
+					res.TagCounts[role]++
+				}
+			}
+		}
+		fmt.Printf("Phase 1 (global): function:%s → %d unique oracle_ids\n", tag, len(seen))
+	}
+
+	// Convert to ordered slice matching targetSets.
+	out := make([]setResult, len(targetSets))
+	for i, sc := range targetSets {
+		out[i] = *bySet[sc]
+	}
+	return out, nil
+}
+
 // computeCoverage returns the percentage of distinct default-printing
 // oracle_ids that have ≥1 row in magic_card_roles. Surfaces the gap that
 // blocks bracket detection / composition assessment on uncovered cards.
@@ -720,11 +899,13 @@ func fetchTaggedCards(setCode string, tag string) ([]taggedCard, error) {
 	return cards, nil
 }
 
-// scryfallGet performs an HTTP GET with exponential backoff on 429 rate limits.
+// scryfallGet performs an HTTP GET with exponential backoff on 429 rate
+// limits, honoring the server-supplied Retry-After header so we don't
+// retry inside the cooldown window the server explicitly told us about.
 // Returns the response body, status code, and any error.
 func scryfallGet(client *http.Client, url string) ([]byte, int, error) {
 	const maxRetries = 5
-	backoff := 10 * time.Second
+	exponential := 10 * time.Second
 
 	for attempt := range maxRetries {
 		req, err := http.NewRequest("GET", url, nil)
@@ -739,6 +920,7 @@ func scryfallGet(client *http.Client, url string) ([]byte, int, error) {
 			return nil, 0, err
 		}
 		body, _ := io.ReadAll(resp.Body)
+		retryAfter := resp.Header.Get("Retry-After")
 		resp.Body.Close()
 
 		if resp.StatusCode != http.StatusTooManyRequests {
@@ -749,13 +931,29 @@ func scryfallGet(client *http.Client, url string) ([]byte, int, error) {
 			return body, resp.StatusCode, nil
 		}
 
-		fmt.Printf("    rate limited, retrying in %s (attempt %d/%d)\n", backoff, attempt+1, maxRetries)
-		time.Sleep(backoff)
-		backoff *= 2
+		wait := computeBackoff(retryAfter, exponential)
+		fmt.Printf("    rate limited, retrying in %s (attempt %d/%d, Retry-After=%q)\n",
+			wait, attempt+1, maxRetries, retryAfter)
+		time.Sleep(wait)
+		exponential *= 2
 	}
 
 	// Unreachable, but satisfies the compiler.
 	return nil, 0, fmt.Errorf("unreachable")
+}
+
+// computeBackoff returns how long to wait before retrying a 429. If the
+// server returned a Retry-After header (in seconds), prefer that — plus a
+// 1-second buffer to avoid landing exactly on the cooldown boundary.
+// Otherwise fall back to the caller's exponential schedule.
+func computeBackoff(retryAfter string, exponential time.Duration) time.Duration {
+	if seconds, err := strconv.Atoi(strings.TrimSpace(retryAfter)); err == nil && seconds > 0 {
+		serverWait := time.Duration(seconds+1) * time.Second
+		if serverWait > exponential {
+			return serverWait
+		}
+	}
+	return exponential
 }
 
 // buildSetRolesSQL generates per-set SQL for card role data with per-set DELETEs.

@@ -4,7 +4,37 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestComputeBackoff(t *testing.T) {
+	// Servers that return Retry-After tell us EXACTLY how long to wait.
+	// Our backoff must respect that — exponential alone would loop us into
+	// repeated 429s when the server wait exceeds our retry interval (which
+	// is exactly what stalled the M1.3 staging run before this fix).
+	tests := []struct {
+		name        string
+		retryAfter  string
+		exponential time.Duration
+		want        time.Duration
+	}{
+		{"server header larger than exponential", "54", 10 * time.Second, 55 * time.Second},
+		{"exponential larger than server header", "5", 10 * time.Second, 10 * time.Second},
+		{"no Retry-After header", "", 10 * time.Second, 10 * time.Second},
+		{"invalid Retry-After value", "soon", 10 * time.Second, 10 * time.Second},
+		{"zero Retry-After ignored", "0", 10 * time.Second, 10 * time.Second},
+		{"whitespace tolerated", " 30 ", 10 * time.Second, 31 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := computeBackoff(tt.retryAfter, tt.exponential)
+			if got != tt.want {
+				t.Errorf("computeBackoff(%q, %v) = %v, want %v",
+					tt.retryAfter, tt.exponential, got, tt.want)
+			}
+		})
+	}
+}
 
 func TestBuildSetRolesSQL(t *testing.T) {
 	entries := []roleEntry{
