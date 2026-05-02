@@ -1,27 +1,27 @@
 /**
- * deck-completion — pad a tier shell to a legal 100-card Commander deck.
+ * deck-completion — build legal 100-card Commander decks via the
+ * marginal-utility upgrade pipeline.
  *
- * The commander_deckbuild greedy fill produces a 67-89 card "shell" matching
- * the EDHREC tier average. This module takes that shell + the commander +
- * budget/exclude options and returns a 99-non-commander deck that:
+ * Public entry points:
+ *   - buildAndUpgradeDeck (orchestrator): precon-or-minimal-shell baseline
+ *     → upgradeDeck → karstenValidateMana. Returns a BuildResult with the
+ *     final 100-card deck, total cost, baseline source, upgrade steps, and
+ *     warnings aggregated from all three phases.
+ *   - buildMinimalShell: universal cheap-playable baseline. Lands per
+ *     Karsten + role lower bounds + basics → 100 cards.
+ *   - upgradeDeck: marginal-utility hill climber. Per iteration, score
+ *     1-for-1 / 2-for-1 / 1-for-2 swap candidates via deck-delta's
+ *     deltaQuality and apply the best (Δ > epsilon) until plateau.
+ *   - karstenValidateMana: warns when colored sources fall below Karsten's
+ *     13-source heuristic floor.
  *
- *   1. Fills role gaps from magic_edh_recommendations (high-inclusion picks
- *      ranked by EDHREC popularity, filtered by role).
- *   2. Tops up remaining slots with generic high-inclusion recommendations.
- *   3. Pads with basic lands distributed proportionally to the deck's pip
- *      distribution (Karsten-aware mana base — colors with more spells get
- *      more basics).
- *   4. Surfaces karsten_swaps + warnings when the resulting mana base is
- *      under-supplied for any color the deck wants to cast.
- *
- * Per the epic Requirement 7: a deck cannot be declared complete without
- * Karsten validation passing. We don't fail-stop on a thin mana base; we
- * surface it as a warning so the caller can either accept or re-run with
- * different inputs.
+ * Per Epic Anti-pattern: terminates by quality plateau, NOT budget
+ * exhaustion. Karsten validation is warning-only; active land rebalancing
+ * is a future extension.
  */
 import type { Env } from "../../../worker/src/types";
 import type { CommanderRef, DeckEntry } from "./deck-quality";
-import { COMMUNITY_BENCHMARKS, assessComposition } from "./deck-quality";
+import { COMMUNITY_BENCHMARKS } from "./deck-quality";
 import { resolveCardPrices } from "./commander-prices";
 import { safeParseJSON } from "../../../worker/src/reference/json";
 import { deltaQuality } from "./deck-delta";
@@ -117,11 +117,6 @@ const COLOR_TO_BASIC: Record<string, string> = {
   G: "Forest",
 };
 
-interface recRow {
-  card_name: string;
-  inclusion: number;
-}
-
 interface commanderColorRow {
   color_identity: string;
 }
@@ -133,292 +128,10 @@ interface manaRow {
   produced_mana: string;
 }
 
-/**
- * completeDeck pads `shell` to `options.targetSize` (default 99) using a
- * three-phase strategy: role-gap fill from recommendations, generic
- * high-inclusion top-up, then basic-land padding distributed by pip
- * proportion. Honors max_price (ceiling), excludes, and excludeGameChangers
- * across all phases — basics are exempt from those filters since they're
- * the floor of any mana base.
- */
-export async function completeDeck(
-  env: Env,
-  shell: DeckEntry[],
-  commander: CommanderRef,
-  options: CompletionOptions = {},
-): Promise<CompletionResult> {
-  const target = options.targetSize ?? 99;
-  const maxPrice = options.maxPrice;
-  const excludesLower = new Set(
-    (options.excludes ?? []).map((x) => x.toLowerCase()),
-  );
-  const excludeGCs = options.excludeGameChangers ?? false;
-  const warnings: string[] = [];
-  const addedRecs: AddedCard[] = [];
-  const addedBasics: AddedBasic[] = [];
-  const karstenSwaps: KarstenSwap[] = []; // populated by future Karsten-swap pass; recorded for traceability
-
-  // Working copy of the shell. Card names are tracked case-insensitively to
-  // match the rest of the pipeline; output preserves the input casing.
-  const filled: DeckEntry[] = shell.map((e) => ({ ...e }));
-  const inDeck = new Set(filled.map((e) => e.card_name.toLowerCase()));
-
-  // Resolve current spend so budget filters can subtract.
-  let currentSpend = 0;
-  if (maxPrice !== undefined) {
-    const prices = await resolveCardPrices(
-      env,
-      filled.map((e) => e.card_name),
-    );
-    for (const e of filled) {
-      const lower = e.card_name.toLowerCase();
-      const price = prices.prices.get(lower)?.price;
-      if (price != null) currentSpend += price * (e.quantity ?? 1);
-    }
-  }
-
-  // Game-changer filter set, if applicable. Query the full list once;
-  // the table's small enough (~53 rows) that this is cheaper than
-  // checking each candidate individually.
-  let gameChangers = new Set<string>();
-  if (excludeGCs) {
-    const gcResult = await env.DB.prepare(
-      `SELECT card_name FROM magic_game_changers`,
-    ).all<{ card_name: string }>();
-    gameChangers = new Set(
-      (gcResult.results ?? []).map((r) => r.card_name.toLowerCase()),
-    );
-  }
-
-  // ── Phase 1: role-gap fill ──────────────────────────────────
-  const compInitial = await assessComposition(
-    env,
-    filled,
-    commander,
-    options.tier,
-  );
-  const lowRoles = listLowRoles(compInitial);
-  if (lowRoles.length === 0 && filled.length < target) {
-    warnings.push(
-      `No 'low' role gaps in shell — completion goes straight to high-inclusion top-up.`,
-    );
-  }
-
-  for (const role of lowRoles) {
-    if (countCards(filled) >= target) break;
-    // Cap role-fill at target_range upper bound. Without this, Phase 1 keeps
-    // adding role-tagged cards from the recommendation pool until either the
-    // total deck size or budget is exhausted — overshooting the structural
-    // target by 2-3x in observed cases (Edgar Markov $500: ramp went 22 vs
-    // target 7-11). The role-gap fill should bring a "low" role up to "ok",
-    // not past "high".
-    const roleData = (
-      compInitial as unknown as Record<
-        string,
-        { count: number; target_range: [number, number] }
-      >
-    )[role];
-    const upperBound = roleData?.target_range?.[1] ?? Infinity;
-    let currentRoleCount = roleData?.count ?? 0;
-    if (currentRoleCount >= upperBound) continue; // already at upper bound — skip
-    const candidates = await fetchRecommendationsForRole(
-      env,
-      commander.scryfall_id,
-      role,
-    );
-    if (candidates.length === 0) {
-      warnings.push(
-        `No recommendations available for role '${role}' on this commander; gap unfilled.`,
-      );
-      continue;
-    }
-    let added = 0;
-    for (const cand of candidates) {
-      if (countCards(filled) >= target) break;
-      if (currentRoleCount >= upperBound) break;
-      const lower = cand.card_name.toLowerCase();
-      if (inDeck.has(lower)) continue;
-      if (excludesLower.has(lower)) continue;
-      if (excludeGCs && gameChangers.has(lower)) continue;
-      const price = await getCardPrice(env, cand.card_name);
-      if (
-        maxPrice !== undefined &&
-        price != null &&
-        currentSpend + price > maxPrice
-      )
-        continue;
-      filled.push({ card_name: cand.card_name, quantity: 1 });
-      inDeck.add(lower);
-      addedRecs.push({
-        card_name: cand.card_name,
-        reason: "fill_role_gap",
-        role,
-        inclusion: cand.inclusion,
-        price,
-      });
-      if (price != null) currentSpend += price;
-      currentRoleCount += 1;
-      added += 1;
-    }
-    if (added === 0) {
-      warnings.push(
-        `Couldn't add any '${role}' cards (filtered out by excludes/budget/in-deck).`,
-      );
-    }
-  }
-
-  // ── Phase 2: high-inclusion top-up ──────────────────────────
-  if (countCards(filled) < target) {
-    const generic = await fetchAllRecommendations(env, commander.scryfall_id);
-    for (const cand of generic) {
-      if (countCards(filled) >= target) break;
-      const lower = cand.card_name.toLowerCase();
-      if (inDeck.has(lower)) continue;
-      if (excludesLower.has(lower)) continue;
-      if (excludeGCs && gameChangers.has(lower)) continue;
-      const price = await getCardPrice(env, cand.card_name);
-      if (
-        maxPrice !== undefined &&
-        price != null &&
-        currentSpend + price > maxPrice
-      )
-        continue;
-      filled.push({ card_name: cand.card_name, quantity: 1 });
-      inDeck.add(lower);
-      addedRecs.push({
-        card_name: cand.card_name,
-        reason: "high_inclusion_fill",
-        inclusion: cand.inclusion,
-        price,
-      });
-      if (price != null) currentSpend += price;
-    }
-  }
-
-  // ── Phase 3: basic-land padding (Karsten-proportional) ──────
-  if (countCards(filled) < target) {
-    const slotsRemaining = target - countCards(filled);
-    const colorIdentity = await loadColorIdentity(env, commander.scryfall_id);
-    const pipDist = await computePipDistribution(env, filled);
-    const basicAlloc = allocateBasics(slotsRemaining, colorIdentity, pipDist);
-    for (const [name, qty] of basicAlloc) {
-      const existing = filled.find((e) => e.card_name === name);
-      if (existing) {
-        existing.quantity = (existing.quantity ?? 1) + qty;
-      } else {
-        filled.push({ card_name: name, quantity: qty });
-      }
-      addedBasics.push({ name, quantity: qty });
-    }
-  }
-
-  // ── Phase 4: Karsten coverage check ──────────────────────────
-  // Count colored sources in the final deck against the deck's pip
-  // distribution. Surface warnings where a color is under-supplied (Karsten
-  // recommends ≥13 sources for {C} pip cost cards by turn N).
-  const finalPips = await computePipDistribution(env, filled);
-  const finalSources = await countColoredSources(env, filled);
-  for (const [color, pipCount] of finalPips) {
-    if (pipCount === 0) continue;
-    const sources = finalSources.get(color) ?? 0;
-    // Heuristic threshold: 13 sources is Karsten's general floor for
-    // single-pip costs. Less is OK only for very low-pip-count splash colors.
-    if (sources < 13) {
-      warnings.push(
-        `Mana base thin for {${color}}: ${String(sources)} sources for ${String(pipCount)} pips. Karsten recommends ≥13 sources for single-pip 1-drop spells; consider more lands of this color.`,
-      );
-    }
-  }
-
-  // ── Final verification ───────────────────────────────────────
-  const finalTotal = countCards(filled);
-  if (finalTotal < target) {
-    warnings.push(
-      `Could not reach ${String(target)} cards; ended at ${String(finalTotal)}. Consider raising max_price or relaxing excludes.`,
-    );
-  } else if (finalTotal > target) {
-    warnings.push(
-      `Padded past target — ${String(finalTotal)} > ${String(target)}. (Should not happen; report a bug.)`,
-    );
-  }
-
-  return {
-    filled,
-    added_from_recommendations: addedRecs,
-    added_basics: addedBasics,
-    karsten_swaps: karstenSwaps,
-    warnings,
-  };
-}
-
 function countCards(deck: DeckEntry[]): number {
   let total = 0;
   for (const e of deck) total += e.quantity ?? 1;
   return total;
-}
-
-function listLowRoles(
-  comp: Awaited<ReturnType<typeof assessComposition>>,
-): string[] {
-  const roles: string[] = [];
-  if (comp.lands.status === "low") roles.push("lands");
-  if (comp.ramp.status === "low") roles.push("ramp");
-  if (comp.card_draw.status === "low") roles.push("card_draw");
-  if (comp.removal.status === "low") roles.push("removal");
-  if (comp.win_conditions.status === "low") roles.push("win_condition");
-  // boardwipes / tutors are bonus signals, not gap-fillable from raw role
-  // recommendations alone — leave for higher-level passes.
-  return roles;
-}
-
-/**
- * fetchRecommendationsForRole returns candidates for a specific role,
- * sorted by inclusion DESC. JOINs magic_edh_recommendations against
- * magic_card_roles since EDHREC's category labels don't map directly to
- * our role taxonomy.
- */
-async function fetchRecommendationsForRole(
-  env: Env,
-  commanderId: string,
-  role: string,
-): Promise<{ card_name: string; inclusion: number }[]> {
-  const result = await env.DB.prepare(
-    `SELECT DISTINCT r.card_name AS card_name, MAX(r.inclusion) AS inclusion
-       FROM magic_edh_recommendations r
-       JOIN magic_card_roles cr ON LOWER(r.card_name) = LOWER(cr.front_face_name)
-       WHERE r.commander_id = ? AND cr.role = ?
-       GROUP BY r.card_name
-       ORDER BY inclusion DESC
-       LIMIT 100`,
-  )
-    .bind(commanderId, role)
-    .all<recRow>();
-  return result.results ?? [];
-}
-
-async function fetchAllRecommendations(
-  env: Env,
-  commanderId: string,
-): Promise<{ card_name: string; inclusion: number }[]> {
-  const result = await env.DB.prepare(
-    `SELECT card_name, MAX(inclusion) AS inclusion
-       FROM magic_edh_recommendations
-       WHERE commander_id = ?
-       GROUP BY card_name
-       ORDER BY inclusion DESC
-       LIMIT 200`,
-  )
-    .bind(commanderId)
-    .all<recRow>();
-  return result.results ?? [];
-}
-
-async function getCardPrice(
-  env: Env,
-  cardName: string,
-): Promise<number | null> {
-  const r = await resolveCardPrices(env, [cardName]);
-  return r.prices.get(cardName.toLowerCase())?.price ?? null;
 }
 
 async function loadColorIdentity(
@@ -868,6 +581,13 @@ export async function upgradeDeck(
     ? await loadGameChangers(env)
     : new Set<string>();
 
+  // Load combo lines + win-condition cards once for swap-out warning checks.
+  // Per Epic Anti-pattern: "Swaps that remove flagged cards must surface a
+  // warning."
+  const combos = await loadCombosForCommander(env, commander.scryfall_id);
+  const winConditionNames = await loadWinConditionNames(env);
+  const reportedKeys = new Set<string>();
+
   const deck: DeckEntry[] = baseline.map((entry) => ({ ...entry }));
   let spent = options.spent;
   const steps: UpgradeStep[] = [];
@@ -1028,6 +748,40 @@ export async function upgradeDeck(
     applySwap(deck, best, commander);
     spent += best.cost_change;
     steps.push(best);
+
+    // Swap-out warnings: flag combo and win-condition casualties.
+    const postSwapDeck = new Set(
+      deck.map((entry) => entry.card_name.toLowerCase()),
+    );
+    for (const droppedName of best.out) {
+      const droppedLower = droppedName.toLowerCase();
+      if (winConditionNames.has(droppedLower)) {
+        const key = `wincon:${droppedLower}`;
+        if (!reportedKeys.has(key)) {
+          reportedKeys.add(key);
+          warnings.push(
+            `Dropped a win condition: '${droppedName}' was tagged as a win_condition for this commander's strategy. Consider raising the budget or adjusting filters to keep it.`,
+          );
+        }
+      }
+      for (const combo of combos) {
+        const cardsLower = combo.cards.map((c) => c.toLowerCase());
+        if (!cardsLower.includes(droppedLower)) continue;
+        const otherCards = cardsLower.filter((c) => c !== droppedLower);
+        if (otherCards.length === 0) continue;
+        const allOthersPresent = otherCards.every((c) => postSwapDeck.has(c));
+        if (!allOthersPresent) continue;
+        const key = `combo:${combo.id}|${droppedLower}`;
+        if (reportedKeys.has(key)) continue;
+        reportedKeys.add(key);
+        const otherDisplay = combo.cards
+          .filter((c) => c.toLowerCase() !== droppedLower)
+          .join(", ");
+        warnings.push(
+          `Dropped a combo piece — '${droppedName}' was the missing card from a complete combo line in this deck. Other pieces (${otherDisplay}) remain. Consider raising the budget to keep the combo intact.`,
+        );
+      }
+    }
   }
 
   if (steps.length === maxIters) {
@@ -1037,6 +791,43 @@ export async function upgradeDeck(
   }
 
   return { deck, totalCost: spent, steps, warnings };
+}
+
+interface comboCardsRow {
+  combo_id: string;
+  card_names: string;
+}
+
+interface ComboLine {
+  id: string;
+  cards: string[];
+}
+
+async function loadCombosForCommander(
+  env: Env,
+  commanderId: string,
+): Promise<ComboLine[]> {
+  const result = await env.DB.prepare(
+    `SELECT combo_id, card_names FROM magic_edh_combos WHERE commander_id = ?`,
+  )
+    .bind(commanderId)
+    .all<comboCardsRow>();
+  const out: ComboLine[] = [];
+  for (const row of result.results ?? []) {
+    const cards = safeParseJSON<string[]>(row.card_names, []);
+    if (cards.length < 2) continue;
+    out.push({ id: row.combo_id, cards });
+  }
+  return out;
+}
+
+async function loadWinConditionNames(env: Env): Promise<Set<string>> {
+  const result = await env.DB.prepare(
+    `SELECT DISTINCT front_face_name FROM magic_card_roles WHERE role = 'win_condition'`,
+  ).all<{ front_face_name: string }>();
+  return new Set(
+    (result.results ?? []).map((r) => r.front_face_name.toLowerCase()),
+  );
 }
 
 async function loadGameChangers(env: Env): Promise<Set<string>> {

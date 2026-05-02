@@ -300,3 +300,126 @@ describe("upgradeDeck", () => {
     expect(["1for1", "2for1", "1for2"]).toContain(first?.operator);
   });
 });
+
+// ── Swap-out warnings ─────────────────────────────────────────────
+//
+// Per Epic Anti-pattern: "Swaps that remove flagged cards must surface a
+// warning." When upgradeDeck swaps out a card that's part of an otherwise-
+// intact combo line, OR a card tagged as win_condition, the loop emits a
+// warning naming the casualty.
+
+async function seedCombo(comboId: string, cardNames: string[]): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO magic_edh_combos (commander_id, combo_id, card_names) VALUES (?, ?, ?)`,
+  )
+    .bind(ATRAXA_ID, comboId, JSON.stringify(cardNames))
+    .run();
+}
+
+async function seedRoleTag(cardName: string, role: string): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+  )
+    .bind(`${cardName}-id`, cardName, role, "TST")
+    .run();
+}
+
+describe("upgradeDeck swap-out warnings", () => {
+  beforeEach(async () => {
+    await cleanAll();
+    await seedCommander();
+  });
+
+  it("warns when an upgrade swap removes a card on an otherwise-intact combo line", async () => {
+    // The algorithm naturally protects combos against 1-for-1 swaps (combo
+    // penalty -12.87 dominates synergy gains). To force a combo casualty,
+    // construct a 1-for-2 setup: the synergy gain from a TWO-card swap-in
+    // overwhelms the combo penalty.
+    //
+    // ComboCard1 has role=ramp + extreme negative synergy. Two high-synergy
+    // ramp candidates exist. The 1-for-2 of ComboCard1 → Cand1 + Cand2 has
+    // Δ ≈ 30 (synergy) − 13 (combo) = 17, beating Plains-based 1-for-1 swaps.
+    await seedRecs([
+      { name: "ComboCard1", synergy: -1_000_000, price: 0.5, roles: ["ramp"] },
+      { name: "ComboCard2", synergy: 0, price: 0.5, roles: [] },
+      { name: "Cand1", synergy: 1_000_000, price: 0.5, roles: ["ramp"] },
+      { name: "Cand2", synergy: 1_000_000, price: 0.5, roles: ["ramp"] },
+    ]);
+    await seedCombo("test-combo", ["ComboCard1", "ComboCard2"]);
+
+    const baseline: DeckEntry[] = [
+      { card_name: COMMANDER.name, quantity: 1 },
+      { card_name: "ComboCard1", quantity: 1 },
+      { card_name: "ComboCard2", quantity: 1 },
+      { card_name: "Plains", quantity: 97 },
+    ];
+    const result = await upgradeDeck(env as unknown as Env, baseline, COMMANDER, {
+      ...BASE_OPTIONS,
+      candidatePoolSize: 10,
+      maxIterations: 1,
+    });
+
+    const swappedOutCombo = result.steps.some((s) => s.out.includes("ComboCard1"));
+    expect(swappedOutCombo).toBe(true);
+    const warning = result.warnings.find(
+      (w) => w.includes("combo piece") && w.includes("ComboCard1"),
+    );
+    expect(warning).toBeDefined();
+  });
+
+  it("warns when an upgrade swap removes a win_condition-tagged card", async () => {
+    // OldWinCon has negative synergy → the synergy delta from swapping it
+    // out beats swapping a basic (basics have synergy=0).
+    await seedRecs([
+      { name: "OldWinCon", synergy: -5, price: 0.5, roles: [] },
+      { name: "Replacement", synergy: 10, price: 0.5, roles: [] },
+    ]);
+    await seedRoleTag("OldWinCon", "win_condition");
+
+    const baseline: DeckEntry[] = [
+      { card_name: COMMANDER.name, quantity: 1 },
+      { card_name: "OldWinCon", quantity: 1 },
+      { card_name: "Plains", quantity: 98 },
+    ];
+    const result = await upgradeDeck(env as unknown as Env, baseline, COMMANDER, {
+      ...BASE_OPTIONS,
+      candidatePoolSize: 5,
+      maxIterations: 1,
+    });
+
+    const swappedOutWinCon = result.steps.some((s) => s.out.includes("OldWinCon"));
+    expect(swappedOutWinCon).toBe(true);
+    const warning = result.warnings.find(
+      (w) => w.toLowerCase().includes("win condition") && w.includes("OldWinCon"),
+    );
+    expect(warning).toBeDefined();
+  });
+
+  it("does NOT warn when a complete combo line stays intact through the upgrade", async () => {
+    // Combo present + intact in baseline. The recommendation has a role tag
+    // (ramp) so the upgrade prefers Plains→Replacement (role+1) over
+    // ComboCard1→Replacement (role unchanged) — combo cards are not touched.
+    await seedRecs([{ name: "BetterRamp", synergy: 10, price: 0.5, roles: ["ramp"] }]);
+    await seedCombo("intact-combo", ["ComboCard1", "ComboCard2"]);
+
+    const baseline: DeckEntry[] = [
+      { card_name: COMMANDER.name, quantity: 1 },
+      { card_name: "ComboCard1", quantity: 1 },
+      { card_name: "ComboCard2", quantity: 1 },
+      { card_name: "Plains", quantity: 97 },
+    ];
+    const result = await upgradeDeck(env as unknown as Env, baseline, COMMANDER, {
+      ...BASE_OPTIONS,
+      candidatePoolSize: 5,
+      maxIterations: 5,
+    });
+
+    // Combo cards still present.
+    const deckNames = new Set(result.deck.map((entry) => entry.card_name));
+    expect(deckNames.has("ComboCard1")).toBe(true);
+    expect(deckNames.has("ComboCard2")).toBe(true);
+    // No combo casualty warning.
+    const comboWarning = result.warnings.find((w) => w.toLowerCase().includes("combo piece"));
+    expect(comboWarning).toBeUndefined();
+  });
+});

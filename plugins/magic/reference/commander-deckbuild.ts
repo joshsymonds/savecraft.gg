@@ -19,10 +19,7 @@ import type {
 import { safeParseJSON } from "../../../worker/src/reference/json";
 import { resolveCardPrices } from "./commander-prices";
 import { resolveCommander } from "./commander-resolve";
-import {
-  buildAndUpgradeDeck,
-  type CompletionResult,
-} from "./deck-completion";
+import { buildAndUpgradeDeck, type CompletionResult } from "./deck-completion";
 import {
   assessQuality,
   type DeckEntry as RawDeckEntry,
@@ -97,12 +94,6 @@ interface TierInfoRow {
   deck_size: number;
 }
 
-interface TierDeckRow {
-  card_name: string;
-  quantity: number;
-  category: string;
-}
-
 interface DeckEntry {
   card_name: string;
   quantity: number;
@@ -111,27 +102,6 @@ interface DeckEntry {
   source: "tier" | "must_include" | "precon" | "upgrade" | "basic_substitution";
   game_changer: boolean;
   reserved: boolean;
-}
-
-// Greedy fill ordering. Without this, the tier deck arrives in primary-key
-// order (alphabetical by card_name); when budget < tier floor, alphabetically-
-// early expensive cards eat the budget before cheap basics are reached and
-// the resulting deck has no mana base. Bucket order: basics first (always
-// cheap, always essential), lands second (mana fixing), everything else last.
-function categoryRank(category: string): number {
-  const c = (category ?? "").toLowerCase();
-  if (c === "basics") return 0;
-  if (c === "land" || c === "lands") return 1;
-  return 2;
-}
-
-// EDHREC writes categories as lowercase plurals ("lands", "basics");
-// internal callers and tests sometimes use the singular capitalised form
-// ("Land"). Match all of them so reallocateManaBase actually fires in
-// production instead of silently no-op'ing on shape-mismatch.
-function isLandCategory(category: string): boolean {
-  const c = (category ?? "").toLowerCase();
-  return c === "land" || c === "lands" || c === "basics";
 }
 
 /**
@@ -147,14 +117,6 @@ function dataConfidence(numDecksAvg: number): "low" | "medium" | "high" {
   return "low";
 }
 
-const COLOR_TO_BASIC: Record<string, string> = {
-  W: "Plains",
-  U: "Island",
-  B: "Swamp",
-  R: "Mountain",
-  G: "Forest",
-};
-
 interface PreconRow {
   slug: string;
   name: string;
@@ -167,12 +129,6 @@ interface PreconDeckRow {
   card_name: string;
   quantity: number;
   category: string;
-}
-
-interface PreconUpgradeRow {
-  card_name: string;
-  action: string;
-  inclusion: number;
 }
 
 /**
@@ -1011,13 +967,9 @@ async function runThemeBuild(
   const priceByLower = priceLookup.prices;
 
   const commanderLower = commanderRow.name.toLowerCase();
-  const mustIncludeLowerSet = new Set(
-    mustInclude.map((m) => m.toLowerCase()),
-  );
+  const mustIncludeLowerSet = new Set(mustInclude.map((m) => m.toLowerCase()));
   const upgradeInLower = new Set(
-    buildResult.steps
-      .flatMap((step) => step.in_)
-      .map((n) => n.toLowerCase()),
+    buildResult.steps.flatMap((step) => step.in_).map((n) => n.toLowerCase()),
   );
 
   const placed: DeckEntry[] = [];
@@ -1065,9 +1017,7 @@ async function runThemeBuild(
       .filter((p) => BASIC_LAND_NAMES.has(p.card_name))
       .map((p) => ({ name: p.card_name, quantity: p.quantity })),
     karsten_swaps: [],
-    warnings: buildResult.warnings.filter((w) =>
-      w.includes("Mana base thin"),
-    ),
+    warnings: buildResult.warnings.filter((w) => w.includes("Mana base thin")),
   };
 
   const warnings: string[] = [];
@@ -1166,105 +1116,6 @@ async function runThemeBuild(
       },
     },
   };
-}
-
-/**
- * reallocateManaBase enforces a soft cap on land spend. When the placed
- * deck's land subtotal exceeds `landCap`, swap the most-expensive lands
- * for basics in the commander's color identity until the cap is met.
- *
- * Two-stage strategy: prefer to bump the quantity on an existing basic
- * (so the deck contains "12 Forest" instead of "11 Forest + 1 Plains" if
- * G is in identity but the existing basic is Plains). When no basic of an
- * appropriate color is in the deck, append a new basic entry.
- *
- * Mutates `placed` in-place. Returns the substitution log + total savings
- * so the caller can subtract from runningTotal.
- */
-function reallocateManaBase(
-  placed: DeckEntry[],
-  colorIdentity: string[],
-  landCap: number,
-): {
-  substitutions: { out: string; in: string; saved: number }[];
-  savings: number;
-} {
-  // Compute current land subtotal (only counts lands with known prices).
-  const subtotal = placed
-    .filter((p) => isLandCategory(p.category) && p.price_usd != null)
-    .reduce((s, p) => s + (p.price_usd ?? 0) * p.quantity, 0);
-  if (subtotal <= landCap) return { substitutions: [], savings: 0 };
-
-  // Sort lands by price DESC; we'll swap the costliest ones first.
-  const lands = placed
-    .map((p, i) => ({ entry: p, index: i }))
-    .filter(({ entry }) => isLandCategory(entry.category))
-    .sort((a, b) => (b.entry.price_usd ?? 0) - (a.entry.price_usd ?? 0));
-
-  const subs: { out: string; in: string; saved: number }[] = [];
-  let savings = 0;
-  let remaining = subtotal;
-
-  // Pick the basic to substitute. Prefer one in commander's color identity;
-  // fall back to a colorless wasteland if no colors (shouldn't happen for
-  // EDH commanders but defensive).
-  const preferredBasic =
-    colorIdentity.find((c) => COLOR_TO_BASIC[c]) !== undefined
-      ? COLOR_TO_BASIC[colorIdentity.find((c) => COLOR_TO_BASIC[c])!]!
-      : "Wastes";
-
-  // Indices to splice out at the end. Avoid mutating placed[] during the
-  // iteration — sentinel-string approaches collide with cards legitimately
-  // named the sentinel value.
-  const indicesToRemove = new Set<number>();
-
-  for (const { entry, index } of lands) {
-    if (remaining <= landCap) break;
-    if (entry.price_usd == null) continue;
-    // Skip cards that ARE basics (we'd be swapping a basic for itself).
-    const lower = entry.card_name.toLowerCase();
-    if (
-      lower === "forest" ||
-      lower === "island" ||
-      lower === "plains" ||
-      lower === "mountain" ||
-      lower === "swamp" ||
-      lower === "wastes"
-    )
-      continue;
-
-    const saved = entry.price_usd * entry.quantity;
-    subs.push({ out: entry.card_name, in: preferredBasic, saved });
-    savings += saved;
-    remaining -= saved;
-
-    // Replace the entry: bump existing basic if present, else swap in place.
-    const existingBasicIdx = placed.findIndex(
-      (p) => p.card_name === preferredBasic && isLandCategory(p.category),
-    );
-    if (existingBasicIdx >= 0) {
-      placed[existingBasicIdx]!.quantity += entry.quantity;
-      indicesToRemove.add(index);
-    } else {
-      placed[index] = {
-        card_name: preferredBasic,
-        quantity: entry.quantity,
-        category: "basics",
-        price_usd: 0,
-        source: "basic_substitution",
-        game_changer: false,
-        reserved: false,
-      };
-    }
-  }
-
-  // Splice in reverse order so earlier indices stay valid as we shrink.
-  const sortedRemove = [...indicesToRemove].sort((a, b) => b - a);
-  for (const i of sortedRemove) {
-    placed.splice(i, 1);
-  }
-
-  return { substitutions: subs, savings: Math.round(savings * 100) / 100 };
 }
 
 interface comboLineRow {
