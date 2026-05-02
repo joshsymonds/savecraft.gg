@@ -1,6 +1,7 @@
 package main
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -170,6 +171,93 @@ func TestDeriveCABS(t *testing.T) {
 		if got[tc.id] {
 			t.Errorf("%s should NOT be CABS", tc.name)
 		}
+	}
+}
+
+func TestTaggerRolesContainsExpectedMappings(t *testing.T) {
+	// Verify the role taxonomy expansion: each Scryfall function tag maps to
+	// the expected role set. Tags here are verified to exist on Scryfall (a
+	// query like https://api.scryfall.com/cards/search?q=function:<tag>
+	// returns ≥1 card). Tags that don't exist on Scryfall (e.g.,
+	// land-destruction, fast-mana) are not in this map — they would cause
+	// 0-result fetches and waste API calls.
+	tests := []struct {
+		tag           string
+		expectedRoles []string
+	}{
+		{"ramp", []string{"ramp"}},
+		{"draw", []string{"card_draw"}},
+		{"tutor", []string{"tutor"}},
+		// Sweeper-style tags produce both removal AND boardwipe — every board
+		// wipe is removal, but not every removal is a board wipe. Bracket
+		// detection wants the boardwipe count separately from targeted removal.
+		{"sweeper", []string{"removal", "boardwipe"}},
+		{"mass-removal", []string{"removal", "boardwipe"}},
+		{"removal", []string{"removal"}},
+		{"counterspell", []string{"removal"}},
+		{"extra-turn", []string{"extra_turn"}},
+		{"win-condition", []string{"win_condition"}},
+	}
+	for _, tt := range tests {
+		got, ok := taggerRoles[tt.tag]
+		if !ok {
+			t.Errorf("taggerRoles missing tag %q", tt.tag)
+			continue
+		}
+		if !reflect.DeepEqual(got, tt.expectedRoles) {
+			t.Errorf("taggerRoles[%q] = %v, want %v", tt.tag, got, tt.expectedRoles)
+		}
+	}
+}
+
+func TestTaggerRolesNoDeadMappings(t *testing.T) {
+	// Tags previously in the map that don't exist on Scryfall (verified
+	// 2026-05-01: function:mana-fixer returns 0 cards across all sets) must
+	// be removed — a dead mapping wastes Scryfall API calls per set.
+	if _, ok := taggerRoles["mana-fixer"]; ok {
+		t.Error("mana-fixer is not a real Scryfall function tag (returns 0 cards); should be removed from taggerRoles")
+	}
+}
+
+func TestExpandTagToRoleEntries(t *testing.T) {
+	// expandTagToRoleEntries fans a list of cards out across multiple roles.
+	// Sweeper-tagged cards must produce one roleEntry per role in the map value.
+	cards := []taggedCard{
+		{OracleID: "wrath-id", FrontFaceName: "Wrath of God"},
+		{OracleID: "damnation-id", FrontFaceName: "Damnation"},
+	}
+	roles := []string{"removal", "boardwipe"}
+	entries := expandTagToRoleEntries(cards, roles, "DSK")
+
+	// 2 cards × 2 roles = 4 entries.
+	if len(entries) != 4 {
+		t.Fatalf("got %d entries, want 4", len(entries))
+	}
+
+	// Every entry should reference a valid (oracle_id, role) pair.
+	gotPairs := make(map[string]bool)
+	for _, e := range entries {
+		gotPairs[e.OracleID+"|"+e.Role] = true
+		if e.SetCode != "DSK" {
+			t.Errorf("entry %v has wrong set code %q, want DSK", e, e.SetCode)
+		}
+	}
+	for _, pair := range []string{"wrath-id|removal", "wrath-id|boardwipe", "damnation-id|removal", "damnation-id|boardwipe"} {
+		if !gotPairs[pair] {
+			t.Errorf("missing entry for %s", pair)
+		}
+	}
+}
+
+func TestExpandTagToRoleEntries_SingleRole(t *testing.T) {
+	// Single-role tags (ramp → [ramp]) should produce 1 entry per card.
+	cards := []taggedCard{{OracleID: "cultivate-id", FrontFaceName: "Cultivate"}}
+	entries := expandTagToRoleEntries(cards, []string{"ramp"}, "DSK")
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	if entries[0].Role != "ramp" {
+		t.Errorf("got role %q, want ramp", entries[0].Role)
 	}
 }
 

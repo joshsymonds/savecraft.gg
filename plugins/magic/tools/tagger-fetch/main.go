@@ -39,13 +39,59 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 )
 
-// taggerRoles maps Scryfall Tagger function tags to D1 role names.
-// Multiple function tags can map to the same role (e.g., sweeper → removal).
-var taggerRoles = map[string]string{
-	"removal":      "removal",
-	"sweeper":      "removal",
-	"counterspell": "removal",
-	"mana-fixer":   "mana_fixing",
+// taggerRoles maps Scryfall function tags → list of D1 roles. A single tag
+// can fan out into multiple roles when one is the broader category of the
+// other (every board wipe IS removal). Tags here are verified to exist on
+// Scryfall (each returns ≥1 card via function:<tag> search). Verified
+// 2026-05-01.
+//
+// NOT included (no Scryfall function tag returns results):
+//   - mana-fixer / mana-fixing: detectFixingLands derives this from
+//     produced_mana on lands, which covers the common case (dual lands,
+//     triomes); spells like Sol Ring stay un-tagged here and would need a
+//     ramp tag instead (which DOES exist).
+//   - land-destruction / mass-land-destruction: no Scryfall tag exists.
+//     M1.2 will introduce a hand-curated list since this signal is needed
+//     for bracket detection (MLD floors at Bracket 4).
+//   - fast-mana: no Scryfall tag. Hand-curated in M1.2 (the canonical
+//     list — Mana Crypt, Jeweled Lotus, etc. — is small and stable).
+var taggerRoles = map[string][]string{
+	"ramp":          {"ramp"},
+	"draw":          {"card_draw"},
+	"tutor":         {"tutor"},
+	"sweeper":       {"removal", "boardwipe"},
+	"mass-removal":  {"removal", "boardwipe"},
+	"removal":       {"removal"},
+	"counterspell":  {"removal"},
+	"extra-turn":    {"extra_turn"},
+	"win-condition": {"win_condition"},
+}
+
+// taggedCard is the raw shape returned from a Scryfall function-tag search,
+// stripped of Scryfall-specific fields. expandTagToRoleEntries fans each
+// card out across the role list a tag maps to.
+type taggedCard struct {
+	OracleID      string
+	FrontFaceName string
+}
+
+// expandTagToRoleEntries produces one roleEntry per (card, role) pair. Used
+// to turn "sweeper" search results into both "removal" AND "boardwipe"
+// entries without making two Scryfall API calls.
+func expandTagToRoleEntries(cards []taggedCard, roles []string, setCode string) []roleEntry {
+	sc := strings.ToUpper(setCode)
+	entries := make([]roleEntry, 0, len(cards)*len(roles))
+	for _, card := range cards {
+		for _, role := range roles {
+			entries = append(entries, roleEntry{
+				OracleID:      card.OracleID,
+				FrontFaceName: card.FrontFaceName,
+				Role:          role,
+				SetCode:       sc,
+			})
+		}
+	}
+	return entries
 }
 
 type scryfallList struct {
@@ -105,6 +151,7 @@ func run() error {
 	cfAPIToken := flag.String("cf-api-token", os.Getenv("CLOUDFLARE_API_TOKEN"), "Cloudflare API token")
 	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (required)")
 	setFilter := flag.String("set", "", "Process a single set (e.g., 'DSK'). If empty, processes all sets.")
+	allCards := flag.Bool("all-cards", false, "Scope to every distinct set in magic_cards (not just MTGA-legal sets). Mutually exclusive with --set; requires --d1-database-id.")
 	retry := flag.Bool("retry", false, "Retry mode: import cached SQL files without reprocessing")
 	flag.Parse()
 
@@ -131,9 +178,27 @@ func run() error {
 		}
 	}
 
-	targetSets, err := sets.Resolve(context.Background(), *setFilter)
-	if err != nil {
-		return err
+	if *allCards && *setFilter != "" {
+		return fmt.Errorf("--all-cards is mutually exclusive with --set")
+	}
+	if *allCards && *d1DatabaseID == "" {
+		return fmt.Errorf("--all-cards requires --d1-database-id (set list comes from D1)")
+	}
+
+	var targetSets []string
+	if *allCards {
+		var err error
+		targetSets, err = fetchAllSetCodes(*cfAccountID, *d1DatabaseID, *cfAPIToken)
+		if err != nil {
+			return fmt.Errorf("fetching set list from D1: %w", err)
+		}
+		fmt.Printf("--all-cards: %d sets in magic_cards\n", len(targetSets))
+	} else {
+		var err error
+		targetSets, err = sets.Resolve(context.Background(), *setFilter)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Phase 1: Fetch Scryfall Tagger function tags (4 sets concurrently).
@@ -161,10 +226,16 @@ func run() error {
 			return fmt.Errorf("tagger fetch failed for %s: %w", res.SetCode, res.Err)
 		}
 
-		// Build summary line: "FDN: 84 removal, 12 mana_fixing"
+		// Summary line listing every role count, alphabetised so output is
+		// stable across runs and easy to diff.
+		roleNames := make([]string, 0, len(res.TagCounts))
+		for r := range res.TagCounts {
+			roleNames = append(roleNames, r)
+		}
+		sort.Strings(roleNames)
 		var parts []string
-		for _, tag := range []string{"removal", "mana_fixing"} {
-			parts = append(parts, fmt.Sprintf("%d %s", res.TagCounts[tag], tag))
+		for _, r := range roleNames {
+			parts = append(parts, fmt.Sprintf("%d %s", res.TagCounts[r], r))
 		}
 		fmt.Printf("  %s: %s\n", res.SetCode, strings.Join(parts, ", "))
 
@@ -341,6 +412,17 @@ func run() error {
 	}
 
 	fmt.Println("D1 population complete")
+
+	// Coverage report — surfaces the gap between magic_cards and the role
+	// data downstream modules depend on. Bracket detection / composition
+	// assessment only work on cards with ≥1 role tag.
+	if covered, total, err := computeCoverage(*cfAccountID, *d1DatabaseID, *cfAPIToken); err != nil {
+		fmt.Printf("WARN: coverage report failed: %v\n", err)
+	} else if total > 0 {
+		fmt.Printf("coverage: %d / %d default-printing oracle_ids have ≥1 role (%.1f%%)\n",
+			covered, total, 100*float64(covered)/float64(total))
+	}
+
 	return nil
 }
 
@@ -362,19 +444,24 @@ func hashRoleEntries(entries []roleEntry) string {
 
 // fetchSetTags fetches all tagger function tags for a single set.
 // Each tag query respects Scryfall's 50ms rate limit independently.
+// Multi-role tags (sweeper → removal+boardwipe) make one Scryfall call
+// then fan out in memory via expandTagToRoleEntries.
 func fetchSetTags(setCode string) setResult {
 	res := setResult{
 		SetCode:   setCode,
 		TagCounts: make(map[string]int),
 	}
 
-	for tag, role := range taggerRoles {
-		entries, err := fetchTaggedCards(setCode, tag, role)
+	for tag, roles := range taggerRoles {
+		cards, err := fetchTaggedCards(setCode, tag)
 		if err != nil {
 			res.Err = fmt.Errorf("%s/%s: %w", setCode, tag, err)
 			return res
 		}
-		res.TagCounts[role] += len(entries)
+		entries := expandTagToRoleEntries(cards, roles, setCode)
+		for _, role := range roles {
+			res.TagCounts[role] += len(cards)
+		}
 		res.Entries = append(res.Entries, entries...)
 	}
 
@@ -387,6 +474,66 @@ type d1Card struct {
 	FrontFaceName string
 	TypeLine      string
 	ProducedMana  string // JSON array from D1, e.g. '["W","U"]'
+}
+
+// fetchAllSetCodes returns every distinct set_code in magic_cards (default
+// printings only). Used by --all-cards mode to extend ingestion beyond the
+// MTGA-legal subset that sets.Resolve returns. Capitalised to match the
+// rest of the pipeline's set-code casing.
+func fetchAllSetCodes(accountID, databaseID, apiToken string) ([]string, error) {
+	sql := "SELECT DISTINCT set_code FROM magic_cards WHERE is_default = 1 ORDER BY set_code"
+	rows, err := cfapi.QueryD1(accountID, databaseID, apiToken, sql)
+	if err != nil {
+		return nil, err
+	}
+	codes := make([]string, 0, len(rows))
+	for _, row := range rows {
+		code, _ := row["set_code"].(string)
+		if code != "" {
+			codes = append(codes, strings.ToUpper(code))
+		}
+	}
+	return codes, nil
+}
+
+// computeCoverage returns the percentage of distinct default-printing
+// oracle_ids that have ≥1 row in magic_card_roles. Surfaces the gap that
+// blocks bracket detection / composition assessment on uncovered cards.
+func computeCoverage(accountID, databaseID, apiToken string) (covered, total int, err error) {
+	totalRows, err := cfapi.QueryD1(accountID, databaseID, apiToken,
+		"SELECT COUNT(DISTINCT oracle_id) AS n FROM magic_cards WHERE is_default = 1")
+	if err != nil {
+		return 0, 0, fmt.Errorf("total: %w", err)
+	}
+	if len(totalRows) == 0 {
+		return 0, 0, fmt.Errorf("total: no rows returned")
+	}
+	total = int(asFloat(totalRows[0]["n"]))
+
+	coveredRows, err := cfapi.QueryD1(accountID, databaseID, apiToken,
+		"SELECT COUNT(DISTINCT oracle_id) AS n FROM magic_card_roles")
+	if err != nil {
+		return 0, 0, fmt.Errorf("covered: %w", err)
+	}
+	if len(coveredRows) == 0 {
+		return 0, 0, fmt.Errorf("covered: no rows returned")
+	}
+	covered = int(asFloat(coveredRows[0]["n"]))
+	return covered, total, nil
+}
+
+// asFloat unboxes a JSON number from cfapi.QueryD1 results. D1 returns
+// COUNT(*) as a JSON number which decodes to float64.
+func asFloat(v any) float64 {
+	switch x := v.(type) {
+	case float64:
+		return x
+	case int:
+		return float64(x)
+	case int64:
+		return float64(x)
+	}
+	return 0
 }
 
 // fetchCreaturesAndAllCards queries D1 for all default cards in a set.
@@ -507,12 +654,13 @@ func detectFixingLands(cards []d1Card, setCode string) []roleEntry {
 }
 
 // fetchTaggedCards queries Scryfall for cards matching a function tag in a set.
-// Handles pagination and respects rate limits.
-func fetchTaggedCards(setCode string, tag string, role string) ([]roleEntry, error) {
+// Handles pagination and respects rate limits. Returns raw cards without
+// roles attached — caller fans them out via expandTagToRoleEntries.
+func fetchTaggedCards(setCode string, tag string) ([]taggedCard, error) {
 	query := fmt.Sprintf("function:%s set:%s", tag, strings.ToLower(setCode))
 	searchURL := "https://api.scryfall.com/cards/search?q=" + url.QueryEscape(query)
 
-	var entries []roleEntry
+	var cards []taggedCard
 	client := &http.Client{Timeout: 30 * time.Second}
 
 	for pageURL := searchURL; pageURL != ""; {
@@ -541,11 +689,9 @@ func fetchTaggedCards(setCode string, tag string, role string) ([]roleEntry, err
 			if before, _, ok := strings.Cut(card.Name, " // "); ok {
 				frontFace = before
 			}
-			entries = append(entries, roleEntry{
+			cards = append(cards, taggedCard{
 				OracleID:      card.OracleID,
 				FrontFaceName: frontFace,
-				Role:          role,
-				SetCode:       strings.ToUpper(setCode),
 			})
 		}
 
@@ -556,7 +702,7 @@ func fetchTaggedCards(setCode string, tag string, role string) ([]roleEntry, err
 		}
 	}
 
-	return entries, nil
+	return cards, nil
 }
 
 // scryfallGet performs an HTTP GET with exponential backoff on 429 rate limits.
