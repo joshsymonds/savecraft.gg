@@ -831,6 +831,67 @@ describe("commander_deckbuild native module", () => {
     expect(winconWarning).toContain("Approach of the Second Sun");
   });
 
+  // ── M4: deck-quality + completion wired into output ───────────
+
+  it("output includes quality block populated by assessQuality", async () => {
+    await seedAtraxa();
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 100, exclude_game_changers: false },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as {
+      quality?: {
+        bracket: { tier: number };
+        composition: Record<string, unknown>;
+        vectors: { mana_base: number; composition: number };
+        score: number;
+        weights: Record<string, number>;
+      };
+    };
+    expect(data.quality).toBeDefined();
+    expect(data.quality?.bracket.tier).toBeGreaterThanOrEqual(1);
+    expect(data.quality?.bracket.tier).toBeLessThanOrEqual(5);
+    expect(data.quality?.score).toBeGreaterThanOrEqual(0);
+    expect(data.quality?.score).toBeLessThanOrEqual(100);
+    expect(data.quality?.weights).toBeDefined();
+  });
+
+  it("output includes completion block with added recommendations + basics", async () => {
+    await seedAtraxa();
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 100, exclude_game_changers: false },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as {
+      completion?: {
+        added_from_recommendations: { card_name: string }[];
+        added_basics: { name: string; quantity: number }[];
+        karsten_warnings: string[];
+      };
+    };
+    expect(data.completion).toBeDefined();
+    // Atraxa is WUBG — completion should pad with basics from those colors.
+    expect(data.completion?.added_basics.length).toBeGreaterThan(0);
+  });
+
+  it("deck is padded to 99 non-commander slots after completion", async () => {
+    await seedAtraxa();
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 100, exclude_game_changers: false },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as {
+      deck: { card_name: string; quantity: number }[];
+      slots_remaining: number;
+    };
+    const total = data.deck.reduce((sum, entry) => sum + entry.quantity, 0);
+    expect(total).toBe(99);
+    expect(data.slots_remaining).toBe(0);
+  });
+
   it("does NOT warn about combo cards on a complete combo line that all stayed in deck", async () => {
     await seedAtraxa();
     await env.DB.batch([

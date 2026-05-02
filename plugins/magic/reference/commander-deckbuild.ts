@@ -19,6 +19,8 @@ import type {
 import { safeParseJSON } from "../../../worker/src/reference/json";
 import { resolveCardPrices } from "./commander-prices";
 import { resolveCommander } from "./commander-resolve";
+import { completeDeck, type CompletionResult } from "./deck-completion";
+import { assessQuality, type QualityReport } from "./deck-quality";
 
 const VALID_TIERS = ["budget", "upgraded", "optimized", "cedh"] as const;
 type Tier = (typeof VALID_TIERS)[number];
@@ -447,8 +449,52 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       runningTotal -= reallocResult.savings;
     }
 
+    // M4: pad shell to 99 cards via completeDeck. Adds high-inclusion
+    // recommendations (filtered by role gaps first) + Karsten-aware basic
+    // padding. Honors the same budget + excludes filters.
+    const commanderRef = { scryfall_id: commanderId, name: commanderRow.name };
+    const completion: CompletionResult = await completeDeck(
+      env,
+      placed.map((p) => ({ card_name: p.card_name, quantity: p.quantity })),
+      commanderRef,
+      {
+        targetSize: 99,
+        maxPrice: effectiveCap,
+        excludes: [...excludes],
+        excludeGameChangers,
+        tier,
+      },
+    );
+    for (const added of completion.added_from_recommendations) {
+      placed.push({
+        card_name: added.card_name,
+        quantity: 1,
+        category: "completion",
+        price_usd: added.price ?? null,
+        source: "tier",
+        game_changer: false, // excludeGCs filter already applied if set
+        reserved: false,
+      });
+      if (added.price != null) runningTotal += added.price;
+    }
+    for (const basic of completion.added_basics) {
+      placed.push({
+        card_name: basic.name,
+        quantity: basic.quantity,
+        category: "basics",
+        price_usd: 0,
+        source: "basic_substitution",
+        game_changer: false,
+        reserved: false,
+      });
+    }
+
     runningTotal = Math.round(runningTotal * 100) / 100;
-    const slotsRemaining = Math.max(0, slotsTarget - placed.length);
+    // Slots target was the tier's deck_size (~67-89); after completion the
+    // deck holds 99 non-commander cards — slots_remaining is now relative
+    // to the legal-deck size (99), not the tier shell size.
+    const totalCount = placed.reduce((s, p) => s + p.quantity, 0);
+    const slotsRemaining = Math.max(0, 99 - totalCount);
 
     // Warnings.
     const warnings: string[] = [];
@@ -498,6 +544,14 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       ...(await buildStrategicWarnings(env, commanderId, placed, dropped)),
     );
 
+    // M4: assess quality on the completed 99-card deck.
+    const quality: QualityReport = await assessQuality(
+      env,
+      placed.map((p) => ({ card_name: p.card_name, quantity: p.quantity })),
+      commanderRef,
+      tier,
+    );
+
     // priced_at is already aggregated from the price-resolution step.
     const pricedAt = priceLookup.pricedAt;
 
@@ -531,11 +585,17 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         slots_remaining: slotsRemaining,
         cards_without_prices: cardsWithoutPrices,
         mana_base_substitutions: manaBaseSubs,
+        quality,
+        completion: {
+          added_from_recommendations: completion.added_from_recommendations,
+          added_basics: completion.added_basics,
+          karsten_warnings: completion.warnings,
+        },
         warnings,
         attribution: {
           source: "EDHREC",
           priced_at: pricedAt,
-          note: `Mirrors EDHREC's '${tier}'-tier average decklist for ${commanderRow.name}. Prices from EDHREC TCGPlayer mid (Scryfall fallback).`,
+          note: `Mirrors EDHREC's '${tier}'-tier average decklist for ${commanderRow.name}, padded to 99 cards via completion (high-inclusion recommendations + Karsten-aware basic distribution). Prices from EDHREC TCGPlayer mid (Scryfall fallback).`,
         },
       },
     };
@@ -734,6 +794,52 @@ async function runPreconBuild(
     runningTotal += price;
   }
 
+  // M4: pad to 99 cards via completeDeck. The precon path's main "drop"
+  // mechanism is the upgrade-pool walk's `continue` on budget-busts, so
+  // there's no `dropped[]` to pass to buildStrategicWarnings — but
+  // completion still applies for filling slots.
+  const preconCommanderRef = {
+    scryfall_id: commanderRow.scryfall_id,
+    name: commanderRow.name,
+  };
+  const preconCompletion: CompletionResult = await completeDeck(
+    env,
+    placed.map((p) => ({ card_name: p.card_name, quantity: p.quantity })),
+    preconCommanderRef,
+    {
+      targetSize: 99,
+      maxPrice: effectiveCap,
+      excludes: [...excludes],
+      // Precon path doesn't propagate excludeGameChangers; precons themselves
+      // can include GC cards (Sol Ring is bracket-1 legal anyway). Mirror
+      // that policy in completion — don't add the extra filter here.
+      excludeGameChangers: false,
+    },
+  );
+  for (const added of preconCompletion.added_from_recommendations) {
+    placed.push({
+      card_name: added.card_name,
+      quantity: 1,
+      category: "completion",
+      price_usd: added.price ?? null,
+      source: "upgrade",
+      game_changer: false,
+      reserved: false,
+    });
+    if (added.price != null) runningTotal += added.price;
+  }
+  for (const basic of preconCompletion.added_basics) {
+    placed.push({
+      card_name: basic.name,
+      quantity: basic.quantity,
+      category: "basics",
+      price_usd: 0,
+      source: "basic_substitution",
+      game_changer: false,
+      reserved: false,
+    });
+  }
+
   runningTotal = Math.round(runningTotal * 100) / 100;
 
   const warnings: string[] = [];
@@ -750,6 +856,13 @@ async function runPreconBuild(
   for (const p of placed) {
     categoryBreakdown[p.category] = (categoryBreakdown[p.category] ?? 0) + 1;
   }
+
+  // M4: assess quality on the completed precon-based deck.
+  const preconQuality: QualityReport = await assessQuality(
+    env,
+    placed.map((p) => ({ card_name: p.card_name, quantity: p.quantity })),
+    preconCommanderRef,
+  );
 
   return {
     type: "structured",
@@ -784,11 +897,17 @@ async function runPreconBuild(
       deck: placed,
       category_breakdown: categoryBreakdown,
       cards_without_prices: cardsWithoutPrices,
+      quality: preconQuality,
+      completion: {
+        added_from_recommendations: preconCompletion.added_from_recommendations,
+        added_basics: preconCompletion.added_basics,
+        karsten_warnings: preconCompletion.warnings,
+      },
       warnings,
       attribution: {
         source: "EDHREC",
         priced_at: priceLookup.pricedAt,
-        note: `Precon '${preconRow.slug}' seeds the deck (charged at MSRP $${msrp}). Upgrades drawn from EDHREC's cardstoadd / landstoadd pool, sorted by inclusion. Singles prices via EDHREC TCGPlayer mid (Scryfall fallback).`,
+        note: `Precon '${preconRow.slug}' seeds the deck (charged at MSRP $${msrp}). Upgrades drawn from EDHREC's cardstoadd / landstoadd pool, sorted by inclusion, then padded to 99 via completion. Singles prices via EDHREC TCGPlayer mid (Scryfall fallback).`,
       },
     },
   };
@@ -942,8 +1061,49 @@ async function runThemeBuild(
     runningTotal += cost;
   }
 
+  // M4: pad shell to 99 cards via completeDeck.
+  const themeCommanderRef = {
+    scryfall_id: commanderRow.scryfall_id,
+    name: commanderRow.name,
+  };
+  const themeCompletion: CompletionResult = await completeDeck(
+    env,
+    placed.map((p) => ({ card_name: p.card_name, quantity: p.quantity })),
+    themeCommanderRef,
+    {
+      targetSize: 99,
+      maxPrice: effectiveCap,
+      excludes: [...excludes],
+      excludeGameChangers,
+    },
+  );
+  for (const added of themeCompletion.added_from_recommendations) {
+    placed.push({
+      card_name: added.card_name,
+      quantity: 1,
+      category: "completion",
+      price_usd: added.price ?? null,
+      source: "tier",
+      game_changer: false,
+      reserved: false,
+    });
+    if (added.price != null) runningTotal += added.price;
+  }
+  for (const basic of themeCompletion.added_basics) {
+    placed.push({
+      card_name: basic.name,
+      quantity: basic.quantity,
+      category: "basics",
+      price_usd: 0,
+      source: "basic_substitution",
+      game_changer: false,
+      reserved: false,
+    });
+  }
+
   runningTotal = Math.round(runningTotal * 100) / 100;
-  const slotsRemaining = Math.max(0, slotsTarget - placed.length);
+  const totalCount = placed.reduce((s, p) => s + p.quantity, 0);
+  const slotsRemaining = Math.max(0, 99 - totalCount);
 
   const warnings: string[] = [];
   if (maxPrice !== undefined && maxPrice < themeInfo.avg_price) {
@@ -981,6 +1141,13 @@ async function runThemeBuild(
     categoryBreakdown[p.category] = (categoryBreakdown[p.category] ?? 0) + 1;
   }
 
+  // M4: assess quality on the completed theme deck.
+  const themeQuality: QualityReport = await assessQuality(
+    env,
+    placed.map((p) => ({ card_name: p.card_name, quantity: p.quantity })),
+    themeCommanderRef,
+  );
+
   return {
     type: "structured",
     data: {
@@ -1014,11 +1181,17 @@ async function runThemeBuild(
       category_breakdown: categoryBreakdown,
       slots_remaining: slotsRemaining,
       cards_without_prices: cardsWithoutPrices,
+      quality: themeQuality,
+      completion: {
+        added_from_recommendations: themeCompletion.added_from_recommendations,
+        added_basics: themeCompletion.added_basics,
+        karsten_warnings: themeCompletion.warnings,
+      },
       warnings,
       attribution: {
         source: "EDHREC",
         priced_at: priceLookup.pricedAt,
-        note: `Mirrors EDHREC's ${themeInfo.theme_value} theme decklist for ${commanderRow.name} ($${themeInfo.avg_price} avg from ${themeInfo.num_decks_avg} decks).`,
+        note: `Mirrors EDHREC's ${themeInfo.theme_value} theme decklist for ${commanderRow.name} ($${themeInfo.avg_price} avg from ${themeInfo.num_decks_avg} decks), padded to 99 via completion.`,
       },
     },
   };
