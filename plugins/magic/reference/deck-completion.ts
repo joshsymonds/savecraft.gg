@@ -380,7 +380,7 @@ async function fetchRoleRecsByPrice(
        FROM magic_edh_recommendations r
        JOIN magic_card_roles cr ON LOWER(r.card_name) = LOWER(cr.front_face_name)
        LEFT JOIN magic_edh_card_prices p ON LOWER(r.card_name) = LOWER(p.card_name)
-       LEFT JOIN magic_cards sc ON LOWER(r.card_name) = LOWER(sc.name)
+       LEFT JOIN magic_cards sc ON sc.front_face_name = r.card_name COLLATE NOCASE
                                 AND sc.is_default = 1
                                 AND sc.type_line != 'Card // Card'
        WHERE r.commander_id = ? AND cr.role = ?
@@ -403,7 +403,7 @@ async function fetchAllRecsByPrice(
             COALESCE(p.tcgplayer_price, sc.price_usd, 0) AS price
        FROM magic_edh_recommendations r
        LEFT JOIN magic_edh_card_prices p ON LOWER(r.card_name) = LOWER(p.card_name)
-       LEFT JOIN magic_cards sc ON LOWER(r.card_name) = LOWER(sc.name)
+       LEFT JOIN magic_cards sc ON sc.front_face_name = r.card_name COLLATE NOCASE
                                 AND sc.is_default = 1
                                 AND sc.type_line != 'Card // Card'
        WHERE r.commander_id = ?
@@ -894,7 +894,7 @@ async function fetchCandidatesBySynergy(
             COALESCE(p.tcgplayer_price, sc.price_usd, 0) AS price
        FROM magic_edh_recommendations r
        LEFT JOIN magic_edh_card_prices p ON LOWER(r.card_name) = LOWER(p.card_name)
-       LEFT JOIN magic_cards sc ON LOWER(r.card_name) = LOWER(sc.name)
+       LEFT JOIN magic_cards sc ON sc.front_face_name = r.card_name COLLATE NOCASE
                                 AND sc.is_default = 1
                                 AND sc.type_line != 'Card // Card'
        WHERE r.commander_id = ?
