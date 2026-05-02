@@ -67,6 +67,32 @@ export interface MinimalShellResult {
   warnings: string[];
 }
 
+export interface KarstenValidationResult {
+  swaps: KarstenSwap[];
+  warnings: string[];
+}
+
+export interface BuildOptions {
+  budget: number;
+  /** If supplied and length ≥ 60, used as baseline (padded with basics to 100). */
+  precon?: DeckEntry[];
+  excludes?: string[];
+  excludeGameChangers?: boolean;
+  epsilon?: number;
+  maxIterations?: number;
+  candidatePoolSize?: number;
+}
+
+export interface BuildResult {
+  deck: DeckEntry[];
+  totalCost: number;
+  baseline_cost: number;
+  baseline_source: "precon" | "minimal_shell";
+  steps: UpgradeStep[];
+  karsten_swaps: KarstenSwap[];
+  warnings: string[];
+}
+
 interface roleRecRow {
   card_name: string;
   inclusion: number;
@@ -1200,4 +1226,157 @@ function incrementCard(deck: DeckEntry[], name: string): void {
   } else {
     deck.push({ card_name: name, quantity: 1 });
   }
+}
+
+// ── Karsten color-source validation ────────────────────────────────
+
+const KARSTEN_SOURCE_FLOOR = 13;
+
+/**
+ * karstenValidateMana counts colored sources in the deck against pip
+ * distribution and emits warnings where any color is below Karsten's
+ * 13-source heuristic floor for single-pip 1-drop spells.
+ *
+ * Currently warning-only — `swaps` returns empty. Active land-rebalancing
+ * (swap basic of deficient color in for excess basic) is a future
+ * extension; the warning surface is sufficient for the M7.x rewire.
+ */
+export async function karstenValidateMana(
+  env: Env,
+  deck: DeckEntry[],
+  _commander: CommanderRef,
+): Promise<KarstenValidationResult> {
+  const warnings: string[] = [];
+  const swaps: KarstenSwap[] = [];
+  const finalPips = await computePipDistribution(env, deck);
+  const finalSources = await countColoredSources(env, deck);
+  for (const [color, pipCount] of finalPips) {
+    if (pipCount === 0) continue;
+    const sources = finalSources.get(color) ?? 0;
+    if (sources < KARSTEN_SOURCE_FLOOR) {
+      warnings.push(
+        `Mana base thin for {${color}}: ${String(sources)} sources for ${String(pipCount)} pips. Karsten recommends ≥${String(KARSTEN_SOURCE_FLOOR)} sources for single-pip 1-drop spells; consider more lands of this color.`,
+      );
+    }
+  }
+  return { swaps, warnings };
+}
+
+// ── End-to-end orchestrator ────────────────────────────────────────
+
+/**
+ * buildAndUpgradeDeck constructs a 100-card legal Commander deck end-to-end:
+ *   1. Baseline: precon (if supplied and ≥60 cards) padded to 100, OR
+ *      buildMinimalShell.
+ *   2. Upgrade loop: marginal-utility hill climbing via upgradeDeck.
+ *   3. Karsten validation: warns if any color is under-supplied.
+ *
+ * Aggregates warnings from all three phases.
+ */
+export async function buildAndUpgradeDeck(
+  env: Env,
+  commander: CommanderRef,
+  options: BuildOptions,
+): Promise<BuildResult> {
+  const excludes = options.excludes ?? [];
+  const excludeGameChangers = options.excludeGameChangers ?? false;
+  const warnings: string[] = [];
+
+  let baselineDeck: DeckEntry[];
+  let baselineCost: number;
+  let baselineSource: "precon" | "minimal_shell";
+
+  if (options.precon && options.precon.length >= 60) {
+    // Use precon as baseline; pad with basics to 100 if short.
+    baselineDeck = await padPreconToFull(env, commander, options.precon);
+    baselineCost = await sumNonBasicCost(env, baselineDeck);
+    baselineSource = "precon";
+  } else {
+    const shell = await buildMinimalShell(
+      env,
+      commander,
+      options.budget,
+      excludes,
+      excludeGameChangers,
+    );
+    baselineDeck = shell.deck;
+    baselineCost = shell.totalCost;
+    baselineSource = "minimal_shell";
+    warnings.push(...shell.warnings);
+  }
+
+  const upgrade = await upgradeDeck(env, baselineDeck, commander, {
+    budget: options.budget,
+    spent: baselineCost,
+    excludes,
+    excludeGameChangers,
+    epsilon: options.epsilon,
+    maxIterations: options.maxIterations,
+    candidatePoolSize: options.candidatePoolSize,
+  });
+  warnings.push(...upgrade.warnings);
+
+  const karsten = await karstenValidateMana(env, upgrade.deck, commander);
+  warnings.push(...karsten.warnings);
+
+  return {
+    deck: upgrade.deck,
+    totalCost: upgrade.totalCost,
+    baseline_cost: baselineCost,
+    baseline_source: baselineSource,
+    steps: upgrade.steps,
+    karsten_swaps: karsten.swaps,
+    warnings,
+  };
+}
+
+/**
+ * padPreconToFull takes a precon-style decklist (≥60 cards) and pads with
+ * basics to reach 100. If the precon is already ≥100, returns it unchanged.
+ * Basics are color-distributed per the precon's pip distribution.
+ */
+async function padPreconToFull(
+  env: Env,
+  commander: CommanderRef,
+  precon: DeckEntry[],
+): Promise<DeckEntry[]> {
+  const deck: DeckEntry[] = precon.map((entry) => ({ ...entry }));
+  const total = countCards(deck);
+  if (total >= 100) return deck;
+
+  const slotsRemaining = 100 - total;
+  const colorIdentity = await loadColorIdentity(env, commander.scryfall_id);
+  const pipDist = await computePipDistribution(env, deck);
+  const basicAlloc = allocateBasics(slotsRemaining, colorIdentity, pipDist);
+  for (const [name, qty] of basicAlloc) {
+    const existing = deck.find((entry) => entry.card_name === name);
+    if (existing) {
+      existing.quantity = (existing.quantity ?? 1) + qty;
+    } else {
+      deck.push({ card_name: name, quantity: qty });
+    }
+  }
+  return deck;
+}
+
+/**
+ * sumNonBasicCost computes the total tcgplayer price of all non-basic cards
+ * in the deck (basics are free). Used to compute baseline_cost for a precon.
+ */
+async function sumNonBasicCost(
+  env: Env,
+  deck: DeckEntry[],
+): Promise<number> {
+  const nonBasicNames = deck
+    .filter((entry) => !BASIC_LAND_NAMES.has(entry.card_name))
+    .map((entry) => entry.card_name);
+  if (nonBasicNames.length === 0) return 0;
+  const prices = await resolveCardPrices(env, nonBasicNames);
+  let total = 0;
+  for (const entry of deck) {
+    if (BASIC_LAND_NAMES.has(entry.card_name)) continue;
+    const price = prices.prices.get(entry.card_name.toLowerCase())?.price;
+    if (price != null) total += price * (entry.quantity ?? 1);
+  }
+  return total;
 }
