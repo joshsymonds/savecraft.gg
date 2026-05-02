@@ -21,7 +21,7 @@
  */
 import type { Env } from "../../../worker/src/types";
 import type { CommanderRef, DeckEntry } from "./deck-quality";
-import { assessComposition } from "./deck-quality";
+import { COMMUNITY_BENCHMARKS, assessComposition } from "./deck-quality";
 import { resolveCardPrices } from "./commander-prices";
 import { safeParseJSON } from "../../../worker/src/reference/json";
 
@@ -58,6 +58,18 @@ export interface CompletionOptions {
   excludes?: string[];
   excludeGameChangers?: boolean;
   tier?: string;
+}
+
+export interface MinimalShellResult {
+  deck: DeckEntry[];
+  totalCost: number;
+  warnings: string[];
+}
+
+interface roleRecRow {
+  card_name: string;
+  inclusion: number;
+  price: number | null;
 }
 
 const COLOR_TO_BASIC: Record<string, string> = {
@@ -485,6 +497,179 @@ async function loadManaData(
     }
   }
   return out;
+}
+
+/**
+ * buildMinimalShell constructs a 100-card legal Commander deck (1 commander
+ * + 99 others) from scratch, intended as the universal baseline for the
+ * marginal-utility upgrade loop (M7.2+). It is NOT optimized — it is the
+ * cheapest playable starting state.
+ *
+ * Algorithm:
+ *   1. Fill role lower bounds (community benchmarks: 10 ramp, 8 draw,
+ *      8 removal, 7 win-con) using the cheapest qualifying recommendations
+ *      that fit the remaining budget. If a role floor cannot be met, emit
+ *      a warning and proceed.
+ *   2. Pad up to 63 non-basic slots with the cheapest high-inclusion
+ *      generic recommendations.
+ *   3. Pad to 99 with basic lands distributed by commander color identity.
+ *      Basics are free and always satisfy any budget.
+ *
+ * The result always has exactly 100 cards. At a $0 budget, the result is
+ * commander + 99 basics. Prices missing from `magic_edh_card_prices` are
+ * treated as $0 (consistent with the existing greedy-fill convention).
+ */
+export async function buildMinimalShell(
+  env: Env,
+  commander: CommanderRef,
+  budget: number,
+  excludes: string[],
+  excludeGameChangers: boolean,
+): Promise<MinimalShellResult> {
+  const warnings: string[] = [];
+  const inDeck = new Set<string>();
+  const excludesLower = new Set(excludes.map((x) => x.toLowerCase()));
+  let totalCost = 0;
+
+  // The deck starts with the commander.
+  const deck: DeckEntry[] = [
+    { card_name: commander.name, quantity: 1 },
+  ];
+  inDeck.add(commander.name.toLowerCase());
+
+  // Game-changer filter set (loaded once if needed).
+  let gameChangers = new Set<string>();
+  if (excludeGameChangers) {
+    const gcResult = await env.DB.prepare(
+      `SELECT card_name FROM magic_game_changers`,
+    ).all<{ card_name: string }>();
+    gameChangers = new Set(
+      (gcResult.results ?? []).map((r) => r.card_name.toLowerCase()),
+    );
+  }
+
+  // ── Phase 1: fill role lower bounds (cheapest first) ───────────
+  const roleFloors: [string, number][] = [
+    ["ramp", COMMUNITY_BENCHMARKS.ramp[0]],
+    ["card_draw", COMMUNITY_BENCHMARKS.card_draw[0]],
+    ["removal", COMMUNITY_BENCHMARKS.removal[0]],
+    ["win_condition", COMMUNITY_BENCHMARKS.win_conditions[0]],
+  ];
+
+  for (const [role, floor] of roleFloors) {
+    const candidates = await fetchRoleRecsByPrice(
+      env,
+      commander.scryfall_id,
+      role,
+    );
+    let added = 0;
+    for (const cand of candidates) {
+      if (added >= floor) break;
+      const lower = cand.card_name.toLowerCase();
+      if (inDeck.has(lower)) continue;
+      if (excludesLower.has(lower)) continue;
+      if (excludeGameChangers && gameChangers.has(lower)) continue;
+      const price = cand.price ?? 0;
+      if (totalCost + price > budget) continue;
+      deck.push({ card_name: cand.card_name, quantity: 1 });
+      inDeck.add(lower);
+      totalCost += price;
+      added += 1;
+    }
+    if (added < floor) {
+      warnings.push(
+        `${role} lower bound ${String(floor)} not met (added ${String(added)} within budget $${String(budget)}).`,
+      );
+    }
+  }
+
+  // ── Phase 2: pad up to 63 non-basic slots with cheapest generic recs ─
+  // 99 - 36 (Karsten lands) = 63 non-land slots. We've used up to 33 for
+  // role floors; up to 30 generic recs round out the non-basic complement.
+  const NON_BASIC_TARGET = 63;
+  const nonBasicCount = (): number => deck.length - 1; // exclude commander
+  if (nonBasicCount() < NON_BASIC_TARGET) {
+    const generic = await fetchAllRecsByPrice(env, commander.scryfall_id);
+    for (const cand of generic) {
+      if (nonBasicCount() >= NON_BASIC_TARGET) break;
+      const lower = cand.card_name.toLowerCase();
+      if (inDeck.has(lower)) continue;
+      if (excludesLower.has(lower)) continue;
+      if (excludeGameChangers && gameChangers.has(lower)) continue;
+      const price = cand.price ?? 0;
+      if (totalCost + price > budget) continue;
+      deck.push({ card_name: cand.card_name, quantity: 1 });
+      inDeck.add(lower);
+      totalCost += price;
+    }
+  }
+
+  // ── Phase 3: pad to 100 with basic lands ────────────────────────
+  const TOTAL_TARGET = 100; // 1 commander + 99 others
+  const slotsRemaining = TOTAL_TARGET - countCards(deck);
+  if (slotsRemaining > 0) {
+    const colorIdentity = await loadColorIdentity(env, commander.scryfall_id);
+    // Minimal shell has no pip data yet (cards may not have mana_cost in
+    // test fixtures); allocateBasics falls back to round-robin in that case.
+    const basicAlloc = allocateBasics(slotsRemaining, colorIdentity, new Map());
+    for (const [name, qty] of basicAlloc) {
+      const existing = deck.find((e) => e.card_name === name);
+      if (existing) {
+        existing.quantity = (existing.quantity ?? 1) + qty;
+      } else {
+        deck.push({ card_name: name, quantity: qty });
+      }
+    }
+  }
+
+  return { deck, totalCost, warnings };
+}
+
+/**
+ * fetchRoleRecsByPrice returns role-tagged candidates ordered by price ASC,
+ * inclusion DESC, card_name ASC (deterministic). LEFT JOINs prices since
+ * not every card has a price row; missing prices are treated as 0.
+ */
+async function fetchRoleRecsByPrice(
+  env: Env,
+  commanderId: string,
+  role: string,
+): Promise<roleRecRow[]> {
+  const result = await env.DB.prepare(
+    `SELECT r.card_name AS card_name,
+            MAX(r.inclusion) AS inclusion,
+            COALESCE(p.tcgplayer_price, 0) AS price
+       FROM magic_edh_recommendations r
+       JOIN magic_card_roles cr ON LOWER(r.card_name) = LOWER(cr.front_face_name)
+       LEFT JOIN magic_edh_card_prices p ON LOWER(r.card_name) = LOWER(p.card_name)
+       WHERE r.commander_id = ? AND cr.role = ?
+       GROUP BY r.card_name, p.tcgplayer_price
+       ORDER BY price ASC, inclusion DESC, r.card_name ASC
+       LIMIT 100`,
+  )
+    .bind(commanderId, role)
+    .all<roleRecRow>();
+  return result.results ?? [];
+}
+
+async function fetchAllRecsByPrice(
+  env: Env,
+  commanderId: string,
+): Promise<roleRecRow[]> {
+  const result = await env.DB.prepare(
+    `SELECT r.card_name AS card_name,
+            MAX(r.inclusion) AS inclusion,
+            COALESCE(p.tcgplayer_price, 0) AS price
+       FROM magic_edh_recommendations r
+       LEFT JOIN magic_edh_card_prices p ON LOWER(r.card_name) = LOWER(p.card_name)
+       WHERE r.commander_id = ?
+       GROUP BY r.card_name, p.tcgplayer_price
+       ORDER BY price ASC, inclusion DESC, r.card_name ASC
+       LIMIT 200`,
+  )
+    .bind(commanderId)
+    .all<roleRecRow>();
+  return result.results ?? [];
 }
 
 /**

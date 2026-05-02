@@ -257,7 +257,7 @@ export interface CompositionAssessment {
  * deckbuilding guidelines (Cardsphere, CoolStuffInc, TappedOut). Used as
  * fallback when no tier-average data exists for a commander.
  */
-const COMMUNITY_BENCHMARKS: Record<
+export const COMMUNITY_BENCHMARKS: Record<
   keyof CompositionAssessment,
   [number, number]
 > = {
