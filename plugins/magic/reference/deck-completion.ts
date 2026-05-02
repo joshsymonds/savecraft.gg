@@ -376,12 +376,15 @@ async function fetchRoleRecsByPrice(
   const result = await env.DB.prepare(
     `SELECT r.card_name AS card_name,
             MAX(r.inclusion) AS inclusion,
-            COALESCE(p.tcgplayer_price, 0) AS price
+            COALESCE(p.tcgplayer_price, sc.price_usd, 0) AS price
        FROM magic_edh_recommendations r
        JOIN magic_card_roles cr ON LOWER(r.card_name) = LOWER(cr.front_face_name)
        LEFT JOIN magic_edh_card_prices p ON LOWER(r.card_name) = LOWER(p.card_name)
+       LEFT JOIN magic_cards sc ON LOWER(r.card_name) = LOWER(sc.name)
+                                AND sc.is_default = 1
+                                AND sc.type_line != 'Card // Card'
        WHERE r.commander_id = ? AND cr.role = ?
-       GROUP BY r.card_name, p.tcgplayer_price
+       GROUP BY r.card_name, p.tcgplayer_price, sc.price_usd
        ORDER BY price ASC, inclusion DESC, r.card_name ASC
        LIMIT 100`,
   )
@@ -397,11 +400,14 @@ async function fetchAllRecsByPrice(
   const result = await env.DB.prepare(
     `SELECT r.card_name AS card_name,
             MAX(r.inclusion) AS inclusion,
-            COALESCE(p.tcgplayer_price, 0) AS price
+            COALESCE(p.tcgplayer_price, sc.price_usd, 0) AS price
        FROM magic_edh_recommendations r
        LEFT JOIN magic_edh_card_prices p ON LOWER(r.card_name) = LOWER(p.card_name)
+       LEFT JOIN magic_cards sc ON LOWER(r.card_name) = LOWER(sc.name)
+                                AND sc.is_default = 1
+                                AND sc.type_line != 'Card // Card'
        WHERE r.commander_id = ?
-       GROUP BY r.card_name, p.tcgplayer_price
+       GROUP BY r.card_name, p.tcgplayer_price, sc.price_usd
        ORDER BY price ASC, inclusion DESC, r.card_name ASC
        LIMIT 200`,
   )
@@ -885,11 +891,14 @@ async function fetchCandidatesBySynergy(
     `SELECT r.card_name AS card_name,
             MAX(r.synergy) AS synergy,
             MAX(r.inclusion) AS inclusion,
-            COALESCE(p.tcgplayer_price, 0) AS price
+            COALESCE(p.tcgplayer_price, sc.price_usd, 0) AS price
        FROM magic_edh_recommendations r
        LEFT JOIN magic_edh_card_prices p ON LOWER(r.card_name) = LOWER(p.card_name)
+       LEFT JOIN magic_cards sc ON LOWER(r.card_name) = LOWER(sc.name)
+                                AND sc.is_default = 1
+                                AND sc.type_line != 'Card // Card'
        WHERE r.commander_id = ?
-       GROUP BY r.card_name, p.tcgplayer_price
+       GROUP BY r.card_name, p.tcgplayer_price, sc.price_usd
        ORDER BY synergy DESC, inclusion DESC, r.card_name ASC
        LIMIT ?`,
   )

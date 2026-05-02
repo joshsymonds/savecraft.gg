@@ -393,4 +393,33 @@ describe("buildMinimalShell", () => {
     // Floating-point tolerance.
     expect(Math.abs(result.totalCost - expectedCost)).toBeLessThan(0.01);
   });
+
+  it("M7.7: respects Scryfall price fallback for cards missing from magic_edh_card_prices", async () => {
+    // Seed an "expensive ramp" card with NO row in magic_edh_card_prices —
+    // only in magic_cards.price_usd. Without the fallback, the role-fill
+    // SQL treats the card as $0 and pulls it into the baseline at zero
+    // cost, blowing past the budget. With the fallback, the card costs
+    // $50 and skips at a $10 budget.
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_cards (oracle_id, front_face_name, name, type_line, set_code, is_default, price_usd)
+           VALUES (?, ?, ?, ?, ?, 1, ?)`,
+      ).bind("expensive-id", "Expensive Ramp", "Expensive Ramp", "Sorcery", "TST", 50),
+      env.DB.prepare(
+        `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("expensive-id", "Expensive Ramp", "ramp", "TST"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_recommendations (commander_id, card_name, category, synergy, inclusion)
+           VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "Expensive Ramp", "manaartifacts", 1, 5000),
+      // Note: no INSERT into magic_edh_card_prices for "Expensive Ramp".
+    ]);
+
+    const result = await buildMinimalShell(env as unknown as Env, COMMANDER, 10, [], false);
+
+    // The card must NOT appear in the result: $50 > $10 budget.
+    const deckNames = new Set(result.deck.map((entry) => entry.card_name));
+    expect(deckNames.has("Expensive Ramp")).toBe(false);
+    expect(result.totalCost).toBeLessThanOrEqual(10);
+  });
 });
