@@ -21,7 +21,6 @@ import { resolveCardPrices } from "./commander-prices";
 import { resolveCommander } from "./commander-resolve";
 import {
   buildAndUpgradeDeck,
-  completeDeck,
   type CompletionResult,
 } from "./deck-completion";
 import {
@@ -974,117 +973,102 @@ async function runThemeBuild(
   const allGameChangers = new Set(
     (gcResult.results ?? []).map((r) => r.card_name.toLowerCase()),
   );
-  const gameChangerSet = excludeGameChangers
-    ? allGameChangers
-    : new Set<string>();
 
-  const allNames = new Set<string>();
-  for (const c of themeDeck) allNames.add(c.card_name);
-  for (const m of mustInclude) allNames.add(m);
-  const priceLookup = await resolveCardPrices(env, [...allNames]);
-  const priceByLower = priceLookup.prices;
-
-  const placed: DeckEntry[] = [];
-  let runningTotal = 0;
-  const slotsTarget = themeInfo.deck_size;
-  const dropped: { card_name: string; reason: string }[] = [];
-
-  // Pin must_include first.
-  const mustIncludeLowerSet = new Set(mustInclude.map((m) => m.toLowerCase()));
-  for (const m of mustInclude) {
-    const lower = m.toLowerCase();
-    const resolved = priceByLower.get(lower);
-    placed.push({
-      card_name: m,
-      quantity: 1,
-      category: "Pinned",
-      price_usd: resolved?.price ?? null,
-      source: "must_include",
-      game_changer: allGameChangers.has(lower),
-      reserved: resolved?.reserved ?? false,
-    });
-    if (resolved?.price != null) runningTotal += resolved.price;
-  }
-
-  // Walk theme deck.
-  for (const c of themeDeck) {
-    if (placed.length >= slotsTarget) break;
-    const lower = c.card_name.toLowerCase();
-    if (mustIncludeLowerSet.has(lower)) continue;
-    if (excludes.has(lower)) {
-      dropped.push({ card_name: c.card_name, reason: "excludes" });
-      continue;
-    }
-    if (gameChangerSet.has(lower)) {
-      dropped.push({ card_name: c.card_name, reason: "game_changer" });
-      continue;
-    }
-    const resolved = priceByLower.get(lower);
-    const price = resolved?.price ?? null;
-    const cost = (price ?? 0) * c.quantity;
-    if (
-      effectiveCap !== undefined &&
-      price != null &&
-      runningTotal + cost > effectiveCap
-    ) {
-      dropped.push({ card_name: c.card_name, reason: "would_exceed_budget" });
-      continue;
-    }
-    placed.push({
-      card_name: c.card_name,
-      quantity: c.quantity,
-      category: c.category,
-      price_usd: price,
-      source: "tier",
-      game_changer: allGameChangers.has(lower),
-      reserved: resolved?.reserved ?? false,
-    });
-    runningTotal += cost;
-  }
-
-  // M4: pad shell to 99 cards via completeDeck.
   const themeCommanderRef = {
     scryfall_id: commanderRow.scryfall_id,
     name: commanderRow.name,
   };
-  const themeCompletion: CompletionResult = await completeDeck(
-    env,
-    placed.map((p) => ({ card_name: p.card_name, quantity: p.quantity })),
-    themeCommanderRef,
-    {
-      targetSize: 99,
-      maxPrice: effectiveCap,
-      excludes: [...excludes],
-      excludeGameChangers,
-    },
+  const themeLowerSet = new Set(
+    themeDeck.map((c) => c.card_name.toLowerCase()),
   );
-  for (const added of themeCompletion.added_from_recommendations) {
+
+  // Build the theme decklist as a precon-style baseline. Filter excludes
+  // upfront. Pass to buildAndUpgradeDeck — theme decklists are coherent
+  // ~100-card lists, so the precon code-path applies cleanly. Excludes-due-to-
+  // GC handled by orchestrator's excludeGameChangers filter (also blocks GCs
+  // from upgrade candidates).
+  const themeEntries: RawDeckEntry[] = [
+    { card_name: commanderRow.name, quantity: 1 },
+    ...themeDeck
+      .filter((c) => !excludes.has(c.card_name.toLowerCase()))
+      .map((c) => ({ card_name: c.card_name, quantity: c.quantity })),
+  ];
+
+  const buildResult = await buildAndUpgradeDeck(env, themeCommanderRef, {
+    budget: effectiveCap ?? Number.MAX_SAFE_INTEGER,
+    precon: themeEntries,
+    excludes: [...excludes],
+    excludeGameChangers,
+    mustInclude,
+  });
+
+  // Resolve metadata for output schema.
+  const deckNames = buildResult.deck.map((entry) => entry.card_name);
+  const [priceLookup, typeLines] = await Promise.all([
+    resolveCardPrices(env, deckNames),
+    loadTypeLines(env, deckNames),
+  ]);
+  const priceByLower = priceLookup.prices;
+
+  const commanderLower = commanderRow.name.toLowerCase();
+  const mustIncludeLowerSet = new Set(
+    mustInclude.map((m) => m.toLowerCase()),
+  );
+  const upgradeInLower = new Set(
+    buildResult.steps
+      .flatMap((step) => step.in_)
+      .map((n) => n.toLowerCase()),
+  );
+
+  const placed: DeckEntry[] = [];
+  for (const entry of buildResult.deck) {
+    const lower = entry.card_name.toLowerCase();
+    if (lower === commanderLower) continue;
+    const isBasic = BASIC_LAND_NAMES.has(entry.card_name);
+    const fromTheme = themeLowerSet.has(lower);
+    const resolved = priceByLower.get(lower);
+    const typeLine = typeLines.get(lower) ?? "";
+
+    let source: DeckEntry["source"] = "tier";
+    if (mustIncludeLowerSet.has(lower)) source = "must_include";
+    else if (isBasic) source = "basic_substitution";
+    else if (upgradeInLower.has(lower)) source = "upgrade";
+    else if (fromTheme) source = "tier";
+
     placed.push({
-      card_name: added.card_name,
-      quantity: 1,
-      category: "completion",
-      price_usd: added.price ?? null,
-      source: "tier",
-      game_changer: false,
-      reserved: false,
-    });
-    if (added.price != null) runningTotal += added.price;
-  }
-  for (const basic of themeCompletion.added_basics) {
-    placed.push({
-      card_name: basic.name,
-      quantity: basic.quantity,
-      category: "basics",
-      price_usd: 0,
-      source: "basic_substitution",
-      game_changer: false,
-      reserved: false,
+      card_name: entry.card_name,
+      quantity: entry.quantity ?? 1,
+      category: deriveCategory(entry.card_name, typeLine),
+      price_usd: isBasic ? 0 : (resolved?.price ?? null),
+      source,
+      game_changer: allGameChangers.has(lower),
+      reserved: resolved?.reserved ?? false,
     });
   }
 
-  runningTotal = Math.round(runningTotal * 100) / 100;
+  const runningTotal = Math.round(buildResult.totalCost * 100) / 100;
   const totalCount = placed.reduce((s, p) => s + p.quantity, 0);
   const slotsRemaining = Math.max(0, 99 - totalCount);
+
+  // Reconstruct the `completion` block from BuildResult for back-compat.
+  const themeCompletion: CompletionResult = {
+    filled: [],
+    added_from_recommendations: buildResult.steps.flatMap((step) =>
+      step.in_.map((name) => ({
+        card_name: name,
+        reason: "high_inclusion_fill" as const,
+        inclusion: undefined,
+        price: priceByLower.get(name.toLowerCase())?.price ?? null,
+      })),
+    ),
+    added_basics: placed
+      .filter((p) => BASIC_LAND_NAMES.has(p.card_name))
+      .map((p) => ({ name: p.card_name, quantity: p.quantity })),
+    karsten_swaps: [],
+    warnings: buildResult.warnings.filter((w) =>
+      w.includes("Mana base thin"),
+    ),
+  };
 
   const warnings: string[] = [];
   if (maxPrice !== undefined && maxPrice < themeInfo.avg_price) {
@@ -1092,10 +1076,17 @@ async function runThemeBuild(
       `Budget $${maxPrice} is below the empirical floor of the '${theme}' theme on ${commanderRow.name} ($${themeInfo.avg_price} avg from ${themeInfo.num_decks_avg} decks). Output reflects aggressive cost-cutting.`,
     );
   }
+  // slots_remaining is always 0 with the new pipeline (deck always 100
+  // cards), but keep the warning shape for forward-compat.
   if (slotsRemaining > 0) {
     warnings.push(
-      `${slotsRemaining} of ${slotsTarget} slots unfilled. Consider raising the budget or relaxing exclude_game_changers.`,
+      `${slotsRemaining} of 99 slots unfilled. Consider raising the budget or relaxing exclude_game_changers.`,
     );
+  }
+  // BuildResult diagnostics from baseline + upgrade + Karsten phases.
+  for (const warning of buildResult.warnings) {
+    if (warning.includes("Mana base thin")) continue; // already in completion.karsten_warnings
+    warnings.push(warning);
   }
   const cardsWithoutPrices = placed
     .filter((p) => p.price_usd == null)
@@ -1106,16 +1097,9 @@ async function runThemeBuild(
     );
   }
 
-  // M3.2: surface combo / win-condition casualties from budget cuts on
-  // the theme path.
-  warnings.push(
-    ...(await buildStrategicWarnings(
-      env,
-      commanderRow.scryfall_id,
-      placed,
-      dropped,
-    )),
-  );
+  // Strategic warnings (combo casualties from `dropped`) no longer apply —
+  // the new pipeline doesn't track per-card budget rejection. Will be
+  // re-enabled in M7.5e via swap-out hooks in upgradeDeck.
 
   const categoryBreakdown: Record<string, number> = {};
   for (const p of placed) {

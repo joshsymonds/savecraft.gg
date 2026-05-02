@@ -534,9 +534,11 @@ describe("commander_deckbuild native module", () => {
       env.DB.prepare(
         `INSERT INTO magic_edh_average_decks_by_theme (commander_id, theme_slug, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
       ).bind(ATRAXA_ID, "infect", "Inkmoth Nexus", 1, "Land"),
+      // Forest x97 pads the theme decklist to 99 non-commander cards so it
+      // clears the orchestrator's ≥60-card threshold for precon-style use.
       env.DB.prepare(
         `INSERT INTO magic_edh_average_decks_by_theme (commander_id, theme_slug, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
-      ).bind(ATRAXA_ID, "infect", "Forest", 8, "Land"),
+      ).bind(ATRAXA_ID, "infect", "Forest", 97, "Land"),
       // Prices for theme cards
       env.DB.prepare(
         `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
