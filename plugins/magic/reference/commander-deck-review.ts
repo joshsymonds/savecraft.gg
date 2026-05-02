@@ -92,30 +92,27 @@ async function runReview(
   // parallel — they're independent once the commander is resolved.
   const minInclusion = Math.floor(commanderRow.deck_count * STAPLE_THRESHOLD);
   const averageDecksQuery = tier
-    ? env.DB
-        .prepare(
-          `SELECT card_name, quantity, category
+    ? env.DB.prepare(
+        `SELECT card_name, quantity, category
            FROM magic_edh_average_decks_by_tier
            WHERE commander_id = ? AND tier = ?`,
-        )
+      )
         .bind(commanderId, tier)
         .all<AverageDeckRow>()
-    : env.DB
-        .prepare(
-          `SELECT card_name, quantity, category
+    : env.DB.prepare(
+        `SELECT card_name, quantity, category
            FROM magic_edh_average_decks
            WHERE commander_id = ?`,
-        )
+      )
         .bind(commanderId)
         .all<AverageDeckRow>();
 
   const tierInfoQuery: Promise<{ results?: TierInfoRow[] }> = tier
-    ? env.DB
-        .prepare(
-          `SELECT tier, avg_price, num_decks_avg, deck_size
+    ? env.DB.prepare(
+        `SELECT tier, avg_price, num_decks_avg, deck_size
            FROM magic_edh_commander_tiers
            WHERE commander_id = ? AND tier = ?`,
-        )
+      )
         .bind(commanderId, tier)
         .all<TierInfoRow>()
     : Promise.resolve({ results: [] });
@@ -132,22 +129,27 @@ async function runReview(
   // is bounded by the slowest of these (rather than serial waits).
   const priceLookupQuery = resolveCardPrices(env, [...deckByLower.values()]);
 
-  const [topCardsResult, averageResult, tierInfoResult, gameChangersResult, priceLookup] =
-    await Promise.all([
-      env.DB.prepare(
-        `SELECT card_name, inclusion
+  const [
+    topCardsResult,
+    averageResult,
+    tierInfoResult,
+    gameChangersResult,
+    priceLookup,
+  ] = await Promise.all([
+    env.DB.prepare(
+      `SELECT card_name, inclusion
          FROM magic_edh_recommendations
          WHERE commander_id = ? AND category = 'topcards' AND inclusion >= ?
          ORDER BY inclusion DESC
          LIMIT ?`,
-      )
-        .bind(commanderId, minInclusion, MAX_STAPLE_CANDIDATES)
-        .all<RecRow>(),
-      averageDecksQuery,
-      tierInfoQuery,
-      gameChangersQuery,
-      priceLookupQuery,
-    ]);
+    )
+      .bind(commanderId, minInclusion, MAX_STAPLE_CANDIDATES)
+      .all<RecRow>(),
+    averageDecksQuery,
+    tierInfoQuery,
+    gameChangersQuery,
+    priceLookupQuery,
+  ]);
 
   const tierInfo = tier ? (tierInfoResult.results?.[0] ?? null) : undefined;
 
@@ -220,7 +222,8 @@ async function runReview(
   // unknown-price cards excluded from total_price and listed in
   // cards_without_prices so the LLM can flag them. The shared resolver
   // returns lowercase keys, absorbing user case variance.
-  const maxPrice = typeof query.max_price === "number" ? query.max_price : undefined;
+  const maxPrice =
+    typeof query.max_price === "number" ? query.max_price : undefined;
   let totalPrice = 0;
   const cardsWithoutPrices: string[] = [];
   for (const [lower, original] of deckByLower) {
@@ -291,7 +294,6 @@ async function runReview(
 
   return { type: "structured", data };
 }
-
 
 export const commanderDeckReviewModule: NativeReferenceModule = {
   id: "commander_deck_review",
@@ -384,4 +386,3 @@ function parseDecklist(entries: unknown[]): Map<string, string> {
   }
   return result;
 }
-

@@ -713,4 +713,164 @@ describe("commander_deckbuild native module", () => {
     expect(names).not.toContain("Tropical Island");
     expect(names).not.toContain("Underground Sea");
   });
+
+  // ── M3.2: combo-aware budget cuts ─────────────────────────────
+
+  it("warns when budget forces dropping a card on an otherwise-complete combo", async () => {
+    await seedAtraxa();
+    // Add both Thassa's Oracle + Demonic Consultation to the tier so they'd
+    // both be considered. Make Thassa's Oracle expensive enough that it
+    // drops, while Demonic Consultation stays in.
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "budget", "Thassa's Oracle", 1, "Creature"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "budget", "Demonic Consultation", 1, "Instant"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Thassa's Oracle", 18),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Demonic Consultation", 0.5),
+      // Combo entry pairing the two cards.
+      env.DB.prepare(
+        `INSERT INTO magic_edh_combos (commander_id, combo_id, card_names, card_ids, colors, results, deck_count, percentage)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        ATRAXA_ID,
+        "thoracle-demcon",
+        '["Thassa\'s Oracle","Demonic Consultation"]',
+        "[]",
+        "WUBG",
+        '["win the game"]',
+        500,
+        12.5,
+      ),
+    ]);
+    // Tight budget: $10. Thassa's Oracle ($18) > $10/2=$5 → single-card
+    // sanity drops it. Demonic Consultation ($0.5) fits fine.
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 10, exclude_game_changers: false },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as { warnings: string[]; deck: { card_name: string }[] };
+    const names = data.deck.map((c) => c.card_name);
+    expect(names).not.toContain("Thassa's Oracle");
+    expect(names).toContain("Demonic Consultation"); // intact partner
+    const comboWarning = data.warnings.find(
+      (w) => w.toLowerCase().includes("combo") && w.includes("Thassa"),
+    );
+    expect(comboWarning).toBeDefined();
+  });
+
+  it("does NOT warn about combo when the other piece was never in the tier", async () => {
+    await seedAtraxa();
+    // Add only Thassa's Oracle (not Demonic Consultation) to tier.
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "budget", "Thassa's Oracle", 1, "Creature"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Thassa's Oracle", 18),
+      // Combo entry references both, but only one is in tier.
+      env.DB.prepare(
+        `INSERT INTO magic_edh_combos (commander_id, combo_id, card_names, card_ids, colors, results, deck_count, percentage)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        ATRAXA_ID,
+        "thoracle-demcon",
+        '["Thassa\'s Oracle","Demonic Consultation"]',
+        "[]",
+        "WUBG",
+        '["win the game"]',
+        500,
+        12.5,
+      ),
+    ]);
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 10, exclude_game_changers: false },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as { warnings: string[] };
+    // Combo wasn't intact regardless — dropping Thassa's doesn't break a
+    // working strategy.
+    const comboWarning = data.warnings.find((w) => w.toLowerCase().includes("combo"));
+    expect(comboWarning).toBeUndefined();
+  });
+
+  it("warns when a win_condition card is dropped due to budget", async () => {
+    await seedAtraxa();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "budget", "Approach of the Second Sun", 1, "Sorcery"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Approach of the Second Sun", 50),
+      env.DB.prepare(
+        `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("approach-id", "Approach of the Second Sun", "win_condition", "AKH"),
+    ]);
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 30, exclude_game_changers: false },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as { warnings: string[]; deck: { card_name: string }[] };
+    const names = data.deck.map((c) => c.card_name);
+    expect(names).not.toContain("Approach of the Second Sun"); // dropped (price > $30/2)
+    const winconWarning = data.warnings.find(
+      (w) => w.toLowerCase().includes("win condition") || w.toLowerCase().includes("win_condition"),
+    );
+    expect(winconWarning).toBeDefined();
+    expect(winconWarning).toContain("Approach of the Second Sun");
+  });
+
+  it("does NOT warn about combo cards on a complete combo line that all stayed in deck", async () => {
+    await seedAtraxa();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "budget", "Thassa's Oracle", 1, "Creature"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_average_decks_by_tier (commander_id, tier, card_name, quantity, category) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(ATRAXA_ID, "budget", "Demonic Consultation", 1, "Instant"),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Thassa's Oracle", 5),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind("Demonic Consultation", 0.5),
+      env.DB.prepare(
+        `INSERT INTO magic_edh_combos (commander_id, combo_id, card_names, card_ids, colors, results, deck_count, percentage)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        ATRAXA_ID,
+        "thoracle-demcon",
+        '["Thassa\'s Oracle","Demonic Consultation"]',
+        "[]",
+        "WUBG",
+        '["win the game"]',
+        500,
+        12.5,
+      ),
+    ]);
+    // Generous budget — both combo pieces fit comfortably.
+    const result = await commanderDeckbuildModule.execute(
+      { commander: "Atraxa", max_price: 100, exclude_game_changers: false },
+      env as unknown as Env,
+    );
+    if (result.type !== "structured") throw new Error("expected structured");
+    const data = result.data as { warnings: string[]; deck: { card_name: string }[] };
+    const names = data.deck.map((c) => c.card_name);
+    expect(names).toContain("Thassa's Oracle");
+    expect(names).toContain("Demonic Consultation");
+    const comboWarning = data.warnings.find((w) => w.toLowerCase().includes("combo"));
+    expect(comboWarning).toBeUndefined();
+  });
 });

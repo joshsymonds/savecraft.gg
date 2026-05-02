@@ -100,7 +100,9 @@ export async function completeDeck(
 ): Promise<CompletionResult> {
   const target = options.targetSize ?? 99;
   const maxPrice = options.maxPrice;
-  const excludesLower = new Set((options.excludes ?? []).map((x) => x.toLowerCase()));
+  const excludesLower = new Set(
+    (options.excludes ?? []).map((x) => x.toLowerCase()),
+  );
   const excludeGCs = options.excludeGameChangers ?? false;
   const warnings: string[] = [];
   const addedRecs: AddedCard[] = [];
@@ -131,16 +133,21 @@ export async function completeDeck(
   // checking each candidate individually.
   let gameChangers = new Set<string>();
   if (excludeGCs) {
-    const gcResult = await env.DB
-      .prepare(`SELECT card_name FROM magic_game_changers`)
-      .all<{ card_name: string }>();
+    const gcResult = await env.DB.prepare(
+      `SELECT card_name FROM magic_game_changers`,
+    ).all<{ card_name: string }>();
     gameChangers = new Set(
       (gcResult.results ?? []).map((r) => r.card_name.toLowerCase()),
     );
   }
 
   // ── Phase 1: role-gap fill ──────────────────────────────────
-  const compInitial = await assessComposition(env, filled, commander, options.tier);
+  const compInitial = await assessComposition(
+    env,
+    filled,
+    commander,
+    options.tier,
+  );
   const lowRoles = listLowRoles(compInitial);
   if (lowRoles.length === 0 && filled.length < target) {
     warnings.push(
@@ -169,7 +176,12 @@ export async function completeDeck(
       if (excludesLower.has(lower)) continue;
       if (excludeGCs && gameChangers.has(lower)) continue;
       const price = await getCardPrice(env, cand.card_name);
-      if (maxPrice !== undefined && price != null && currentSpend + price > maxPrice) continue;
+      if (
+        maxPrice !== undefined &&
+        price != null &&
+        currentSpend + price > maxPrice
+      )
+        continue;
       filled.push({ card_name: cand.card_name, quantity: 1 });
       inDeck.add(lower);
       addedRecs.push({
@@ -199,7 +211,12 @@ export async function completeDeck(
       if (excludesLower.has(lower)) continue;
       if (excludeGCs && gameChangers.has(lower)) continue;
       const price = await getCardPrice(env, cand.card_name);
-      if (maxPrice !== undefined && price != null && currentSpend + price > maxPrice) continue;
+      if (
+        maxPrice !== undefined &&
+        price != null &&
+        currentSpend + price > maxPrice
+      )
+        continue;
       filled.push({ card_name: cand.card_name, quantity: 1 });
       inDeck.add(lower);
       addedRecs.push({
@@ -299,16 +316,15 @@ async function fetchRecommendationsForRole(
   commanderId: string,
   role: string,
 ): Promise<{ card_name: string; inclusion: number }[]> {
-  const result = await env.DB
-    .prepare(
-      `SELECT DISTINCT r.card_name AS card_name, MAX(r.inclusion) AS inclusion
+  const result = await env.DB.prepare(
+    `SELECT DISTINCT r.card_name AS card_name, MAX(r.inclusion) AS inclusion
        FROM magic_edh_recommendations r
        JOIN magic_card_roles cr ON LOWER(r.card_name) = LOWER(cr.front_face_name)
        WHERE r.commander_id = ? AND cr.role = ?
        GROUP BY r.card_name
        ORDER BY inclusion DESC
        LIMIT 100`,
-    )
+  )
     .bind(commanderId, role)
     .all<recRow>();
   return result.results ?? [];
@@ -318,28 +334,34 @@ async function fetchAllRecommendations(
   env: Env,
   commanderId: string,
 ): Promise<{ card_name: string; inclusion: number }[]> {
-  const result = await env.DB
-    .prepare(
-      `SELECT card_name, MAX(inclusion) AS inclusion
+  const result = await env.DB.prepare(
+    `SELECT card_name, MAX(inclusion) AS inclusion
        FROM magic_edh_recommendations
        WHERE commander_id = ?
        GROUP BY card_name
        ORDER BY inclusion DESC
        LIMIT 200`,
-    )
+  )
     .bind(commanderId)
     .all<recRow>();
   return result.results ?? [];
 }
 
-async function getCardPrice(env: Env, cardName: string): Promise<number | null> {
+async function getCardPrice(
+  env: Env,
+  cardName: string,
+): Promise<number | null> {
   const r = await resolveCardPrices(env, [cardName]);
   return r.prices.get(cardName.toLowerCase())?.price ?? null;
 }
 
-async function loadColorIdentity(env: Env, commanderId: string): Promise<string[]> {
-  const result = await env.DB
-    .prepare(`SELECT color_identity FROM magic_edh_commanders WHERE scryfall_id = ?`)
+async function loadColorIdentity(
+  env: Env,
+  commanderId: string,
+): Promise<string[]> {
+  const result = await env.DB.prepare(
+    `SELECT color_identity FROM magic_edh_commanders WHERE scryfall_id = ?`,
+  )
     .bind(commanderId)
     .all<commanderColorRow>();
   const row = result.results?.[0];
@@ -401,7 +423,10 @@ async function countColoredSources(
     // the well-known basic names always produce their color.
     const basicColor = basicMap[entry.card_name];
     if (basicColor) {
-      sources.set(basicColor, (sources.get(basicColor) ?? 0) + (entry.quantity ?? 1));
+      sources.set(
+        basicColor,
+        (sources.get(basicColor) ?? 0) + (entry.quantity ?? 1),
+      );
       continue;
     }
     const data = manaMap.get(lower);
@@ -420,7 +445,9 @@ async function countColoredSources(
 async function loadManaData(
   env: Env,
   cardNames: string[],
-): Promise<Map<string, { mana_cost: string; type_line: string; produced_mana: string }>> {
+): Promise<
+  Map<string, { mana_cost: string; type_line: string; produced_mana: string }>
+> {
   const out = new Map<
     string,
     { mana_cost: string; type_line: string; produced_mana: string }
@@ -430,12 +457,11 @@ async function loadManaData(
   for (let i = 0; i < cardNames.length; i += CHUNK) {
     const slice = cardNames.slice(i, i + CHUNK);
     const placeholders = slice.map(() => "?").join(",");
-    const result = await env.DB
-      .prepare(
-        `SELECT front_face_name, mana_cost, type_line, produced_mana
+    const result = await env.DB.prepare(
+      `SELECT front_face_name, mana_cost, type_line, produced_mana
          FROM magic_cards
          WHERE LOWER(front_face_name) IN (${placeholders}) AND is_default = 1`,
-      )
+    )
       .bind(...slice.map((n) => n.toLowerCase()))
       .all<manaRow>();
     for (const row of result.results ?? []) {

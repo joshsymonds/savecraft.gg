@@ -298,7 +298,7 @@ export function getWeights(pickNumber: number): WeightSet {
   const synergy = smoothWeight(pickNumber, 0.05, 0.28, 18, 5);
   const role = smoothWeight(pickNumber, 0.05, 0.22, 20, 4);
   const curve = smoothWeight(pickNumber, 0.03, 0.13, 22, 5);
-  const castability = smoothWeight(pickNumber, 0.02, 0.10, 25, 4);
+  const castability = smoothWeight(pickNumber, 0.02, 0.1, 25, 4);
   const signal = smoothWeight(pickNumber, 0.25, 0.05, 12, 4);
   const colorCommitment = smoothWeight(pickNumber, 0.03, 0.05, 21, 6);
   const opportunityCost = smoothWeight(pickNumber, 0.02, 0.12, 24, 4);
@@ -357,7 +357,8 @@ export function computeColorCommitment(
   const pipCounts: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   for (const card of poolMeta) {
     for (const [color, count] of countPips(card.mana_cost)) {
-      if (color in pipCounts) pipCounts[color] = (pipCounts[color] ?? 0) + count;
+      if (color in pipCounts)
+        pipCounts[color] = (pipCounts[color] ?? 0) + count;
     }
   }
 
@@ -408,10 +409,7 @@ export function deriveArchetypeWeights(
     } else if (combo.length === 2) {
       const cA = commitments.get(combo[0]!) ?? 0;
       const cB = commitments.get(combo[1]!) ?? 0;
-      raw =
-        cA * cB +
-        OPEN_BONUS * (1 - cA) * cB +
-        OPEN_BONUS * cA * (1 - cB);
+      raw = cA * cB + OPEN_BONUS * (1 - cA) * cB + OPEN_BONUS * cA * (1 - cB);
     } else {
       raw = 1;
       for (const c of combo) {

@@ -81,22 +81,17 @@ export async function assessBracket(
 
   const [gcRes, comboRes, mldRes, extraTurnRes] = await Promise.all([
     env.DB.prepare(`SELECT card_name FROM magic_game_changers`).all<namedRow>(),
-    env.DB
-      .prepare(
-        `SELECT combo_id, card_names, results FROM magic_edh_combos WHERE commander_id = ?`,
-      )
+    env.DB.prepare(
+      `SELECT combo_id, card_names, results FROM magic_edh_combos WHERE commander_id = ?`,
+    )
       .bind(commander.scryfall_id)
       .all<comboRow>(),
-    env.DB
-      .prepare(
-        `SELECT DISTINCT front_face_name FROM magic_card_roles WHERE role = 'land_destruction'`,
-      )
-      .all<roleRow>(),
-    env.DB
-      .prepare(
-        `SELECT DISTINCT front_face_name FROM magic_card_roles WHERE role = 'extra_turn'`,
-      )
-      .all<roleRow>(),
+    env.DB.prepare(
+      `SELECT DISTINCT front_face_name FROM magic_card_roles WHERE role = 'land_destruction'`,
+    ).all<roleRow>(),
+    env.DB.prepare(
+      `SELECT DISTINCT front_face_name FROM magic_card_roles WHERE role = 'extra_turn'`,
+    ).all<roleRow>(),
   ]);
 
   const gcs = (gcRes.results ?? [])
@@ -142,13 +137,17 @@ export async function assessBracket(
       tier = bumpTier(tier, 4);
     }
     reasons.push(
-      `${combos.length} 2-card combo${combos.length > 1 ? "s" : ""} present (${combos.map((c) => c.card_names.join(" + ")).slice(0, 2).join("; ")}${combos.length > 2 ? "; …" : ""}).`,
+      `${combos.length} 2-card combo${combos.length > 1 ? "s" : ""} present (${combos
+        .map((c) => c.card_names.join(" + "))
+        .slice(0, 2)
+        .join("; ")}${combos.length > 2 ? "; …" : ""}).`,
     );
   }
 
   if (mlds.length > 0) {
     tier = bumpTier(tier, 4);
-    const preview = mlds.slice(0, 3).join(", ") + (mlds.length > 3 ? ", …" : "");
+    const preview =
+      mlds.slice(0, 3).join(", ") + (mlds.length > 3 ? ", …" : "");
     reasons.push(
       `Mass land destruction (${preview}); WotC criteria floor at Bracket 4.`,
     );
@@ -177,7 +176,13 @@ export async function assessBracket(
   return {
     tier,
     reasons,
-    rationale: buildRationale(tier, gcs.length, combos.length, mlds.length, extraTurns.length),
+    rationale: buildRationale(
+      tier,
+      gcs.length,
+      combos.length,
+      mlds.length,
+      extraTurns.length,
+    ),
     signals: {
       game_changers: gcs,
       infinite_combos: combos,
@@ -217,7 +222,8 @@ function buildRationale(
   if (tier === 4) {
     const drivers: string[] = [];
     if (mldCount > 0) drivers.push(`mass land destruction (${mldCount})`);
-    if (extraTurnCount >= 2) drivers.push(`extra-turn density (${extraTurnCount})`);
+    if (extraTurnCount >= 2)
+      drivers.push(`extra-turn density (${extraTurnCount})`);
     if (comboCount >= 2) drivers.push(`${comboCount} combos`);
     if (gcCount >= 4) drivers.push(`${gcCount} Game Changers`);
     return `High-power signals: ${drivers.join(", ")}. Bracket 4.`;
@@ -251,7 +257,10 @@ export interface CompositionAssessment {
  * deckbuilding guidelines (Cardsphere, CoolStuffInc, TappedOut). Used as
  * fallback when no tier-average data exists for a commander.
  */
-const COMMUNITY_BENCHMARKS: Record<keyof CompositionAssessment, [number, number]> = {
+const COMMUNITY_BENCHMARKS: Record<
+  keyof CompositionAssessment,
+  [number, number]
+> = {
   lands: [36, 38],
   ramp: [10, 12],
   card_draw: [8, 10],
@@ -328,19 +337,25 @@ export async function assessComposition(
     const qty = entry.quantity ?? 1;
     const roles = roleMap.get(lower) ?? new Set<string>();
     if (roles.has("ramp")) addToBucket(buckets.ramp, entry.card_name, qty);
-    if (roles.has("card_draw")) addToBucket(buckets.card_draw, entry.card_name, qty);
-    if (roles.has("removal")) addToBucket(buckets.removal, entry.card_name, qty);
-    if (roles.has("boardwipe")) addToBucket(buckets.boardwipes, entry.card_name, qty);
+    if (roles.has("card_draw"))
+      addToBucket(buckets.card_draw, entry.card_name, qty);
+    if (roles.has("removal"))
+      addToBucket(buckets.removal, entry.card_name, qty);
+    if (roles.has("boardwipe"))
+      addToBucket(buckets.boardwipes, entry.card_name, qty);
     if (roles.has("tutor")) addToBucket(buckets.tutors, entry.card_name, qty);
-    if (roles.has("win_condition")) addToBucket(buckets.win_conditions, entry.card_name, qty);
+    if (roles.has("win_condition"))
+      addToBucket(buckets.win_conditions, entry.card_name, qty);
     const typeLine = typeMap.get(lower) ?? "";
-    if (typeLine.includes("Land")) addToBucket(buckets.lands, entry.card_name, qty);
+    if (typeLine.includes("Land"))
+      addToBucket(buckets.lands, entry.card_name, qty);
   }
 
   // Resolve targets: tier-derived if commander has a tier average, else
   // fall back to community benchmarks.
   let targets = COMMUNITY_BENCHMARKS;
-  let targetSource: "tier_derived" | "community_benchmark" = "community_benchmark";
+  let targetSource: "tier_derived" | "community_benchmark" =
+    "community_benchmark";
   if (tier) {
     const derived = await deriveTierTargets(env, commander.scryfall_id, tier);
     if (derived) {
@@ -354,7 +369,11 @@ export async function assessComposition(
     ramp: buildRole(buckets.ramp, targets.ramp, targetSource),
     card_draw: buildRole(buckets.card_draw, targets.card_draw, targetSource),
     removal: buildRole(buckets.removal, targets.removal, targetSource),
-    win_conditions: buildRole(buckets.win_conditions, targets.win_conditions, targetSource),
+    win_conditions: buildRole(
+      buckets.win_conditions,
+      targets.win_conditions,
+      targetSource,
+    ),
     boardwipes: buildRole(buckets.boardwipes, targets.boardwipes, targetSource),
     tutors: buildRole(buckets.tutors, targets.tutors, targetSource),
   };
@@ -405,10 +424,9 @@ async function loadRolesForCards(
   for (let i = 0; i < cardNames.length; i += CHUNK) {
     const slice = cardNames.slice(i, i + CHUNK);
     const placeholders = slice.map(() => "?").join(",");
-    const result = await env.DB
-      .prepare(
-        `SELECT DISTINCT front_face_name, role FROM magic_card_roles WHERE LOWER(front_face_name) IN (${placeholders})`,
-      )
+    const result = await env.DB.prepare(
+      `SELECT DISTINCT front_face_name, role FROM magic_card_roles WHERE LOWER(front_face_name) IN (${placeholders})`,
+    )
       .bind(...slice.map((n) => n.toLowerCase()))
       .all<roleLookupRow>();
     for (const row of result.results ?? []) {
@@ -434,10 +452,9 @@ async function loadTypeLinesForCards(
   for (let i = 0; i < cardNames.length; i += CHUNK) {
     const slice = cardNames.slice(i, i + CHUNK);
     const placeholders = slice.map(() => "?").join(",");
-    const result = await env.DB
-      .prepare(
-        `SELECT front_face_name, type_line FROM magic_cards WHERE LOWER(front_face_name) IN (${placeholders}) AND is_default = 1`,
-      )
+    const result = await env.DB.prepare(
+      `SELECT front_face_name, type_line FROM magic_cards WHERE LOWER(front_face_name) IN (${placeholders}) AND is_default = 1`,
+    )
       .bind(...slice.map((n) => n.toLowerCase()))
       .all<typeLineRow>();
     for (const row of result.results ?? []) {
@@ -458,11 +475,10 @@ async function deriveTierTargets(
   commanderId: string,
   tier: string,
 ): Promise<Record<keyof CompositionAssessment, [number, number]> | null> {
-  const tierResult = await env.DB
-    .prepare(
-      `SELECT card_name, category, quantity FROM magic_edh_average_decks_by_tier
+  const tierResult = await env.DB.prepare(
+    `SELECT card_name, category, quantity FROM magic_edh_average_decks_by_tier
        WHERE commander_id = ? AND tier = ?`,
-    )
+  )
     .bind(commanderId, tier)
     .all<tierDeckRow>();
   const tierRows = tierResult.results ?? [];
@@ -698,11 +714,10 @@ async function edhrecOverlapVector(
 ): Promise<number> {
   if (deck.length === 0) return 0;
   const targetTier = tier ?? "budget";
-  const result = await env.DB
-    .prepare(
-      `SELECT card_name FROM magic_edh_average_decks_by_tier
+  const result = await env.DB.prepare(
+    `SELECT card_name FROM magic_edh_average_decks_by_tier
        WHERE commander_id = ? AND tier = ?`,
-    )
+  )
     .bind(commander.scryfall_id, targetTier)
     .all<tierCardRow>();
   const tierCards = result.results ?? [];
@@ -756,11 +771,10 @@ async function loadCMCsForCards(
   for (let i = 0; i < cardNames.length; i += CHUNK) {
     const slice = cardNames.slice(i, i + CHUNK);
     const placeholders = slice.map(() => "?").join(",");
-    const result = await env.DB
-      .prepare(
-        `SELECT front_face_name, cmc, type_line FROM magic_cards
+    const result = await env.DB.prepare(
+      `SELECT front_face_name, cmc, type_line FROM magic_cards
          WHERE LOWER(front_face_name) IN (${placeholders}) AND is_default = 1`,
-      )
+    )
       .bind(...slice.map((n) => n.toLowerCase()))
       .all<cmcRow>();
     for (const row of result.results ?? []) {
@@ -772,4 +786,3 @@ async function loadCMCsForCards(
   }
   return out;
 }
-

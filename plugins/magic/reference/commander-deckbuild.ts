@@ -36,7 +36,6 @@ interface TierDeckRow {
   category: string;
 }
 
-
 interface DeckEntry {
   card_name: string;
   quantity: number;
@@ -140,7 +139,8 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     },
     max_price: {
       type: "number",
-      description: "USD budget ceiling. Determines auto-picked tier and caps single-card and total deck cost.",
+      description:
+        "USD budget ceiling. Determines auto-picked tier and caps single-card and total deck cost.",
     },
     tier: {
       type: "string",
@@ -180,13 +180,17 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     },
   },
 
-  async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
+  async execute(
+    query: Record<string, unknown>,
+    env: Env,
+  ): Promise<ReferenceResult> {
     const commanderQuery = ((query.commander as string) ?? "").trim();
     if (!commanderQuery) {
       return { type: "text", content: "Missing required parameter: commander" };
     }
 
-    const maxPrice = typeof query.max_price === "number" ? query.max_price : undefined;
+    const maxPrice =
+      typeof query.max_price === "number" ? query.max_price : undefined;
 
     let tier: Tier;
     const rawTier = ((query.tier as string) ?? "").trim();
@@ -207,9 +211,8 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         .filter((s) => typeof s === "string")
         .map((s) => s.toLowerCase()),
     );
-    const mustInclude = (Array.isArray(query.must_include)
-      ? (query.must_include as string[])
-      : []
+    const mustInclude = (
+      Array.isArray(query.must_include) ? (query.must_include as string[]) : []
     ).filter((s) => typeof s === "string" && s !== "");
 
     // Default exclude_game_changers: true at budget tier, false elsewhere.
@@ -272,26 +275,24 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
 
     // Load tier metadata + tier deck in parallel.
     const [tierInfoResult, tierDeckResult, gcResult] = await Promise.all([
-      env.DB
-        .prepare(
-          `SELECT tier, avg_price, num_decks_avg, deck_size
+      env.DB.prepare(
+        `SELECT tier, avg_price, num_decks_avg, deck_size
            FROM magic_edh_commander_tiers
            WHERE commander_id = ? AND tier = ?`,
-        )
+      )
         .bind(commanderId, tier)
         .all<TierInfoRow>(),
-      env.DB
-        .prepare(
-          `SELECT card_name, quantity, category
+      env.DB.prepare(
+        `SELECT card_name, quantity, category
            FROM magic_edh_average_decks_by_tier
            WHERE commander_id = ? AND tier = ?`,
-        )
+      )
         .bind(commanderId, tier)
         .all<TierDeckRow>(),
       excludeGameChangers
-        ? env.DB
-            .prepare(`SELECT card_name FROM magic_game_changers`)
-            .all<{ card_name: string }>()
+        ? env.DB.prepare(`SELECT card_name FROM magic_game_changers`).all<{
+            card_name: string;
+          }>()
         : Promise.resolve({ results: [] as { card_name: string }[] }),
     ]);
 
@@ -312,11 +313,13 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     // when not used as a filter.
     const allGameChangersResult = excludeGameChangers
       ? gcResult
-      : await env.DB
-          .prepare(`SELECT card_name FROM magic_game_changers`)
-          .all<{ card_name: string }>();
+      : await env.DB.prepare(`SELECT card_name FROM magic_game_changers`).all<{
+          card_name: string;
+        }>();
     const allGameChangers = new Set(
-      (allGameChangersResult.results ?? []).map((r) => r.card_name.toLowerCase()),
+      (allGameChangersResult.results ?? []).map((r) =>
+        r.card_name.toLowerCase(),
+      ),
     );
 
     // Resolve prices for the tier deck + must_include cards.
@@ -351,7 +354,10 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         resolved.price > maxPrice / 2 &&
         c.category !== "Land"
       ) {
-        dropped.push({ card_name: c.card_name, reason: "single_card_too_expensive" });
+        dropped.push({
+          card_name: c.card_name,
+          reason: "single_card_too_expensive",
+        });
         continue;
       }
       filtered.push(c);
@@ -377,7 +383,9 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     const slotsTarget = tierInfo.deck_size;
 
     // Pin must_include first — these are user intent and override budget.
-    const mustIncludeLowerSet = new Set(mustInclude.map((m) => m.toLowerCase()));
+    const mustIncludeLowerSet = new Set(
+      mustInclude.map((m) => m.toLowerCase()),
+    );
     for (const m of mustInclude) {
       const lower = m.toLowerCase();
       const resolved = priceByLower.get(lower);
@@ -403,7 +411,10 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
 
       if (effectiveCap !== undefined && price != null) {
         if (runningTotal + cost > effectiveCap) {
-          dropped.push({ card_name: c.card_name, reason: "would_exceed_budget" });
+          dropped.push({
+            card_name: c.card_name,
+            reason: "would_exceed_budget",
+          });
           continue;
         }
       }
@@ -424,7 +435,10 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     // color identity. Heuristic — works well for budget tier where the
     // tier average's land list still includes shocks/duals that bust the
     // cap on small budgets.
-    const colorIdentity = safeParseJSON<string[]>(commanderRow.color_identity, []);
+    const colorIdentity = safeParseJSON<string[]>(
+      commanderRow.color_identity,
+      [],
+    );
     const manaBaseSubs: { out: string; in: string; saved: number }[] = [];
     if (maxPrice !== undefined && colorIdentity.length > 0) {
       const landCap = maxPrice * 0.4;
@@ -448,7 +462,9 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
         `${slotsRemaining} of ${slotsTarget} slots unfilled. Consider raising the budget or relaxing exclude_game_changers.`,
       );
     }
-    const droppedSingle = dropped.filter((d) => d.reason === "single_card_too_expensive");
+    const droppedSingle = dropped.filter(
+      (d) => d.reason === "single_card_too_expensive",
+    );
     if (droppedSingle.length > 0) {
       warnings.push(
         `${droppedSingle.length} cards skipped because their per-card price would exceed half the budget: ${droppedSingle.map((d) => d.card_name).join(", ")}.`,
@@ -477,6 +493,11 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       );
     }
 
+    // M3.2: surface combo / win-condition casualties from budget cuts.
+    warnings.push(
+      ...(await buildStrategicWarnings(env, commanderId, placed, dropped)),
+    );
+
     // priced_at is already aggregated from the price-resolution step.
     const pricedAt = priceLookup.pricedAt;
 
@@ -500,7 +521,10 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
           max_price: maxPrice ?? null,
           mode: budgetMode,
           total_price: runningTotal,
-          remaining: maxPrice !== undefined ? Math.round((maxPrice - runningTotal) * 100) / 100 : null,
+          remaining:
+            maxPrice !== undefined
+              ? Math.round((maxPrice - runningTotal) * 100) / 100
+              : null,
         },
         deck: placed,
         category_breakdown: categoryBreakdown,
@@ -528,7 +552,12 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
  */
 async function runPreconBuild(
   env: Env,
-  commanderRow: { scryfall_id: string; name: string; slug: string; color_identity: string },
+  commanderRow: {
+    scryfall_id: string;
+    name: string;
+    slug: string;
+    color_identity: string;
+  },
   startingPoint: string,
   opts: {
     maxPrice: number | undefined;
@@ -548,16 +577,15 @@ async function runPreconBuild(
   // Resolve precon: explicit slug or auto-pick most-popular MSRP'd precon.
   let preconRow: PreconRow | undefined;
   if (startingPoint === "precon:auto") {
-    const result = await env.DB
-      .prepare(
-        `SELECT p.slug, p.name, p.msrp_usd, p.set_code, p.release_year
+    const result = await env.DB.prepare(
+      `SELECT p.slug, p.name, p.msrp_usd, p.set_code, p.release_year
          FROM magic_edh_precons p
          JOIN magic_edh_precon_commanders pc
            ON pc.precon_slug = p.slug AND pc.commander_name = ? AND pc.is_face = 1
          WHERE p.msrp_usd IS NOT NULL
          ORDER BY pc.deck_count DESC
          LIMIT 1`,
-      )
+    )
       .bind(commanderRow.name)
       .all<PreconRow>();
     preconRow = result.results?.[0];
@@ -575,11 +603,10 @@ async function runPreconBuild(
         content: `Invalid starting_point: "${startingPoint}". Use 'empty', 'precon:auto', or 'precon:<slug>'.`,
       };
     }
-    const result = await env.DB
-      .prepare(
-        `SELECT slug, name, msrp_usd, set_code, release_year
+    const result = await env.DB.prepare(
+      `SELECT slug, name, msrp_usd, set_code, release_year
          FROM magic_edh_precons WHERE slug = ?`,
-      )
+    )
       .bind(slug)
       .all<PreconRow>();
     preconRow = result.results?.[0];
@@ -607,21 +634,19 @@ async function runPreconBuild(
 
   // Fetch decklist + upgrade pool.
   const [deckResult, upgradesResult] = await Promise.all([
-    env.DB
-      .prepare(
-        `SELECT card_name, quantity, category
+    env.DB.prepare(
+      `SELECT card_name, quantity, category
          FROM magic_edh_precon_decks
          WHERE precon_slug = ?`,
-      )
+    )
       .bind(preconRow.slug)
       .all<PreconDeckRow>(),
-    env.DB
-      .prepare(
-        `SELECT card_name, action, inclusion
+    env.DB.prepare(
+      `SELECT card_name, action, inclusion
          FROM magic_edh_precon_upgrades
          WHERE precon_slug = ? AND action IN ('add', 'land_add')
          ORDER BY inclusion DESC`,
-      )
+    )
       .bind(preconRow.slug)
       .all<PreconUpgradeRow>(),
   ]);
@@ -630,9 +655,9 @@ async function runPreconBuild(
   const upgrades = upgradesResult.results ?? [];
 
   // Game changers (always look up for output flagging).
-  const gcResult = await env.DB
-    .prepare(`SELECT card_name FROM magic_game_changers`)
-    .all<{ card_name: string }>();
+  const gcResult = await env.DB.prepare(
+    `SELECT card_name FROM magic_game_changers`,
+  ).all<{ card_name: string }>();
   const allGameChangers = new Set(
     (gcResult.results ?? []).map((r) => r.card_name.toLowerCase()),
   );
@@ -694,7 +719,8 @@ async function runPreconBuild(
     const resolved = priceByLower.get(lower);
     const price = resolved?.price ?? null;
     if (price == null) continue; // can't certify under budget
-    if (effectiveCap !== undefined && runningTotal + price > effectiveCap) continue;
+    if (effectiveCap !== undefined && runningTotal + price > effectiveCap)
+      continue;
     placed.push({
       card_name: u.card_name,
       quantity: 1,
@@ -731,7 +757,10 @@ async function runPreconBuild(
       commander: {
         name: commanderRow.name,
         slug: commanderRow.slug,
-        color_identity: safeParseJSON<string[]>(commanderRow.color_identity, []),
+        color_identity: safeParseJSON<string[]>(
+          commanderRow.color_identity,
+          [],
+        ),
         tier_used: null, // precon path doesn't use tier average
       },
       precon: {
@@ -747,7 +776,10 @@ async function runPreconBuild(
         total_price: runningTotal,
         precon_msrp: msrp,
         upgrade_spend: Math.round((runningTotal - msrp) * 100) / 100,
-        remaining: maxPrice !== undefined ? Math.round((maxPrice - runningTotal) * 100) / 100 : null,
+        remaining:
+          maxPrice !== undefined
+            ? Math.round((maxPrice - runningTotal) * 100) / 100
+            : null,
       },
       deck: placed,
       category_breakdown: categoryBreakdown,
@@ -784,7 +816,12 @@ interface ThemeDeckRow {
  */
 async function runThemeBuild(
   env: Env,
-  commanderRow: { scryfall_id: string; name: string; slug: string; color_identity: string },
+  commanderRow: {
+    scryfall_id: string;
+    name: string;
+    slug: string;
+    color_identity: string;
+  },
   theme: string,
   opts: {
     maxPrice: number | undefined;
@@ -794,7 +831,8 @@ async function runThemeBuild(
     excludeGameChangers: boolean;
   },
 ): Promise<ReferenceResult> {
-  const { maxPrice, excludes, mustInclude, budgetMode, excludeGameChangers } = opts;
+  const { maxPrice, excludes, mustInclude, budgetMode, excludeGameChangers } =
+    opts;
   const commanderId = commanderRow.scryfall_id;
   const effectiveCap =
     maxPrice !== undefined
@@ -804,25 +842,23 @@ async function runThemeBuild(
       : undefined;
 
   const [themeMetaResult, themeDeckResult, gcResult] = await Promise.all([
-    env.DB
-      .prepare(
-        `SELECT theme_slug, theme_value, avg_price, num_decks_avg, deck_size
+    env.DB.prepare(
+      `SELECT theme_slug, theme_value, avg_price, num_decks_avg, deck_size
          FROM magic_edh_commander_theme_meta
          WHERE commander_id = ? AND theme_slug = ?`,
-      )
+    )
       .bind(commanderId, theme)
       .all<ThemeMetaRow>(),
-    env.DB
-      .prepare(
-        `SELECT card_name, quantity, category
+    env.DB.prepare(
+      `SELECT card_name, quantity, category
          FROM magic_edh_average_decks_by_theme
          WHERE commander_id = ? AND theme_slug = ?`,
-      )
+    )
       .bind(commanderId, theme)
       .all<ThemeDeckRow>(),
-    env.DB
-      .prepare(`SELECT card_name FROM magic_game_changers`)
-      .all<{ card_name: string }>(),
+    env.DB.prepare(`SELECT card_name FROM magic_game_changers`).all<{
+      card_name: string;
+    }>(),
   ]);
 
   const themeInfo = themeMetaResult.results?.[0];
@@ -838,7 +874,9 @@ async function runThemeBuild(
   const allGameChangers = new Set(
     (gcResult.results ?? []).map((r) => r.card_name.toLowerCase()),
   );
-  const gameChangerSet = excludeGameChangers ? allGameChangers : new Set<string>();
+  const gameChangerSet = excludeGameChangers
+    ? allGameChangers
+    : new Set<string>();
 
   const allNames = new Set<string>();
   for (const c of themeDeck) allNames.add(c.card_name);
@@ -884,7 +922,11 @@ async function runThemeBuild(
     const resolved = priceByLower.get(lower);
     const price = resolved?.price ?? null;
     const cost = (price ?? 0) * c.quantity;
-    if (effectiveCap !== undefined && price != null && runningTotal + cost > effectiveCap) {
+    if (
+      effectiveCap !== undefined &&
+      price != null &&
+      runningTotal + cost > effectiveCap
+    ) {
       dropped.push({ card_name: c.card_name, reason: "would_exceed_budget" });
       continue;
     }
@@ -923,6 +965,17 @@ async function runThemeBuild(
     );
   }
 
+  // M3.2: surface combo / win-condition casualties from budget cuts on
+  // the theme path.
+  warnings.push(
+    ...(await buildStrategicWarnings(
+      env,
+      commanderRow.scryfall_id,
+      placed,
+      dropped,
+    )),
+  );
+
   const categoryBreakdown: Record<string, number> = {};
   for (const p of placed) {
     categoryBreakdown[p.category] = (categoryBreakdown[p.category] ?? 0) + 1;
@@ -934,7 +987,10 @@ async function runThemeBuild(
       commander: {
         name: commanderRow.name,
         slug: commanderRow.slug,
-        color_identity: safeParseJSON<string[]>(commanderRow.color_identity, []),
+        color_identity: safeParseJSON<string[]>(
+          commanderRow.color_identity,
+          [],
+        ),
         tier_used: null,
       },
       theme_info: {
@@ -949,7 +1005,10 @@ async function runThemeBuild(
         max_price: maxPrice ?? null,
         mode: budgetMode,
         total_price: runningTotal,
-        remaining: maxPrice !== undefined ? Math.round((maxPrice - runningTotal) * 100) / 100 : null,
+        remaining:
+          maxPrice !== undefined
+            ? Math.round((maxPrice - runningTotal) * 100) / 100
+            : null,
       },
       deck: placed,
       category_breakdown: categoryBreakdown,
@@ -982,7 +1041,10 @@ function reallocateManaBase(
   placed: DeckEntry[],
   colorIdentity: string[],
   landCap: number,
-): { substitutions: { out: string; in: string; saved: number }[]; savings: number } {
+): {
+  substitutions: { out: string; in: string; saved: number }[];
+  savings: number;
+} {
   // Compute current land subtotal (only counts lands with known prices).
   const subtotal = placed
     .filter((p) => isLandCategory(p.category) && p.price_usd != null)
@@ -1061,3 +1123,101 @@ function reallocateManaBase(
   return { substitutions: subs, savings: Math.round(savings * 100) / 100 };
 }
 
+interface comboLineRow {
+  combo_id: string;
+  card_names: string;
+  results: string;
+}
+
+interface winConRow {
+  front_face_name: string;
+}
+
+/**
+ * buildStrategicWarnings surfaces budget-cut casualties that hurt the
+ * deck's strategy: combo lines that would have been intact, and explicit
+ * win-condition cards. Per epic Requirement 8 — these warnings name the
+ * dropped card and the affected strategy so the user knows what just
+ * broke.
+ *
+ * Combo logic: a dropped combo piece warns ONLY when every other card in
+ * the combo line is in `placed`. If multiple combo cards were cut at once,
+ * the combo wasn't going to fire anyway — no point naming a "broken"
+ * strategy that wasn't intact even pre-cut.
+ *
+ * Win-condition logic: any dropped card tagged `win_condition` warns,
+ * since these are explicitly the deck's kill conditions and dropping one
+ * narrows the strategy.
+ *
+ * No new code paths in the cut decision itself (M3.2 is warnings-only;
+ * actual prefer-keep swap-in/out is deferred to a future enhancement).
+ */
+async function buildStrategicWarnings(
+  env: Env,
+  commanderId: string,
+  placed: DeckEntry[],
+  dropped: { card_name: string; reason: string }[],
+): Promise<string[]> {
+  const warnings: string[] = [];
+  if (dropped.length === 0) return warnings;
+
+  const placedLower = new Set(placed.map((p) => p.card_name.toLowerCase()));
+  const droppedLower = new Set(dropped.map((d) => d.card_name.toLowerCase()));
+
+  const [comboRes, winConRes] = await Promise.all([
+    env.DB.prepare(
+      `SELECT combo_id, card_names, results FROM magic_edh_combos WHERE commander_id = ?`,
+    )
+      .bind(commanderId)
+      .all<comboLineRow>(),
+    env.DB.prepare(
+      `SELECT DISTINCT front_face_name FROM magic_card_roles WHERE role = 'win_condition'`,
+    ).all<winConRow>(),
+  ]);
+
+  // Combo: walk every combo for the commander, check intact-modulo-this-drop.
+  // De-duplicate on (combo_id, dropped_card) so a combo affecting multiple
+  // dropped cards still warns once per dropped card without flooding.
+  const reportedCombo = new Set<string>();
+  for (const row of comboRes.results ?? []) {
+    const cards = safeParseJSON<string[]>(row.card_names, []);
+    if (cards.length < 2) continue;
+    const cardsLower = cards.map((c) => c.toLowerCase());
+    // Find dropped cards that ARE part of this combo.
+    const droppedFromCombo = cards.filter((c) =>
+      droppedLower.has(c.toLowerCase()),
+    );
+    if (droppedFromCombo.length === 0) continue;
+    // Other combo cards (those NOT dropped) — must all be present in placed
+    // for the combo to have been "intact except for this drop".
+    const otherCards = cardsLower.filter((c) => !droppedLower.has(c));
+    if (otherCards.length === 0) continue; // entire combo was dropped — no intact strategy to break
+    const allOthersPlaced = otherCards.every((c) => placedLower.has(c));
+    if (!allOthersPlaced) continue;
+    for (const dropped of droppedFromCombo) {
+      const key = `${row.combo_id}|${dropped.toLowerCase()}`;
+      if (reportedCombo.has(key)) continue;
+      reportedCombo.add(key);
+      const result = safeParseJSON<string[]>(row.results, []);
+      const resultDesc =
+        result.length > 0 ? ` (combo result: ${result[0]})` : "";
+      warnings.push(
+        `Dropped a combo piece — '${dropped}' was the missing card from a complete combo line in this deck${resultDesc}. Other pieces (${otherCards.join(", ")}) remain. Consider raising the budget to keep the combo intact.`,
+      );
+    }
+  }
+
+  // Win-condition: any dropped card tagged win_condition.
+  const winConSet = new Set(
+    (winConRes.results ?? []).map((r) => r.front_face_name.toLowerCase()),
+  );
+  for (const d of dropped) {
+    if (winConSet.has(d.card_name.toLowerCase())) {
+      warnings.push(
+        `Dropped a win condition: '${d.card_name}' was tagged as a win_condition for this commander's strategy. Consider raising the budget or adjusting filters to keep it.`,
+      );
+    }
+  }
+
+  return warnings;
+}
