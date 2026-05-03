@@ -221,6 +221,50 @@ describe("buildAndUpgradeDeck", () => {
     expect(deckNames.has("HighIncStaple")).toBe(true);
   });
 
+  it("preserves the configured land floor across 1-for-2 swaps", async () => {
+    // Baseline: 100-card precon at the exact land floor (13 nonbasic +
+    // 23 basics = 36 total). Many high-Δ ramp candidates exist as
+    // upgrade targets — 1-for-2 swaps would fire and remove basics.
+    // With landTarget present, the floor must hold.
+    // Many high-Δ ramp candidates so 1-for-2 swaps have ample fuel.
+    await seedRecs(
+      Array.from({ length: 20 }, (_, index) => ({
+        name: `UpgradeRamp${String(index)}`,
+        synergy: 10,
+        inclusion: 1000,
+        price: 0.1,
+        roles: ["ramp"],
+      })),
+    );
+    // 23 basics + 13 nonbasic-land placeholders + 63 cheap spells +
+    // commander = 100. The basic-land names are real ("Forest"); the
+    // nonbasics use a "DualLand" prefix so the test can identify them.
+    const precon: DeckEntry[] = [
+      { card_name: COMMANDER.name, quantity: 1 },
+      { card_name: "Forest", quantity: 23 },
+      ...Array.from({ length: 13 }, (_, index) => ({
+        card_name: `DualLand${String(index)}`,
+        quantity: 1,
+      })),
+      ...Array.from({ length: 63 }, (_, index) => ({
+        card_name: `Filler${String(index)}`,
+        quantity: 1,
+      })),
+    ];
+
+    const result = await buildAndUpgradeDeck(env as unknown as Env, COMMANDER, {
+      budget: 100,
+      precon,
+      landTarget: { totalLandsTarget: 36, nonbasicLandCap: 13 },
+    });
+
+    // Count basic lands in the result. With the floor, basics stays >= 23.
+    const basics = result.deck
+      .filter((entry) => entry.card_name === "Forest")
+      .reduce((sum, entry) => sum + (entry.quantity ?? 1), 0);
+    expect(basics).toBeGreaterThanOrEqual(23);
+  });
+
   it("populates baseline_cost separately from totalCost", async () => {
     await seedRecs([{ name: "BigRamp", synergy: 5, price: 1, roles: ["ramp"] }]);
 

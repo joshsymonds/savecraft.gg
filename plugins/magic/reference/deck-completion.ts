@@ -567,6 +567,13 @@ export interface UpgradeOptions {
    *  The pool is loaded once and re-filtered against the current deck
    *  per iteration — never re-queried. */
   candidatePoolSize?: number;
+  /** Floor on basic-land count maintained across 1-for-2 swaps. Each
+   *  1-for-2 removes a basic to preserve the 100-card total; without a
+   *  floor, ε=0.01 lets many small-Δ swaps accumulate and drop total
+   *  lands well below tier_target_range[0]. Computed by the caller as
+   *  `landTarget.totalLandsTarget − landTarget.nonbasicLandCap`; absent
+   *  → no floor (legacy behavior). */
+  minBasics?: number;
 }
 
 export interface UpgradeStep {
@@ -616,6 +623,7 @@ export async function upgradeDeck(
   const epsilon = options.epsilon ?? 0.01;
   const maxIters = options.maxIterations ?? 50;
   const poolSize = options.candidatePoolSize ?? 50;
+  const minBasics = options.minBasics ?? 0;
   const excludesLower = new Set(
     (options.excludes ?? []).map((s) => s.toLowerCase()),
   );
@@ -680,6 +688,15 @@ export async function upgradeDeck(
     ...universeNames,
   ]);
 
+  // Land set across the entire universe (baseline + candidates).
+  // Used when minBasics is configured to keep both swap-out and swap-in
+  // sides from churning the mana base — basics already filtered via
+  // BASIC_LAND_NAMES; this catches nonbasic lands too.
+  const landNames =
+    minBasics > 0
+      ? await loadLandNamesByCardName(env, [...universeNames])
+      : new Set<string>();
+
   // Win-condition tags loaded once (commander-independent).
   const winConditionNames = await loadWinConditionNames(env);
   const reportedKeys = new Set<string>();
@@ -701,6 +718,12 @@ export async function upgradeDeck(
 
     if (filtered.length === 0) break;
 
+    // Exclude commander always. Lands stay in (both swap-out and swap-in)
+    // when minBasics > 0; evaluate1for1 enforces land-for-land matching
+    // so the deck's land COUNT is invariant even as land VARIETY can
+    // upgrade (basic Forest → Wirewood Lodge etc.). Composite swaps
+    // (1-for-2, 2-for-1) already require role tags, which lands never
+    // have, so they implicitly skip lands.
     const swappableNames = deck
       .map((entry) => entry.card_name)
       .filter((name) => name.toLowerCase() !== commanderLower);
@@ -720,6 +743,8 @@ export async function upgradeDeck(
       candByRole,
       deckPrices,
       candidatePrices,
+      minBasics,
+      landNames,
       ctx,
       remaining,
     });
@@ -761,6 +786,15 @@ interface SwapEvalContext {
   candidatePrices: Map<string, number>;
   ctx: ScoringContext;
   remaining: number;
+  /** Floor on basic-land count. 1-for-2 swaps remove a basic; reject
+   *  the swap if the current basic count is at or below the floor. */
+  minBasics: number;
+  /** Lowercased names of any card that's a Land (basic or nonbasic).
+   *  Empty when minBasics=0 (legacy mode). When set, evaluate1for1
+   *  requires both sides of a swap to be on the same side of the
+   *  land/spell boundary — preserving total land count while still
+   *  allowing land-quality upgrades. */
+  landNames: Set<string>;
 }
 
 function findBestSwap(s: SwapEvalContext): UpgradeStep | null {
@@ -775,8 +809,20 @@ function evaluate1for1(
   s: SwapEvalContext,
   best: UpgradeStep | null,
 ): UpgradeStep | null {
+  const enforceLandMatch = s.minBasics > 0;
   for (const cand of s.filtered) {
+    const candIsLand =
+      enforceLandMatch &&
+      (s.landNames.has(cand.card_name.toLowerCase()) ||
+        BASIC_LAND_NAMES.has(cand.card_name));
     for (const xName of s.swappableUnique) {
+      if (enforceLandMatch) {
+        const xLower = xName.toLowerCase();
+        const xIsLand =
+          s.landNames.has(xLower) || BASIC_LAND_NAMES.has(xName);
+        // Preserve land count: only allow land-for-land or spell-for-spell.
+        if (xIsLand !== candIsLand) continue;
+      }
       const xPrice = s.deckPrices.get(xName.toLowerCase()) ?? 0;
       const costChange = cand.price - xPrice;
       if (costChange > s.remaining) continue;
@@ -846,6 +892,9 @@ function evaluate1for2(
   best: UpgradeStep | null,
 ): UpgradeStep | null {
   if (!hasBasicLand(s.deck)) return best;
+  // Land-floor guard: 1-for-2 removes a basic to keep the deck at 100
+  // cards. If basics are already at the floor, no 1-for-2 is allowed.
+  if (countBasicsInDeck(s.deck) <= s.minBasics) return best;
   for (const xName of s.swappableUnique) {
     const xRoles = s.ctx.rolesByCard.get(xName.toLowerCase()) ?? new Set();
     if (xRoles.size === 0) continue;
@@ -926,6 +975,38 @@ async function loadWinConditionNames(env: Env): Promise<Set<string>> {
   return new Set(
     (result.results ?? []).map((r) => r.front_face_name.toLowerCase()),
   );
+}
+
+/**
+ * loadLandNamesByCardName returns lowercased names of cards in `names`
+ * whose `magic_cards.type_line` includes "Land". Chunked at 90 to stay
+ * under D1's bind-parameter ceiling. Only consulted when the upgrade
+ * loop has a configured land floor.
+ */
+async function loadLandNamesByCardName(
+  env: Env,
+  names: string[],
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (names.length === 0) return out;
+  const lowerUnique = [...new Set(names.map((n) => n.toLowerCase()))];
+  const CHUNK = 90;
+  for (let i = 0; i < lowerUnique.length; i += CHUNK) {
+    const slice = lowerUnique.slice(i, i + CHUNK);
+    const placeholders = slice.map(() => "?").join(",");
+    const result = await env.DB.prepare(
+      `SELECT front_face_name FROM magic_cards
+         WHERE LOWER(front_face_name) IN (${placeholders})
+           AND is_default = 1
+           AND type_line LIKE '%Land%'`,
+    )
+      .bind(...slice)
+      .all<{ front_face_name: string }>();
+    for (const row of result.results ?? []) {
+      out.add(row.front_face_name.toLowerCase());
+    }
+  }
+  return out;
 }
 
 export async function loadGameChangers(env: Env): Promise<Set<string>> {
@@ -1054,6 +1135,14 @@ function collectFromRoles(
     }
   }
   return out;
+}
+
+function countBasicsInDeck(deck: DeckEntry[]): number {
+  let count = 0;
+  for (const entry of deck) {
+    if (BASIC_LAND_NAMES.has(entry.card_name)) count += entry.quantity ?? 1;
+  }
+  return count;
 }
 
 function hasBasicLand(deck: DeckEntry[]): boolean {
@@ -1233,6 +1322,16 @@ export async function buildAndUpgradeDeck(
     warnings.push(...mustResult.warnings);
   }
 
+  // Floor on basic-land count = total lands target − tier nonbasic cap.
+  // Without this, ε=0.01 lets many small-Δ 1-for-2 swaps remove basics
+  // until the deck's total land count falls below tier_target_range[0].
+  const minBasics = options.landTarget
+    ? Math.max(
+        0,
+        options.landTarget.totalLandsTarget -
+          options.landTarget.nonbasicLandCap,
+      )
+    : undefined;
   const upgrade = await upgradeDeck(env, baselineDeck, commander, {
     budget: options.budget,
     spent: baselineCost,
@@ -1242,6 +1341,7 @@ export async function buildAndUpgradeDeck(
     epsilon: options.epsilon,
     maxIterations: options.maxIterations,
     candidatePoolSize: options.candidatePoolSize,
+    minBasics,
   });
   warnings.push(...upgrade.warnings);
 
