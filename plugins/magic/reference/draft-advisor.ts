@@ -1205,9 +1205,7 @@ const SPLIT_GAP = 0.05;
 const SPLIT_RUN = 3;
 
 /** Pivot/split/weakness warnings from a sequence of archetype frames. */
-export function generateArchetypeWarnings(
-  frames: ArchetypeFrame[],
-): string[] {
+export function generateArchetypeWarnings(frames: ArchetypeFrame[]): string[] {
   const warnings: string[] = [];
 
   // Initialize sustained primary from the last exploration frame, so we
@@ -1301,7 +1299,8 @@ export function generateArchetypeWarnings(
         splitRunStart = frame.display_label;
         splitArchA = pairA;
         splitArchB = pairB;
-        splitStartPhase = frame.phase === "committed" ? "committed" : "emerging";
+        splitStartPhase =
+          frame.phase === "committed" ? "committed" : "emerging";
         splitRunLength = 1;
       } else {
         // Continue run if it's the same pair of archetypes (in either order)
@@ -1322,7 +1321,8 @@ export function generateArchetypeWarnings(
           splitRunStart = frame.display_label;
           splitArchA = pairA;
           splitArchB = pairB;
-          splitStartPhase = frame.phase === "committed" ? "committed" : "emerging";
+          splitStartPhase =
+            frame.phase === "committed" ? "committed" : "emerging";
           splitRunLength = 1;
         }
       }
@@ -1621,7 +1621,6 @@ export const draftAdvisorModule: NativeReferenceModule = {
       description: "Save UUID. Required when using draft_section.",
     },
   },
-
 
   sectionMappings: [
     {

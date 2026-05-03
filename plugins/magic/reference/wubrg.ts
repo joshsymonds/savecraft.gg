@@ -31,7 +31,10 @@ export function isValidColors(userColors: string): boolean {
  * identity is a subset of `userColors`. The column is expected to hold a
  * plain uppercase string of WUBRG letters (no JSON, no punctuation).
  */
-export function buildSubsetExpr(userColors: string, columnExpr: string): string {
+export function buildSubsetExpr(
+  userColors: string,
+  columnExpr: string,
+): string {
   const toStrip = ALL_COLORS.filter((c) => userColors.includes(c));
   let expr = columnExpr;
   for (const letter of toStrip) {
@@ -45,7 +48,10 @@ export function buildSubsetExpr(userColors: string, columnExpr: string): string 
  * JSON array (e.g. `'["W","U","B","G"]'`). Strips JSON punctuation before
  * stripping the user's allowed color letters.
  */
-export function buildJSONSubsetExpr(userColors: string, columnExpr: string): string {
+export function buildJSONSubsetExpr(
+  userColors: string,
+  columnExpr: string,
+): string {
   // Remove JSON punctuation first so only color letters remain.
   const stripped = `REPLACE(REPLACE(REPLACE(REPLACE(${columnExpr}, '[', ''), ']', ''), '"', ''), ',', '')`;
   return buildSubsetExpr(userColors, stripped);

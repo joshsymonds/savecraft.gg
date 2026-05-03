@@ -126,10 +126,18 @@ async function cardTiming(
   const format = query.format as string | undefined;
 
   if (!set || rawCards.length === 0) {
-    return { type: "text", content: "Error: card_timing requires set and cards parameters." };
+    return {
+      type: "text",
+      content: "Error: card_timing requires set and cards parameters.",
+    };
   }
 
-  const arch = await resolveArchetype(env, "magic_play_card_timing", set, archetype);
+  const arch = await resolveArchetype(
+    env,
+    "magic_play_card_timing",
+    set,
+    archetype,
+  );
 
   const placeholders = rawCards.map(() => "?").join(", ");
   const rows = await env.DB.prepare(
@@ -198,11 +206,16 @@ async function manaEfficiency(
   const set = query.set as string;
   const archetype = (query.archetype as string) ?? "ALL";
   const onPlay = query.on_play === true ? 1 : 0;
-  const turns = ((query.turns as { turn: number; mana_spent: number }[]) ?? []).slice(0, MAX_TURNS);
+  const turns = (
+    (query.turns as { turn: number; mana_spent: number }[]) ?? []
+  ).slice(0, MAX_TURNS);
   const format = query.format as string | undefined;
 
   if (!set || turns.length === 0) {
-    return { type: "text", content: "Error: mana_efficiency requires set and turns parameters." };
+    return {
+      type: "text",
+      content: "Error: mana_efficiency requires set and turns parameters.",
+    };
   }
 
   const arch = await resolveArchetype(env, "magic_play_tempo", set, archetype);
@@ -242,12 +255,16 @@ async function manaEfficiency(
     const baseline = baselineByTurn.get(t.turn);
 
     const bucketWR = row ? wr(row.games_won, row.total_games) : null;
-    const avgWR = baseline ? wr(baseline.games_won, baseline.total_games) : null;
+    const avgWR = baseline
+      ? wr(baseline.games_won, baseline.total_games)
+      : null;
 
     let rating = "—";
     let avgMana: number | null = null;
     if (baseline && baseline.total_games > 0) {
-      avgMana = Math.round((baseline.total_mana_spent / baseline.total_games) * 100) / 100;
+      avgMana =
+        Math.round((baseline.total_mana_spent / baseline.total_games) * 100) /
+        100;
       if (t.mana_spent >= avgMana * 0.9) rating = "Good";
       else if (t.mana_spent >= avgMana * 0.5) rating = "Low";
       else rating = "Wasted";
@@ -292,7 +309,10 @@ async function attackAnalysis(
   const format = query.format as string | undefined;
 
   if (!set || turns.length === 0) {
-    return { type: "text", content: "Error: attack_analysis requires set and turns parameters." };
+    return {
+      type: "text",
+      content: "Error: attack_analysis requires set and turns parameters.",
+    };
   }
 
   const allCreatureNames = new Set<string>();
@@ -318,7 +338,10 @@ async function attackAnalysis(
 
   const combatIndex = new Map<string, CombatRow>();
   for (const r of combatData) {
-    combatIndex.set(`${r.attacker_name}:${r.turn_number}:${r.user_creatures_count}:${r.oppo_creatures_count}:${r.attacked}`, r);
+    combatIndex.set(
+      `${r.attacker_name}:${r.turn_number}:${r.user_creatures_count}:${r.oppo_creatures_count}:${r.attacked}`,
+      r,
+    );
   }
 
   const creaturesWithData = new Set<string>();
@@ -331,10 +354,17 @@ async function attackAnalysis(
 
     const creatureResults = [];
 
-    for (const creature of (t.creatures ?? []).slice(0, MAX_CREATURES_PER_TURN)) {
+    for (const creature of (t.creatures ?? []).slice(
+      0,
+      MAX_CREATURES_PER_TURN,
+    )) {
       const didAttack = attackedSet.has(creature);
-      const attackRow = combatIndex.get(`${creature}:${t.turn}:${userC}:${oppoC}:1`);
-      const holdRow = combatIndex.get(`${creature}:${t.turn}:${userC}:${oppoC}:0`);
+      const attackRow = combatIndex.get(
+        `${creature}:${t.turn}:${userC}:${oppoC}:1`,
+      );
+      const holdRow = combatIndex.get(
+        `${creature}:${t.turn}:${userC}:${oppoC}:0`,
+      );
 
       if (!attackRow && !holdRow) {
         creatureResults.push({
@@ -350,7 +380,9 @@ async function attackAnalysis(
       }
       creaturesWithData.add(creature);
 
-      const attackWR = attackRow ? wr(attackRow.games_won, attackRow.total_games) : 0;
+      const attackWR = attackRow
+        ? wr(attackRow.games_won, attackRow.total_games)
+        : 0;
       const holdWR = holdRow ? wr(holdRow.games_won, holdRow.total_games) : 0;
       const bestAction = attackWR > holdWR ? "attack" : "hold";
       const playerAction = didAttack ? "attacked" : "held";
@@ -398,10 +430,18 @@ async function mulligan(
   const format = query.format as string | undefined;
 
   if (!set || hand.length === 0) {
-    return { type: "text", content: "Error: mulligan requires set and hand parameters." };
+    return {
+      type: "text",
+      content: "Error: mulligan requires set and hand parameters.",
+    };
   }
 
-  const arch = await resolveArchetype(env, "magic_play_mulligan", set, archetype);
+  const arch = await resolveArchetype(
+    env,
+    "magic_play_mulligan",
+    set,
+    archetype,
+  );
 
   const ph = hand.map(() => "?").join(", ");
   const cardRows = await env.DB.prepare(
@@ -422,7 +462,11 @@ async function mulligan(
   // Second pass: resolve unmatched hand cards via alias table.
   const unresolvedHand = hand.filter((n) => !cardInfo.has(n));
   if (unresolvedHand.length > 0) {
-    const aliasRows = await resolveAliases<{ name: string; cmc: number; type_line: string }>(
+    const aliasRows = await resolveAliases<{
+      name: string;
+      cmc: number;
+      type_line: string;
+    }>(
       env.DB,
       unresolvedHand,
       "mc.front_face_name AS name, mc.cmc, mc.type_line",
@@ -452,7 +496,9 @@ async function mulligan(
   }
 
   const avgCMC =
-    nonlandCMCs.length > 0 ? nonlandCMCs.reduce((a, b) => a + b, 0) / nonlandCMCs.length : 0;
+    nonlandCMCs.length > 0
+      ? nonlandCMCs.reduce((a, b) => a + b, 0) / nonlandCMCs.length
+      : 0;
   const cmcBucket = avgCMC < 2.0 ? "low" : avgCMC <= 3.0 ? "mid" : "high";
 
   const keepRow = await env.DB.prepare(
@@ -507,9 +553,19 @@ async function mulligan(
 interface GameSectionAction {
   player: number;
   type: string;
-  cast?: { cardName: string; cardId: number; manaPaid?: { color: string; count: number }[] };
+  cast?: {
+    cardName: string;
+    cardId: number;
+    manaPaid?: { color: string; count: number }[];
+  };
   move?: { cardName: string; cardId: number; moveType: string };
-  damage?: { source: string; sourceId: number; target: string; amount: number; isCombat: boolean };
+  damage?: {
+    source: string;
+    sourceId: number;
+    target: string;
+    amount: number;
+    isCombat: boolean;
+  };
 }
 
 interface GameSectionPermanent {
@@ -542,12 +598,27 @@ interface GameSectionData {
   turns: GameSectionTurn[];
 }
 
-function extractTurnsFromSection(section: GameSectionData, playerSeat: number): TurnInput[] {
+function extractTurnsFromSection(
+  section: GameSectionData,
+  playerSeat: number,
+): TurnInput[] {
   const turnMap = new Map<
     number,
-    { manaSpent: number; cardsPlayed: string[]; creaturesAttacked: string[]; userCreatures: number; oppoCreatures: number }
+    {
+      manaSpent: number;
+      cardsPlayed: string[];
+      creaturesAttacked: string[];
+      userCreatures: number;
+      oppoCreatures: number;
+    }
   >();
-  const landNames = new Set(["Plains", "Island", "Swamp", "Mountain", "Forest"]);
+  const landNames = new Set([
+    "Plains",
+    "Island",
+    "Swamp",
+    "Mountain",
+    "Forest",
+  ]);
 
   for (const turn of section.turns) {
     const existing = turnMap.get(turn.turnNumber) ?? {
@@ -562,7 +633,8 @@ function extractTurnsFromSection(section: GameSectionData, playerSeat: number): 
       if (action.type === "cast" && action.cast) {
         existing.cardsPlayed.push(action.cast.cardName);
         if (action.cast.manaPaid) {
-          for (const mana of action.cast.manaPaid) existing.manaSpent += mana.count;
+          for (const mana of action.cast.manaPaid)
+            existing.manaSpent += mana.count;
         }
       }
       if (
@@ -573,7 +645,11 @@ function extractTurnsFromSection(section: GameSectionData, playerSeat: number): 
       ) {
         existing.cardsPlayed.push(action.move.cardName);
       }
-      if (action.type === "damage" && action.damage?.isCombat && action.damage.amount > 0) {
+      if (
+        action.type === "damage" &&
+        action.damage?.isCombat &&
+        action.damage.amount > 0
+      ) {
         existing.creaturesAttacked.push(action.damage.source);
       }
     }
@@ -657,7 +733,8 @@ async function gameReview(
     if (!userId) {
       return {
         type: "text",
-        content: "Error: match_id lookup requires user_id (provided automatically by MCP context).",
+        content:
+          "Error: match_id lookup requires user_id (provided automatically by MCP context).",
       };
     }
     const loaded = await loadTurnsFromMatchId(matchId, userId, env);
@@ -670,12 +747,18 @@ async function gameReview(
   if (!set || !turns?.length) {
     return {
       type: "text",
-      content: "Error: game_review requires set and (turns OR match_id) parameters.",
+      content:
+        "Error: game_review requires set and (turns OR match_id) parameters.",
     };
   }
 
   turns = turns.slice(0, MAX_TURNS);
-  const arch = await resolveArchetype(env, "magic_play_turn_baselines", set, archetype);
+  const arch = await resolveArchetype(
+    env,
+    "magic_play_turn_baselines",
+    set,
+    archetype,
+  );
 
   const turnNums = turns.map((t) => t.turn);
   const turnPlaceholders = turnNums.map(() => "?").join(", ");
@@ -770,11 +853,18 @@ async function gameReview(
       baseline &&
       baseline.total_attacks_possible > 0
     ) {
-      const avgAttackRate = baseline.total_creatures_attacked / baseline.total_attacks_possible;
+      const avgAttackRate =
+        baseline.total_creatures_attacked / baseline.total_attacks_possible;
       const playerAttackRate =
-        t.user_creatures > 0 ? (t.creatures_attacked?.length ?? 0) / t.user_creatures : 0;
+        t.user_creatures > 0
+          ? (t.creatures_attacked?.length ?? 0) / t.user_creatures
+          : 0;
 
-      if (avgAttackRate > 0.5 && playerAttackRate < 0.2 && t.user_creatures > 0) {
+      if (
+        avgAttackRate > 0.5 &&
+        playerAttackRate < 0.2 &&
+        t.user_creatures > 0
+      ) {
         const attackedCount = t.creatures_attacked?.length ?? 0;
         findings.push({
           turn: t.turn,
@@ -842,7 +932,8 @@ export const playAdvisorModule: NativeReferenceModule = {
     },
     format: {
       type: "string",
-      description: "Game format. Non-PremierDraft formats receive a data source disclaimer.",
+      description:
+        "Game format. Non-PremierDraft formats receive a data source disclaimer.",
     },
     on_play: {
       type: "boolean",
@@ -858,7 +949,8 @@ export const playAdvisorModule: NativeReferenceModule = {
     },
     turns: {
       type: "array",
-      description: "Turn data array for mana_efficiency, attack_analysis, and game_review modes (max 30).",
+      description:
+        "Turn data array for mana_efficiency, attack_analysis, and game_review modes (max 30).",
     },
     match_id: {
       type: "string",
@@ -867,8 +959,10 @@ export const playAdvisorModule: NativeReferenceModule = {
     },
   },
 
-
-  async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
+  async execute(
+    query: Record<string, unknown>,
+    env: Env,
+  ): Promise<ReferenceResult> {
     const mode = String(query.mode ?? "").slice(0, 50);
 
     switch (mode) {

@@ -5,8 +5,8 @@ const ITEM_COLORS: Record<string, string> = {
   // Ores
   "iron-ore": "#8aa0b8",
   "copper-ore": "#d4874e",
-  "coal": "#4a4a4e",
-  "stone": "#b8a880",
+  coal: "#4a4a4e",
+  stone: "#b8a880",
   "uranium-ore": "#5abe5a",
 
   // Plates
@@ -24,10 +24,10 @@ const ITEM_COLORS: Record<string, string> = {
   "processing-unit": "#4a8aea",
   "engine-unit": "#a0a8b0",
   "electric-engine-unit": "#6aaae0",
-  "battery": "#8070a0",
+  battery: "#8070a0",
   "plastic-bar": "#e0e0e0",
-  "sulfur": "#e8d84e",
-  "explosives": "#e85a3a",
+  sulfur: "#e8d84e",
+  explosives: "#e85a3a",
   "low-density-structure": "#e8c84e",
   "rocket-fuel": "#e88840",
   "rocket-control-unit": "#4a8aea",
@@ -42,14 +42,14 @@ const ITEM_COLORS: Record<string, string> = {
   "space-science-pack": "#f0f0f0",
 
   // Fluids
-  "water": "#4090d0",
+  water: "#4090d0",
   "crude-oil": "#303030",
   "heavy-oil": "#8a4020",
   "light-oil": "#d4a040",
   "petroleum-gas": "#60b0a0",
-  "lubricant": "#40a050",
+  lubricant: "#40a050",
   "sulfuric-acid": "#c0b040",
-  "steam": "#c8c8d0",
+  steam: "#c8c8d0",
 };
 
 /** Get an item's flow band color. Uses curated palette with hash fallback. */
@@ -85,4 +85,3 @@ const MODULE_COLORS: Record<string, string> = {
 export function getModuleColor(name: string): string {
   return MODULE_COLORS[name] ?? "#a0a8cc";
 }
-

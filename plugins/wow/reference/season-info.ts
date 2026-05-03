@@ -131,20 +131,22 @@ async function fetchCurrentSeason(env: Env): Promise<CachedSeasonData> {
   const staticNs = `namespace=static-${region}&locale=en_US`;
   let raidInfo: RaidInfo | null = null;
   try {
-    const { data: expansionIndex } = await blizzardFetch<ExpansionIndexResponse>(
-      `${base}/data/wow/journal-expansion/index?${staticNs}`,
-      token,
-    );
+    const { data: expansionIndex } =
+      await blizzardFetch<ExpansionIndexResponse>(
+        `${base}/data/wow/journal-expansion/index?${staticNs}`,
+        token,
+      );
 
     // Latest expansion = highest ID
     const tiers = expansionIndex.tiers ?? [];
     if (tiers.length > 0) {
       const latestExpansion = tiers.reduce((a, b) => (a.id > b.id ? a : b));
 
-      const { data: expansionDetail } = await blizzardFetch<ExpansionDetailResponse>(
-        `${base}/data/wow/journal-expansion/${latestExpansion.id}?${staticNs}`,
-        token,
-      );
+      const { data: expansionDetail } =
+        await blizzardFetch<ExpansionDetailResponse>(
+          `${base}/data/wow/journal-expansion/${latestExpansion.id}?${staticNs}`,
+          token,
+        );
 
       const raids = expansionDetail.raids ?? [];
       raidInfo = {

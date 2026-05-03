@@ -19,9 +19,7 @@ if (!name || !realm || !region) {
 const clientId = process.env["BATTLENET_CLIENT_ID"];
 const clientSecret = process.env["BATTLENET_CLIENT_SECRET"];
 if (!clientId || !clientSecret) {
-  console.error(
-    "Set BATTLENET_CLIENT_ID and BATTLENET_CLIENT_SECRET env vars",
-  );
+  console.error("Set BATTLENET_CLIENT_ID and BATTLENET_CLIENT_SECRET env vars");
   process.exit(1);
 }
 
@@ -78,13 +76,41 @@ async function main() {
   const auth = { Authorization: `Bearer ${token}` };
 
   const blizzardEndpoints: [string, string, string][] = [
-    ["Profile", `${base}/${charPath}?${ns}&locale=en_US`, "blizzard-profile.json"],
-    ["Equipment", `${base}/${charPath}/equipment?${ns}&locale=en_US`, "blizzard-equipment.json"],
-    ["Statistics", `${base}/${charPath}/statistics?${ns}&locale=en_US`, "blizzard-statistics.json"],
-    ["Specializations", `${base}/${charPath}/specializations?${ns}&locale=en_US`, "blizzard-specializations.json"],
-    ["Mythic Keystone", `${base}/${charPath}/mythic-keystone-profile?${ns}&locale=en_US`, "blizzard-mythic-keystone.json"],
-    ["Raids", `${base}/${charPath}/encounters/raids?${ns}&locale=en_US`, "blizzard-raids.json"],
-    ["Professions", `${base}/${charPath}/professions?${ns}&locale=en_US`, "blizzard-professions.json"],
+    [
+      "Profile",
+      `${base}/${charPath}?${ns}&locale=en_US`,
+      "blizzard-profile.json",
+    ],
+    [
+      "Equipment",
+      `${base}/${charPath}/equipment?${ns}&locale=en_US`,
+      "blizzard-equipment.json",
+    ],
+    [
+      "Statistics",
+      `${base}/${charPath}/statistics?${ns}&locale=en_US`,
+      "blizzard-statistics.json",
+    ],
+    [
+      "Specializations",
+      `${base}/${charPath}/specializations?${ns}&locale=en_US`,
+      "blizzard-specializations.json",
+    ],
+    [
+      "Mythic Keystone",
+      `${base}/${charPath}/mythic-keystone-profile?${ns}&locale=en_US`,
+      "blizzard-mythic-keystone.json",
+    ],
+    [
+      "Raids",
+      `${base}/${charPath}/encounters/raids?${ns}&locale=en_US`,
+      "blizzard-raids.json",
+    ],
+    [
+      "Professions",
+      `${base}/${charPath}/professions?${ns}&locale=en_US`,
+      "blizzard-professions.json",
+    ],
   ];
 
   console.log("Blizzard API:");

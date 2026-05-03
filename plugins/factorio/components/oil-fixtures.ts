@@ -56,24 +56,62 @@ export interface OilBalancerResult {
  */
 export const advancedAllPetroleum: OilBalancerResult = {
   stages: [
-    { id: "refinery", recipe: "advanced-oil-processing", machine_type: "oil-refinery", machine_count: 20, power_kw: 8400 },
-    { id: "heavy-cracker", recipe: "heavy-oil-cracking", machine_type: "chemical-plant", machine_count: 5, power_kw: 1050 },
-    { id: "light-cracker", recipe: "light-oil-cracking", machine_type: "chemical-plant", machine_count: 17, power_kw: 3570 },
+    {
+      id: "refinery",
+      recipe: "advanced-oil-processing",
+      machine_type: "oil-refinery",
+      machine_count: 20,
+      power_kw: 8400,
+    },
+    {
+      id: "heavy-cracker",
+      recipe: "heavy-oil-cracking",
+      machine_type: "chemical-plant",
+      machine_count: 5,
+      power_kw: 1050,
+    },
+    {
+      id: "light-cracker",
+      recipe: "light-oil-cracking",
+      machine_type: "chemical-plant",
+      machine_count: 17,
+      power_kw: 3570,
+    },
   ],
   flows: [
     // Raw inputs → refinery
     { source: "input", target: "refinery", fluid: "crude-oil", rate: 2000 },
     { source: "input", target: "refinery", fluid: "water", rate: 1000 },
     // Refinery → cracking
-    { source: "refinery", target: "heavy-cracker", fluid: "heavy-oil", rate: 100 },
-    { source: "refinery", target: "light-cracker", fluid: "light-oil", rate: 255 },
+    {
+      source: "refinery",
+      target: "heavy-cracker",
+      fluid: "heavy-oil",
+      rate: 100,
+    },
+    {
+      source: "refinery",
+      target: "light-cracker",
+      fluid: "light-oil",
+      rate: 255,
+    },
     // Cracking water
     { source: "input", target: "heavy-cracker", fluid: "water", rate: 150 },
     { source: "input", target: "light-cracker", fluid: "water", rate: 510 },
     // Heavy cracker → light (merges with refinery light)
-    { source: "heavy-cracker", target: "light-cracker", fluid: "light-oil", rate: 75 },
+    {
+      source: "heavy-cracker",
+      target: "light-cracker",
+      fluid: "light-oil",
+      rate: 75,
+    },
     // Output
-    { source: "light-cracker", target: "output", fluid: "petroleum-gas", rate: 390 },
+    {
+      source: "light-cracker",
+      target: "output",
+      fluid: "petroleum-gas",
+      rate: 390,
+    },
   ],
   raw_inputs: { "crude-oil": 2000, water: 1660 },
   total_power_kw: 13020,
@@ -87,22 +125,76 @@ export const advancedAllPetroleum: OilBalancerResult = {
  */
 export const advancedWithLubricant: OilBalancerResult = {
   stages: [
-    { id: "refinery", recipe: "advanced-oil-processing", machine_type: "oil-refinery", machine_count: 22, power_kw: 9240 },
-    { id: "heavy-cracker", recipe: "heavy-oil-cracking", machine_type: "chemical-plant", machine_count: 4, power_kw: 840 },
-    { id: "light-cracker", recipe: "light-oil-cracking", machine_type: "chemical-plant", machine_count: 18, power_kw: 3780 },
-    { id: "downstream-lubricant", recipe: "lubricant", machine_type: "chemical-plant", machine_count: 1, power_kw: 210 },
+    {
+      id: "refinery",
+      recipe: "advanced-oil-processing",
+      machine_type: "oil-refinery",
+      machine_count: 22,
+      power_kw: 9240,
+    },
+    {
+      id: "heavy-cracker",
+      recipe: "heavy-oil-cracking",
+      machine_type: "chemical-plant",
+      machine_count: 4,
+      power_kw: 840,
+    },
+    {
+      id: "light-cracker",
+      recipe: "light-oil-cracking",
+      machine_type: "chemical-plant",
+      machine_count: 18,
+      power_kw: 3780,
+    },
+    {
+      id: "downstream-lubricant",
+      recipe: "lubricant",
+      machine_type: "chemical-plant",
+      machine_count: 1,
+      power_kw: 210,
+    },
   ],
   flows: [
     { source: "input", target: "refinery", fluid: "crude-oil", rate: 2200 },
     { source: "input", target: "refinery", fluid: "water", rate: 1100 },
-    { source: "refinery", target: "heavy-cracker", fluid: "heavy-oil", rate: 80 },
-    { source: "refinery", target: "downstream-lubricant", fluid: "heavy-oil", rate: 10 },
-    { source: "refinery", target: "light-cracker", fluid: "light-oil", rate: 270 },
-    { source: "heavy-cracker", target: "light-cracker", fluid: "light-oil", rate: 60 },
+    {
+      source: "refinery",
+      target: "heavy-cracker",
+      fluid: "heavy-oil",
+      rate: 80,
+    },
+    {
+      source: "refinery",
+      target: "downstream-lubricant",
+      fluid: "heavy-oil",
+      rate: 10,
+    },
+    {
+      source: "refinery",
+      target: "light-cracker",
+      fluid: "light-oil",
+      rate: 270,
+    },
+    {
+      source: "heavy-cracker",
+      target: "light-cracker",
+      fluid: "light-oil",
+      rate: 60,
+    },
     { source: "input", target: "heavy-cracker", fluid: "water", rate: 120 },
     { source: "input", target: "light-cracker", fluid: "water", rate: 540 },
-    { source: "downstream-lubricant", target: "output", fluid: "lubricant", rate: 10 },
-    { source: "light-cracker", target: "output", fluid: "petroleum-gas", rate: 390 },
+    {
+      source: "downstream-lubricant",
+      target: "output",
+      fluid: "lubricant",
+      rate: 10,
+    },
+    {
+      source: "light-cracker",
+      target: "output",
+      fluid: "petroleum-gas",
+      rate: 390,
+    },
   ],
   raw_inputs: { "crude-oil": 2200, water: 1860 },
   total_power_kw: 14070,
@@ -117,7 +209,13 @@ export const advancedWithLubricant: OilBalancerResult = {
  */
 export const basicOil: OilBalancerResult = {
   stages: [
-    { id: "refinery", recipe: "basic-oil-processing", machine_type: "oil-refinery", machine_count: 10, power_kw: 4200 },
+    {
+      id: "refinery",
+      recipe: "basic-oil-processing",
+      machine_type: "oil-refinery",
+      machine_count: 10,
+      power_kw: 4200,
+    },
   ],
   flows: [
     { source: "input", target: "refinery", fluid: "crude-oil", rate: 1000 },
@@ -136,7 +234,13 @@ export const basicOil: OilBalancerResult = {
  */
 export const coalLiquefaction: OilBalancerResult = {
   stages: [
-    { id: "refinery", recipe: "coal-liquefaction", machine_type: "oil-refinery", machine_count: 5, power_kw: 2100 },
+    {
+      id: "refinery",
+      recipe: "coal-liquefaction",
+      machine_type: "oil-refinery",
+      machine_count: 5,
+      power_kw: 2100,
+    },
   ],
   flows: [
     { source: "input", target: "refinery", fluid: "coal", rate: 50 },
@@ -156,7 +260,13 @@ export const coalLiquefaction: OilBalancerResult = {
  */
 export const simpleCoalLiquefaction: OilBalancerResult = {
   stages: [
-    { id: "refinery", recipe: "simple-coal-liquefaction", machine_type: "oil-refinery", machine_count: 1, power_kw: 420 },
+    {
+      id: "refinery",
+      recipe: "simple-coal-liquefaction",
+      machine_type: "oil-refinery",
+      machine_count: 1,
+      power_kw: 420,
+    },
   ],
   flows: [
     { source: "input", target: "refinery", fluid: "coal", rate: 2 },
@@ -176,26 +286,68 @@ export const simpleCoalLiquefaction: OilBalancerResult = {
  */
 export const withProductivityModules: OilBalancerResult = {
   stages: [
-    { id: "refinery", recipe: "advanced-oil-processing", machine_type: "oil-refinery", machine_count: 15, power_kw: 26460 },
-    { id: "heavy-cracker", recipe: "heavy-oil-cracking", machine_type: "chemical-plant", machine_count: 3, power_kw: 2646 },
-    { id: "light-cracker", recipe: "light-oil-cracking", machine_type: "chemical-plant", machine_count: 12, power_kw: 10584 },
+    {
+      id: "refinery",
+      recipe: "advanced-oil-processing",
+      machine_type: "oil-refinery",
+      machine_count: 15,
+      power_kw: 26460,
+    },
+    {
+      id: "heavy-cracker",
+      recipe: "heavy-oil-cracking",
+      machine_type: "chemical-plant",
+      machine_count: 3,
+      power_kw: 2646,
+    },
+    {
+      id: "light-cracker",
+      recipe: "light-oil-cracking",
+      machine_type: "chemical-plant",
+      machine_count: 12,
+      power_kw: 10584,
+    },
   ],
   flows: [
     { source: "input", target: "refinery", fluid: "crude-oil", rate: 1650 },
     { source: "input", target: "refinery", fluid: "water", rate: 825 },
-    { source: "refinery", target: "heavy-cracker", fluid: "heavy-oil", rate: 53.6 },
-    { source: "refinery", target: "light-cracker", fluid: "light-oil", rate: 180 },
-    { source: "heavy-cracker", target: "light-cracker", fluid: "light-oil", rate: 42.9 },
+    {
+      source: "refinery",
+      target: "heavy-cracker",
+      fluid: "heavy-oil",
+      rate: 53.6,
+    },
+    {
+      source: "refinery",
+      target: "light-cracker",
+      fluid: "light-oil",
+      rate: 180,
+    },
+    {
+      source: "heavy-cracker",
+      target: "light-cracker",
+      fluid: "light-oil",
+      rate: 42.9,
+    },
     { source: "input", target: "heavy-cracker", fluid: "water", rate: 49.5 },
     { source: "input", target: "light-cracker", fluid: "water", rate: 198 },
-    { source: "light-cracker", target: "output", fluid: "petroleum-gas", rate: 390 },
+    {
+      source: "light-cracker",
+      target: "output",
+      fluid: "petroleum-gas",
+      rate: 390,
+    },
   ],
   raw_inputs: { "crude-oil": 1650, water: 1072.5 },
   total_power_kw: 39690,
   surplus: {},
   config: {
     processing_type: "advanced-oil-processing",
-    modules: ["productivity-module-3", "productivity-module-3", "productivity-module-3"],
+    modules: [
+      "productivity-module-3",
+      "productivity-module-3",
+      "productivity-module-3",
+    ],
   },
 };
 
@@ -207,33 +359,81 @@ export const withProductivityModules: OilBalancerResult = {
 export const withComparison: OilBalancerResult = {
   stages: [
     {
-      id: "refinery", recipe: "advanced-oil-processing", machine_type: "oil-refinery",
-      machine_count: 20, power_kw: 8400,
-      existing: { machine_type: "oil-refinery", count: 10, modules: {}, effective_rate: 55, actual_rate: 50 },
-      deficit_rate: 55, status: "deficit",
+      id: "refinery",
+      recipe: "advanced-oil-processing",
+      machine_type: "oil-refinery",
+      machine_count: 20,
+      power_kw: 8400,
+      existing: {
+        machine_type: "oil-refinery",
+        count: 10,
+        modules: {},
+        effective_rate: 55,
+        actual_rate: 50,
+      },
+      deficit_rate: 55,
+      status: "deficit",
     },
     {
-      id: "heavy-cracker", recipe: "heavy-oil-cracking", machine_type: "chemical-plant",
-      machine_count: 5, power_kw: 1050,
-      existing: { machine_type: "chemical-plant", count: 5, modules: {}, effective_rate: 37.5, actual_rate: 35 },
+      id: "heavy-cracker",
+      recipe: "heavy-oil-cracking",
+      machine_type: "chemical-plant",
+      machine_count: 5,
+      power_kw: 1050,
+      existing: {
+        machine_type: "chemical-plant",
+        count: 5,
+        modules: {},
+        effective_rate: 37.5,
+        actual_rate: 35,
+      },
       status: "sufficient",
     },
     {
-      id: "light-cracker", recipe: "light-oil-cracking", machine_type: "chemical-plant",
-      machine_count: 17, power_kw: 3570,
-      existing: { machine_type: "chemical-plant", count: 25, modules: {}, effective_rate: 125, actual_rate: 120 },
+      id: "light-cracker",
+      recipe: "light-oil-cracking",
+      machine_type: "chemical-plant",
+      machine_count: 17,
+      power_kw: 3570,
+      existing: {
+        machine_type: "chemical-plant",
+        count: 25,
+        modules: {},
+        effective_rate: 125,
+        actual_rate: 120,
+      },
       status: "surplus",
     },
   ],
   flows: [
     { source: "input", target: "refinery", fluid: "crude-oil", rate: 2000 },
     { source: "input", target: "refinery", fluid: "water", rate: 1000 },
-    { source: "refinery", target: "heavy-cracker", fluid: "heavy-oil", rate: 100 },
-    { source: "refinery", target: "light-cracker", fluid: "light-oil", rate: 255 },
+    {
+      source: "refinery",
+      target: "heavy-cracker",
+      fluid: "heavy-oil",
+      rate: 100,
+    },
+    {
+      source: "refinery",
+      target: "light-cracker",
+      fluid: "light-oil",
+      rate: 255,
+    },
     { source: "input", target: "heavy-cracker", fluid: "water", rate: 150 },
     { source: "input", target: "light-cracker", fluid: "water", rate: 510 },
-    { source: "heavy-cracker", target: "light-cracker", fluid: "light-oil", rate: 75 },
-    { source: "light-cracker", target: "output", fluid: "petroleum-gas", rate: 390 },
+    {
+      source: "heavy-cracker",
+      target: "light-cracker",
+      fluid: "light-oil",
+      rate: 75,
+    },
+    {
+      source: "light-cracker",
+      target: "output",
+      fluid: "petroleum-gas",
+      rate: 390,
+    },
   ],
   raw_inputs: { "crude-oil": 2000, water: 1660 },
   total_power_kw: 13020,
@@ -241,8 +441,12 @@ export const withComparison: OilBalancerResult = {
   config: { processing_type: "advanced-oil-processing" },
   bottlenecks: [
     {
-      item: "advanced-oil-processing", recipe: "advanced-oil-processing",
-      needed_rate: 110, existing_rate: 55, actual_rate: 50, diagnosis: "underbuilt",
+      item: "advanced-oil-processing",
+      recipe: "advanced-oil-processing",
+      needed_rate: 110,
+      existing_rate: 55,
+      actual_rate: 50,
+      diagnosis: "underbuilt",
     },
   ],
 };
@@ -253,35 +457,88 @@ export const withComparison: OilBalancerResult = {
 export const withComparisonAllMissing: OilBalancerResult = {
   stages: [
     {
-      id: "refinery", recipe: "advanced-oil-processing", machine_type: "oil-refinery",
-      machine_count: 20, power_kw: 8400, status: "missing",
+      id: "refinery",
+      recipe: "advanced-oil-processing",
+      machine_type: "oil-refinery",
+      machine_count: 20,
+      power_kw: 8400,
+      status: "missing",
     },
     {
-      id: "heavy-cracker", recipe: "heavy-oil-cracking", machine_type: "chemical-plant",
-      machine_count: 5, power_kw: 1050, status: "missing",
+      id: "heavy-cracker",
+      recipe: "heavy-oil-cracking",
+      machine_type: "chemical-plant",
+      machine_count: 5,
+      power_kw: 1050,
+      status: "missing",
     },
     {
-      id: "light-cracker", recipe: "light-oil-cracking", machine_type: "chemical-plant",
-      machine_count: 17, power_kw: 3570, status: "missing",
+      id: "light-cracker",
+      recipe: "light-oil-cracking",
+      machine_type: "chemical-plant",
+      machine_count: 17,
+      power_kw: 3570,
+      status: "missing",
     },
   ],
   flows: [
     { source: "input", target: "refinery", fluid: "crude-oil", rate: 2000 },
     { source: "input", target: "refinery", fluid: "water", rate: 1000 },
-    { source: "refinery", target: "heavy-cracker", fluid: "heavy-oil", rate: 100 },
-    { source: "refinery", target: "light-cracker", fluid: "light-oil", rate: 255 },
+    {
+      source: "refinery",
+      target: "heavy-cracker",
+      fluid: "heavy-oil",
+      rate: 100,
+    },
+    {
+      source: "refinery",
+      target: "light-cracker",
+      fluid: "light-oil",
+      rate: 255,
+    },
     { source: "input", target: "heavy-cracker", fluid: "water", rate: 150 },
     { source: "input", target: "light-cracker", fluid: "water", rate: 510 },
-    { source: "heavy-cracker", target: "light-cracker", fluid: "light-oil", rate: 75 },
-    { source: "light-cracker", target: "output", fluid: "petroleum-gas", rate: 390 },
+    {
+      source: "heavy-cracker",
+      target: "light-cracker",
+      fluid: "light-oil",
+      rate: 75,
+    },
+    {
+      source: "light-cracker",
+      target: "output",
+      fluid: "petroleum-gas",
+      rate: 390,
+    },
   ],
   raw_inputs: { "crude-oil": 2000, water: 1660 },
   total_power_kw: 13020,
   surplus: {},
   config: { processing_type: "advanced-oil-processing" },
   bottlenecks: [
-    { item: "advanced-oil-processing", recipe: "advanced-oil-processing", needed_rate: 20, existing_rate: 0, actual_rate: 0, diagnosis: "missing" },
-    { item: "heavy-oil-cracking", recipe: "heavy-oil-cracking", needed_rate: 5, existing_rate: 0, actual_rate: 0, diagnosis: "missing" },
-    { item: "light-oil-cracking", recipe: "light-oil-cracking", needed_rate: 17, existing_rate: 0, actual_rate: 0, diagnosis: "missing" },
+    {
+      item: "advanced-oil-processing",
+      recipe: "advanced-oil-processing",
+      needed_rate: 20,
+      existing_rate: 0,
+      actual_rate: 0,
+      diagnosis: "missing",
+    },
+    {
+      item: "heavy-oil-cracking",
+      recipe: "heavy-oil-cracking",
+      needed_rate: 5,
+      existing_rate: 0,
+      actual_rate: 0,
+      diagnosis: "missing",
+    },
+    {
+      item: "light-oil-cracking",
+      recipe: "light-oil-cracking",
+      needed_rate: 17,
+      existing_rate: 0,
+      actual_rate: 0,
+      diagnosis: "missing",
+    },
   ],
 };

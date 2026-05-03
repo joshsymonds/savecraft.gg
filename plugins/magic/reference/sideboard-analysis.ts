@@ -72,7 +72,11 @@ function playerWonGame(g: GameResult): boolean {
   return g.winning_seat === g.player_seat;
 }
 
-function computeBO3Stats(games: GameResult[]): { g1Won: boolean; postBoardWins: number; postBoardTotal: number } {
+function computeBO3Stats(games: GameResult[]): {
+  g1Won: boolean;
+  postBoardWins: number;
+  postBoardTotal: number;
+} {
   const g1 = games.find((g) => g.game_number === 1);
   const postBoard = games.filter((g) => g.game_number >= 2);
 
@@ -125,8 +129,12 @@ async function bo3Overview(userId: string, env: Env): Promise<ReferenceResult> {
   const lines: string[] = [];
   lines.push(`Sideboard Analysis — ${bo3Matches.length} best-of-three matches`);
   lines.push("");
-  lines.push(`  Game 1 (pre-board):   ${padLeft(pct(g1Wins, g1Total), 7)}  (${g1Wins}W ${g1Total - g1Wins}L)`);
-  lines.push(`  Games 2/3 (post-board): ${padLeft(pct(postBoardWins, postBoardTotal), 7)}  (${postBoardWins}W ${postBoardTotal - postBoardWins}L)`);
+  lines.push(
+    `  Game 1 (pre-board):   ${padLeft(pct(g1Wins, g1Total), 7)}  (${g1Wins}W ${g1Total - g1Wins}L)`,
+  );
+  lines.push(
+    `  Games 2/3 (post-board): ${padLeft(pct(postBoardWins, postBoardTotal), 7)}  (${postBoardWins}W ${postBoardTotal - postBoardWins}L)`,
+  );
 
   const g1Rate = g1Total > 0 ? g1Wins / g1Total : 0;
   const postRate = postBoardTotal > 0 ? postBoardWins / postBoardTotal : 0;
@@ -135,9 +143,13 @@ async function bo3Overview(userId: string, env: Env): Promise<ReferenceResult> {
   if (Math.abs(delta) < 0.02) {
     lines.push("\n  Post-board performance is roughly even with pre-board.");
   } else if (delta > 0) {
-    lines.push(`\n  Sideboarding improves your win rate by ${(delta * 100).toFixed(1)}pp.`);
+    lines.push(
+      `\n  Sideboarding improves your win rate by ${(delta * 100).toFixed(1)}pp.`,
+    );
   } else {
-    lines.push(`\n  Sideboarding worsens your win rate by ${(Math.abs(delta) * 100).toFixed(1)}pp. Review your sideboard plans.`);
+    lines.push(
+      `\n  Sideboarding worsens your win rate by ${(Math.abs(delta) * 100).toFixed(1)}pp. Review your sideboard plans.`,
+    );
   }
 
   return {
@@ -151,7 +163,8 @@ async function byMatchup(
   format: string | undefined,
   env: Env,
 ): Promise<ReferenceResult> {
-  let query = "SELECT match_id, result, opponent_cards, game_results FROM magic_match_history WHERE user_uuid = ?";
+  let query =
+    "SELECT match_id, result, opponent_cards, game_results FROM magic_match_history WHERE user_uuid = ?";
   const binds: unknown[] = [userId];
   if (format) {
     query += " AND format = ?";
@@ -164,7 +177,11 @@ async function byMatchup(
     .all<MatchRow>();
 
   // Parse all matches and collect arena_ids for batch lookup
-  const parsedMatches: { row: MatchRow; games: GameResult[]; cards: { name: string; arena_id: number }[] }[] = [];
+  const parsedMatches: {
+    row: MatchRow;
+    games: GameResult[];
+    cards: { name: string; arena_id: number }[];
+  }[] = [];
   const allArenaIds: number[] = [];
 
   for (const row of rows.results) {
@@ -215,7 +232,9 @@ async function byMatchup(
     return { type: "text", content: "No best-of-three match history found." };
   }
 
-  const sorted = [...archetypeStats.entries()].sort((a, b) => b[1].matches - a[1].matches);
+  const sorted = [...archetypeStats.entries()].sort(
+    (a, b) => b[1].matches - a[1].matches,
+  );
 
   const lines: string[] = [];
   const header = format
@@ -228,7 +247,10 @@ async function byMatchup(
 
   for (const [archetype, stats] of sorted) {
     const g1Rate = stats.g1_total > 0 ? stats.g1_wins / stats.g1_total : 0;
-    const postRate = stats.post_board_total > 0 ? stats.post_board_wins / stats.post_board_total : 0;
+    const postRate =
+      stats.post_board_total > 0
+        ? stats.post_board_wins / stats.post_board_total
+        : 0;
     const delta = postRate - g1Rate;
     const deltaStr =
       Math.abs(delta) < 0.005
@@ -276,7 +298,8 @@ export const sideboardAnalysisModule: NativeReferenceModule = {
     },
     format: {
       type: "string",
-      description: 'Filter by format (e.g., "Standard"). Used with by_matchup mode.',
+      description:
+        'Filter by format (e.g., "Standard"). Used with by_matchup mode.',
     },
   },
 

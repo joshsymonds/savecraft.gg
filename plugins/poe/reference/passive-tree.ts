@@ -88,9 +88,13 @@ export const passiveTreeModule: NativeReferenceModule = {
     const searchQuery =
       typeof query.query === "string" ? query.query.trim() : undefined;
     const nodeTypeFilter =
-      typeof query.type === "string" ? query.type.trim().toLowerCase() : undefined;
+      typeof query.type === "string"
+        ? query.type.trim().toLowerCase()
+        : undefined;
     const ascendancy =
-      typeof query.ascendancy === "string" ? query.ascendancy.trim() : undefined;
+      typeof query.ascendancy === "string"
+        ? query.ascendancy.trim()
+        : undefined;
     const limit =
       typeof query.limit === "number"
         ? Math.min(Math.max(query.limit, 1), 100)
@@ -107,7 +111,9 @@ export const passiveTreeModule: NativeReferenceModule = {
     // FTS5 keyword search
     const safeQuery = fts5Safe(searchQuery);
     const ftsResults = await db
-      .prepare("SELECT skill_id FROM poe_passive_nodes_fts WHERE poe_passive_nodes_fts MATCH ? LIMIT ?")
+      .prepare(
+        "SELECT skill_id FROM poe_passive_nodes_fts WHERE poe_passive_nodes_fts MATCH ? LIMIT ?",
+      )
       .bind(safeQuery, MAX_RRF_IDS)
       .all<{ skill_id: number }>();
     let skillIds = ftsResults.results.map((r) => String(r.skill_id));
@@ -132,7 +138,10 @@ export const passiveTreeModule: NativeReferenceModule = {
           }
         }
       } catch (error) {
-        console.warn("Vectorize node query failed, falling back to FTS5-only:", error);
+        console.warn(
+          "Vectorize node query failed, falling back to FTS5-only:",
+          error,
+        );
       }
     }
 
@@ -160,7 +169,9 @@ export const passiveTreeModule: NativeReferenceModule = {
           conditions.push("n.is_mastery = 1");
           break;
         case "small":
-          conditions.push("n.is_notable = 0 AND n.is_keystone = 0 AND n.is_mastery = 0");
+          conditions.push(
+            "n.is_notable = 0 AND n.is_keystone = 0 AND n.is_mastery = 0",
+          );
           break;
       }
     }
@@ -172,7 +183,10 @@ export const passiveTreeModule: NativeReferenceModule = {
 
     bindings.push(limit);
     const sql = `SELECT n.* FROM poe_passive_nodes n WHERE ${conditions.join(" AND ")} LIMIT ?`;
-    const rows = await db.prepare(sql).bind(...bindings).all<PassiveNodeRow>();
+    const rows = await db
+      .prepare(sql)
+      .bind(...bindings)
+      .all<PassiveNodeRow>();
 
     // Re-sort by RRF rank order
     const rowMap = new Map(rows.results.map((r) => [r.skill_id, r]));

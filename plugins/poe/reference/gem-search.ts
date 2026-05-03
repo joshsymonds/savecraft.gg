@@ -91,11 +91,13 @@ export const gemSearchModule: NativeReferenceModule = {
     },
     is_support: {
       type: "boolean",
-      description: "Filter to support gems only (true) or active gems only (false).",
+      description:
+        "Filter to support gems only (true) or active gems only (false).",
     },
     color: {
       type: "string",
-      description: "Filter by gem color: R (Strength), G (Dexterity), B (Intelligence), W (White).",
+      description:
+        "Filter by gem color: R (Strength), G (Dexterity), B (Intelligence), W (White).",
     },
     limit: {
       type: "number",
@@ -113,7 +115,9 @@ export const gemSearchModule: NativeReferenceModule = {
     const isSupport =
       typeof query.is_support === "boolean" ? query.is_support : undefined;
     const color =
-      typeof query.color === "string" ? query.color.trim().toUpperCase() : undefined;
+      typeof query.color === "string"
+        ? query.color.trim().toUpperCase()
+        : undefined;
     const limit =
       typeof query.limit === "number"
         ? Math.min(Math.max(query.limit, 1), 100)
@@ -130,7 +134,9 @@ export const gemSearchModule: NativeReferenceModule = {
     // FTS5 keyword search
     const safeQuery = fts5Safe(searchQuery);
     const ftsResults = await db
-      .prepare("SELECT gem_id FROM poe_gems_fts WHERE poe_gems_fts MATCH ? LIMIT ?")
+      .prepare(
+        "SELECT gem_id FROM poe_gems_fts WHERE poe_gems_fts MATCH ? LIMIT ?",
+      )
       .bind(safeQuery, MAX_RRF_IDS)
       .all<{ gem_id: string }>();
     let gemIds = ftsResults.results.map((r) => r.gem_id);
@@ -155,7 +161,10 @@ export const gemSearchModule: NativeReferenceModule = {
           }
         }
       } catch (error) {
-        console.warn("Vectorize gem query failed, falling back to FTS5-only:", error);
+        console.warn(
+          "Vectorize gem query failed, falling back to FTS5-only:",
+          error,
+        );
       }
     }
 
@@ -182,7 +191,10 @@ export const gemSearchModule: NativeReferenceModule = {
 
     bindings.push(limit);
     const sql = `SELECT g.* FROM poe_gems g WHERE ${conditions.join(" AND ")} LIMIT ?`;
-    const rows = await db.prepare(sql).bind(...bindings).all<GemRow>();
+    const rows = await db
+      .prepare(sql)
+      .bind(...bindings)
+      .all<GemRow>();
 
     // Re-sort by RRF rank order
     const rowMap = new Map(rows.results.map((r) => [r.gem_id, r]));

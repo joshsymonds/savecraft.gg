@@ -73,20 +73,18 @@ export async function resolveCardPrices(
   const queries = chunks.flatMap((chunk) => {
     const placeholders = chunk.map(() => "?").join(",");
     return [
-      env.DB
-        .prepare(
-          `SELECT card_name, tcgplayer_price AS price_usd, priced_at
+      env.DB.prepare(
+        `SELECT card_name, tcgplayer_price AS price_usd, priced_at
            FROM magic_edh_card_prices
            WHERE card_name IN (${placeholders})`,
-        )
+      )
         .bind(...chunk)
         .all<EdhPriceRow>(),
-      env.DB
-        .prepare(
-          `SELECT name AS card_name, price_usd, reserved
+      env.DB.prepare(
+        `SELECT name AS card_name, price_usd, reserved
            FROM magic_cards
            WHERE is_default = 1 AND name IN (${placeholders})`,
-        )
+      )
         .bind(...chunk)
         .all<ScryPriceRow>(),
     ];
@@ -116,7 +114,10 @@ export async function resolveCardPrices(
           reserved: existing?.reserved ?? false,
         });
       }
-      if (r.priced_at != null && (mostRecent == null || r.priced_at > mostRecent)) {
+      if (
+        r.priced_at != null &&
+        (mostRecent == null || r.priced_at > mostRecent)
+      ) {
         mostRecent = r.priced_at;
       }
     }
@@ -140,11 +141,10 @@ export async function resolveGameChangers(
   for (let i = 0; i < uniqueNames.length; i += CHUNK_SIZE) {
     const chunk = uniqueNames.slice(i, i + CHUNK_SIZE);
     const placeholders = chunk.map(() => "?").join(",");
-    const result = await env.DB
-      .prepare(
-        `SELECT card_name FROM magic_game_changers
+    const result = await env.DB.prepare(
+      `SELECT card_name FROM magic_game_changers
          WHERE card_name IN (${placeholders})`,
-      )
+    )
       .bind(...chunk)
       .all<{ card_name: string }>();
     for (const row of result.results ?? []) {

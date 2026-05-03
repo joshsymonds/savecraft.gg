@@ -6,7 +6,10 @@
  */
 
 import type { Env } from "../../../worker/src/types";
-import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
+import type {
+  NativeReferenceModule,
+  ReferenceResult,
+} from "../../../worker/src/reference/types";
 import { resolveAliases } from "./alias";
 
 interface DeckEntry {
@@ -34,7 +37,8 @@ export const collectionDiffModule: NativeReferenceModule = {
     },
     collection: {
       type: "array",
-      description: "Player's collection: array of {arenaId: number, count: number}.",
+      description:
+        "Player's collection: array of {arenaId: number, count: number}.",
     },
     deck_section: {
       type: "string",
@@ -48,7 +52,6 @@ export const collectionDiffModule: NativeReferenceModule = {
     },
   },
 
-
   sectionMappings: [
     {
       sectionParam: "deck_section",
@@ -61,7 +64,10 @@ export const collectionDiffModule: NativeReferenceModule = {
     },
   ],
 
-  async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
+  async execute(
+    query: Record<string, unknown>,
+    env: Env,
+  ): Promise<ReferenceResult> {
     const deck = (query.deck as DeckEntry[]) ?? [];
     const collection = (query.collection as CollectionEntry[]) ?? [];
 
@@ -77,8 +83,9 @@ export const collectionDiffModule: NativeReferenceModule = {
       for (let i = 0; i < arenaIds.length; i += 50) {
         const chunk = arenaIds.slice(i, i + 50);
         const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
-        const rows = await env.DB
-          .prepare(`SELECT arena_id, front_face_name AS name, rarity FROM magic_cards WHERE arena_id IN (${placeholders})`)
+        const rows = await env.DB.prepare(
+          `SELECT arena_id, front_face_name AS name, rarity FROM magic_cards WHERE arena_id IN (${placeholders})`,
+        )
           .bind(...chunk)
           .all<{ arena_id: number; name: string; rarity: string }>();
 
@@ -102,8 +109,9 @@ export const collectionDiffModule: NativeReferenceModule = {
     for (let i = 0; i < missingNames.length; i += 50) {
       const chunk = missingNames.slice(i, i + 50);
       const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
-      const rows = await env.DB
-        .prepare(`SELECT front_face_name AS name, rarity FROM magic_cards WHERE is_default = 1 AND front_face_name COLLATE NOCASE IN (${placeholders})`)
+      const rows = await env.DB.prepare(
+        `SELECT front_face_name AS name, rarity FROM magic_cards WHERE is_default = 1 AND front_face_name COLLATE NOCASE IN (${placeholders})`,
+      )
         .bind(...chunk)
         .all<{ name: string; rarity: string }>();
       for (const row of rows.results) {
@@ -128,7 +136,14 @@ export const collectionDiffModule: NativeReferenceModule = {
 
     // Compute diff
     const missing: Array<{ name: string; count: number; rarity: string }> = [];
-    const wildcardCost = { common: 0, uncommon: 0, rare: 0, mythic: 0, unknown: 0, total: 0 };
+    const wildcardCost = {
+      common: 0,
+      uncommon: 0,
+      rare: 0,
+      mythic: 0,
+      unknown: 0,
+      total: 0,
+    };
     const unresolvedCards: string[] = [];
 
     for (const entry of deck) {
@@ -147,11 +162,21 @@ export const collectionDiffModule: NativeReferenceModule = {
       missing.push({ name: entry.name, count: need, rarity });
 
       switch (rarity) {
-        case "common": wildcardCost.common += need; break;
-        case "uncommon": wildcardCost.uncommon += need; break;
-        case "rare": wildcardCost.rare += need; break;
-        case "mythic": wildcardCost.mythic += need; break;
-        case "unknown": wildcardCost.unknown += need; break;
+        case "common":
+          wildcardCost.common += need;
+          break;
+        case "uncommon":
+          wildcardCost.uncommon += need;
+          break;
+        case "rare":
+          wildcardCost.rare += need;
+          break;
+        case "mythic":
+          wildcardCost.mythic += need;
+          break;
+        case "unknown":
+          wildcardCost.unknown += need;
+          break;
       }
       wildcardCost.total += need;
     }

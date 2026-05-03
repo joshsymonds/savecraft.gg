@@ -221,13 +221,16 @@ export const modSearchModule: NativeReferenceModule = {
       conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
     // Fetch extra rows for post-query item_class filtering and grouping.
-    const sqlLimit = (itemClass ? limit * 10 : limit * 5);
+    const sqlLimit = itemClass ? limit * 10 : limit * 5;
 
     const sql = `SELECT m.* FROM poe_mods m INNER JOIN poe_mods_fts fts ON m.mod_id = fts.mod_id AND fts.poe_mods_fts MATCH ? ${whereClause} ORDER BY fts.rank LIMIT ?`;
     bindings.unshift(safeQuery);
     bindings.push(sqlLimit);
 
-    const rows = await db.prepare(sql).bind(...bindings).all<ModRow>();
+    const rows = await db
+      .prepare(sql)
+      .bind(...bindings)
+      .all<ModRow>();
 
     // Apply item_class filter in JS.
     let results = rows.results;

@@ -49,7 +49,11 @@ async function fetchAbilities(
        ORDER BY encounter_id, id`,
     )
     .bind(...encounterIds)
-    .all<{ encounter_id: number; ability_name: string; ability_description: string | null }>();
+    .all<{
+      encounter_id: number;
+      ability_name: string;
+      ability_description: string | null;
+    }>();
 
   const map = new Map<number, AbilityRow[]>();
   for (const row of rows.results) {

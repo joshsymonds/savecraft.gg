@@ -259,7 +259,9 @@ type LeagueResolution =
   | { readonly ok: true; readonly league: string }
   | { readonly ok: false; readonly message: string };
 
-async function resolveLeague(supplied: string | undefined): Promise<LeagueResolution> {
+async function resolveLeague(
+  supplied: string | undefined,
+): Promise<LeagueResolution> {
   let state: IndexState | null;
   try {
     state = await fetchIndexState();
@@ -284,10 +286,7 @@ async function resolveLeague(supplied: string | undefined): Promise<LeagueResolu
     return { ok: true, league: state.economyLeagues[0]!.name };
   }
 
-  const valid = [
-    ...state.economyLeagues,
-    ...(state.oldEconomyLeagues ?? []),
-  ];
+  const valid = [...state.economyLeagues, ...(state.oldEconomyLeagues ?? [])];
   if (valid.some((l) => l.name === supplied)) {
     return { ok: true, league: supplied };
   }
@@ -316,9 +315,7 @@ function confidenceFromCount(n: number | undefined): "high" | "low" {
   return (n ?? 0) > 10 ? "high" : "low";
 }
 
-function modTexts(
-  mods: ReadonlyArray<PoeNinjaModifier> | undefined,
-): string[] {
+function modTexts(mods: ReadonlyArray<PoeNinjaModifier> | undefined): string[] {
   return (mods ?? []).map((m) => m.text);
 }
 
@@ -347,9 +344,7 @@ function normalizeItem(
     icon_url: line.icon,
     listings: line.listingCount ?? 0,
     level_required: line.levelRequired,
-    mods: hasMods
-      ? { implicit, explicit, mutated, flavour }
-      : undefined,
+    mods: hasMods ? { implicit, explicit, mutated, flavour } : undefined,
   };
 }
 

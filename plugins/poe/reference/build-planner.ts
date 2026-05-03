@@ -101,10 +101,10 @@ export const buildPlannerModule: NativeReferenceModule = {
     "To drill into WHY a stat has its value (which item, tree node, skill, or pantheon contributes), pass mod_sources with the stat names. The response carries data.statSources keyed by stat with top-N source rows. " +
     "Decomposable stats (return real per-mod rows): Life, EnergyShield, Mana, Armour, Evasion, Strength, Dexterity, Intelligence, resistances, BlockChance, SpellSuppressionChance, LifeRegen, ManaRegen, CritChance, ailment-chance/effect stats, hit-damage component stats — anything stored as a mod against the player's actor. " +
     "Non-decomposable stats (return empty arrays — calc-aggregate / derived): CombinedDPS, TotalDPS, FullDPS, AverageHit, Speed, EHP, MaximumHitTaken variants. PoB computes these from other stats; there is no per-mod attribution to walk. " +
-    "When a player asks why two builds diverge on a damage stat, request the underlying decomposable inputs (crit components, hit-damage adders, conversion mods, gear-source life-as-extra-mana, etc.) — NOT CombinedDPS, which will return []. Aggregate stats serve as quick \"is this build behaving fundamentally differently?\" tells, not as source-decomposable answers. After identifying the divergent mods, re-call compare with buy_similar=true and buy_similar_filters populated from those mods to find replacement gear. " +
-    "Use nearby_categories on a /resolve or /modify call to focus the inline power_report on a specific node type (e.g. nearby_categories=[\"Keystone\"] when the player asks \"any keystone I should grab?\") — pair with audit_categories on a follow-up audit_allocated call to get symmetric remove/add suggestions confined to the same category axis. " +
+    'When a player asks why two builds diverge on a damage stat, request the underlying decomposable inputs (crit components, hit-damage adders, conversion mods, gear-source life-as-extra-mana, etc.) — NOT CombinedDPS, which will return []. Aggregate stats serve as quick "is this build behaving fundamentally differently?" tells, not as source-decomposable answers. After identifying the divergent mods, re-call compare with buy_similar=true and buy_similar_filters populated from those mods to find replacement gear. ' +
+    'Use nearby_categories on a /resolve or /modify call to focus the inline power_report on a specific node type (e.g. nearby_categories=["Keystone"] when the player asks "any keystone I should grab?") — pair with audit_categories on a follow-up audit_allocated call to get symmetric remove/add suggestions confined to the same category axis. ' +
     "When narrating /compare gear diffs, filter to slots where modsSame is false — modsSame:true means no mechanical divergence even when nameSame:false (rare reroll, RELIC/UNIQUE foil flag), so those slots add noise without insight. " +
-    "Each compared socket group carries mainGemLinkCount (link count of the main gem's socket), hostItemMaxLink (largest link on the host item), and hostItemName — read these directly to answer \"is this skill 6-linked?\" instead of re-correlating with sections.gear.items by slot. " +
+    'Each compared socket group carries mainGemLinkCount (link count of the main gem\'s socket), hostItemMaxLink (largest link on the host item), and hostItemName — read these directly to answer "is this skill 6-linked?" instead of re-correlating with sections.gear.items by slot. ' +
     "diffs.tree.allocatedOnlyIn is an array indexed parallel to builds[]; failed builds get [] at their index — index by build position, not buildId. " +
     "Config keys prefixed multiplier (e.g. multiplierRage, multiplierWitheredStackCount, multiplierFrenzyCharges) are user-set knobs the calc reads as inputs; the resulting runtime stats live in offense/defense (Rage, WitherEffect, FrenzyCharges) and may be cap-clamped against gear-derived maxima. Read the runtime stat in offense/defense for the post-calc effect — the config value is what was requested, not what's being applied. " +
     "Every response includes a buildId for follow-up calls.",
@@ -201,14 +201,14 @@ export const buildPlannerModule: NativeReferenceModule = {
       items: { type: "string" },
       description:
         "Restrict node-category ranking to specific PoB types. Use when the player " +
-        "asks specifically about keystones (\"what keystones could I grab?\" → " +
-        "[\"Keystone\"]) or jewel sockets (\"any nearby jewel sockets?\" → " +
-        "[\"JewelSocket\"]). Valid: Normal, Notable, Keystone, Mastery, JewelSocket, " +
+        'asks specifically about keystones ("what keystones could I grab?" → ' +
+        '["Keystone"]) or jewel sockets ("any nearby jewel sockets?" → ' +
+        '["JewelSocket"]). Valid: Normal, Notable, Keystone, Mastery, JewelSocket, ' +
         "ClusterNotable, ClusterSocket. Default [Normal, Notable, Keystone] — broadly " +
         "applicable for general tree exploration. Used by nearby_metrics AND by the " +
         "inline power_report that auto-attaches to every build resolution / modify " +
         "call — passing this on a /resolve or /modify focuses that report on the " +
-        "category the player cares about (e.g. ask \"what's nearby?\" focused on " +
+        'category the player cares about (e.g. ask "what\'s nearby?" focused on ' +
         "keystones without making a separate nearby call).",
     },
     audit_allocated: {
@@ -273,7 +273,7 @@ export const buildPlannerModule: NativeReferenceModule = {
       description:
         "Restrict audit branches to those terminating in specific categories. Use when " +
         "the player wants to focus on a particular kind of cut — e.g. 'are any of my " +
-        "keystones underperforming?' → [\"Keystone\"]. Default empty → no filter " +
+        'keystones underperforming?\' → ["Keystone"]. Default empty → no filter ' +
         "(every branch surfaces, since segmentation already restricts terminals to " +
         "Notable + Keystone). Valid values mirror nearby_categories. Only used with " +
         "audit_allocated.",
@@ -312,9 +312,9 @@ export const buildPlannerModule: NativeReferenceModule = {
         "Constrain the buy_similar trade-search URLs by per-mod thresholds, " +
         "defence ranges, item-level, realm, and listed status. Use when the " +
         "player wants gear matching specific numbers, not just the same name — " +
-        "e.g. \"find me a Belly with at least 90 Life\" → " +
+        'e.g. "find me a Belly with at least 90 Life" → ' +
         "{mods: [{mod_text: '+# to maximum Life', mod_type: 'Explicit', min: 90}]}. " +
-        "Or \"a high-armour chest, ilvl 84+\" → " +
+        'Or "a high-armour chest, ilvl 84+" → ' +
         "{armour_min: 800, ilvl_min: 84}. Filter shape: " +
         "{mods: [{mod_text, mod_type, min, max}], armour_min, evasion_min, " +
         "energy_shield_min, ward_min, ilvl_min, ilvl_max, realm, listed}. " +
@@ -330,8 +330,8 @@ export const buildPlannerModule: NativeReferenceModule = {
       description:
         "Array of stat names to drill into per-modifier sources for. Use when " +
         "explaining WHY a build has a given stat value — e.g. 'why is my Life so low' " +
-        "→ pass [\"Life\"]; 'what's contributing to my crit' → pass [\"CritChance\"]; " +
-        "'walk me through this build's defenses' → pass [\"Armour\",\"Evasion\",\"EnergyShield\",\"Life\"]. " +
+        '→ pass ["Life"]; \'what\'s contributing to my crit\' → pass ["CritChance"]; ' +
+        '\'walk me through this build\'s defenses\' → pass ["Armour","Evasion","EnergyShield","Life"]. ' +
         "Each requested stat returns a top-N list of modifier rows under " +
         "data.statSources[statName], where each row carries source_type " +
         "(Item/Tree/Skill/Pantheon/Spectre/Class/Base), source_name (the " +
@@ -411,7 +411,8 @@ export const buildPlannerModule: NativeReferenceModule = {
       if (!allStrings) {
         return {
           type: "text",
-          content: "Error: mod_sources entries must all be strings (stat names like Life, CombinedDPS, TotalEHP).",
+          content:
+            "Error: mod_sources entries must all be strings (stat names like Life, CombinedDPS, TotalEHP).",
         };
       }
       if (modSources.length > 0) {
@@ -419,10 +420,14 @@ export const buildPlannerModule: NativeReferenceModule = {
       }
     }
     if (modSourcesLimit !== undefined) {
-      if (typeof modSourcesLimit !== "number" || !Number.isInteger(modSourcesLimit)) {
+      if (
+        typeof modSourcesLimit !== "number" ||
+        !Number.isInteger(modSourcesLimit)
+      ) {
         return {
           type: "text",
-          content: "Error: mod_sources_limit must be an integer between 1 and 50.",
+          content:
+            "Error: mod_sources_limit must be an integer between 1 and 50.",
         };
       }
       if (modSourcesLimit < 1 || modSourcesLimit > 50) {
@@ -509,7 +514,7 @@ export const buildPlannerModule: NativeReferenceModule = {
           type: "text",
           content:
             "Error: compare_with must be a JSON array of build URLs or build_ids " +
-            "(e.g. [\"https://pobb.in/abc\", \"def123\"]).",
+            '(e.g. ["https://pobb.in/abc", "def123"]).',
         };
       }
       if (compareWith.length === 0) {
@@ -549,7 +554,10 @@ export const buildPlannerModule: NativeReferenceModule = {
         compareBody.league = league;
       }
       if (buySimilarFilters !== undefined && buySimilarFilters !== null) {
-        if (typeof buySimilarFilters !== "object" || Array.isArray(buySimilarFilters)) {
+        if (
+          typeof buySimilarFilters !== "object" ||
+          Array.isArray(buySimilarFilters)
+        ) {
           return {
             type: "text",
             content:
@@ -574,7 +582,14 @@ export const buildPlannerModule: NativeReferenceModule = {
 
       let response: Response;
       try {
-        response = await pobFetch(pobUrl, "/compare", compareBody, env.POB_API_KEY, sections, statKeys);
+        response = await pobFetch(
+          pobUrl,
+          "/compare",
+          compareBody,
+          env.POB_API_KEY,
+          sections,
+          statKeys,
+        );
       } catch (e) {
         return {
           type: "text",
@@ -795,7 +810,8 @@ export const buildPlannerModule: NativeReferenceModule = {
       }
       // Forward nearby_categories to focus the inline power_report
       // attached to /resolve responses on the requested category set.
-      if (nearbyCategoriesArray) resolveBody.nearby_categories = nearbyCategoriesArray;
+      if (nearbyCategoriesArray)
+        resolveBody.nearby_categories = nearbyCategoriesArray;
       let response: Response;
       try {
         response = await pobFetch(
@@ -853,7 +869,7 @@ export const buildPlannerModule: NativeReferenceModule = {
         return {
           type: "text",
           content:
-            "Error: operations must be a JSON array (e.g. [{\"op\":\"set_level\",\"level\":95}]). Pass it as a real array, not a JSON-encoded string.",
+            'Error: operations must be a JSON array (e.g. [{"op":"set_level","level":95}]). Pass it as a real array, not a JSON-encoded string.',
         };
       }
       if (operations.length === 0) {
@@ -873,7 +889,8 @@ export const buildPlannerModule: NativeReferenceModule = {
           modifyBody.modSourcesLimit = modSourcesLimit;
         }
       }
-      if (nearbyCategoriesArray) modifyBody.nearby_categories = nearbyCategoriesArray;
+      if (nearbyCategoriesArray)
+        modifyBody.nearby_categories = nearbyCategoriesArray;
       let response: Response;
       try {
         response = await pobFetch(

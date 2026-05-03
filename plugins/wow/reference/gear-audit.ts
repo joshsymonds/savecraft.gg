@@ -146,7 +146,8 @@ export const gearAuditModule: NativeReferenceModule = {
   parameters: {
     save_id: {
       type: "string",
-      description: "The player's save UUID. Required to read equipped gear data.",
+      description:
+        "The player's save UUID. Required to read equipped gear data.",
     },
     gear_section: {
       type: "string",
@@ -187,9 +188,10 @@ export const gearAuditModule: NativeReferenceModule = {
       };
     }
 
-    const checks = typeof query.check === "string"
-      ? query.check.split(",").map((c) => c.trim())
-      : ["all"];
+    const checks =
+      typeof query.check === "string"
+        ? query.check.split(",").map((c) => c.trim())
+        : ["all"];
     const checkAll = checks.includes("all");
 
     const issues: AuditIssue[] = [];
@@ -206,9 +208,13 @@ export const gearAuditModule: NativeReferenceModule = {
 
     // Compute summary stats
     const gearItems = gearData.items.filter((i) => !COSMETIC_SLOTS.has(i.slot));
-    const avgIlvl = gearItems.length > 0
-      ? Math.round(gearItems.reduce((sum, i) => sum + i.item_level, 0) / gearItems.length)
-      : 0;
+    const avgIlvl =
+      gearItems.length > 0
+        ? Math.round(
+            gearItems.reduce((sum, i) => sum + i.item_level, 0) /
+              gearItems.length,
+          )
+        : 0;
 
     return {
       type: "structured",

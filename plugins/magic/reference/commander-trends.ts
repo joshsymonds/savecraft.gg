@@ -53,7 +53,8 @@ async function runTrends(
   }
 
   if (mode === "cheapest") {
-    const maxAvgPrice = typeof query.max_avg_price === "number" ? query.max_avg_price : undefined;
+    const maxAvgPrice =
+      typeof query.max_avg_price === "number" ? query.max_avg_price : undefined;
     return runCheapestMode(env, limit, maxAvgPrice);
   }
 
@@ -158,7 +159,9 @@ async function runCheapestMode(
     LIMIT ?
   `;
 
-  const result = await env.DB.prepare(sql).bind(...binds).all<CheapestRow>();
+  const result = await env.DB.prepare(sql)
+    .bind(...binds)
+    .all<CheapestRow>();
   const commanders = (result.results ?? []).map((row) => ({
     scryfall_id: row.scryfall_id,
     name: row.name,
@@ -246,4 +249,3 @@ export const commanderTrendsModule: NativeReferenceModule = {
   },
   execute: runTrends,
 };
-

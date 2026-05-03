@@ -140,7 +140,8 @@ async function byMatchup(
   format: string | undefined,
   env: Env,
 ): Promise<ReferenceResult> {
-  let query = "SELECT match_id, result, opponent_cards FROM magic_match_history WHERE user_uuid = ?";
+  let query =
+    "SELECT match_id, result, opponent_cards FROM magic_match_history WHERE user_uuid = ?";
   const binds: unknown[] = [userId];
   if (format) {
     query += " AND format = ?";
@@ -159,7 +160,10 @@ async function byMatchup(
     };
   }
 
-  const allParsedCards: { matchIdx: number; cards: { name: string; arena_id: number }[] }[] = [];
+  const allParsedCards: {
+    matchIdx: number;
+    cards: { name: string; arena_id: number }[];
+  }[] = [];
   const allArenaIds: number[] = [];
 
   for (let i = 0; i < matches.results.length; i++) {
@@ -185,7 +189,9 @@ async function byMatchup(
     archetypeStats.set(archetype, stats);
   }
 
-  const sorted = [...archetypeStats.entries()].sort((a, b) => b[1].total - a[1].total);
+  const sorted = [...archetypeStats.entries()].sort(
+    (a, b) => b[1].total - a[1].total,
+  );
 
   return {
     type: "structured",
@@ -285,7 +291,6 @@ export const matchStatsModule: NativeReferenceModule = {
       description: "Number of recent matches for trend mode (default 10).",
     },
   },
-
 
   async execute(
     query: Record<string, unknown>,

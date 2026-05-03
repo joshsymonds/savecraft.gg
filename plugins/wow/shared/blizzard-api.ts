@@ -59,7 +59,8 @@ export async function getAppToken(env: Env): Promise<string> {
   }
 
   const tokenUrl =
-    TOKEN_URLS[env.BATTLENET_REGION ?? "us"] ?? "https://oauth.battle.net/token";
+    TOKEN_URLS[env.BATTLENET_REGION ?? "us"] ??
+    "https://oauth.battle.net/token";
 
   const res = await fetch(tokenUrl, {
     method: "POST",
@@ -83,9 +84,7 @@ export async function getAppToken(env: Env): Promise<string> {
     expires_in?: number;
   };
   if (!data.access_token) {
-    throw new BlizzardApiError(
-      "Blizzard token response missing access_token",
-    );
+    throw new BlizzardApiError("Blizzard token response missing access_token");
   }
 
   const expiresInMs = (data.expires_in ?? 86400) * 1000;

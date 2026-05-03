@@ -7,7 +7,10 @@
  */
 
 import type { Env } from "../../../worker/src/types";
-import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
+import type {
+  NativeReferenceModule,
+  ReferenceResult,
+} from "../../../worker/src/reference/types";
 import { fts5Safe } from "../../../worker/src/reference/fts5";
 import { mergeWithRRF } from "../../../worker/src/reference/rrf";
 
@@ -75,48 +78,116 @@ export const cardSearchModule: NativeReferenceModule = {
     "Use `type_exclude` to filter out unwanted card types — e.g. when searching for mana rocks, use type='artifact' with type_exclude=['land','creature'] to exclude Artifact Lands and Artifact Creatures.",
   ].join(" "),
   parameters: {
-    name: { type: "string", description: "Card name search (keyword match via FTS5)." },
-    text: { type: "string", description: "Oracle text search (keyword match via FTS5)." },
-    colors: { type: "string", description: "Color identity filter using WUBRG letters (e.g. 'W', 'BR', 'WUB'). Behavior depends on colors_op. Matches Scryfall c: syntax." },
-    colors_op: { type: "string", description: "Color comparison operator (Scryfall syntax). '>=' (default): contains all specified colors (c>=W includes multicolor). '=': exactly these colors (c=W is mono-white only). '<=': subset of specified (c<=WB includes mono-W, mono-B, Orzhov, and colorless). '<': strict subset. '>': strict superset (must have specified colors plus more)." },
+    name: {
+      type: "string",
+      description: "Card name search (keyword match via FTS5).",
+    },
+    text: {
+      type: "string",
+      description: "Oracle text search (keyword match via FTS5).",
+    },
+    colors: {
+      type: "string",
+      description:
+        "Color identity filter using WUBRG letters (e.g. 'W', 'BR', 'WUB'). Behavior depends on colors_op. Matches Scryfall c: syntax.",
+    },
+    colors_op: {
+      type: "string",
+      description:
+        "Color comparison operator (Scryfall syntax). '>=' (default): contains all specified colors (c>=W includes multicolor). '=': exactly these colors (c=W is mono-white only). '<=': subset of specified (c<=WB includes mono-W, mono-B, Orzhov, and colorless). '<': strict subset. '>': strict superset (must have specified colors plus more).",
+    },
     cmc: { type: "integer", description: "Converted mana cost filter." },
-    cmc_op: { type: "string", description: "CMC comparison operator: '<=', '=', '>=' (default '=')." },
-    type: { type: "string", description: "Type line substring filter (case-insensitive), e.g. 'creature'." },
-    type_exclude: { type: "array", items: { type: "string" }, description: "Type line substrings to exclude (case-insensitive). Use to filter out unwanted card types, e.g. ['land'] to remove Artifact Lands from artifact searches, or ['land','creature'] to get only non-creature, non-land artifacts." },
-    format: { type: "string", description: "Format legality filter, e.g. 'standard'. Excludes cards that are 'not_legal' in that format." },
-    rarity: { type: "string", description: "Rarity filter: 'common', 'uncommon', 'rare', 'mythic'." },
+    cmc_op: {
+      type: "string",
+      description: "CMC comparison operator: '<=', '=', '>=' (default '=').",
+    },
+    type: {
+      type: "string",
+      description:
+        "Type line substring filter (case-insensitive), e.g. 'creature'.",
+    },
+    type_exclude: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Type line substrings to exclude (case-insensitive). Use to filter out unwanted card types, e.g. ['land'] to remove Artifact Lands from artifact searches, or ['land','creature'] to get only non-creature, non-land artifacts.",
+    },
+    format: {
+      type: "string",
+      description:
+        "Format legality filter, e.g. 'standard'. Excludes cards that are 'not_legal' in that format.",
+    },
+    rarity: {
+      type: "string",
+      description: "Rarity filter: 'common', 'uncommon', 'rare', 'mythic'.",
+    },
     set: { type: "string", description: "Set code filter, e.g. 'DMU'." },
-    sort: { type: "string", description: "Sort order: 'name' (default) or 'cmc'." },
+    sort: {
+      type: "string",
+      description: "Sort order: 'name' (default) or 'cmc'.",
+    },
     limit: { type: "integer", description: "Max results (default 20)." },
-    include_tokens: { type: "boolean", description: "Include token cards in results (default false). Tokens are excluded by default." },
-    include_alchemy: { type: "boolean", description: "Include Alchemy rebalanced cards (A- prefix) in results (default false). Alchemy cards are excluded by default since they are digital-only variants." },
-    max_price: { type: "number", description: "Max USD price (Scryfall, default printing). Cards with no known price are excluded when this filter is set." },
-    min_price: { type: "number", description: "Min USD price (Scryfall, default printing). Cards with no known price are excluded when this filter is set." },
+    include_tokens: {
+      type: "boolean",
+      description:
+        "Include token cards in results (default false). Tokens are excluded by default.",
+    },
+    include_alchemy: {
+      type: "boolean",
+      description:
+        "Include Alchemy rebalanced cards (A- prefix) in results (default false). Alchemy cards are excluded by default since they are digital-only variants.",
+    },
+    max_price: {
+      type: "number",
+      description:
+        "Max USD price (Scryfall, default printing). Cards with no known price are excluded when this filter is set.",
+    },
+    min_price: {
+      type: "number",
+      description:
+        "Min USD price (Scryfall, default printing). Cards with no known price are excluded when this filter is set.",
+    },
   },
 
-
-  async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
+  async execute(
+    query: Record<string, unknown>,
+    env: Env,
+  ): Promise<ReferenceResult> {
     const name = (query.name as string) ?? "";
     const text = (query.text as string) ?? "";
     const colors = (query.colors as string) ?? "";
     const VALID_COLOR_OPS = [">=", "=", "<=", "<", ">"] as const;
     const rawColorsOp = (query.colors_op as string) || ">=";
-    const colorsOp = (VALID_COLOR_OPS as readonly string[]).includes(rawColorsOp) ? rawColorsOp : ">=";
+    const colorsOp = (VALID_COLOR_OPS as readonly string[]).includes(
+      rawColorsOp,
+    )
+      ? rawColorsOp
+      : ">=";
     const cmc = query.cmc as number | undefined;
     const cmcOp = (query.cmc_op as string) || "=";
     const type = (query.type as string) ?? "";
     const typeExclude: string[] = Array.isArray(query.type_exclude)
-      ? (query.type_exclude as string[]).filter((s) => typeof s === "string" && s !== "")
+      ? (query.type_exclude as string[]).filter(
+          (s) => typeof s === "string" && s !== "",
+        )
       : [];
     const format = (query.format as string) ?? "";
     const rarity = (query.rarity as string) ?? "";
     const set = (query.set as string) ?? "";
     const sortBy = (query.sort as string) || "name";
-    const limit = Math.min(Math.max(typeof query.limit === "number" ? query.limit : DEFAULT_LIMIT, 1), 100);
+    const limit = Math.min(
+      Math.max(
+        typeof query.limit === "number" ? query.limit : DEFAULT_LIMIT,
+        1,
+      ),
+      100,
+    );
     const includeTokens = query.include_tokens === true;
     const includeAlchemy = query.include_alchemy === true;
-    const maxPrice = typeof query.max_price === "number" ? query.max_price : undefined;
-    const minPrice = typeof query.min_price === "number" ? query.min_price : undefined;
+    const maxPrice =
+      typeof query.max_price === "number" ? query.max_price : undefined;
+    const minPrice =
+      typeof query.min_price === "number" ? query.min_price : undefined;
 
     const hasFtsQuery = name !== "" || text !== "";
 
@@ -154,7 +225,10 @@ export const cardSearchModule: NativeReferenceModule = {
               .filter((id) => id !== "");
           }
         } catch (error) {
-          console.warn("Vectorize card query failed, falling back to FTS5-only:", error);
+          console.warn(
+            "Vectorize card query failed, falling back to FTS5-only:",
+            error,
+          );
         }
       }
     }
@@ -184,7 +258,14 @@ export const cardSearchModule: NativeReferenceModule = {
 
     if (colors) {
       const ALL_COLORS = ["W", "U", "B", "R", "G"];
-      const specified = [...new Set(colors.toUpperCase().split("").filter((ch) => ALL_COLORS.includes(ch)))];
+      const specified = [
+        ...new Set(
+          colors
+            .toUpperCase()
+            .split("")
+            .filter((ch) => ALL_COLORS.includes(ch)),
+        ),
+      ];
 
       if (colorsOp === "=" || colorsOp === ">=" || colorsOp === ">") {
         // Must contain all specified colors
@@ -196,10 +277,14 @@ export const cardSearchModule: NativeReferenceModule = {
 
       if (colorsOp === "=") {
         // Exactly these colors — no more, no fewer
-        conditions.push(`json_array_length(c.color_identity) = ${specified.length}`);
+        conditions.push(
+          `json_array_length(c.color_identity) = ${specified.length}`,
+        );
       } else if (colorsOp === ">") {
         // Strict superset — must have extras beyond specified
-        conditions.push(`json_array_length(c.color_identity) > ${specified.length}`);
+        conditions.push(
+          `json_array_length(c.color_identity) > ${specified.length}`,
+        );
       } else if (colorsOp === "<=" || colorsOp === "<") {
         // Every color in card must be in the specified set (colorless [] passes naturally)
         const excluded = ALL_COLORS.filter((ch) => !specified.includes(ch));
@@ -209,7 +294,9 @@ export const cardSearchModule: NativeReferenceModule = {
         }
         if (colorsOp === "<") {
           // Strict subset — must have fewer colors than specified
-          conditions.push(`json_array_length(c.color_identity) < ${specified.length}`);
+          conditions.push(
+            `json_array_length(c.color_identity) < ${specified.length}`,
+          );
         }
       }
     }
@@ -234,7 +321,9 @@ export const cardSearchModule: NativeReferenceModule = {
       // Cards where the format key exists and value is NOT "not_legal"
       conditions.push(`json_extract(c.legalities, ?${paramIdx++}) IS NOT NULL`);
       params.push(`$.${format.toLowerCase()}`);
-      conditions.push(`json_extract(c.legalities, ?${paramIdx++}) != 'not_legal'`);
+      conditions.push(
+        `json_extract(c.legalities, ?${paramIdx++}) != 'not_legal'`,
+      );
       params.push(`$.${format.toLowerCase()}`);
     }
 
@@ -252,15 +341,20 @@ export const cardSearchModule: NativeReferenceModule = {
     // in WHERE), so explicit IS NOT NULL isn't required — but we keep the
     // contract (cards with unknown prices are excluded) explicit for clarity.
     if (maxPrice !== undefined) {
-      conditions.push(`c.price_usd IS NOT NULL AND c.price_usd <= ?${paramIdx++}`);
+      conditions.push(
+        `c.price_usd IS NOT NULL AND c.price_usd <= ?${paramIdx++}`,
+      );
       params.push(maxPrice);
     }
     if (minPrice !== undefined) {
-      conditions.push(`c.price_usd IS NOT NULL AND c.price_usd >= ?${paramIdx++}`);
+      conditions.push(
+        `c.price_usd IS NOT NULL AND c.price_usd >= ?${paramIdx++}`,
+      );
       params.push(minPrice);
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
     // Snapshot structured filter state before adding FTS/LIMIT params.
     // Used by the vector-only query to apply the same filters.
@@ -278,14 +372,16 @@ export const cardSearchModule: NativeReferenceModule = {
       fromClause = `magic_cards c INNER JOIN magic_cards_fts fts ON c.scryfall_id = fts.scryfall_id AND fts.magic_cards_fts MATCH ?${paramIdx++}`;
       params.push(ftsMatchExpr);
 
-      orderClause = sortBy === "cmc"
-        ? "ORDER BY c.cmc ASC, c.name ASC"
-        : "ORDER BY fts.rank, c.name ASC";
+      orderClause =
+        sortBy === "cmc"
+          ? "ORDER BY c.cmc ASC, c.name ASC"
+          : "ORDER BY fts.rank, c.name ASC";
     } else {
       fromClause = "magic_cards c";
-      orderClause = sortBy === "cmc"
-        ? "ORDER BY c.cmc ASC, c.name ASC"
-        : "ORDER BY c.name ASC";
+      orderClause =
+        sortBy === "cmc"
+          ? "ORDER BY c.cmc ASC, c.name ASC"
+          : "ORDER BY c.name ASC";
     }
 
     const sql = `SELECT DISTINCT c.* FROM ${fromClause} ${whereClause} ${orderClause} LIMIT ?${paramIdx}`;

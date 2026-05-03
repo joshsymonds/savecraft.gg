@@ -12,7 +12,10 @@
  */
 
 import type { Env } from "../../../worker/src/types";
-import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
+import type {
+  NativeReferenceModule,
+  ReferenceResult,
+} from "../../../worker/src/reference/types";
 import { buildJSONSubsetExpr, isValidColors } from "./wubrg";
 
 const DEFAULT_LIMIT = 5;
@@ -60,7 +63,8 @@ export const preconLookupModule: NativeReferenceModule = {
   parameters: {
     slug: {
       type: "string",
-      description: "Exact precon slug (e.g. 'breed-lethality'). When set, returns just that precon.",
+      description:
+        "Exact precon slug (e.g. 'breed-lethality'). When set, returns just that precon.",
     },
     commander: {
       type: "string",
@@ -79,11 +83,13 @@ export const preconLookupModule: NativeReferenceModule = {
     },
     include_deck: {
       type: "boolean",
-      description: "Include the full decklist for each returned precon (default true).",
+      description:
+        "Include the full decklist for each returned precon (default true).",
     },
     include_upgrades: {
       type: "boolean",
-      description: "Include the cardstoadd/cardstocut/landstoadd/landstocut pools (default true).",
+      description:
+        "Include the cardstoadd/cardstocut/landstoadd/landstocut pools (default true).",
     },
     limit: {
       type: "integer",
@@ -91,11 +97,15 @@ export const preconLookupModule: NativeReferenceModule = {
     },
   },
 
-  async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
+  async execute(
+    query: Record<string, unknown>,
+    env: Env,
+  ): Promise<ReferenceResult> {
     const slug = ((query.slug as string) ?? "").trim();
     const commander = ((query.commander as string) ?? "").trim();
     const rawColors = (query.colors as string | undefined) ?? undefined;
-    const maxPrice = typeof query.max_price === "number" ? query.max_price : undefined;
+    const maxPrice =
+      typeof query.max_price === "number" ? query.max_price : undefined;
     const includeDeck = query.include_deck !== false;
     const includeUpgrades = query.include_upgrades !== false;
     const limit = Math.max(
@@ -106,12 +116,11 @@ export const preconLookupModule: NativeReferenceModule = {
     let precons: PreconRow[];
 
     if (slug) {
-      const result = await env.DB
-        .prepare(
-          `SELECT slug, name, msrp_usd, set_code, release_year
+      const result = await env.DB.prepare(
+        `SELECT slug, name, msrp_usd, set_code, release_year
            FROM magic_edh_precons
            WHERE slug = ?`,
-        )
+      )
         .bind(slug)
         .all<PreconRow>();
       precons = result.results ?? [];
@@ -125,9 +134,8 @@ export const preconLookupModule: NativeReferenceModule = {
       // JOIN on magic_edh_precon_commanders.commander_name. Order: face
       // commander first, then by EDHREC popularity.
       // LIKE-prefix subsumes equality match — a single param covers both.
-      const result = await env.DB
-        .prepare(
-          `SELECT DISTINCT p.slug, p.name, p.msrp_usd, p.set_code, p.release_year
+      const result = await env.DB.prepare(
+        `SELECT DISTINCT p.slug, p.name, p.msrp_usd, p.set_code, p.release_year
            FROM magic_edh_precons p
            JOIN magic_edh_precon_commanders pc ON pc.precon_slug = p.slug
            WHERE pc.commander_name LIKE ? || '%'
@@ -135,7 +143,7 @@ export const preconLookupModule: NativeReferenceModule = {
                     WHERE precon_slug = p.slug AND commander_name LIKE ? || '%') DESC,
                     p.release_year DESC
            LIMIT ?`,
-        )
+      )
         .bind(commander, commander, limit)
         .all<PreconRow>();
       precons = result.results ?? [];
@@ -167,10 +175,13 @@ export const preconLookupModule: NativeReferenceModule = {
           JOIN magic_edh_commanders cface
             ON cface.name = pcface.commander_name
         `;
-        conditions.push(`${buildJSONSubsetExpr(rawColors.toUpperCase(), "cface.color_identity")} = ''`);
+        conditions.push(
+          `${buildJSONSubsetExpr(rawColors.toUpperCase(), "cface.color_identity")} = ''`,
+        );
       }
 
-      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      const whereClause =
+        conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
       const sql = `
         SELECT p.slug, p.name, p.msrp_usd, p.set_code, p.release_year
         FROM magic_edh_precons p
@@ -181,7 +192,9 @@ export const preconLookupModule: NativeReferenceModule = {
       `;
       binds.push(limit);
 
-      const result = await env.DB.prepare(sql).bind(...binds).all<PreconRow>();
+      const result = await env.DB.prepare(sql)
+        .bind(...binds)
+        .all<PreconRow>();
       precons = result.results ?? [];
     }
 
@@ -196,34 +209,31 @@ export const preconLookupModule: NativeReferenceModule = {
     const slugs = precons.map((p) => p.slug);
     const placeholders = slugs.map(() => "?").join(",");
     const [commandersRes, deckRes, upgradesRes] = await Promise.all([
-      env.DB
-        .prepare(
-          `SELECT precon_slug, commander_name, deck_count, is_face
+      env.DB.prepare(
+        `SELECT precon_slug, commander_name, deck_count, is_face
            FROM magic_edh_precon_commanders
            WHERE precon_slug IN (${placeholders})
            ORDER BY is_face DESC, deck_count DESC`,
-        )
+      )
         .bind(...slugs)
         .all<CommanderRefRow>(),
       includeDeck
-        ? env.DB
-            .prepare(
-              `SELECT precon_slug, card_name, quantity, category
+        ? env.DB.prepare(
+            `SELECT precon_slug, card_name, quantity, category
                FROM magic_edh_precon_decks
                WHERE precon_slug IN (${placeholders})
                ORDER BY category, card_name`,
-            )
+          )
             .bind(...slugs)
             .all<DeckRow>()
         : Promise.resolve({ results: [] as DeckRow[] }),
       includeUpgrades
-        ? env.DB
-            .prepare(
-              `SELECT precon_slug, card_name, action, inclusion
+        ? env.DB.prepare(
+            `SELECT precon_slug, card_name, action, inclusion
                FROM magic_edh_precon_upgrades
                WHERE precon_slug IN (${placeholders})
                ORDER BY action, inclusion DESC`,
-            )
+          )
             .bind(...slugs)
             .all<UpgradeRow>()
         : Promise.resolve({ results: [] as UpgradeRow[] }),
@@ -278,7 +288,10 @@ export const preconLookupModule: NativeReferenceModule = {
       }
 
       if (includeUpgrades) {
-        const grouped: Record<string, { card_name: string; inclusion: number }[]> = {
+        const grouped: Record<
+          string,
+          { card_name: string; inclusion: number }[]
+        > = {
           add: [],
           cut: [],
           land_add: [],

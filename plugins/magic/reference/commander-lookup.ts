@@ -12,7 +12,10 @@
  */
 
 import type { Env } from "../../../worker/src/types";
-import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
+import type {
+  NativeReferenceModule,
+  ReferenceResult,
+} from "../../../worker/src/reference/types";
 import { safeParseJSON } from "../../../worker/src/reference/json";
 import { resolveCommander, type EdhCommanderRow } from "./commander-resolve";
 
@@ -62,7 +65,8 @@ export const commanderLookupModule: NativeReferenceModule = {
   parameters: {
     commander: {
       type: "string",
-      description: "Commander name (fuzzy match). Required. Examples: 'Atraxa', 'Muldrotha the Gravetide', 'Korvold'.",
+      description:
+        "Commander name (fuzzy match). Required. Examples: 'Atraxa', 'Muldrotha the Gravetide', 'Korvold'.",
     },
     category: {
       type: "string",
@@ -85,7 +89,10 @@ export const commanderLookupModule: NativeReferenceModule = {
     },
   },
 
-  async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
+  async execute(
+    query: Record<string, unknown>,
+    env: Env,
+  ): Promise<ReferenceResult> {
     const commanderQuery = ((query.commander as string) ?? "").trim();
     if (!commanderQuery) {
       return { type: "text", content: "Missing required parameter: commander" };
@@ -95,7 +102,8 @@ export const commanderLookupModule: NativeReferenceModule = {
       1,
       Math.min(100, (query.limit as number | undefined) ?? DEFAULT_LIMIT),
     );
-    const maxPrice = typeof query.max_price === "number" ? query.max_price : undefined;
+    const maxPrice =
+      typeof query.max_price === "number" ? query.max_price : undefined;
 
     const rawTier = ((query.tier as string) ?? "").trim();
     let tier: Tier | undefined;
@@ -138,16 +146,16 @@ export const commanderLookupModule: NativeReferenceModule = {
     // EDHREC matches what users see on EDHREC; Scryfall fills in cards EDHREC
     // hasn't priced. NULL on both means "unknown price" — we exclude those
     // rows when max_price is set rather than treating NULL as $0.
-    const priceFilter = maxPrice !== undefined
-      ? `AND COALESCE(p.tcgplayer_price, c.price_usd) IS NOT NULL
+    const priceFilter =
+      maxPrice !== undefined
+        ? `AND COALESCE(p.tcgplayer_price, c.price_usd) IS NOT NULL
          AND COALESCE(p.tcgplayer_price, c.price_usd) <= ?`
-      : "";
+        : "";
     const priceFilterBindings = maxPrice !== undefined ? [maxPrice] : [];
 
     const recResult = category
-      ? await env.DB
-          .prepare(
-            `SELECT
+      ? await env.DB.prepare(
+          `SELECT
                r.card_name, r.category, r.synergy, r.inclusion,
                r.potential_decks, r.trend_zscore,
                COALESCE(p.tcgplayer_price, c.price_usd) AS price_usd
@@ -158,12 +166,11 @@ export const commanderLookupModule: NativeReferenceModule = {
              ${priceFilter}
              ORDER BY r.synergy DESC, r.inclusion DESC
              LIMIT ?`,
-          )
+        )
           .bind(commanderId, category, ...priceFilterBindings, limit)
           .all<RecommendationRow>()
-      : await env.DB
-          .prepare(
-            `SELECT card_name, category, synergy, inclusion, potential_decks, trend_zscore, price_usd
+      : await env.DB.prepare(
+          `SELECT card_name, category, synergy, inclusion, potential_decks, trend_zscore, price_usd
              FROM (
                SELECT
                  r.card_name, r.category, r.synergy, r.inclusion,
@@ -181,14 +188,18 @@ export const commanderLookupModule: NativeReferenceModule = {
              )
              WHERE rn <= ?
              ORDER BY category, synergy DESC, inclusion DESC`,
-          )
+        )
           .bind(commanderId, ...priceFilterBindings, limit)
           .all<RecommendationRow>();
 
     // Group by category (already SQL-bounded, but keep the bucket for shape).
-    const recommendations: Record<string, Omit<RecommendationRow, "category">[]> = {};
+    const recommendations: Record<
+      string,
+      Omit<RecommendationRow, "category">[]
+    > = {};
     for (const row of recResult.results ?? []) {
-      const bucket = recommendations[row.category] ?? (recommendations[row.category] = []);
+      const bucket =
+        recommendations[row.category] ?? (recommendations[row.category] = []);
       bucket.push({
         card_name: row.card_name,
         synergy: row.synergy,
@@ -200,18 +211,24 @@ export const commanderLookupModule: NativeReferenceModule = {
     }
 
     // 3. Fetch mana curve
-    const curveResult = await env.DB
-      .prepare(`SELECT cmc, avg_count FROM magic_edh_mana_curves WHERE commander_id = ? ORDER BY cmc`)
+    const curveResult = await env.DB.prepare(
+      `SELECT cmc, avg_count FROM magic_edh_mana_curves WHERE commander_id = ? ORDER BY cmc`,
+    )
       .bind(commanderId)
       .all<CurveRow>();
 
     // 4. Parse JSON metadata columns
-    const themes = safeParseJSON<Array<{ slug: string; value: string; count: number }>>(
-      commanderRow.themes,
+    const themes = safeParseJSON<
+      Array<{ slug: string; value: string; count: number }>
+    >(commanderRow.themes, []);
+    const similar = safeParseJSON<Array<{ id: string; name: string }>>(
+      commanderRow.similar,
       [],
     );
-    const similar = safeParseJSON<Array<{ id: string; name: string }>>(commanderRow.similar, []);
-    const colorIdentity = safeParseJSON<string[]>(commanderRow.color_identity, []);
+    const colorIdentity = safeParseJSON<string[]>(
+      commanderRow.color_identity,
+      [],
+    );
 
     return {
       type: "structured",
@@ -247,21 +264,19 @@ async function runTierLookup(
   const commanderId = commanderRow.scryfall_id;
 
   const [tierMetaResult, tierDeckResult] = await Promise.all([
-    env.DB
-      .prepare(
-        `SELECT tier, avg_price, num_decks_avg, deck_size
+    env.DB.prepare(
+      `SELECT tier, avg_price, num_decks_avg, deck_size
          FROM magic_edh_commander_tiers
          WHERE commander_id = ? AND tier = ?`,
-      )
+    )
       .bind(commanderId, tier)
       .all<TierInfoRow>(),
-    env.DB
-      .prepare(
-        `SELECT card_name, category, quantity
+    env.DB.prepare(
+      `SELECT card_name, category, quantity
          FROM magic_edh_average_decks_by_tier
          WHERE commander_id = ? AND tier = ?
          ORDER BY category, card_name`,
-      )
+    )
       .bind(commanderId, tier)
       .all<TierAverageDeckRow>(),
   ]);
@@ -270,19 +285,27 @@ async function runTierLookup(
   const deck = tierDeckResult.results ?? [];
 
   // Group by category (mirrors the default path's recommendations shape).
-  const recommendations: Record<string, { card_name: string; quantity: number }[]> = {};
+  const recommendations: Record<
+    string,
+    { card_name: string; quantity: number }[]
+  > = {};
   for (const row of deck) {
     const cat = row.category || "uncategorized";
     const bucket = recommendations[cat] ?? (recommendations[cat] = []);
     bucket.push({ card_name: row.card_name, quantity: row.quantity });
   }
 
-  const themes = safeParseJSON<Array<{ slug: string; value: string; count: number }>>(
-    commanderRow.themes,
+  const themes = safeParseJSON<
+    Array<{ slug: string; value: string; count: number }>
+  >(commanderRow.themes, []);
+  const similar = safeParseJSON<Array<{ id: string; name: string }>>(
+    commanderRow.similar,
     [],
   );
-  const similar = safeParseJSON<Array<{ id: string; name: string }>>(commanderRow.similar, []);
-  const colorIdentity = safeParseJSON<string[]>(commanderRow.color_identity, []);
+  const colorIdentity = safeParseJSON<string[]>(
+    commanderRow.color_identity,
+    [],
+  );
 
   // Empty deck + null tier_info means EDHREC didn't publish this tier for the
   // commander. Caller still gets a structured response so the LLM can
@@ -311,4 +334,3 @@ async function runTierLookup(
     },
   };
 }
-

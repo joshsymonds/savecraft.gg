@@ -113,7 +113,10 @@ async function setOverview(
 
   const topGihwr = cards.slice(0, n).map(cardRow);
   const bottomGihwr = cards.slice(Math.max(0, cards.length - n)).map(cardRow);
-  const topIwd = [...cards].sort((a, b) => b.iwd - a.iwd).slice(0, n).map(cardRow);
+  const topIwd = [...cards]
+    .sort((a, b) => b.iwd - a.iwd)
+    .slice(0, n)
+    .map(cardRow);
 
   const byUndervalued = [...cards].sort(
     (a, b) => b.gihwr * b.alsa - a.gihwr * a.alsa,
@@ -379,7 +382,6 @@ export const cardStatsModule: NativeReferenceModule = {
       description: "Pagination offset for leaderboard.",
     },
   },
-
 
   async execute(
     query: Record<string, unknown>,
