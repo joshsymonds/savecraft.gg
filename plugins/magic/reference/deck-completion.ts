@@ -602,6 +602,10 @@ interface candidateRow {
  *
  * Per Epic Anti-pattern: terminates by quality plateau, NOT budget exhaustion.
  * A $300 deck may not use the full budget if no swap improves quality by ε.
+ *
+ * Default ε=0.01 — any meaningful positive Δ fires. Set higher to require
+ * larger improvements per swap. ε=0.01 (not 0) is a floating-point safety
+ * floor for log/sigmoid noise on equivalent swaps.
  */
 export async function upgradeDeck(
   env: Env,
@@ -609,7 +613,7 @@ export async function upgradeDeck(
   commander: CommanderRef,
   options: UpgradeOptions,
 ): Promise<UpgradeResult> {
-  const epsilon = options.epsilon ?? 0.5;
+  const epsilon = options.epsilon ?? 0.01;
   const maxIters = options.maxIterations ?? 50;
   const poolSize = options.candidatePoolSize ?? 50;
   const excludesLower = new Set(

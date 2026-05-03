@@ -189,6 +189,38 @@ describe("buildAndUpgradeDeck", () => {
     expect(deckNames.has("FormatStaple")).toBe(true);
   });
 
+  it("ε default below 0.1 captures small-Δ inclusion-driven swaps", async () => {
+    // 100 cheap ramp fillers (inclusion=10, $0.05) + 1 high-inclusion ramp
+    // staple ($0.50, inclusion=200). All same role + synergy=0; the only
+    // signal differentiating them is inclusion. The swap delta is
+    // log(1+0.5) − log(1+0.025) ≈ 0.38 — below the old ε=0.5 (rejected)
+    // but well above the new ε=0.01 (accepted).
+    await seedRecs([
+      ...Array.from({ length: 100 }, (_, index) => ({
+        name: `RampFiller${String(index)}`,
+        synergy: 0,
+        inclusion: 10,
+        price: 0.05,
+        roles: ["ramp"],
+      })),
+      {
+        name: "HighIncStaple",
+        synergy: 0,
+        inclusion: 200,
+        price: 0.5,
+        roles: ["ramp"],
+      },
+    ]);
+
+    const result = await buildAndUpgradeDeck(env as unknown as Env, COMMANDER, {
+      budget: 7,
+      candidatePoolSize: 1,
+    });
+
+    const deckNames = new Set(result.deck.map((entry) => entry.card_name));
+    expect(deckNames.has("HighIncStaple")).toBe(true);
+  });
+
   it("populates baseline_cost separately from totalCost", async () => {
     await seedRecs([{ name: "BigRamp", synergy: 5, price: 1, roles: ["ramp"] }]);
 
