@@ -528,6 +528,48 @@ async function deriveTierTargets(
   };
 }
 
+interface tierLandRow {
+  category: string;
+  total_quantity: number;
+}
+
+/**
+ * deriveTierLandComposition reads the commander's tier-average decklist
+ * and returns a land budget for buildMinimalShell: the total land count
+ * (basics + nonbasics) and a cap on how many nonbasic lands Phase 2 may
+ * pull. Mono-color decks need few nonbasic lands; 5-color decks need
+ * many. Tier data captures this naturally.
+ *
+ * Returns null when the commander has no tier data — caller falls back
+ * to the constants in deck-completion.ts.
+ */
+export async function deriveTierLandComposition(
+  env: Env,
+  commanderId: string,
+  tier: string,
+): Promise<{ totalLandsTarget: number; nonbasicLandCap: number } | null> {
+  const result = await env.DB.prepare(
+    `SELECT category, SUM(quantity) AS total_quantity
+       FROM magic_edh_average_decks_by_tier
+       WHERE commander_id = ? AND tier = ?
+         AND LOWER(category) IN ('lands', 'land', 'basics')
+       GROUP BY category`,
+  )
+    .bind(commanderId, tier)
+    .all<tierLandRow>();
+  const rows = result.results ?? [];
+  if (rows.length === 0) return null;
+
+  let nonbasic = 0;
+  let total = 0;
+  for (const row of rows) {
+    const cat = row.category.toLowerCase();
+    total += row.total_quantity;
+    if (cat === "lands" || cat === "land") nonbasic += row.total_quantity;
+  }
+  return { totalLandsTarget: total, nonbasicLandCap: nonbasic };
+}
+
 // ─── M2.3: aggregate quality score ───────────────────────────────────
 
 export interface QualityVectors {

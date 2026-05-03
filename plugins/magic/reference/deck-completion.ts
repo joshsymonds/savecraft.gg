@@ -77,6 +77,10 @@ export interface BuildOptions {
   epsilon?: number;
   maxIterations?: number;
   candidatePoolSize?: number;
+  /** Tier-derived land budget. When supplied, overrides the built-in
+   *  defaults (36 total, 13 nonbasic). Caller computes via
+   *  deriveTierLandComposition; absent → defaults. */
+  landTarget?: { totalLandsTarget: number; nonbasicLandCap: number };
 }
 
 export interface BuildResult {
@@ -277,6 +281,7 @@ export async function buildMinimalShell(
   budget: number,
   excludes: string[],
   excludeGameChangers: boolean,
+  landTarget?: { totalLandsTarget: number; nonbasicLandCap: number },
 ): Promise<MinimalShellResult> {
   const warnings: string[] = [];
   const inDeck = new Set<string>();
@@ -334,9 +339,10 @@ export async function buildMinimalShell(
   }
 
   // ── Phase 2: fill spell slots up to SPELLS_TARGET, capping nonbasic
-  // lands at DEFAULT_NONBASIC_LAND_CAP. The contract: deck arrives at
-  // Phase 3 with 63 spells + ≤13 nonbasic lands = 76 nonbasic. Phase 3
-  // then pads with 23 basics → total 100, total lands = 13 + 23 = 36.
+  // lands at the resolved nonbasic cap. The contract: deck arrives at
+  // Phase 3 with SPELLS_TARGET spells + ≤nonbasicCap nonbasic lands.
+  // Phase 3 then pads with basics to 100 → total lands = nonbasicCap +
+  // (99 − SPELLS_TARGET − nonbasicCap) = 99 − SPELLS_TARGET ≈ totalLandsTarget.
   //
   // Without this split (and with the previous NON_BASIC_TARGET=63 mixed
   // count), cheap dual-lands flooded Phase 2 alongside spells and Phase
@@ -345,12 +351,13 @@ export async function buildMinimalShell(
   // Phase 1 added only spells (role tags don't include lands), so the
   // initial spellCount is the count of cards added so far minus the
   // commander.
-  const SPELLS_TARGET = 63;
+  const totalLandsTarget = landTarget?.totalLandsTarget ?? 36;
+  const nonbasicCap = landTarget?.nonbasicLandCap ?? DEFAULT_NONBASIC_LAND_CAP;
+  const SPELLS_TARGET = 99 - totalLandsTarget;
   let spellCount = deck.length - 1;
   let nonbasicLandCount = 0;
   const nonBasicTargetMet = (): boolean =>
-    spellCount >= SPELLS_TARGET &&
-    nonbasicLandCount >= DEFAULT_NONBASIC_LAND_CAP;
+    spellCount >= SPELLS_TARGET && nonbasicLandCount >= nonbasicCap;
   if (!nonBasicTargetMet()) {
     const generic = await fetchAllRecsByPrice(env, commander.scryfall_id);
     for (const cand of generic) {
@@ -362,7 +369,7 @@ export async function buildMinimalShell(
       const price = cand.price ?? 0;
       if (totalCost + price > budget) continue;
       const cardIsLand = isLandTypeLine(cand.type_line);
-      if (cardIsLand && nonbasicLandCount >= DEFAULT_NONBASIC_LAND_CAP) continue;
+      if (cardIsLand && nonbasicLandCount >= nonbasicCap) continue;
       if (!cardIsLand && spellCount >= SPELLS_TARGET) continue;
       deck.push({ card_name: cand.card_name, quantity: 1 });
       inDeck.add(lower);
@@ -1198,6 +1205,7 @@ export async function buildAndUpgradeDeck(
       options.budget,
       excludes,
       excludeGameChangers,
+      options.landTarget,
     );
     baselineDeck = shell.deck;
     baselineCost = options.spent ?? shell.totalCost;

@@ -26,6 +26,7 @@ import {
 } from "./deck-completion";
 import {
   assessQuality,
+  deriveTierLandComposition,
   type DeckEntry as RawDeckEntry,
   type QualityReport,
 } from "./deck-quality";
@@ -371,6 +372,11 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     );
     const commanderRef = { scryfall_id: commanderId, name: commanderRow.name };
 
+    // Tier-derived land budget — total + nonbasic cap. Falls back to
+    // built-in defaults inside buildMinimalShell when null.
+    const landTarget =
+      (await deriveTierLandComposition(env, commanderId, tier)) ?? undefined;
+
     // Run the marginal-utility pipeline: minimal-shell baseline → upgrade
     // loop → Karsten validation. Always returns 100 cards.
     const buildResult = await buildAndUpgradeDeck(env, commanderRef, {
@@ -379,6 +385,7 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
       excludeGameChangers,
       gameChangers: allGameChangers,
       mustInclude,
+      landTarget,
     });
 
     // Resolve prices + type lines for everything in the resulting deck so we

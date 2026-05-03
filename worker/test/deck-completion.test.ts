@@ -308,6 +308,58 @@ describe("buildMinimalShell", () => {
     expect(totalLands).toBeLessThanOrEqual(42);
   });
 
+  it("uses caller-supplied landTarget over the default constant", async () => {
+    // Same fixture as the cap test, but pass a tighter landTarget
+    // (total=30, nonbasicCap=5). Phase 2 should fill 69 spells + 5
+    // nonbasic lands; Phase 3 pads 25 basics → total lands = 30.
+    const landCards: SeedCard[] = Array.from({ length: 50 }, (_, index) => ({
+      name: `Custom${String(index)}`,
+      type: "Land — Tap Land",
+      roles: [],
+    }));
+    const spellCards: SeedCard[] = Array.from({ length: 80 }, (_, index) => ({
+      name: `Spl${String(index)}`,
+      type: "Sorcery",
+      roles: [],
+    }));
+    await seedCards([...landCards, ...spellCards]);
+    await seedRecommendations([
+      ...landCards.map((c, index) => ({
+        card_name: c.name,
+        category: "lands",
+        inclusion: 200 - (index % 5),
+      })),
+      ...spellCards.map((c, index) => ({
+        card_name: c.name,
+        category: "topcards",
+        inclusion: 100 - (index % 5),
+      })),
+    ]);
+    const priceStmts = [...landCards, ...spellCards].map((c) =>
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind(c.name, 0.2),
+    );
+    await env.DB.batch(priceStmts);
+
+    const result = await buildMinimalShell(
+      env as unknown as Env,
+      COMMANDER,
+      100,
+      [],
+      false,
+      { totalLandsTarget: 30, nonbasicLandCap: 5 },
+    );
+
+    expect(countTotal(result.deck)).toBe(100);
+    const nonbasicLandCount = result.deck
+      .filter((entry) => entry.card_name.startsWith("Custom"))
+      .reduce((sum, entry) => sum + (entry.quantity ?? 1), 0);
+    const totalLands = nonbasicLandCount + countBasics(result.deck);
+    expect(nonbasicLandCount).toBeLessThanOrEqual(5);
+    expect(totalLands).toBeLessThanOrEqual(32);
+  });
+
   it("Karsten land count: at least 36 basics in the result", async () => {
     await seedShellFixture({
       ramp: 12,
