@@ -110,6 +110,35 @@ export async function logCommanderSynergy(
   return signedLog(row.synergy);
 }
 
+interface inclusionPctRow {
+  inclusion_pct: number;
+}
+
+/**
+ * logCommanderInclusion returns signedLog(inclusion_pct · 100) for the card
+ * under this commander, or 0 if no recommendation row exists. Async mirror of
+ * logInclusionCached for the test-only deltaQuality path.
+ */
+export async function logCommanderInclusion(
+  env: Env,
+  commander: CommanderRef,
+  card: string,
+): Promise<number> {
+  const result = await env.DB.prepare(
+    `SELECT MAX(r.inclusion) * 1.0 / NULLIF(c.deck_count, 0) AS inclusion_pct
+       FROM magic_edh_recommendations r
+       JOIN magic_edh_commanders c ON c.scryfall_id = r.commander_id
+       WHERE r.commander_id = ? AND LOWER(r.card_name) = LOWER(?)`,
+  )
+    .bind(commander.scryfall_id, card)
+    .all<inclusionPctRow>();
+  const row = result.results?.[0];
+  if (!row || row.inclusion_pct === null || row.inclusion_pct === undefined) {
+    return 0;
+  }
+  return signedLog(row.inclusion_pct * 100);
+}
+
 /**
  * roleCoverage queries magic_card_roles for the deck's cards (or uses a
  * precomputed role map when supplied), counts each core role, and returns
@@ -377,6 +406,10 @@ export interface DeltaWeights {
    * becomes a separate signal.
    */
   deck_synergy: number;
+  /** w_inclusion: coefficient on Δlog(inclusion_pct · 100). Rewards swapping
+   *  in cards that more decks run — fixes the synergy-deviation blind spot
+   *  where format staples (high inclusion, low/negative synergy) get rejected. */
+  inclusion: number;
   /** w_role: coefficient on ΔRoleCoverage. */
   role_coverage: number;
   /** w_combo: coefficient on ΔComboValue. */
@@ -386,6 +419,7 @@ export interface DeltaWeights {
 export const DEFAULT_DELTA_WEIGHTS: DeltaWeights = {
   commander_synergy: 1,
   deck_synergy: 1,
+  inclusion: 1,
   role_coverage: 2,
   combo_value: 3,
 };
@@ -418,19 +452,31 @@ export async function deltaQuality(
   commander: CommanderRef,
   weights: DeltaWeights = DEFAULT_DELTA_WEIGHTS,
 ): Promise<number> {
-  const [synergyOutValues, synergyInValues, roleDelta, comboDelta] =
-    await Promise.all([
-      Promise.all(cardsOut.map((c) => logCommanderSynergy(env, commander, c))),
-      Promise.all(cardsIn.map((c) => logCommanderSynergy(env, commander, c))),
-      deltaRoleCoverage(env, deck, cardsOut, cardsIn, commander),
-      deltaComboValue(env, deck, cardsOut, cardsIn, commander),
-    ]);
+  const [
+    synergyOutValues,
+    synergyInValues,
+    inclusionOutValues,
+    inclusionInValues,
+    roleDelta,
+    comboDelta,
+  ] = await Promise.all([
+    Promise.all(cardsOut.map((c) => logCommanderSynergy(env, commander, c))),
+    Promise.all(cardsIn.map((c) => logCommanderSynergy(env, commander, c))),
+    Promise.all(cardsOut.map((c) => logCommanderInclusion(env, commander, c))),
+    Promise.all(cardsIn.map((c) => logCommanderInclusion(env, commander, c))),
+    deltaRoleCoverage(env, deck, cardsOut, cardsIn, commander),
+    deltaComboValue(env, deck, cardsOut, cardsIn, commander),
+  ]);
   const synergyOut = synergyOutValues.reduce((sum, v) => sum + v, 0);
   const synergyIn = synergyInValues.reduce((sum, v) => sum + v, 0);
+  const inclusionOut = inclusionOutValues.reduce((sum, v) => sum + v, 0);
+  const inclusionIn = inclusionInValues.reduce((sum, v) => sum + v, 0);
   const synergyDelta = synergyIn - synergyOut;
+  const inclusionDelta = inclusionIn - inclusionOut;
   const synergyCoeff = weights.commander_synergy + weights.deck_synergy;
   return (
     synergyCoeff * synergyDelta +
+    weights.inclusion * inclusionDelta +
     weights.role_coverage * roleDelta +
     weights.combo_value * comboDelta
   );
@@ -449,6 +495,10 @@ export interface ScoringContext {
   /** Map<lowercased card name, signedLog(synergy)>. 0 for cards without
    *  a recommendation row (treated as neutral). */
   synergyByCard: Map<string, number>;
+  /** Map<lowercased card name, signedLog(inclusion_pct · 100)>. 0 if missing.
+   *  inclusion_pct = magic_edh_recommendations.inclusion / commander.deck_count.
+   *  Bounded to [0, LOG_BOUND] (always non-negative — inclusion is a count). */
+  inclusionByCard: Map<string, number>;
   /** Map<lowercased card name, set of role tags>. Empty set / missing
    *  entry both mean "no role tags". */
   rolesByCard: Map<string, Set<string>>;
@@ -471,12 +521,14 @@ export async function loadScoringContext(
   commander: CommanderRef,
   cardNames: string[],
 ): Promise<ScoringContext> {
-  const [synergyByCard, rolesByCard, combos] = await Promise.all([
-    loadSynergiesByCard(env, commander.scryfall_id, cardNames),
-    loadRolesByCard(env, cardNames),
-    loadCombosForCommander(env, commander.scryfall_id),
-  ]);
-  return { synergyByCard, rolesByCard, combos };
+  const [synergyByCard, inclusionByCard, rolesByCard, combos] =
+    await Promise.all([
+      loadSynergiesByCard(env, commander.scryfall_id, cardNames),
+      loadInclusionsByCard(env, commander.scryfall_id, cardNames),
+      loadRolesByCard(env, cardNames),
+      loadCombosForCommander(env, commander.scryfall_id),
+    ]);
+  return { synergyByCard, inclusionByCard, rolesByCard, combos };
 }
 
 interface synergyByCardRow {
@@ -517,6 +569,49 @@ async function loadSynergiesByCard(
   return out;
 }
 
+interface inclusionByCardRow {
+  card_name: string;
+  inclusion_pct: number;
+}
+
+/**
+ * loadInclusionsByCard batch-fetches log(1 + inclusion_pct·100) for every
+ * card in `names`. inclusion_pct = recommendations.inclusion / commander.deck_count
+ * computed inline in SQL so we don't need to thread deck_count through the
+ * call. Cards without a recommendation row map to 0.
+ */
+async function loadInclusionsByCard(
+  env: Env,
+  commanderId: string,
+  names: string[],
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (names.length === 0) return out;
+  const unique = [...new Set(names.map((n) => n.toLowerCase()))];
+  const CHUNK = 90;
+  for (let i = 0; i < unique.length; i += CHUNK) {
+    const slice = unique.slice(i, i + CHUNK);
+    const placeholders = slice.map(() => "?").join(",");
+    // CROSS JOIN against commander row (single row) to get deck_count for the
+    // ratio. NULLIF guards against the (impossible-in-prod) zero deck_count.
+    const result = await env.DB.prepare(
+      `SELECT r.card_name AS card_name,
+              MAX(r.inclusion) * 1.0 / NULLIF(c.deck_count, 0) AS inclusion_pct
+         FROM magic_edh_recommendations r
+         JOIN magic_edh_commanders c ON c.scryfall_id = r.commander_id
+         WHERE r.commander_id = ? AND LOWER(r.card_name) IN (${placeholders})
+         GROUP BY r.card_name, c.deck_count`,
+    )
+      .bind(commanderId, ...slice)
+      .all<inclusionByCardRow>();
+    for (const row of result.results ?? []) {
+      const pct = row.inclusion_pct ?? 0;
+      out.set(row.card_name.toLowerCase(), signedLog(pct * 100));
+    }
+  }
+  return out;
+}
+
 /**
  * logCommanderSynergyCached is the pure-function counterpart to
  * `logCommanderSynergy`. Returns 0 for unknown cards (matching the
@@ -527,6 +622,17 @@ export function logCommanderSynergyCached(
   card: string,
 ): number {
   return ctx.synergyByCard.get(card.toLowerCase()) ?? 0;
+}
+
+/**
+ * logInclusionCached returns signedLog(inclusion_pct · 100) for the card
+ * from the precomputed context, or 0 if the card has no recommendation row.
+ */
+export function logInclusionCached(
+  ctx: ScoringContext,
+  card: string,
+): number {
+  return ctx.inclusionByCard.get(card.toLowerCase()) ?? 0;
 }
 
 /**
@@ -592,14 +698,19 @@ export function deltaQualityCached(
   weights: DeltaWeights = DEFAULT_DELTA_WEIGHTS,
 ): number {
   let synergyOut = 0;
+  let inclusionOut = 0;
   for (const name of cardsOut) {
     synergyOut += logCommanderSynergyCached(ctx, name);
+    inclusionOut += logInclusionCached(ctx, name);
   }
   let synergyIn = 0;
+  let inclusionIn = 0;
   for (const name of cardsIn) {
     synergyIn += logCommanderSynergyCached(ctx, name);
+    inclusionIn += logInclusionCached(ctx, name);
   }
   const synergyDelta = synergyIn - synergyOut;
+  const inclusionDelta = inclusionIn - inclusionOut;
   const synergyCoeff = weights.commander_synergy + weights.deck_synergy;
   const roleDelta = deltaRoleCoverageCached(
     deck,
@@ -610,6 +721,7 @@ export function deltaQualityCached(
   const comboDelta = deltaComboValueCached(deck, cardsOut, cardsIn, ctx.combos);
   return (
     synergyCoeff * synergyDelta +
+    weights.inclusion * inclusionDelta +
     weights.role_coverage * roleDelta +
     weights.combo_value * comboDelta
   );

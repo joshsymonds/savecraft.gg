@@ -5,9 +5,11 @@ import {
   comboValue,
   deltaComboValue,
   deltaQuality,
+  deltaQualityCached,
   deltaRoleCoverage,
   logCommanderSynergy,
   roleCoverage,
+  type ScoringContext,
 } from "../../plugins/magic/reference/deck-delta";
 import type { DeckEntry } from "../../plugins/magic/reference/deck-quality";
 import type { Env } from "../src/types";
@@ -440,11 +442,40 @@ describe("deltaQuality", () => {
     const delta = await deltaQuality(env as unknown as Env, deck, [], ["CardB"], COMMANDER, {
       commander_synergy: 0,
       deck_synergy: 0,
+      inclusion: 0,
       role_coverage: 0,
       combo_value: 1,
     });
     // Expected: 1 × (5 - 0.7071) ≈ 4.2929
     const expected = COMPLETE_BONUS - PARTIAL_2_OF_2;
     expect(Math.abs(delta - expected)).toBeLessThan(0.001);
+  });
+});
+
+describe("deltaQualityCached — inclusion axis", () => {
+  it("rewards swap-in of higher-inclusion card when synergy is equal", () => {
+    // Both cards have synergy 0; only inclusion differs. The expected Δ is
+    // exactly the inclusion delta (since w_inclusion = 1 by default and all
+    // other terms are 0: equal synergy, no roles, no combos).
+    const lowInc = Math.log(1 + 5); // ≈ 1.79 — niche card, 5% inclusion
+    const highInc = Math.log(1 + 70); // ≈ 4.26 — staple, 70% inclusion
+    const ctx: ScoringContext = {
+      synergyByCard: new Map([
+        ["lowstaple", 0],
+        ["highstaple", 0],
+      ]),
+      inclusionByCard: new Map([
+        ["lowstaple", lowInc],
+        ["highstaple", highInc],
+      ]),
+      rolesByCard: new Map(),
+      combos: [],
+    };
+    const deck: DeckEntry[] = [{ card_name: "LowStaple", quantity: 1 }];
+
+    const delta = deltaQualityCached(deck, ["LowStaple"], ["HighStaple"], ctx);
+
+    const expected = highInc - lowInc;
+    expect(Math.abs(delta - expected)).toBeLessThan(0.01);
   });
 });
