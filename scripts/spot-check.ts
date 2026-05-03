@@ -194,13 +194,40 @@ interface BuildOutcome {
   commander: string;
   budget: number;
   tier: Tier;
+  tierAvgPrice: number;
+  budgetRatio: number;
   overlapPct: number;
+  overlapThreshold: number;
   matchingCards: number;
   totalAvgCards: number;
   missingStaples: string[];
+  missingThreshold: number;
   landsCount: number;
   landsRange: [number, number];
   score: number;
+}
+
+/**
+ * Calibrated thresholds based on budget / tier_avg ratio.
+ * Per SME: EDHREC's "budget" tier is the bottom 10% of decks for that
+ * commander — for 4-color commanders the bottom-10% still averages
+ * $170+. Asking a $25 build to share 65% overlap with a $170 deck is
+ * mathematically near-impossible. Bands calibrated against the matrix:
+ *   - ratio ≥ 0.65: budget aligns with tier; standard strict bar.
+ *   - 0.40 ≤ ratio < 0.65: tier-anchor + substitution regime; relaxed.
+ *   - 0.20 ≤ ratio < 0.40: severely underbudget; lower bar.
+ *   - ratio < 0.20: cheapest-viable territory; structural validity only.
+ * Lands stay strict — out-of-range lands is a real deck-shape problem
+ * regardless of budget.
+ */
+function thresholdsForRatio(ratio: number): {
+  overlap: number;
+  missing: number;
+} {
+  if (ratio >= 0.65) return { overlap: 0.65, missing: 0 };
+  if (ratio >= 0.4) return { overlap: 0.55, missing: 2 };
+  if (ratio >= 0.2) return { overlap: 0.5, missing: 5 };
+  return { overlap: 0.3, missing: 9 };
 }
 
 interface CommanderRow {
@@ -220,8 +247,8 @@ interface StapleRow {
 
 function passed(o: BuildOutcome): boolean {
   return (
-    o.overlapPct >= 0.65 &&
-    o.missingStaples.length === 0 &&
+    o.overlapPct >= o.overlapThreshold &&
+    o.missingStaples.length <= o.missingThreshold &&
     o.landsCount >= o.landsRange[0] &&
     o.landsCount <= o.landsRange[1]
   );
@@ -245,6 +272,16 @@ async function runBuild(
 
   const tier = autoTier(budget);
   const commanderRef = { scryfall_id: row.scryfall_id, name: row.name };
+
+  const tierInfoResult = await env.DB.prepare(
+    `SELECT avg_price FROM magic_edh_commander_tiers
+       WHERE commander_id = ? AND tier = ?`,
+  )
+    .bind(row.scryfall_id, tier)
+    .all<{ avg_price: number }>();
+  const tierAvgPrice = tierInfoResult.results?.[0]?.avg_price ?? budget;
+  const budgetRatio = tierAvgPrice > 0 ? budget / tierAvgPrice : 1;
+  const thresholds = thresholdsForRatio(budgetRatio);
 
   const [landTarget, gameChangers] = await Promise.all([
     deriveTierLandComposition(env, row.scryfall_id, tier),
@@ -295,10 +332,14 @@ async function runBuild(
     commander: entry.commander,
     budget,
     tier,
+    tierAvgPrice,
+    budgetRatio,
     overlapPct,
+    overlapThreshold: thresholds.overlap,
     matchingCards: matching,
     totalAvgCards: avgNames.length,
     missingStaples,
+    missingThreshold: thresholds.missing,
     landsCount: lands.count,
     landsRange: lands.target_range,
     score: quality.score,
@@ -309,40 +350,45 @@ function printTable(outcomes: BuildOutcome[]): void {
   const lines: string[] = [
     "",
     "─── Spot-check matrix results ───",
-    "Commander                       | Budget  | Overlap | Missing | Lands           | Score | Status",
-    "─".repeat(110),
+    "Commander                       | Budget  | Ratio | Overlap (≥thr) | Missing (≤thr) | Lands           | Score | Status",
+    "─".repeat(130),
   ];
   for (const o of outcomes) {
     const cmdr = o.commander.padEnd(31).slice(0, 31);
     const budget = `$${String(o.budget)}`.padStart(7);
-    const overlap = `${String(Math.round(o.overlapPct * 100))}%`.padStart(7);
-    const missing = String(o.missingStaples.length).padStart(7);
+    const ratio = `${(o.budgetRatio * 100).toFixed(0)}%`.padStart(5);
+    const overlap = `${String(Math.round(o.overlapPct * 100))}% (≥${(o.overlapThreshold * 100).toFixed(0)}%)`.padStart(14);
+    const missing = `${String(o.missingStaples.length)} (≤${String(o.missingThreshold)})`.padStart(14);
     const lands =
       `${String(o.landsCount)} / [${String(o.landsRange[0])}-${String(o.landsRange[1])}]`.padEnd(15);
     const score = String(o.score).padStart(5);
     const status = passed(o) ? "✓" : "✗";
     lines.push(
-      `${cmdr} | ${budget} | ${overlap} | ${missing} | ${lands} | ${score} | ${status}`,
+      `${cmdr} | ${budget} | ${ratio} | ${overlap} | ${missing} | ${lands} | ${score} | ${status}`,
     );
   }
   const passing = outcomes.filter((o) => passed(o)).length;
-  lines.push("─".repeat(110));
+  lines.push("─".repeat(130));
   lines.push(
-    `${String(passing)} / ${String(outcomes.length)} builds pass (overlap >= 65%, 0 missing staples, lands in target_range)`,
+    `${String(passing)} / ${String(outcomes.length)} builds pass calibrated bar (overlap thresholds scale with budget/tier_avg ratio).`,
   );
   console.log(lines.join("\n"));
   for (const o of outcomes) {
     if (passed(o)) continue;
     const reasons: string[] = [];
-    if (o.overlapPct < 0.65)
-      reasons.push(`overlap ${(o.overlapPct * 100).toFixed(1)}% < 65%`);
-    if (o.missingStaples.length > 0) {
+    if (o.overlapPct < o.overlapThreshold)
+      reasons.push(
+        `overlap ${(o.overlapPct * 100).toFixed(1)}% < ${(o.overlapThreshold * 100).toFixed(0)}%`,
+      );
+    if (o.missingStaples.length > o.missingThreshold) {
       const head = o.missingStaples.slice(0, 5).join(", ");
       const more =
         o.missingStaples.length > 5
           ? `, +${String(o.missingStaples.length - 5)} more`
           : "";
-      reasons.push(`missing: ${head}${more}`);
+      reasons.push(
+        `missing ${String(o.missingStaples.length)}>${String(o.missingThreshold)}: ${head}${more}`,
+      );
     }
     if (o.landsCount < o.landsRange[0] || o.landsCount > o.landsRange[1])
       reasons.push(
