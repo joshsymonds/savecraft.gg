@@ -296,13 +296,8 @@ describe("buildMinimalShell", () => {
     const result = await buildMinimalShell(env as unknown as Env, COMMANDER, 100, [], false);
 
     expect(countTotal(result.deck)).toBe(100);
-    const nonbasicLands = result.deck.filter(
-      (entry) => entry.card_name.startsWith("DualLand"),
-    );
-    const nonbasicLandCount = nonbasicLands.reduce(
-      (sum, entry) => sum + (entry.quantity ?? 1),
-      0,
-    );
+    const nonbasicLands = result.deck.filter((entry) => entry.card_name.startsWith("DualLand"));
+    const nonbasicLandCount = nonbasicLands.reduce((sum, entry) => sum + (entry.quantity ?? 1), 0);
     const totalLands = nonbasicLandCount + countBasics(result.deck);
     expect(nonbasicLandCount).toBeLessThanOrEqual(13);
     expect(totalLands).toBeLessThanOrEqual(42);
@@ -342,14 +337,10 @@ describe("buildMinimalShell", () => {
     );
     await env.DB.batch(priceStmts);
 
-    const result = await buildMinimalShell(
-      env as unknown as Env,
-      COMMANDER,
-      100,
-      [],
-      false,
-      { totalLandsTarget: 30, nonbasicLandCap: 5 },
-    );
+    const result = await buildMinimalShell(env as unknown as Env, COMMANDER, 100, [], false, {
+      totalLandsTarget: 30,
+      nonbasicLandCap: 5,
+    });
 
     expect(countTotal(result.deck)).toBe(100);
     const nonbasicLandCount = result.deck
