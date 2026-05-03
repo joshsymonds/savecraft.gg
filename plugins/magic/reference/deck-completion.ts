@@ -92,7 +92,19 @@ interface roleRecRow {
   card_name: string;
   inclusion: number;
   price: number | null;
+  type_line?: string;
 }
+
+/**
+ * Default cap on nonbasic lands added by buildMinimalShell Phase 2.
+ * Without this cap, cheap dual-tap-lands flood Phase 2's slot allocation
+ * and Phase 3 then pads with basics on top, producing 50+ land decks.
+ *
+ * This is a placeholder for tier-derived land counts (next task) — the
+ * commander-deckbuild caller will eventually pass tier-specific values
+ * via BuildOptions.landTarget.
+ */
+const DEFAULT_NONBASIC_LAND_CAP = 13;
 
 const COLOR_TO_BASIC: Record<string, string> = {
   W: "Plains",
@@ -321,24 +333,42 @@ export async function buildMinimalShell(
     }
   }
 
-  // ── Phase 2: pad up to 63 non-basic slots with cheapest generic recs ─
-  // 99 - 36 (Karsten lands) = 63 non-land slots. We've used up to 33 for
-  // role floors; up to 30 generic recs round out the non-basic complement.
-  const NON_BASIC_TARGET = 63;
-  const nonBasicCount = (): number => deck.length - 1; // exclude commander
-  if (nonBasicCount() < NON_BASIC_TARGET) {
+  // ── Phase 2: fill spell slots up to SPELLS_TARGET, capping nonbasic
+  // lands at DEFAULT_NONBASIC_LAND_CAP. The contract: deck arrives at
+  // Phase 3 with 63 spells + ≤13 nonbasic lands = 76 nonbasic. Phase 3
+  // then pads with 23 basics → total 100, total lands = 13 + 23 = 36.
+  //
+  // Without this split (and with the previous NON_BASIC_TARGET=63 mixed
+  // count), cheap dual-lands flooded Phase 2 alongside spells and Phase
+  // 3 padded with 36 basics on top → 50+ land decks.
+  //
+  // Phase 1 added only spells (role tags don't include lands), so the
+  // initial spellCount is the count of cards added so far minus the
+  // commander.
+  const SPELLS_TARGET = 63;
+  let spellCount = deck.length - 1;
+  let nonbasicLandCount = 0;
+  const nonBasicTargetMet = (): boolean =>
+    spellCount >= SPELLS_TARGET &&
+    nonbasicLandCount >= DEFAULT_NONBASIC_LAND_CAP;
+  if (!nonBasicTargetMet()) {
     const generic = await fetchAllRecsByPrice(env, commander.scryfall_id);
     for (const cand of generic) {
-      if (nonBasicCount() >= NON_BASIC_TARGET) break;
+      if (nonBasicTargetMet()) break;
       const lower = cand.card_name.toLowerCase();
       if (inDeck.has(lower)) continue;
       if (excludesLower.has(lower)) continue;
       if (excludeGameChangers && gameChangers.has(lower)) continue;
       const price = cand.price ?? 0;
       if (totalCost + price > budget) continue;
+      const cardIsLand = isLandTypeLine(cand.type_line);
+      if (cardIsLand && nonbasicLandCount >= DEFAULT_NONBASIC_LAND_CAP) continue;
+      if (!cardIsLand && spellCount >= SPELLS_TARGET) continue;
       deck.push({ card_name: cand.card_name, quantity: 1 });
       inDeck.add(lower);
       totalCost += price;
+      if (cardIsLand) nonbasicLandCount += 1;
+      else spellCount += 1;
     }
   }
 
@@ -400,7 +430,8 @@ async function fetchAllRecsByPrice(
   const result = await env.DB.prepare(
     `SELECT r.card_name AS card_name,
             MAX(r.inclusion) AS inclusion,
-            COALESCE(p.tcgplayer_price, sc.price_usd, 0) AS price
+            COALESCE(p.tcgplayer_price, sc.price_usd, 0) AS price,
+            MAX(sc.type_line) AS type_line
        FROM magic_edh_recommendations r
        LEFT JOIN magic_edh_card_prices p ON LOWER(r.card_name) = LOWER(p.card_name)
        LEFT JOIN magic_cards sc ON sc.front_face_name = r.card_name COLLATE NOCASE
@@ -414,6 +445,11 @@ async function fetchAllRecsByPrice(
     .bind(commanderId)
     .all<roleRecRow>();
   return result.results ?? [];
+}
+
+function isLandTypeLine(typeLine: string | undefined | null): boolean {
+  if (!typeLine) return false;
+  return typeLine.includes("Land");
 }
 
 /**

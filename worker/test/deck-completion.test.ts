@@ -254,6 +254,60 @@ describe("buildMinimalShell", () => {
     }
   });
 
+  it("caps nonbasic lands at the configured land target so Phase 3 doesn't overpad with basics", async () => {
+    // Seed 50 cheap dual lands (high inclusion → sort before spells in
+    // Phase 2's price-ASC, inclusion-DESC ordering) and 80 cheap spells.
+    // Without the cap, Phase 2 grabs all 50 lands + 13 spells (filling
+    // NON_BASIC_TARGET=63) and Phase 3 pads with 36 basics → 86 total
+    // lands. The cap holds nonbasic land count to ~13 so total lands ≈ 36.
+    const landCards: SeedCard[] = Array.from({ length: 50 }, (_, index) => ({
+      name: `DualLand${String(index)}`,
+      type: "Land — Tap Land",
+      roles: [],
+    }));
+    const spellCards: SeedCard[] = Array.from({ length: 80 }, (_, index) => ({
+      name: `Spell${String(index)}`,
+      type: "Sorcery",
+      roles: [],
+    }));
+    await seedCards([...landCards, ...spellCards]);
+
+    const recs = [
+      ...landCards.map((c, index) => ({
+        card_name: c.name,
+        category: "lands",
+        inclusion: 200 - (index % 5), // higher than spells
+      })),
+      ...spellCards.map((c, index) => ({
+        card_name: c.name,
+        category: "topcards",
+        inclusion: 100 - (index % 5),
+      })),
+    ];
+    await seedRecommendations(recs);
+
+    const priceStmts = [...landCards, ...spellCards].map((c) =>
+      env.DB.prepare(
+        `INSERT INTO magic_edh_card_prices (card_name, tcgplayer_price) VALUES (?, ?)`,
+      ).bind(c.name, 0.2),
+    );
+    await env.DB.batch(priceStmts);
+
+    const result = await buildMinimalShell(env as unknown as Env, COMMANDER, 100, [], false);
+
+    expect(countTotal(result.deck)).toBe(100);
+    const nonbasicLands = result.deck.filter(
+      (entry) => entry.card_name.startsWith("DualLand"),
+    );
+    const nonbasicLandCount = nonbasicLands.reduce(
+      (sum, entry) => sum + (entry.quantity ?? 1),
+      0,
+    );
+    const totalLands = nonbasicLandCount + countBasics(result.deck);
+    expect(nonbasicLandCount).toBeLessThanOrEqual(13);
+    expect(totalLands).toBeLessThanOrEqual(42);
+  });
+
   it("Karsten land count: at least 36 basics in the result", async () => {
     await seedShellFixture({
       ramp: 12,
