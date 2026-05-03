@@ -582,14 +582,24 @@ export async function upgradeDeck(
       ? await loadGameChangers(env)
       : new Set<string>());
 
-  // P2: load the candidate pool ONCE before the iteration loop. The set
-  // never grows — swaps only consume from it. Re-filter against the
-  // current deck inside the loop without re-querying.
-  const candidatePool = await fetchCandidatesBySynergy(
-    env,
-    commander.scryfall_id,
-    poolSize,
-  );
+  // P2: load TWO candidate pools in parallel — top-K by synergy (theme
+  // coverage) and top-K by inclusion (format staples like Swords to
+  // Plowshares whose commander-synergy is low or negative). Union and
+  // dedupe by card_name. The pool never grows across iterations — swaps
+  // only consume from it. Re-filter against the current deck inside the
+  // loop without re-querying.
+  const [synergyPool, inclusionPool] = await Promise.all([
+    fetchCandidatesBySynergy(env, commander.scryfall_id, poolSize),
+    fetchCandidatesByInclusion(env, commander.scryfall_id, poolSize),
+  ]);
+  const seenCandidateNames = new Set<string>();
+  const candidatePool: candidateRow[] = [];
+  for (const cand of [...synergyPool, ...inclusionPool]) {
+    const lc = cand.card_name.toLowerCase();
+    if (seenCandidateNames.has(lc)) continue;
+    seenCandidateNames.add(lc);
+    candidatePool.push(cand);
+  }
 
   // Pre-filter exclusions + game-changers up front (these never change
   // across iterations); only `inDeckLower` is iteration-dependent.
@@ -900,6 +910,37 @@ async function fetchCandidatesBySynergy(
        WHERE r.commander_id = ?
        GROUP BY r.card_name, p.tcgplayer_price, sc.price_usd
        ORDER BY synergy DESC, inclusion DESC, r.card_name ASC
+       LIMIT ?`,
+  )
+    .bind(commanderId, poolSize)
+    .all<candidateRow>();
+  return result.results ?? [];
+}
+
+/**
+ * fetchCandidatesByInclusion mirrors fetchCandidatesBySynergy but orders
+ * by inclusion DESC. This is the "format staples" pool — cards everyone
+ * runs even if their commander-synergy is low or negative (Swords to
+ * Plowshares, Sol Ring, etc.). The upgrade loop unions both pools.
+ */
+async function fetchCandidatesByInclusion(
+  env: Env,
+  commanderId: string,
+  poolSize: number,
+): Promise<candidateRow[]> {
+  const result = await env.DB.prepare(
+    `SELECT r.card_name AS card_name,
+            MAX(r.synergy) AS synergy,
+            MAX(r.inclusion) AS inclusion,
+            COALESCE(p.tcgplayer_price, sc.price_usd, 0) AS price
+       FROM magic_edh_recommendations r
+       LEFT JOIN magic_edh_card_prices p ON LOWER(r.card_name) = LOWER(p.card_name)
+       LEFT JOIN magic_cards sc ON sc.front_face_name = r.card_name COLLATE NOCASE
+                                AND sc.is_default = 1
+                                AND sc.type_line != 'Card // Card'
+       WHERE r.commander_id = ?
+       GROUP BY r.card_name, p.tcgplayer_price, sc.price_usd
+       ORDER BY inclusion DESC, synergy DESC, r.card_name ASC
        LIMIT ?`,
   )
     .bind(commanderId, poolSize)

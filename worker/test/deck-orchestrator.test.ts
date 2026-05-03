@@ -149,6 +149,46 @@ describe("buildAndUpgradeDeck", () => {
     expect(baselineWarning).toBeDefined();
   });
 
+  it("upgrade pool includes high-inclusion staples even when their synergy is negative", async () => {
+    // Test the two-pool union behavior. With candidatePoolSize=1, a synergy-
+    // only top-1 pool would surface ThemeCard (synergy +10) and miss
+    // FormatStaple (synergy −5) forever. The union pulls top-1 from BOTH
+    // axes, so FormatStaple enters via the inclusion side.
+    //
+    // 53 priceless non-role fillers crowd out ThemeCard/FormatStaple from
+    // minimal-shell Phase 2 (which fills 63 nonbasic slots cheapest-first).
+    // BaseRamps fill Phase 1's ramp floor; their negative synergy + near-
+    // zero inclusion makes them the worst possible swap-out targets so
+    // both upgrade swaps clear epsilon.
+    await seedRecs([
+      ...Array.from({ length: 10 }, (_, index) => ({
+        name: `BaseRamp${String(index)}`,
+        synergy: -15,
+        inclusion: 1,
+        price: 0.1,
+        roles: ["ramp"],
+      })),
+      ...Array.from({ length: 60 }, (_, index) => ({
+        name: `Filler${String(index)}`,
+        synergy: 0,
+        inclusion: 50,
+        price: 0.1,
+        roles: [],
+      })),
+      { name: "ThemeCard", synergy: 10, inclusion: 500, price: 5, roles: ["ramp"] },
+      { name: "FormatStaple", synergy: -5, inclusion: 20_000, price: 5, roles: ["ramp"] },
+    ]);
+
+    const result = await buildAndUpgradeDeck(env as unknown as Env, COMMANDER, {
+      budget: 50,
+      candidatePoolSize: 1,
+    });
+
+    const deckNames = new Set(result.deck.map((entry) => entry.card_name));
+    expect(deckNames.has("ThemeCard")).toBe(true);
+    expect(deckNames.has("FormatStaple")).toBe(true);
+  });
+
   it("populates baseline_cost separately from totalCost", async () => {
     await seedRecs([{ name: "BigRamp", synergy: 5, price: 1, roles: ["ramp"] }]);
 
