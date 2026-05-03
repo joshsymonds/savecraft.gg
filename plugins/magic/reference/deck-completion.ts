@@ -546,7 +546,11 @@ const BASIC_LAND_NAMES = new Set([
   "Wastes",
 ]);
 
-const COMPOSITE_PAIR_LIMIT = 20; // top-K candidates per role for composite swaps
+// Cap on pair-enumeration per role for composite swaps (2-for-1, 1-for-2).
+// 10 instead of 20 cuts wall-clock 4× (pairs grow as N(N-1)/2) without
+// hurting matrix quality — the higher-Δ pairs cluster at the top of the
+// per-role list anyway. Reduced as part of the response-cap fix.
+const COMPOSITE_PAIR_LIMIT = 10;
 
 export interface UpgradeOptions {
   /** Total budget cap. The loop's spent never exceeds this. */
@@ -622,7 +626,12 @@ export async function upgradeDeck(
 ): Promise<UpgradeResult> {
   const epsilon = options.epsilon ?? 0.01;
   const maxIters = options.maxIterations ?? 50;
-  const poolSize = options.candidatePoolSize ?? 50;
+  // Reduced from 50: composite-swap evaluation is O(poolSize × deck × pair_limit)
+  // and dominated wall-clock at higher budgets (18s+), exceeding the
+  // Anthropic-MCP-proxy timeout and causing "Invalid content" errors.
+  // 40 keeps the matrix at 9/9 calibrated bar while cutting wall-clock to
+  // ~5s; 30 is faster (~4s) but regressed Lathril $500 by 1.
+  const poolSize = options.candidatePoolSize ?? 40;
   const minBasics = options.minBasics ?? 0;
   const excludesLower = new Set(
     (options.excludes ?? []).map((s) => s.toLowerCase()),
