@@ -323,8 +323,12 @@ export async function loadCombosForCommander(
   env: Env,
   commanderId: string,
 ): Promise<ComboLine[]> {
+  // LIMIT 500 caps per-iteration combo-scoring work in the upgrade loop
+  // (deltaComboValueCached scales linearly in combo count). Real commander
+  // catalogs in EDHREC are well under 500 combos; the cap is a safety
+  // floor against pathological data, not a normal-path constraint.
   const result = await env.DB.prepare(
-    `SELECT combo_id, card_names FROM magic_edh_combos WHERE commander_id = ?`,
+    `SELECT combo_id, card_names FROM magic_edh_combos WHERE commander_id = ? LIMIT 500`,
   )
     .bind(commanderId)
     .all<comboCardsRow>();
@@ -521,13 +525,24 @@ export async function loadScoringContext(
   commander: CommanderRef,
   cardNames: string[],
 ): Promise<ScoringContext> {
-  const [synergyByCard, inclusionByCard, rolesByCard, combos] =
+  const [synergyByCard, inclusionByCard, rolesByCard, allCombos] =
     await Promise.all([
       loadSynergiesByCard(env, commander.scryfall_id, cardNames),
       loadInclusionsByCard(env, commander.scryfall_id, cardNames),
       loadRolesByCard(env, cardNames),
       loadCombosForCommander(env, commander.scryfall_id),
     ]);
+  // Filter combos to those whose cards intersect the universe. A combo
+  // with zero universe overlap can never be present in the deck (the
+  // upgrade loop only swaps within the universe), so its score is a
+  // constant 0 across every swap — its Δ contribution is always 0.
+  // Drop them at load time to keep deltaComboValueCached's per-call
+  // work proportional to relevant combos, not the commander's full
+  // catalog.
+  const universeLower = new Set(cardNames.map((n) => n.toLowerCase()));
+  const combos = allCombos.filter((c) =>
+    c.cards.some((name) => universeLower.has(name.toLowerCase())),
+  );
   return { synergyByCard, inclusionByCard, rolesByCard, combos };
 }
 
@@ -592,7 +607,7 @@ async function loadInclusionsByCard(
   for (let i = 0; i < unique.length; i += CHUNK) {
     const slice = unique.slice(i, i + CHUNK);
     const placeholders = slice.map(() => "?").join(",");
-    // CROSS JOIN against commander row (single row) to get deck_count for the
+    // JOIN against the commander row to get its deck_count for the
     // ratio. NULLIF guards against the (impossible-in-prod) zero deck_count.
     const result = await env.DB.prepare(
       `SELECT r.card_name AS card_name,

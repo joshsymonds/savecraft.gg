@@ -1,6 +1,7 @@
 import { getOAuthApi } from "@cloudflare/workers-oauth-provider";
 import { env, SELF } from "cloudflare:test";
 
+import { _resetWinConditionCache } from "../../plugins/magic/reference/deck-completion";
 import { OAUTH_ENDPOINTS } from "../src/oauth";
 import type { OAuthProps } from "../src/oauth";
 import { type DeepPartial, Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
@@ -95,6 +96,10 @@ export async function cleanAll(): Promise<void> {
     await env.PLUGINS.delete(object.key);
   }
   clearNativeRegistry();
+  // Win-condition names are cached at module scope across tests in the
+  // same isolate. Tests that mutate `magic_card_roles` between runs
+  // need a stale-cache reset on every cleanAll.
+  _resetWinConditionCache();
 }
 
 /**

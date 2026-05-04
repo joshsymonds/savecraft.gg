@@ -104,9 +104,11 @@ interface roleRecRow {
  * Without this cap, cheap dual-tap-lands flood Phase 2's slot allocation
  * and Phase 3 then pads with basics on top, producing 50+ land decks.
  *
- * This is a placeholder for tier-derived land counts (next task) — the
- * commander-deckbuild caller will eventually pass tier-specific values
- * via BuildOptions.landTarget.
+ * Used as a fallback when the caller does not supply a tier-derived
+ * `landTarget` — e.g., commanders missing from
+ * `magic_edh_average_decks_by_tier`, or callers exercising the API
+ * directly (worker tests). The production deckbuild orchestrator
+ * always passes `landTarget` from `deriveTierLandComposition`.
  */
 const DEFAULT_NONBASIC_LAND_CAP = 13;
 
@@ -351,6 +353,8 @@ export async function buildMinimalShell(
   // Phase 1 added only spells (role tags don't include lands), so the
   // initial spellCount is the count of cards added so far minus the
   // commander.
+  // 36 = Karsten mid-range default for 3-color decks; matches the
+  // upper end of typical EDH 3-color land counts when no tier data exists.
   const totalLandsTarget = landTarget?.totalLandsTarget ?? 36;
   const nonbasicCap = landTarget?.nonbasicLandCap ?? DEFAULT_NONBASIC_LAND_CAP;
   const SPELLS_TARGET = 99 - totalLandsTarget;
@@ -563,7 +567,7 @@ export interface UpgradeOptions {
    *  upgradeDeck skips its internal load — saving a D1 query when the
    *  caller already has the set in hand for output flagging. */
   gameChangers?: Set<string>;
-  /** Stop when best Δ ≤ epsilon (default 0.5). */
+  /** Stop when best Δ ≤ epsilon (default 0.01). */
   epsilon?: number;
   /** Hard cap on iterations (default 50). */
   maxIterations?: number;
@@ -715,7 +719,19 @@ export async function upgradeDeck(
   const steps: UpgradeStep[] = [];
   const warnings: string[] = [];
 
+  // Wall-clock guard: a future pathological commander (rich combo data,
+  // 5-color identity) could push the loop past the MCP-proxy timeout
+  // (~10-15s). Break early so the user sees a partially-upgraded deck
+  // with a warning rather than a proxy "Invalid content" error.
+  const startTime = Date.now();
+  const WALL_CLOCK_BUDGET_MS = 8000;
+  let hitWallClock = false;
+
   for (let iter = 1; iter <= maxIters; iter++) {
+    if (Date.now() - startTime > WALL_CLOCK_BUDGET_MS) {
+      hitWallClock = true;
+      break;
+    }
     const remaining = options.budget - spent;
 
     const inDeckLower = new Set(
@@ -773,6 +789,12 @@ export async function upgradeDeck(
     );
   }
 
+  if (hitWallClock) {
+    warnings.push(
+      `Hit wall-clock budget (${String(WALL_CLOCK_BUDGET_MS)}ms); upgrade loop terminated early after ${String(steps.length)} swaps.`,
+    );
+  }
+
   if (steps.length === maxIters) {
     warnings.push(
       `Hit MAX_ITERATIONS (${String(maxIters)}); possible oscillation — terminating early.`,
@@ -819,6 +841,18 @@ function evaluate1for1(
   best: UpgradeStep | null,
 ): UpgradeStep | null {
   const enforceLandMatch = s.minBasics > 0;
+  // Hoist swappable land classification out of the per-cand inner loop:
+  // swappableUnique is iter-stable, so its land/spell flags don't change
+  // across cand iterations. Saves up to N×M Set lookups per iteration.
+  const swappableIsLand = new Map<string, boolean>();
+  if (enforceLandMatch) {
+    for (const xName of s.swappableUnique) {
+      swappableIsLand.set(
+        xName,
+        s.landNames.has(xName.toLowerCase()) || BASIC_LAND_NAMES.has(xName),
+      );
+    }
+  }
   for (const cand of s.filtered) {
     const candIsLand =
       enforceLandMatch &&
@@ -826,9 +860,7 @@ function evaluate1for1(
         BASIC_LAND_NAMES.has(cand.card_name));
     for (const xName of s.swappableUnique) {
       if (enforceLandMatch) {
-        const xLower = xName.toLowerCase();
-        const xIsLand =
-          s.landNames.has(xLower) || BASIC_LAND_NAMES.has(xName);
+        const xIsLand = swappableIsLand.get(xName) ?? false;
         // Preserve land count: only allow land-for-land or spell-for-spell.
         if (xIsLand !== candIsLand) continue;
       }
@@ -977,13 +1009,27 @@ function emitSwapOutWarnings(
   }
 }
 
+// Win-conditions are commander-independent and only change on data
+// import. Workers reuse isolates across requests, so caching once per
+// isolate eliminates a D1 query on every upgradeDeck call.
+let WIN_CONDITION_CACHE: Set<string> | null = null;
+
+/** Test-only: reset the win-conditions cache. Tests that mutate
+ *  `magic_card_roles` between runs must call this in `beforeEach`. */
+export function _resetWinConditionCache(): void {
+  WIN_CONDITION_CACHE = null;
+}
+
 async function loadWinConditionNames(env: Env): Promise<Set<string>> {
+  if (WIN_CONDITION_CACHE !== null) return WIN_CONDITION_CACHE;
   const result = await env.DB.prepare(
     `SELECT DISTINCT front_face_name FROM magic_card_roles WHERE role = 'win_condition'`,
   ).all<{ front_face_name: string }>();
-  return new Set(
+  const cache = new Set(
     (result.results ?? []).map((r) => r.front_face_name.toLowerCase()),
   );
+  WIN_CONDITION_CACHE = cache;
+  return cache;
 }
 
 /**

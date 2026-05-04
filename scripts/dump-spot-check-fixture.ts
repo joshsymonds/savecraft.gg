@@ -23,7 +23,12 @@ import { fileURLToPath } from "url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUTPUT_FILE = resolve(ROOT, "worker/test/fixtures/spot-check.sql");
-const PROD_DB_ID = "df241bb0-9b7d-48e5-a4d4-f84ebf09e6e5";
+// The same production D1 database UUID lives in Justfile, wrangler.toml,
+// and nix/magic-data-refresh.nix; centralizing as an env var lets a
+// developer point this script at staging or a personal D1 without
+// editing source.
+const PROD_DB_ID =
+  process.env.D1_PROD_DB_ID ?? "df241bb0-9b7d-48e5-a4d4-f84ebf09e6e5";
 
 const SPOT_CHECK_SLUGS = [
   "atraxa-praetors-voice",

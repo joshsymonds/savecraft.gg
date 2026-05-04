@@ -134,7 +134,7 @@ describe("buildAndUpgradeDeck", () => {
     expect(totalCards(result.deck)).toBe(100);
   });
 
-  it("aggregates warnings from baseline, upgrade, and karsten phases", async () => {
+  it("surfaces baseline phase role-floor warnings at low budget", async () => {
     // Tiny budget triggers a baseline-warning (role floors not met).
     await seedRecs([{ name: "ExpensiveRamp", synergy: 5, price: 100, roles: ["ramp"] }]);
 

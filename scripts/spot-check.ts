@@ -426,6 +426,12 @@ async function main(): Promise<void> {
 
   printTable(outcomes);
 
+  if (outcomes.length !== 9) {
+    console.error(
+      `\nOnly ${String(outcomes.length)}/9 builds completed; ${String(9 - outcomes.length)} threw — see errors above.`,
+    );
+  }
+
   const allPass =
     outcomes.length === 9 && outcomes.every((o) => passed(o));
   process.exit(allPass ? 0 : 1);
