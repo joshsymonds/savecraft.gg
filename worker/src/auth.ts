@@ -127,6 +127,54 @@ function extractToken(request: Request): string | undefined {
   return undefined;
 }
 
+/** Clock-skew tolerance for exp/nbf, in seconds. */
+const clockSkewSeconds = 60;
+
+/** Decoded Clerk JWT claims relevant to validation. */
+export interface ClerkClaims {
+  sub?: string;
+  iss?: string;
+  exp?: number;
+  nbf?: number;
+  azp?: string;
+}
+
+/**
+ * Validate the time/issuer/party claims of a Clerk JWT (everything except the
+ * signature, which is verified separately, and `sub`, which is read after
+ * signature verification). Returns false on any failure — never trusts a
+ * missing claim (finding 3.1 / R11):
+ *
+ * - `iss` must equal CLERK_ISSUER.
+ * - `exp` is MANDATORY and numeric: a token with no exp does not "never
+ *   expire", it is rejected. Expired beyond clock skew → rejected.
+ * - `nbf`, when present, must not be in the future beyond clock skew.
+ * - `azp`, when ALLOWED_ORIGINS is configured, must be one of those origins
+ *   (binds tokens to our own front-ends). A missing or mismatched azp is
+ *   rejected when origins are configured.
+ */
+export function validateClerkClaims(payload: ClerkClaims, env: Env, nowSeconds: number): boolean {
+  if (!env.CLERK_ISSUER || payload.iss !== env.CLERK_ISSUER) return false;
+
+  if (typeof payload.exp !== "number") return false;
+  if (nowSeconds - clockSkewSeconds > payload.exp) return false;
+
+  if (typeof payload.nbf === "number" && nowSeconds + clockSkewSeconds < payload.nbf) {
+    return false;
+  }
+
+  const allowList = env.ALLOWED_ORIGINS;
+  if (allowList) {
+    const allowed = allowList
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!payload.azp || !allowed.includes(payload.azp)) return false;
+  }
+
+  return true;
+}
+
 /**
  * Validate a Clerk-issued JWT and extract the user UUID.
  * Uses Clerk's JWKS endpoint to verify the signature.
@@ -137,23 +185,14 @@ async function validateClerkJwt(token: string, env: Env): Promise<AuthResult | n
     if (!headerB64 || !payloadB64) return null;
 
     const header = JSON.parse(atob(headerB64)) as { kid?: string; alg?: string };
-    const payload = JSON.parse(atob(payloadB64)) as {
-      sub?: string;
-      iss?: string;
-      exp?: number;
-      azp?: string;
-    };
+    const payload = JSON.parse(atob(payloadB64)) as ClerkClaims;
 
-    // Validate issuer
-    const issuer = env.CLERK_ISSUER;
-    if (!issuer || payload.iss !== issuer) return null;
-
-    // Validate expiration
-    if (payload.exp && payload.exp < Date.now() / 1000) return null;
+    // Validate time/issuer/party claims before the (costlier) signature check.
+    if (!validateClerkClaims(payload, env, Date.now() / 1000)) return null;
 
     // Validate signature using Clerk's JWKS
     if (!header.kid) return null;
-    const jwk = await fetchClerkJwk(issuer, header.kid);
+    const jwk = await fetchClerkJwk(env.CLERK_ISSUER as string, header.kid);
     if (!jwk) return null;
 
     const isValid = await verifyJwtSignature(token, jwk, header.alg ?? "RS256");

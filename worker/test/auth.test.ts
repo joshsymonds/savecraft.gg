@@ -1,7 +1,12 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { authenticateApiKey, authenticateSession, sha256Hex } from "../src/auth";
+import {
+  authenticateApiKey,
+  authenticateSession,
+  sha256Hex,
+  validateClerkClaims,
+} from "../src/auth";
 import type { Env } from "../src/types";
 import worker from "../src/index";
 
@@ -410,5 +415,82 @@ describe("authenticateSession fail-closed", () => {
     );
 
     expect(resp.status).toBe(401);
+  });
+});
+
+// -- Clerk JWT claim validation (finding 3.1 / epic R11) ---------------------
+
+describe("validateClerkClaims", () => {
+  const ISS = "https://clerk.savecraft.gg";
+  const now = 1_700_000_000; // fixed "now" in seconds
+  const claimEnv = (allowed?: string) =>
+    ({ CLERK_ISSUER: ISS, ALLOWED_ORIGINS: allowed }) as unknown as Env;
+
+  it("rejects a token with no exp (no never-expiring tokens)", () => {
+    expect(validateClerkClaims({ iss: ISS, azp: "https://my.savecraft.gg" }, claimEnv(), now)).toBe(
+      false,
+    );
+  });
+
+  it("rejects a non-numeric exp", () => {
+    expect(
+      validateClerkClaims({ iss: ISS, exp: "soon" as unknown as number }, claimEnv(), now),
+    ).toBe(false);
+  });
+
+  it("rejects an expired token (beyond skew)", () => {
+    expect(validateClerkClaims({ iss: ISS, exp: now - 3600 }, claimEnv(), now)).toBe(false);
+  });
+
+  it("accepts a token whose exp is in the future", () => {
+    expect(validateClerkClaims({ iss: ISS, exp: now + 3600 }, claimEnv(), now)).toBe(true);
+  });
+
+  it("rejects a token not yet valid (nbf in the future beyond skew)", () => {
+    expect(
+      validateClerkClaims({ iss: ISS, exp: now + 3600, nbf: now + 3600 }, claimEnv(), now),
+    ).toBe(false);
+  });
+
+  it("accepts nbf within clock skew", () => {
+    expect(validateClerkClaims({ iss: ISS, exp: now + 3600, nbf: now + 30 }, claimEnv(), now)).toBe(
+      true,
+    );
+  });
+
+  it("rejects a wrong issuer even with good exp", () => {
+    expect(
+      validateClerkClaims({ iss: "https://evil.example", exp: now + 3600 }, claimEnv(), now),
+    ).toBe(false);
+  });
+
+  it("rejects azp not in ALLOWED_ORIGINS", () => {
+    expect(
+      validateClerkClaims(
+        { iss: ISS, exp: now + 3600, azp: "https://evil.com" },
+        claimEnv("https://my.savecraft.gg,https://savecraft.gg"),
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects a missing azp when ALLOWED_ORIGINS is set", () => {
+    expect(
+      validateClerkClaims({ iss: ISS, exp: now + 3600 }, claimEnv("https://my.savecraft.gg"), now),
+    ).toBe(false);
+  });
+
+  it("accepts azp in ALLOWED_ORIGINS", () => {
+    expect(
+      validateClerkClaims(
+        { iss: ISS, exp: now + 3600, azp: "https://my.savecraft.gg" },
+        claimEnv("https://my.savecraft.gg,https://savecraft.gg"),
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not enforce azp when ALLOWED_ORIGINS is unset", () => {
+    expect(validateClerkClaims({ iss: ISS, exp: now + 3600 }, claimEnv(), now)).toBe(true);
   });
 });
