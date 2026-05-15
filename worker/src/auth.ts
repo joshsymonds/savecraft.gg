@@ -190,9 +190,11 @@ async function validateClerkJwt(token: string, env: Env): Promise<AuthResult | n
     // Validate time/issuer/party claims before the (costlier) signature check.
     if (!validateClerkClaims(payload, env, Date.now() / 1000)) return null;
 
-    // Validate signature using Clerk's JWKS
-    if (!header.kid) return null;
-    const jwk = await fetchClerkJwk(env.CLERK_ISSUER as string, header.kid);
+    // Validate signature using Clerk's JWKS. validateClerkClaims already
+    // ensured CLERK_ISSUER is set; re-narrow explicitly for the type checker.
+    const issuer = env.CLERK_ISSUER;
+    if (!issuer || !header.kid) return null;
+    const jwk = await fetchClerkJwk(issuer, header.kid);
     if (!jwk) return null;
 
     const isValid = await verifyJwtSignature(token, jwk, header.alg ?? "RS256");

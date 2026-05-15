@@ -227,15 +227,40 @@ describe("Adapter Refresh Job", () => {
 
   it("respects batch limit", async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
-    // Seed 55 saves — only 50 should be processed (SQL LIMIT 50)
+    // Seed 55 saves — only 50 should be processed (SQL LIMIT 50). Insert via a
+    // single D1 batch: 55*2 sequential round-trips otherwise blow past the
+    // default test timeout under the sharded `just check` run (the assertion
+    // itself has always held — this only ever flaked as a seeding timeout).
+    const stmts: D1PreparedStatement[] = [];
     for (let index = 0; index < 55; index++) {
-      const name = `Char${String(index)}-testrealm-US`;
-      await seedAdapterSave(USER_UUID, sourceUuid, "fakegame", name);
-      await seedLinkedCharacter(USER_UUID, sourceUuid, "fakegame", `Char${String(index)}`, {
-        realm_slug: "testrealm",
-        region: "us",
-      });
+      const charName = `Char${String(index)}`;
+      stmts.push(
+        env.DB.prepare(
+          `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
+           VALUES (?, ?, ?, ?, ?, '', ?, ?)`,
+        ).bind(
+          crypto.randomUUID(),
+          USER_UUID,
+          "fakegame",
+          "Fake Game",
+          `${charName}-testrealm-US`,
+          "2020-01-01T00:00:00",
+          sourceUuid,
+        ),
+        env.DB.prepare(
+          `INSERT INTO linked_characters (user_uuid, source_uuid, game_id, character_id, character_name, metadata, active)
+           VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        ).bind(
+          USER_UUID,
+          sourceUuid,
+          "fakegame",
+          `${charName}-id`,
+          charName,
+          JSON.stringify({ realm_slug: "testrealm", region: "us" }),
+        ),
+      );
     }
+    await env.DB.batch(stmts);
     await seedGameCredentials(USER_UUID, "fakegame", "test-access-token");
 
     await refreshAdapterSources(env);

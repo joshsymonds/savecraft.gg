@@ -7,8 +7,8 @@ import {
   sha256Hex,
   validateClerkClaims,
 } from "../src/auth";
-import type { Env } from "../src/types";
 import worker from "../src/index";
+import type { Env } from "../src/types";
 
 import { cleanAll, getOAuthToken } from "./helpers";
 
@@ -400,7 +400,7 @@ describe("authenticateSession fail-closed", () => {
   });
 
   it("a protected /api/v1 route returns 401 in production without CLERK_ISSUER", async () => {
-    const prodEnv = {
+    const productionEnv = {
       ...env,
       ENVIRONMENT: "production",
       CLERK_ISSUER: "",
@@ -410,7 +410,7 @@ describe("authenticateSession fail-closed", () => {
       new Request("https://test-host/api/v1/verify", {
         headers: { Authorization: "Bearer victim-uuid" },
       }),
-      prodEnv,
+      productionEnv,
       {} as ExecutionContext,
     );
 
