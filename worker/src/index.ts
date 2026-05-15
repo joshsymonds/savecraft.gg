@@ -1053,6 +1053,14 @@ async function logSourceEvent(
 
 // -- Plugin Registry -----------------------------------------------
 
+/**
+ * Request-time aggregated plugin manifest. NOTE: the daemon no longer trusts
+ * this endpoint — it fetches a CI-signed aggregate (`plugins/manifest.json` +
+ * `.sig`) from the install origin and verifies it against the embedded key
+ * (see internal/pluginmgr/httpregistry.go). This endpoint is retained for the
+ * web UI (web/src/lib/api/client.ts), which renders the public plugin
+ * directory and does not need cryptographic provenance.
+ */
 async function handlePluginManifest(env: Env): Promise<Response> {
   const serverUrl = env.SERVER_URL;
   if (!serverUrl) {
