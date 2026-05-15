@@ -234,13 +234,31 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
+// gameId is constrained to a defensive charset (lowercase alnum with interior
+// hyphens, 1–64 chars) — admits every real plugin id (d2r, clair-obscur,
+// vic3, …) but excludes uppercase, spaces, and dots (so "..", "a.b" can't be
+// a segment) and over-long values. filename is a fixed alternation. R2 keys
+// are flat and PLUGINS is a single public-by-design bucket, so no traversal
+// or cross-bucket reach is possible regardless; this is defense-in-depth so
+// a malformed id never shapes an R2 key.
 const PLUGIN_DOWNLOAD_RE =
-  /^\/plugins\/([^/]+)\/((parser|reference)\.wasm(?:\.sig)?|icon\.(svg|png))$/;
+  /^\/plugins\/([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)\/((parser|reference)\.wasm(?:\.sig)?|icon\.(svg|png))$/;
+
+/**
+ * matchPluginDownload returns the validated {gameId, filename} for a plugin
+ * download path, or null when the path does not match the strict route shape.
+ * Exported for unit testing the validation in isolation.
+ */
+export function matchPluginDownload(pathname: string): { gameId: string; filename: string } | null {
+  const m = PLUGIN_DOWNLOAD_RE.exec(pathname);
+  if (!m?.[1] || !m[2]) return null;
+  return { gameId: m[1], filename: m[2] };
+}
 
 function routeDownload(request: Request, url: URL, env: Env): Promise<Response> | null {
-  const pluginMatch = PLUGIN_DOWNLOAD_RE.exec(url.pathname);
-  if (pluginMatch?.[1] && pluginMatch[2] && request.method === "GET") {
-    return handlePluginDownload(env, pluginMatch[1], pluginMatch[2]);
+  const match = matchPluginDownload(url.pathname);
+  if (match && request.method === "GET") {
+    return handlePluginDownload(env, match.gameId, match.filename);
   }
   return null;
 }

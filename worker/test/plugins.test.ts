@@ -1,7 +1,56 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { matchPluginDownload } from "../src/index";
+
 import { cleanAll } from "./helpers";
+
+describe("matchPluginDownload (finding 1.x / R14)", () => {
+  it("matches real game IDs and the allowed filenames", () => {
+    expect(matchPluginDownload("/plugins/d2r/parser.wasm")).toEqual({
+      gameId: "d2r",
+      filename: "parser.wasm",
+    });
+    expect(matchPluginDownload("/plugins/clair-obscur/parser.wasm.sig")).toEqual({
+      gameId: "clair-obscur",
+      filename: "parser.wasm.sig",
+    });
+    expect(matchPluginDownload("/plugins/vic3/reference.wasm")).toEqual({
+      gameId: "vic3",
+      filename: "reference.wasm",
+    });
+    expect(matchPluginDownload("/plugins/rimworld/icon.png")?.filename).toBe("icon.png");
+    expect(matchPluginDownload("/plugins/nonexistent/parser.wasm")?.gameId).toBe("nonexistent");
+  });
+
+  it("rejects malformed game IDs (no R2 key built from attacker shape)", () => {
+    for (const p of [
+      "/plugins/../parser.wasm",
+      "/plugins/.../parser.wasm",
+      "/plugins/a.b/parser.wasm",
+      "/plugins/UPPER/parser.wasm",
+      "/plugins/a b/parser.wasm",
+      "/plugins/-lead/parser.wasm",
+      "/plugins/trail-/parser.wasm",
+      `/plugins/${"x".repeat(65)}/parser.wasm`,
+      "/plugins//parser.wasm",
+    ]) {
+      expect(matchPluginDownload(p)).toBeNull();
+    }
+  });
+
+  it("rejects filenames outside the allowed set", () => {
+    for (const p of [
+      "/plugins/d2r/evil.txt",
+      "/plugins/d2r/parser.wasm.sig.sig",
+      "/plugins/d2r/",
+      "/plugins/d2r/icon.gif",
+      "/plugins/d2r/parser.wasm/extra",
+    ]) {
+      expect(matchPluginDownload(p)).toBeNull();
+    }
+  });
+});
 
 describe("Plugin Registry", () => {
   beforeEach(cleanAll);
