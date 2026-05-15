@@ -1,7 +1,8 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { authenticateApiKey, sha256Hex } from "../src/auth";
+import { authenticateApiKey, authenticateSession, sha256Hex } from "../src/auth";
+import type { Env } from "../src/types";
 import worker from "../src/index";
 
 import { cleanAll, getOAuthToken } from "./helpers";
@@ -344,5 +345,70 @@ describe("API key auth unit tests", () => {
   it("authenticateApiKey rejects garbage token at function level", async () => {
     const result = await authenticateApiKey("garbage_not_a_real_key", env.DB);
     expect(result).toBeNull();
+  });
+});
+
+// -- Session auth fail-closed (finding 3.2 / epic R10) ------------------------
+
+describe("authenticateSession fail-closed", () => {
+  const bearer = (token: string) =>
+    new Request("https://test-host/api/v1/x", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+  const sessionEnv = (environment: string, clerkIssuer?: string) =>
+    ({ ENVIRONMENT: environment, CLERK_ISSUER: clerkIssuer }) as unknown as Env;
+
+  it("stubs ONLY in development when CLERK_ISSUER is unset", async () => {
+    const result = await authenticateSession(bearer("victim-uuid"), sessionEnv("development"));
+    expect(result).toEqual({ userUuid: "victim-uuid" });
+  });
+
+  it("denies in production when CLERK_ISSUER is unset (no impersonation)", async () => {
+    const result = await authenticateSession(bearer("victim-uuid"), sessionEnv("production"));
+    expect(result).toBeNull();
+  });
+
+  it("denies in staging when CLERK_ISSUER is unset", async () => {
+    expect(await authenticateSession(bearer("victim-uuid"), sessionEnv("staging"))).toBeNull();
+  });
+
+  it("denies when ENVIRONMENT is empty/unknown and CLERK_ISSUER is unset", async () => {
+    expect(await authenticateSession(bearer("x"), sessionEnv(""))).toBeNull();
+    expect(await authenticateSession(bearer("x"), sessionEnv("dev"))).toBeNull(); // not exactly "development"
+  });
+
+  it("treats empty-string CLERK_ISSUER as unset", async () => {
+    expect(await authenticateSession(bearer("x"), sessionEnv("production", ""))).toBeNull();
+    expect(await authenticateSession(bearer("u"), sessionEnv("development", ""))).toEqual({
+      userUuid: "u",
+    });
+  });
+
+  it("does NOT stub when CLERK_ISSUER is set (uses JWT path; bogus token denied)", async () => {
+    const result = await authenticateSession(
+      bearer("not-a-jwt"),
+      sessionEnv("production", "https://clerk.savecraft.gg"),
+    );
+    // Must NOT be { userUuid: "not-a-jwt" } — that would be stub behaviour.
+    expect(result).toBeNull();
+  });
+
+  it("a protected /api/v1 route returns 401 in production without CLERK_ISSUER", async () => {
+    const prodEnv = {
+      ...env,
+      ENVIRONMENT: "production",
+      CLERK_ISSUER: "",
+    } as typeof env;
+
+    const resp = await worker.fetch(
+      new Request("https://test-host/api/v1/verify", {
+        headers: { Authorization: "Bearer victim-uuid" },
+      }),
+      prodEnv,
+      {} as ExecutionContext,
+    );
+
+    expect(resp.status).toBe(401);
   });
 });

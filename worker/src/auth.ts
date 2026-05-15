@@ -8,7 +8,11 @@
  * (token validation via KV lookup). This module is not involved.
  *
  * All resolve to the same AuthResult { userUuid: string }.
- * When CLERK_ISSUER is unset, stub auth is used (bearer token = user UUID).
+ *
+ * Stub auth (bearer token = user UUID) is reachable ONLY in local
+ * development (ENVIRONMENT === "development"). In any other environment a
+ * missing CLERK_ISSUER hard-denies — it never silently trusts the bearer
+ * token as a UUID (finding 3.2 / epic R10).
  */
 import type { Env } from "./types";
 
@@ -23,7 +27,7 @@ export interface SourceAuthResult {
 
 // -- Stub auth (development/testing) --------------------------------------
 
-/** Stub auth: bearer token IS the user UUID. Used when CLERK_ISSUER is unset. */
+/** Stub auth: bearer token IS the user UUID. Local development only. */
 function authenticateStub(token: string): AuthResult {
   return { userUuid: token };
 }
@@ -32,14 +36,24 @@ function authenticateStub(token: string): AuthResult {
 
 /**
  * Validate a Clerk session JWT and extract the user UUID.
- * Returns null if invalid. Falls back to stub when CLERK_ISSUER is unset.
+ *
+ * Returns null if invalid. When CLERK_ISSUER is configured, the JWT is
+ * validated. When it is unset, stub auth is used ONLY in local development;
+ * in every other environment the request is hard-denied so a missing
+ * configuration can never fail open to bearer-token impersonation
+ * (finding 3.2 / epic R10).
  */
 export async function authenticateSession(request: Request, env: Env): Promise<AuthResult | null> {
   const token = extractToken(request);
   if (!token) return null;
 
-  if (!env.CLERK_ISSUER) return authenticateStub(token);
-  return validateClerkJwt(token, env);
+  if (env.CLERK_ISSUER) return validateClerkJwt(token, env);
+
+  // No issuer configured: stub is permitted only as an explicit local-dev
+  // affordance, bound to the exact environment string — never to the mere
+  // absence of CLERK_ISSUER.
+  if (env.ENVIRONMENT === "development") return authenticateStub(token);
+  return null;
 }
 
 // -- API key auth (D1 lookup) ---------------------------------------------
