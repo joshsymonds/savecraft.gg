@@ -19,7 +19,7 @@
   }
 
   interface Reference {
-    id: string;
+    module: string;
     name: string;
     description: string;
   }
@@ -91,7 +91,7 @@
               label="{game.references.length} reference {game.references.length === 1 ? 'module' : 'modules'}"
             >
               <div class="ref-list">
-                {#each game.references as ref (ref.id)}
+                {#each game.references as ref (ref.module)}
                   <HoverTip>
                     {#snippet tip()}
                       <span class="ref-tooltip-prompt">Ask the AI to use this for</span>

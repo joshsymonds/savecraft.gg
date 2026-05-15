@@ -246,6 +246,14 @@ export const commanderDeckbuildModule: NativeReferenceModule = {
     },
   },
 
+  example: {
+    game_id: "magic",
+    module: "commander_deckbuild",
+    queries: [
+      { label: "Budget Atraxa", commander: "Atraxa, Praetors' Voice", max_price: 150 },
+    ],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

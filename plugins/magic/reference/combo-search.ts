@@ -71,6 +71,14 @@ export const comboSearchModule: NativeReferenceModule = {
     },
   },
 
+  example: {
+    game_id: "magic",
+    module: "combo_search",
+    queries: [
+      { label: "Thassa's Oracle", card: "Thassa's Oracle", colors: "UB", limit: 20 },
+    ],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

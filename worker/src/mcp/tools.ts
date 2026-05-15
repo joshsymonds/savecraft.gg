@@ -9,7 +9,7 @@ import { adapters } from "../adapters/registry";
 import { resolveCharacterContext } from "../adapters/resolve-character";
 import { normalizeGameId } from "../gameid";
 import { getNativeGameIds, getNativeModule, getNativeModules } from "../reference/registry";
-import type { NativeReferenceModule } from "../reference/types";
+import type { ListedReferenceModule, NativeReferenceModule } from "../reference/types";
 import { storePush } from "../store";
 import type { Env } from "../types";
 
@@ -147,13 +147,7 @@ interface GameEntry {
     notes: { note_id: string; title: string }[];
   }[];
   removed_saves?: string[];
-  references?: {
-    id: string;
-    name: string;
-    description: string;
-    parameters?: Record<string, unknown>;
-    visual?: boolean;
-  }[];
+  references?: ListedReferenceModule[];
   /** Hint for AI models: filter list_games to a specific game to see full parameter schemas. */
   reference_schemas?: string;
 }
@@ -201,15 +195,13 @@ export function getWasmSectionMappings(
 const REFERENCE_SCHEMAS_HINT =
   "Pass a filter to list_games to see full parameter schemas for these modules.";
 
-/** Strip parameters from a ReferenceModuleMetadata for lightweight list_games output. */
-function toListReference(source: {
-  id: string;
-  name: string;
-  description: string;
-  visual?: boolean;
-}): { id: string; name: string; description: string; visual?: boolean } {
+/**
+ * Strip parameters and example for the lightweight (unfiltered) list_games
+ * output — the model is directed to filter to a game for full schemas.
+ */
+function toListReference(source: ListedReferenceModule): ListedReferenceModule {
   return {
-    id: source.id,
+    module: source.module,
     name: source.name,
     description: source.description,
     visual: source.visual,
@@ -220,16 +212,14 @@ function toListReference(source: {
 function mergeNativeIntoGame(game: GameEntry, gameId: string, filtered: boolean): void {
   const nativeModules = getNativeModules(gameId);
   const existing = game.references ?? [];
-  const existingIds = new Set(existing.map((r) => r.id));
-  const toReference = filtered
-    ? (m: { id: string; name: string; description: string; visual?: boolean }) => m
-    : toListReference;
+  const existingIds = new Set(existing.map((r) => r.module));
+  const toReference = filtered ? (m: ListedReferenceModule) => m : toListReference;
   const merged = existing.map((reference) => {
-    const native = nativeModules.find((n) => n.id === reference.id);
+    const native = nativeModules.find((n) => n.module === reference.module);
     return native ? toReference(native) : reference;
   });
   for (const native of nativeModules) {
-    if (!existingIds.has(native.id)) {
+    if (!existingIds.has(native.module)) {
       merged.push(toReference(native));
     }
   }
@@ -271,10 +261,10 @@ function enrichFromManifest(
 
   if (data.reference?.modules) {
     game.references = Object.entries(data.reference.modules).map(([id, entry]) => ({
-      id,
+      module: id,
       name: entry.name,
       description: entry.description,
-      ...(filtered ? { parameters: entry.parameters } : {}),
+      ...(filtered ? { parameters: entry.parameters, example: entry.example } : {}),
       visual: VISUAL_MODULES.has(id),
     }));
     if (!filtered) {
@@ -659,7 +649,7 @@ function suggestModules(gameId: string, requested: string): string[] {
   // Real module ids are <40 chars; 256 is generous and covers plausible typos.
   if (requested.length > 256) return [];
   const wasmIds = Object.keys(MANIFESTS.get(gameId)?.reference?.modules ?? {});
-  const nativeIds = getNativeModules(gameId).map((m) => m.id);
+  const nativeIds = getNativeModules(gameId).map((m) => m.module);
   const allIds = [...new Set([...wasmIds, ...nativeIds])];
   if (allIds.length === 0) return [];
   const query = requested.toLowerCase();

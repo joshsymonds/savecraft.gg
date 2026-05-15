@@ -22,6 +22,7 @@ describe("NativeReferenceModule registry", () => {
     name: "Test Module",
     description: "A test module",
     parameters: { type: "object", properties: { q: { type: "string" } } },
+    example: { game_id: "game1", module: "test_module", queries: [{ label: "X", q: "hi" }] },
     execute: () => Promise.resolve({ type: "text", content: "hello from native" }),
   };
 
@@ -44,10 +45,15 @@ describe("NativeReferenceModule registry", () => {
     const modules = getNativeModules("game1");
     expect(modules).toEqual([
       {
-        id: "test_module",
+        module: "test_module",
         name: "Test Module",
         description: "A test module",
         parameters: { type: "object", properties: { q: { type: "string" } } },
+        example: {
+          game_id: "game1",
+          module: "test_module",
+          queries: [{ label: "X", q: "hi" }],
+        },
         visual: false,
       },
     ]);

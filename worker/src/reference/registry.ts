@@ -8,7 +8,7 @@
 
 import { VISUAL_MODULES } from "../mcp/views.gen.js";
 
-import type { NativeReferenceModule, ReferenceModuleMetadata } from "./types";
+import type { ListedReferenceModule, NativeReferenceModule } from "./types";
 
 /** gameId → moduleId → module */
 const registry = new Map<string, Map<string, NativeReferenceModule>>();
@@ -31,15 +31,21 @@ export function getNativeModule(
   return registry.get(gameId)?.get(moduleId);
 }
 
-/** Get all native module metadata for a game (for list_games). */
-export function getNativeModules(gameId: string): ReferenceModuleMetadata[] {
+/**
+ * Get all native module metadata for a game (for list_games).
+ *
+ * Projects the internal `id` onto the wire key `module` so the listing names
+ * the identifier exactly what query_reference's `module` argument expects.
+ */
+export function getNativeModules(gameId: string): ListedReferenceModule[] {
   const gameModules = registry.get(gameId);
   if (!gameModules) return [];
-  return [...gameModules.values()].map(({ id, name, description, parameters }) => ({
-    id,
+  return [...gameModules.values()].map(({ id, name, description, parameters, example }) => ({
+    module: id,
     name,
     description,
     parameters,
+    example,
     visual: VISUAL_MODULES.has(id),
   }));
 }

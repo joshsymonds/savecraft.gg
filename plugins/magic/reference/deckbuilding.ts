@@ -1723,6 +1723,22 @@ export const deckbuildingModule: NativeReferenceModule = {
     },
   ],
 
+  example: {
+    game_id: "magic",
+    module: "deckbuilding",
+    queries: [
+      {
+        label: "Standard legality",
+        mode: "constructed",
+        format: "standard",
+        deck: [
+          { name: "Sheoldred, the Apocalypse", count: 4 },
+          { name: "Swamp", count: 24 },
+        ],
+      },
+    ],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

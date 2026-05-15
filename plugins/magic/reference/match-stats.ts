@@ -292,6 +292,12 @@ export const matchStatsModule: NativeReferenceModule = {
     },
   },
 
+  example: {
+    game_id: "magic",
+    module: "match_stats",
+    queries: [{ label: "Overview", mode: "overview" }],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

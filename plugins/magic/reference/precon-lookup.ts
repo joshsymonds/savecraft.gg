@@ -97,6 +97,14 @@ export const preconLookupModule: NativeReferenceModule = {
     },
   },
 
+  example: {
+    game_id: "magic",
+    module: "precon_lookup",
+    queries: [
+      { label: "Atraxa precons", commander: "Atraxa, Praetors' Voice", max_price: 60 },
+    ],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

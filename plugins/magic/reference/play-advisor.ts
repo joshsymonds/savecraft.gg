@@ -959,6 +959,27 @@ export const playAdvisorModule: NativeReferenceModule = {
     },
   },
 
+  example: {
+    game_id: "magic",
+    module: "play_advisor",
+    queries: [
+      {
+        label: "Mulligan",
+        mode: "mulligan",
+        set: "FDN",
+        hand: [
+          "Island",
+          "Island",
+          "Swamp",
+          "Sheoldred, the Apocalypse",
+          "Cut Down",
+          "Go for the Throat",
+          "Consider",
+        ],
+      },
+    ],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

@@ -36,7 +36,7 @@ describe("WoW reference module integration", () => {
 
   it("registers all WoW modules via getNativeModules", () => {
     const modules = getNativeModules("wow");
-    const ids = modules.map((m) => m.id);
+    const ids = modules.map((m) => m.module);
     expect(ids).toContain("ability_lookup");
     expect(ids).toContain("dungeon_guide");
     expect(ids).toContain("gear_audit");
@@ -45,7 +45,7 @@ describe("WoW reference module integration", () => {
 
   it("ability_lookup has correct registry metadata shape", () => {
     const modules = getNativeModules("wow");
-    const abilityLookup = modules.find((m) => m.id === "ability_lookup");
+    const abilityLookup = modules.find((m) => m.module === "ability_lookup");
     expect(abilityLookup).toBeDefined();
     expect(abilityLookup!.name).toBe("Ability Lookup");
     expect(abilityLookup!.description).toContain("USE PROACTIVELY");
@@ -58,7 +58,7 @@ describe("WoW reference module integration", () => {
 
   it("season_info has correct registry metadata shape", () => {
     const modules = getNativeModules("wow");
-    const seasonInfo = modules.find((m) => m.id === "season_info");
+    const seasonInfo = modules.find((m) => m.module === "season_info");
     expect(seasonInfo).toBeDefined();
     expect(seasonInfo!.name).toBe("Season Info");
     expect(seasonInfo!.description).toContain("USE PROACTIVELY");

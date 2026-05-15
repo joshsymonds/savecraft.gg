@@ -36,6 +36,7 @@ interface ReferenceModule {
   name: string;
   description: string;
   parameters?: Record<string, unknown>;
+  example?: unknown;
   section_mappings?: Record<string, string>;
   attribution?: unknown;
   view_default?: string;
@@ -115,6 +116,7 @@ function generate(manifests: Manifest[]): string {
     "  name: string;",
     "  description: string;",
     "  parameters?: Record<string, unknown>;",
+    "  example?: unknown;",
     "  section_mappings?: Record<string, string>;",
     "  attribution?: unknown;",
     "  view_default?: string;",

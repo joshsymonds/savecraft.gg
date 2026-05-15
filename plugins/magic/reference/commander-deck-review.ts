@@ -388,6 +388,17 @@ export const commanderDeckReviewModule: NativeReferenceModule = {
       },
     },
   ],
+  example: {
+    game_id: "magic",
+    module: "commander_deck_review",
+    queries: [
+      {
+        label: "Review Atraxa",
+        commander: "Atraxa, Praetors' Voice",
+        decklist: ["1 Atraxa, Praetors' Voice", "1 Sol Ring", "36 Forest"],
+      },
+    ],
+  },
   execute: runReview,
 };
 

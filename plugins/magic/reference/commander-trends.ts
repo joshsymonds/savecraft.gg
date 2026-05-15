@@ -247,5 +247,10 @@ export const commanderTrendsModule: NativeReferenceModule = {
       description: "Max results (default 20, max 100).",
     },
   },
+  example: {
+    game_id: "magic",
+    module: "commander_trends",
+    queries: [{ label: "Top commanders", mode: "top", limit: 20 }],
+  },
   execute: runTrends,
 };

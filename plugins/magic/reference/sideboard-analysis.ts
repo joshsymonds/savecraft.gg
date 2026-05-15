@@ -303,6 +303,12 @@ export const sideboardAnalysisModule: NativeReferenceModule = {
     },
   },
 
+  example: {
+    game_id: "magic",
+    module: "sideboard_analysis",
+    queries: [{ label: "Bo3 overview", mode: "bo3_overview" }],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

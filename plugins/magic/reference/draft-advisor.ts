@@ -1665,6 +1665,20 @@ export const draftAdvisorModule: NativeReferenceModule = {
     },
   ],
 
+  example: {
+    game_id: "magic",
+    module: "draft_advisor",
+    queries: [
+      {
+        label: "DSK P1P5",
+        set: "DSK",
+        pool: ["Cackling Slasher"],
+        pack: ["Unstoppable Slasher", "Spineseeker Centipede"],
+        pick_number: 5,
+      },
+    ],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

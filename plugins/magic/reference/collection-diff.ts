@@ -64,6 +64,18 @@ export const collectionDiffModule: NativeReferenceModule = {
     },
   ],
 
+  example: {
+    game_id: "magic",
+    module: "collection_diff",
+    queries: [
+      {
+        label: "Mono Black gaps",
+        deck_section: "deck:Mono Black",
+        save_id: "<save UUID from get_save>",
+      },
+    ],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

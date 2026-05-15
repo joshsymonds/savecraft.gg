@@ -392,14 +392,14 @@ describe("MCP Protocol", () => {
     const data = parseToolResult(body.result) as {
       games: {
         game_id: string;
-        references?: { id: string; name: string }[];
+        references?: { module: string; name: string }[];
       }[];
     };
     const d2r = data.games.find((g) => g.game_id === "d2r");
     expect(d2r).toBeDefined();
     expect(d2r!.references).toBeDefined();
     expect(d2r!.references).toHaveLength(1);
-    expect(d2r!.references![0]!.id).toBe("drop_calc");
+    expect(d2r!.references![0]!.module).toBe("drop_calc");
     expect(d2r!.references![0]!.name).toBe("Drop Calculator");
   });
 

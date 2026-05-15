@@ -539,6 +539,12 @@ export const rulesSearchModule: NativeReferenceModule = {
     limit: { type: "integer", description: "Max results (default 20)." },
   },
 
+  example: {
+    game_id: "magic",
+    module: "rules_search",
+    queries: [{ label: "Deathtouch", keyword: "deathtouch" }],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

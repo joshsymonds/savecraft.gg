@@ -383,6 +383,21 @@ export const cardStatsModule: NativeReferenceModule = {
     },
   },
 
+  example: {
+    game_id: "magic",
+    module: "card_stats",
+    queries: [
+      {
+        label: "DSK UB commons",
+        set: "DSK",
+        colors: "UB",
+        rarity: "common",
+        sort: "gihwr",
+        limit: 25,
+      },
+    ],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

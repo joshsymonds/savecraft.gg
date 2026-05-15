@@ -149,6 +149,23 @@ export const cardSearchModule: NativeReferenceModule = {
     },
   },
 
+  example: {
+    game_id: "magic",
+    module: "card_search",
+    queries: [
+      {
+        label: "Red rares",
+        colors: "R",
+        colors_op: "=",
+        format: "standard",
+        rarity: "rare",
+        type: "creature",
+        sort: "cmc",
+        limit: 40,
+      },
+    ],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

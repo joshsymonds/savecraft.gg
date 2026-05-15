@@ -89,6 +89,19 @@ export const commanderLookupModule: NativeReferenceModule = {
     },
   },
 
+  example: {
+    game_id: "magic",
+    module: "commander_lookup",
+    queries: [
+      {
+        label: "Atraxa staples",
+        commander: "Atraxa, Praetors' Voice",
+        category: "topcards",
+        limit: 20,
+      },
+    ],
+  },
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

@@ -148,10 +148,11 @@ describe("MCP Tools", () => {
     }[];
     removed_saves?: string[];
     references?: {
-      id: string;
+      module: string;
       name: string;
       description: string;
       parameters?: unknown;
+      example?: unknown;
       visual?: boolean;
     }[];
     reference_schemas?: string;
@@ -314,10 +315,11 @@ describe("MCP Tools", () => {
       const d2r = data.games.find((g) => g.game_id === "d2r")!;
       expect(d2r.references).toBeDefined();
       expect(d2r.references).toHaveLength(1);
-      expect(d2r.references![0]!.id).toBe("drop_calc");
+      expect(d2r.references![0]!.module).toBe("drop_calc");
       expect(d2r.references![0]!.name).toBe("Drop Calculator");
-      // Unfiltered: no parameters, hint present
+      // Unfiltered: no parameters or example, hint present
       expect(d2r.references![0]!.parameters).toBeUndefined();
+      expect(d2r.references![0]!.example).toBeUndefined();
       expect(d2r.reference_schemas).toContain("filter");
     });
 
@@ -335,7 +337,7 @@ describe("MCP Tools", () => {
       const data = parseResult(result) as { games: GameEntry[] };
       const d2r = data.games.find((g) => g.game_id === "d2r")!;
       expect(d2r.references).toBeDefined();
-      expect(d2r.references![0]!.id).toBe("drop_calc");
+      expect(d2r.references![0]!.module).toBe("drop_calc");
       // Filtered: full parameters included, no hint needed
       expect(d2r.references![0]!.parameters).toBeDefined();
       expect(d2r.reference_schemas).toBeUndefined();

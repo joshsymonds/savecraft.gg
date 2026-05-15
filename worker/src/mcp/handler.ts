@@ -387,7 +387,7 @@ const TOOLS: ToolDefinition[] = [
     name: "query_reference",
     title: "Query Game Reference Data",
     description:
-      "Text-only game reference data — rules, items, builds, drop rates, economy prices — as raw JSON. Use when the answer is a sentence, the module has no visual component, or you need raw data before making a cross-module decision. When presenting results to the player and the module has visual=true, prefer show_reference — it returns the same data plus an interactive view. You MUST call list_games(filter=...) first to load parameter schemas — calling without schemas will return errors. Batch multiple queries per call (max 50) — each query targets one module and has its own parameters. Modules accepting card/deck lists can also take a section reference (deck_section + save_id) — get valid section names from get_save first.",
+      "Text-only game reference data — rules, items, builds, drop rates, economy prices — as raw JSON. Use when the answer is a sentence, the module has no visual component, or you need raw data before making a cross-module decision. When presenting results to the player and the module has visual=true, prefer show_reference — it returns the same data plus an interactive view. You MUST call list_games(filter=...) first to load parameter schemas — calling without schemas will return errors. The filtered listing gives each module an `example`: a complete, copy-pasteable call (game_id + module + queries) — copy its shape rather than assembling the envelope from the schema. Pass `module` exactly as the listing names it. Batch multiple queries per call (max 50) — each query targets one module and has its own parameters. Modules accepting card/deck lists can also take a section reference (deck_section + save_id) — get valid section names from get_save first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -397,12 +397,12 @@ const TOOLS: ToolDefinition[] = [
         },
         module: {
           type: "string",
-          description: "Reference module ID from the game listing.",
+          description: "Copy the `module` value verbatim from the filtered game listing.",
         },
         queries: {
           type: "array",
           description:
-            "Array of query objects with module-specific parameters. Each object's structure is defined by the module's parameter schema in the game listing — build from that schema, do not guess field names. Results are returned in the same positional order. Every query MUST include a `label` — a short, human-readable tab name that distinguishes this query from others in the batch (e.g., 'Spring Year 1', 'Summer Year 2' for crop comparisons, 'Aggressive' vs 'Control' for deck evaluations, 'Steel Longsword' vs 'Uranium Mace' for weapon comparisons).",
+            "Array of query objects. Each query's module-specific parameters sit as flat siblings of `label` inside the object (NOT nested under a `parameters` key, NOT JSON-stringified) — copy the structure from the module's `example` in the filtered game listing; the schema in `parameters` only enumerates which fields exist. Results are returned in the same positional order. Every query MUST include a `label` — a short, human-readable tab name that distinguishes this query from others in the batch (e.g., 'Spring Year 1', 'Summer Year 2' for crop comparisons, 'Aggressive' vs 'Control' for deck evaluations, 'Steel Longsword' vs 'Uranium Mace' for weapon comparisons).",
           items: {
             type: "object",
             properties: {
@@ -484,12 +484,13 @@ const TOOLS: ToolDefinition[] = [
         },
         module: {
           type: "string",
-          description: "Reference module ID — must have visual=true in the game listing.",
+          description:
+            "Copy the `module` value verbatim from the filtered game listing — must have visual=true.",
         },
         queries: {
           type: "array",
           description:
-            "Array of query objects — same structure as query_reference queries. Every query MUST include a `label`.",
+            "Array of query objects — same structure as query_reference queries: module params as flat siblings of `label`, copied from the module's `example` in the filtered listing. Every query MUST include a `label`.",
           items: {
             type: "object",
             properties: {

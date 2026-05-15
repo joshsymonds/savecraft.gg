@@ -22,7 +22,31 @@ export interface ReferenceModuleMetadata {
   name: string;
   description: string;
   parameters?: Record<string, unknown>;
+  /**
+   * A complete, copy-pasteable query_reference invocation for this module.
+   * Surfaced (with `parameters`) only in the filtered list_games path so the
+   * model copies the exact envelope shape instead of assembling it from the
+   * schema. Top-level keys must be game_id / module / queries.
+   */
+  example?: unknown;
   /** Whether this module has a compiled view component (computed from VISUAL_MODULES). */
+  visual?: boolean;
+}
+
+/**
+ * Reference module as serialized into a list_games game entry.
+ *
+ * Distinct from {@link ReferenceModuleMetadata}: the internal contract keys
+ * the module by `id` (a registry map key), but the wire contract names it
+ * `module` so it matches the `module` argument of query_reference exactly —
+ * the model copies the identifier verbatim with no remapping.
+ */
+export interface ListedReferenceModule {
+  module: string;
+  name: string;
+  description: string;
+  parameters?: Record<string, unknown>;
+  example?: unknown;
   visual?: boolean;
 }
 
