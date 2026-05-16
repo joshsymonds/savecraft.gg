@@ -255,10 +255,33 @@ export function matchPluginDownload(pathname: string): { gameId: string; filenam
   return { gameId: m[1], filename: m[2] };
 }
 
+// The CI-signed aggregate plugin manifest and its detached Ed25519 signature
+// are served verbatim from the same PLUGINS R2 bucket / server origin as the
+// per-plugin binaries (the daemon pins all plugin delivery to one origin and
+// verifies the signature against the embedded key — task #18). Exact match
+// only: no gameId segment, so it can never collide with PLUGIN_DOWNLOAD_RE and
+// no traversal is expressible.
+const PLUGIN_AGGREGATE_RE = /^\/plugins\/(manifest\.json(?:\.sig)?)$/;
+
+/**
+ * matchPluginAggregate returns the validated aggregate filename
+ * ("manifest.json" or "manifest.json.sig"), or null when the path is not
+ * exactly one of those two objects. Exported for unit testing in isolation.
+ */
+export function matchPluginAggregate(pathname: string): string | null {
+  const m = PLUGIN_AGGREGATE_RE.exec(pathname);
+  return m?.[1] ?? null;
+}
+
 function routeDownload(request: Request, url: URL, env: Env): Promise<Response> | null {
+  if (request.method !== "GET") return null;
   const match = matchPluginDownload(url.pathname);
-  if (match && request.method === "GET") {
+  if (match) {
     return handlePluginDownload(env, match.gameId, match.filename);
+  }
+  const aggregate = matchPluginAggregate(url.pathname);
+  if (aggregate) {
+    return handlePluginAggregate(env, aggregate);
   }
   return null;
 }
@@ -1055,9 +1078,10 @@ async function logSourceEvent(
 
 /**
  * Request-time aggregated plugin manifest. NOTE: the daemon no longer trusts
- * this endpoint — it fetches a CI-signed aggregate (`plugins/manifest.json` +
- * `.sig`) from the install origin and verifies it against the embedded key
- * (see internal/pluginmgr/httpregistry.go). This endpoint is retained for the
+ * this endpoint — it fetches the CI-signed aggregate (`/plugins/manifest.json`
+ * + `.sig`, served verbatim from R2 by handlePluginAggregate on this same
+ * server origin) and verifies it against the embedded key (see
+ * internal/pluginmgr/httpregistry.go). This endpoint is retained for the
  * web UI (web/src/lib/api/client.ts), which renders the public plugin
  * directory and does not need cryptographic provenance.
  */
@@ -1103,6 +1127,23 @@ async function handlePluginManifest(env: Env): Promise<Response> {
       headers: { "Cache-Control": "public, max-age=300" },
     },
   );
+}
+
+/**
+ * Serve the CI-signed aggregate plugin manifest (`plugins/manifest.json`) or
+ * its detached signature (`.sig`) byte-for-byte from R2. The Worker is NOT a
+ * trust anchor here: it returns the literal bytes CI signed; the daemon
+ * verifies the Ed25519 signature against the embedded release key before
+ * parsing (internal/pluginmgr/httpregistry.go). Any mutation here would only
+ * break verification, never forge a manifest.
+ */
+async function handlePluginAggregate(env: Env, filename: string): Promise<Response> {
+  const object = await env.PLUGINS.get(`plugins/${filename}`);
+  if (!object) {
+    return Response.json({ error: "Plugin manifest not found" }, { status: 404 });
+  }
+  const contentType = filename.endsWith(".sig") ? "application/octet-stream" : "application/json";
+  return new Response(object.body, { headers: { "Content-Type": contentType } });
 }
 
 async function handlePluginDownload(env: Env, gameId: string, filename: string): Promise<Response> {

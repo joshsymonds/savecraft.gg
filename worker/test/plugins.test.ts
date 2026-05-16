@@ -1,7 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { matchPluginDownload } from "../src/index";
+import { matchPluginAggregate, matchPluginDownload } from "../src/index";
 
 import { cleanAll } from "./helpers";
 
@@ -48,6 +48,29 @@ describe("matchPluginDownload (finding 1.x / R14)", () => {
       "/plugins/d2r/parser.wasm/extra",
     ]) {
       expect(matchPluginDownload(p)).toBeNull();
+    }
+  });
+});
+
+describe("matchPluginAggregate (signed manifest delivery / task #18)", () => {
+  it("matches exactly the signed aggregate object and its detached signature", () => {
+    expect(matchPluginAggregate("/plugins/manifest.json")).toBe("manifest.json");
+    expect(matchPluginAggregate("/plugins/manifest.json.sig")).toBe("manifest.json.sig");
+  });
+
+  it("matches nothing else under /plugins (no traversal, no per-plugin shape)", () => {
+    for (const p of [
+      "/plugins/manifest.jsonx",
+      "/plugins/manifest.json.sig.sig",
+      "/plugins/d2r/manifest.json",
+      "/plugins/../manifest.json",
+      "/plugins/manifest.json/extra",
+      "/plugins/MANIFEST.json",
+      "/plugins/manifest.txt",
+      "/plugins/",
+      "/plugins/d2r/parser.wasm",
+    ]) {
+      expect(matchPluginAggregate(p)).toBeNull();
     }
   });
 });
@@ -247,6 +270,41 @@ describe("Plugin Registry", () => {
 
     const body = new Uint8Array(await resp.arrayBuffer());
     expect(body).toEqual(sigBytes);
+  });
+
+  it("serves the signed aggregate manifest from R2 verbatim as JSON", async () => {
+    const bytes = new TextEncoder().encode('{"plugins":{"d2r":{"version":"1.0.0"}}}');
+    await env.PLUGINS.put("plugins/manifest.json", bytes);
+
+    const resp = await SELF.fetch("https://test-host/plugins/manifest.json");
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toBe("application/json");
+
+    const body = new Uint8Array(await resp.arrayBuffer());
+    expect(body).toEqual(new Uint8Array(bytes));
+  });
+
+  it("serves the aggregate detached signature from R2 verbatim", async () => {
+    const sig = new Uint8Array(64).fill(0xcc);
+    await env.PLUGINS.put("plugins/manifest.json.sig", sig);
+
+    const resp = await SELF.fetch("https://test-host/plugins/manifest.json.sig");
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toBe("application/octet-stream");
+
+    const body = new Uint8Array(await resp.arrayBuffer());
+    expect(body).toEqual(sig);
+  });
+
+  it("returns 404 when the signed aggregate is absent", async () => {
+    const resp = await SELF.fetch("https://test-host/plugins/manifest.json");
+    expect(resp.status).toBe(404);
+  });
+
+  it("does not require authentication for the signed aggregate", async () => {
+    await env.PLUGINS.put("plugins/manifest.json", new TextEncoder().encode("{}"));
+    const resp = await SELF.fetch("https://test-host/plugins/manifest.json");
+    expect(resp.status).toBe(200);
   });
 
   it("returns 404 for missing plugin wasm", async () => {
