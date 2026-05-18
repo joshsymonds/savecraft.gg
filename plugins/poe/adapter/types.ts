@@ -21,16 +21,25 @@ export interface GggPassives {
   alternate_ascendancy?: number;
 }
 
+/** A GGG item property, e.g. { name: "Level", values: [["20", 0]] }. */
+export interface GggItemProperty {
+  name: string;
+  values: [string, number][];
+}
+
 /** One item from `equipment` / `inventory` / `jewels`. Passed through verbatim. */
 export interface GggItem {
   id?: string;
   name?: string;
   typeLine?: string;
   baseType?: string;
+  rarity?: string;
   inventoryId?: string;
   frameType?: number;
   ilvl?: number;
-  properties?: unknown[];
+  /** Gem-only: true for support gems (socketedItems entries). */
+  support?: boolean;
+  properties?: GggItemProperty[];
   implicitMods?: string[];
   explicitMods?: string[];
   sockets?: unknown[];

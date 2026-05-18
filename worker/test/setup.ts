@@ -742,6 +742,13 @@ const statements = [
     category      TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (commander_id, theme_slug, card_name)
   )`,
+  // migration 0056 — PoE per-character Path of Building snapshot
+  `CREATE TABLE IF NOT EXISTS poe_build_snapshot (
+    save_uuid TEXT PRIMARY KEY,
+    pob_build_id TEXT NOT NULL,
+    pob_xml TEXT NOT NULL,
+    imported_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
 ];
 
 for (const sql of statements) {
