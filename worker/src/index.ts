@@ -121,7 +121,7 @@ async function handleNonMcpRequest(request: Request, env: Env): Promise<Response
   const response =
     (await handleAdminRoute(request, url, env)) ??
     (await routePublicEndpoints(request, url, env)) ??
-    (await routeBattlenetOAuth(request, url, env)) ??
+    (await routeAdapterOAuth(request, url, env)) ??
     (await routeDaemonEndpoints(request, url, env)) ??
     (await routeProtectedEndpoints(request, url, env));
   const final = corsify(response, request, env);
@@ -307,20 +307,55 @@ async function routePublicEndpoints(
   return null;
 }
 
-// -- Battle.net OAuth routes --------------------------------------------------
+// -- Adapter OAuth routes (provider-parameterized) ---------------------------
 
-async function routeBattlenetOAuth(request: Request, url: URL, env: Env): Promise<Response | null> {
+/**
+ * One OAuth provider backing an API adapter. The generic authorize/
+ * callback handlers are driven entirely by this descriptor — adding a
+ * provider is a new entry here, never a duplicated handler.
+ *
+ * `segment` is the route + KV-state-key + event-label namespace
+ * ("battlenet" → /oauth/battlenet/*, `battlenet-oauth-state:` keys).
+ * Token URL / clientId / scopes come from `adapter.getOAuthConfig`.
+ */
+interface OAuthProvider {
+  segment: string;
+  adapterId: string;
+  defaultRegion: string;
+  clientSecret: (env: Env) => string;
+}
+
+const OAUTH_PROVIDERS: readonly OAuthProvider[] = [
+  {
+    segment: "battlenet",
+    adapterId: "wow",
+    defaultRegion: "us",
+    clientSecret: (env) => env.BATTLENET_CLIENT_SECRET ?? "",
+  },
+];
+
+/** Resolve a provider's adapter, or null when it isn't configured. */
+function providerAdapter(provider: OAuthProvider): ApiAdapter | null {
+  return adapters[provider.adapterId] ?? null;
+}
+
+async function routeAdapterOAuth(
+  request: Request,
+  url: URL,
+  env: Env,
+): Promise<Response | null> {
   if (request.method !== "GET") return null;
 
-  if (url.pathname === "/oauth/battlenet/authorize") {
-    // Session-protected: user must be logged in
-    const auth = await authenticateSession(request, env);
-    if (!auth) return new Response("Unauthorized", { status: 401 });
-    return handleBattlenetAuthorize(url, env, auth.userUuid);
-  }
-
-  if (url.pathname === "/oauth/battlenet/callback") {
-    return handleBattlenetCallback(url, env);
+  for (const provider of OAUTH_PROVIDERS) {
+    if (url.pathname === `/oauth/${provider.segment}/authorize`) {
+      // Session-protected: user must be logged in
+      const auth = await authenticateSession(request, env);
+      if (!auth) return new Response("Unauthorized", { status: 401 });
+      return handleAdapterAuthorize(provider, url, env, auth.userUuid);
+    }
+    if (url.pathname === `/oauth/${provider.segment}/callback`) {
+      return handleAdapterCallback(provider, url, env);
+    }
   }
 
   return null;
@@ -338,12 +373,20 @@ function validateReturnUrl(raw: string, env: Env, fallbackOrigin: string): strin
   }
 }
 
-async function handleBattlenetAuthorize(url: URL, env: Env, userUuid: string): Promise<Response> {
-  const region = url.searchParams.get("region") ?? "us";
+async function handleAdapterAuthorize(
+  provider: OAuthProvider,
+  url: URL,
+  env: Env,
+  userUuid: string,
+): Promise<Response> {
+  const region = url.searchParams.get("region") ?? provider.defaultRegion;
   const returnUrl = validateReturnUrl(url.searchParams.get("return_url") ?? "", env, url.origin);
-  const adapter = adapters.wow;
+  const adapter = providerAdapter(provider);
   if (!adapter) {
-    return Response.json({ error: "WoW adapter not configured" }, { status: 500 });
+    return Response.json(
+      { error: `${provider.adapterId} adapter not configured` },
+      { status: 500 },
+    );
   }
 
   const oauthConfig = adapter.getOAuthConfig(region, env);
@@ -354,7 +397,7 @@ async function handleBattlenetAuthorize(url: URL, env: Env, userUuid: string): P
   // Log oauthStarted event and push initial game state to SourceHub in parallel
   await Promise.all([
     logSourceEvent(env, sourceUuid, "oauthStarted", {
-      oauthStarted: { gameId: adapter.gameId, region, provider: "battlenet" },
+      oauthStarted: { gameId: adapter.gameId, region, provider: provider.segment },
     }),
     pushGameStatus(env, sourceUuid, userUuid, adapter.gameId, adapter.gameName, "watching"),
   ]);
@@ -362,15 +405,18 @@ async function handleBattlenetAuthorize(url: URL, env: Env, userUuid: string): P
   // Store state in KV (one-time use, 10 min TTL)
   const stateKey = crypto.randomUUID();
   await env.OAUTH_KV.put(
-    `battlenet-oauth-state:${stateKey}`,
+    `${provider.segment}-oauth-state:${stateKey}`,
     JSON.stringify({ userUuid, region, returnUrl, sourceUuid }),
     { expirationTtl: 600 },
   );
 
-  // Build Battle.net authorize URL
+  // Build the provider authorize URL
   const authorizeUrl = new URL(oauthConfig.authorizeUrl);
   authorizeUrl.searchParams.set("client_id", oauthConfig.clientId);
-  authorizeUrl.searchParams.set("redirect_uri", `${url.origin}/oauth/battlenet/callback`);
+  authorizeUrl.searchParams.set(
+    "redirect_uri",
+    `${url.origin}/oauth/${provider.segment}/callback`,
+  );
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("scope", oauthConfig.scopes.join(" "));
   authorizeUrl.searchParams.set("state", stateKey);
@@ -378,18 +424,19 @@ async function handleBattlenetAuthorize(url: URL, env: Env, userUuid: string): P
   return Response.json({ url: authorizeUrl.toString() });
 }
 
-interface BattlenetTokenResult {
+interface AdapterTokenResult {
   readonly accessToken: string;
   readonly refreshToken: string | null;
   readonly expiresAt: string | null;
 }
 
-async function exchangeBattlenetToken(
+async function exchangeAdapterToken(
+  provider: OAuthProvider,
   code: string,
   redirectUri: string,
   oauthConfig: { readonly tokenUrl: string; readonly clientId: string },
   env: Env,
-): Promise<BattlenetTokenResult | Response> {
+): Promise<AdapterTokenResult | Response> {
   const tokenResp = await fetch(oauthConfig.tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -398,12 +445,15 @@ async function exchangeBattlenetToken(
       code,
       redirect_uri: redirectUri,
       client_id: oauthConfig.clientId,
-      client_secret: env.BATTLENET_CLIENT_SECRET ?? "",
+      client_secret: provider.clientSecret(env),
     }),
   });
 
   if (!tokenResp.ok) {
-    return Response.json({ error: "Failed to exchange code with Battle.net" }, { status: 502 });
+    return Response.json(
+      { error: "Failed to exchange authorization code with OAuth provider" },
+      { status: 502 },
+    );
   }
 
   const tokenData = await tokenResp.json<{
@@ -414,7 +464,7 @@ async function exchangeBattlenetToken(
 
   if (!tokenData.access_token) {
     return Response.json(
-      { error: "Battle.net token response missing access_token" },
+      { error: "OAuth provider token response missing access_token" },
       { status: 502 },
     );
   }
@@ -499,20 +549,21 @@ async function exchangeAndStoreToken(
   code: string,
   stateKey: string,
   state: OAuthCallbackState,
-  adapter: (typeof adapters)["wow"],
+  provider: OAuthProvider,
+  adapter: ApiAdapter,
   redirectUrl: URL,
   url: URL,
   env: Env,
-): Promise<BattlenetTokenResult | Response> {
+): Promise<AdapterTokenResult | Response> {
   const oauthConfig = adapter.getOAuthConfig(state.region, env);
-  const redirectUri = `${url.origin}/oauth/battlenet/callback`;
+  const redirectUri = `${url.origin}/oauth/${provider.segment}/callback`;
 
   // Delete consumed state and exchange token in parallel
-  let tokenResult: BattlenetTokenResult | Response;
+  let tokenResult: AdapterTokenResult | Response;
   try {
     const [, exchangeResult] = await Promise.all([
-      env.OAUTH_KV.delete(`battlenet-oauth-state:${stateKey}`),
-      exchangeBattlenetToken(code, redirectUri, oauthConfig, env),
+      env.OAUTH_KV.delete(`${provider.segment}-oauth-state:${stateKey}`),
+      exchangeAdapterToken(provider, code, redirectUri, oauthConfig, env),
     ]);
     tokenResult = exchangeResult;
   } catch (error: unknown) {
@@ -542,7 +593,7 @@ async function exchangeAndStoreToken(
       redirectUrl,
       adapter.gameId,
       "token_failed",
-      "Failed to exchange code with Battle.net",
+      "Failed to exchange code with OAuth provider",
     );
   }
 
@@ -553,7 +604,7 @@ async function exchangeAndStoreToken(
     }),
     env.DB.prepare(
       `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
-       VALUES (?, 'wow', ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(user_uuid, game_id) DO UPDATE SET
          access_token = excluded.access_token,
          refresh_token = excluded.refresh_token,
@@ -562,6 +613,7 @@ async function exchangeAndStoreToken(
     )
       .bind(
         state.userUuid,
+        adapter.gameId,
         tokenResult.accessToken,
         tokenResult.refreshToken,
         tokenResult.expiresAt,
@@ -572,22 +624,29 @@ async function exchangeAndStoreToken(
   return tokenResult;
 }
 
-async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
+async function handleAdapterCallback(
+  provider: OAuthProvider,
+  url: URL,
+  env: Env,
+): Promise<Response> {
   const code = url.searchParams.get("code");
   const stateKey = url.searchParams.get("state");
   if (!code || !stateKey) {
     return Response.json({ error: "Missing code or state" }, { status: 400 });
   }
 
-  const storedRaw = await env.OAUTH_KV.get(`battlenet-oauth-state:${stateKey}`);
+  const storedRaw = await env.OAUTH_KV.get(`${provider.segment}-oauth-state:${stateKey}`);
   if (!storedRaw) {
     return Response.json({ error: "Invalid or expired state" }, { status: 400 });
   }
   const state = JSON.parse(storedRaw) as OAuthCallbackState;
 
-  const adapter = adapters.wow;
+  const adapter = providerAdapter(provider);
   if (!adapter) {
-    return Response.json({ error: "WoW adapter not configured" }, { status: 500 });
+    return Response.json(
+      { error: `${provider.adapterId} adapter not configured` },
+      { status: 500 },
+    );
   }
 
   const webUrl = env.WEB_URL ?? url.origin;
@@ -598,6 +657,7 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
     code,
     stateKey,
     state,
+    provider,
     adapter,
     redirectUrl,
     url,
@@ -605,12 +665,40 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
   );
   if (tokenResult instanceof Response) return tokenResult;
 
-  // Discover saves and reconcile into D1
+  const discoveryError = await discoverReconcileOrError(
+    adapter,
+    env,
+    state,
+    tokenResult.accessToken,
+    redirectUrl,
+  );
+  if (discoveryError) return discoveryError;
+
+  redirectUrl.searchParams.set("game_id", adapter.gameId);
+  redirectUrl.searchParams.set("connected", "true");
+
+  return new Response(null, { status: 302, headers: { Location: redirectUrl.toString() } });
+}
+
+/**
+ * Discover + reconcile the connected account's characters into D1.
+ * Returns a redirect Response on failure (with `connected=true` so the
+ * UI still shows the connected state), or null on success so the caller
+ * issues the normal success redirect. Behavior unchanged from the
+ * pre-refactor inline block.
+ */
+async function discoverReconcileOrError(
+  adapter: ApiAdapter,
+  env: Env,
+  state: OAuthCallbackState,
+  accessToken: string,
+  redirectUrl: URL,
+): Promise<Response | null> {
   try {
     const reconcileResult = await discoverAndReconcileSaves(
       adapter,
       env,
-      tokenResult.accessToken,
+      accessToken,
       state.region,
       state.userUuid,
       state.sourceUuid,
@@ -626,6 +714,7 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
         reactivated: reconcileResult.reactivated.length,
       },
     });
+    return null;
   } catch (error: unknown) {
     await Promise.all([
       logSourceEvent(env, state.sourceUuid, "characterDiscoveryFailed", {
@@ -653,11 +742,6 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
       "Failed to discover game characters",
     );
   }
-
-  redirectUrl.searchParams.set("game_id", adapter.gameId);
-  redirectUrl.searchParams.set("connected", "true");
-
-  return new Response(null, { status: 302, headers: { Location: redirectUrl.toString() } });
 }
 
 async function routeDaemonEndpoints(

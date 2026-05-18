@@ -1,4 +1,4 @@
-import { env, SELF } from "cloudflare:test";
+import { env, fetchMock, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { sha256Hex } from "../src/auth";
@@ -259,6 +259,114 @@ describe("Adapter OAuth", () => {
       expect(debug.sourceState.sources[0]!.games[0]!.status).toBe(
         GameStatusEnum.GAME_STATUS_ENUM_ERROR,
       );
+    });
+  });
+
+  // Characterization of the callback SUCCESS path — uncovered before the
+  // provider-parameterized OAuth refactor. These pin the exact behavior
+  // the generalization must preserve: credential row keyed by the
+  // adapter's game_id, discover+reconcile creating saves, and the
+  // connected redirect. They must stay green verbatim post-refactor.
+  describe("GET /oauth/battlenet/callback (success path) [characterization]", () => {
+    function mockBattlenetSuccess(): void {
+      fetchMock.activate();
+      fetchMock.disableNetConnect();
+      fetchMock
+        .get("https://oauth.battle.net")
+        .intercept({ path: "/token", method: "POST" })
+        .reply(
+          200,
+          JSON.stringify({
+            access_token: "char-access-token",
+            refresh_token: "char-refresh-token",
+            expires_in: 86_400,
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
+      fetchMock
+        .get("https://us.api.blizzard.com")
+        .intercept({ path: /\/profile\/user\/wow/, method: "GET" })
+        .reply(
+          200,
+          JSON.stringify({
+            wow_accounts: [
+              {
+                characters: [
+                  {
+                    id: 7_654_321,
+                    name: "Charpin",
+                    realm: { slug: "tichondrius", name: "Tichondrius" },
+                    level: 80,
+                    playable_class: { name: "Rogue" },
+                    playable_race: { name: "Troll" },
+                    faction: { name: "Horde" },
+                    gender: { name: "Male" },
+                  },
+                ],
+              },
+            ],
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
+    }
+
+    it("stores credentials, reconciles saves, and redirects connected=true", async () => {
+      const sourceUuid = await seedAdapterSource(USER_UUID);
+      const stateKey = crypto.randomUUID();
+      await env.OAUTH_KV.put(
+        `battlenet-oauth-state:${stateKey}`,
+        JSON.stringify({ userUuid: USER_UUID, region: "us", returnUrl: "", sourceUuid }),
+        { expirationTtl: 600 },
+      );
+
+      try {
+        mockBattlenetSuccess();
+        const resp = await SELF.fetch(
+          new Request(
+            `https://test-host/oauth/battlenet/callback?code=good-code&state=${stateKey}`,
+            { method: "GET", redirect: "manual" },
+          ),
+        );
+
+        expect(resp.status).toBe(302);
+        const location = new URL(resp.headers.get("Location")!);
+        expect(location.searchParams.get("game_id")).toBe("wow");
+        expect(location.searchParams.get("connected")).toBe("true");
+        expect(location.searchParams.get("error")).toBeNull();
+      } finally {
+        fetchMock.deactivate();
+      }
+
+      // Credential row keyed by the adapter game_id (the literal being
+      // parameterized in the refactor).
+      const cred = await env.DB.prepare(
+        "SELECT game_id, access_token, refresh_token FROM game_credentials WHERE user_uuid = ? AND game_id = 'wow'",
+      )
+        .bind(USER_UUID)
+        .first<{ game_id: string; access_token: string; refresh_token: string }>();
+      expect(cred).toBeTruthy();
+      expect(cred!.game_id).toBe("wow");
+      expect(cred!.access_token).toBe("char-access-token");
+      expect(cred!.refresh_token).toBe("char-refresh-token");
+
+      // Discover + reconcile created a save for the discovered character.
+      const save = await env.DB.prepare(
+        "SELECT game_id, save_name FROM saves WHERE user_uuid = ? AND game_id = 'wow'",
+      )
+        .bind(USER_UUID)
+        .first<{ game_id: string; save_name: string }>();
+      expect(save).toBeTruthy();
+      expect(save!.save_name).toBe("Charpin-tichondrius-US");
+
+      // characterDiscovery event logged.
+      const events = await env.DB.prepare(
+        "SELECT event_type FROM source_events WHERE source_uuid = ? ORDER BY id",
+      )
+        .bind(sourceUuid)
+        .all<{ event_type: string }>();
+      expect(
+        events.results.some((logged) => logged.event_type === "characterDiscovery"),
+      ).toBe(true);
     });
   });
 });
