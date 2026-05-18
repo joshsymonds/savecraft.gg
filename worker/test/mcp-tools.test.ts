@@ -1,6 +1,8 @@
 import { env } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { ApiAdapter, FetchParams, GameState } from "../src/adapters/adapter";
+import { adapters } from "../src/adapters/registry";
 import type { ToolResult, ViewToolResult } from "../src/mcp/tools";
 
 // fetchInputPathname extracts the URL pathname from any of the shapes
@@ -1313,6 +1315,93 @@ describe("MCP Tools", () => {
       const result = await refreshSave(env, USER_A, "save-adapter-norealm");
       expect(result.isError).toBe(true);
       expect(result.content[0]!.text).toContain("realm");
+    });
+
+    // Characterization of the MCP refresh_save SUCCESS path — uncovered
+    // before the adapter-generic refresh refactor. Pins the resolved
+    // FetchParams contract + a successful ToolResult.
+    describe("success path [characterization]", () => {
+      const fetchStateCalls: FetchParams[] = [];
+      const fakeAdapter: ApiAdapter = {
+        gameId: "fakegame",
+        gameName: "Fake Game",
+        getOAuthConfig() {
+          return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+        },
+        discoverSaves() {
+          return Promise.resolve([]);
+        },
+        fetchState(params: FetchParams): Promise<GameState> {
+          fetchStateCalls.push(params);
+          return Promise.resolve({
+            identity: { saveName: "Dratnos-testrealm-US", gameId: "fakegame" },
+            summary: "Refreshed",
+            sections: { overview: { description: "Overview", data: { level: 90 } } },
+          });
+        },
+      };
+
+      beforeEach(() => {
+        fetchStateCalls.length = 0;
+        adapters.fakegame = fakeAdapter;
+      });
+      afterEach(() => {
+        delete adapters.fakegame;
+      });
+
+      it("resolves WoW-style identity and returns a successful refresh", async () => {
+        const sourceUuid = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+        )
+          .bind(sourceUuid, USER_A, `hash-fakeok-${USER_A}`)
+          .run();
+        await env.DB.prepare(
+          "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+          .bind(
+            "save-fakeok",
+            USER_A,
+            "fakegame",
+            "Fake Game",
+            "Dratnos-testrealm-US",
+            "",
+            "2020-01-01T00:00:00Z",
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+           VALUES (?, 'fakegame', ?, ?, ?, ?, 1)`,
+        )
+          .bind(
+            USER_A,
+            "char-id-xyz",
+            "Dratnos",
+            JSON.stringify({ realm_slug: "testrealm", region: "us" }),
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
+           VALUES (?, 'fakegame', 'acc-tok', NULL, NULL)`,
+        )
+          .bind(USER_A)
+          .run();
+
+        const result = await refreshSave(env, USER_A, "save-fakeok");
+
+        expect(result.isError).toBeFalsy();
+        expect(fetchStateCalls).toHaveLength(1);
+        expect(fetchStateCalls[0]!.characterId).toBe("testrealm/dratnos");
+        expect(fetchStateCalls[0]!.region).toBe("us");
+        expect(fetchStateCalls[0]!.credentials.accessToken).toBe("acc-tok");
+
+        const section = await env.DB.prepare(
+          "SELECT data FROM sections WHERE save_uuid = 'save-fakeok' AND name = 'overview'",
+        ).first<{ data: string }>();
+        expect(section).toBeTruthy();
+      });
     });
   });
 

@@ -1,11 +1,36 @@
 import { env, SELF } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { ApiAdapter, FetchParams, GameState } from "../src/adapters/adapter";
+import { adapters } from "../src/adapters/registry";
 import { sha256Hex } from "../src/auth";
 
 import { cleanAll } from "./helpers";
 
 const USER_UUID = "adapter-refresh-user";
+
+// Hand-written fake adapter (NO mocking libraries) capturing the
+// FetchParams the refresh dispatch resolves — this is the contract the
+// adapter-generic refresh refactor changes.
+const fetchStateCalls: FetchParams[] = [];
+const fakeAdapter: ApiAdapter = {
+  gameId: "fakegame",
+  gameName: "Fake Game",
+  getOAuthConfig() {
+    return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+  },
+  discoverSaves() {
+    return Promise.resolve([]);
+  },
+  fetchState(params: FetchParams): Promise<GameState> {
+    fetchStateCalls.push(params);
+    return Promise.resolve({
+      identity: { saveName: "Dratnos-testrealm-US", gameId: "fakegame" },
+      summary: "Refreshed",
+      sections: { overview: { description: "Overview", data: { level: 90 } } },
+    });
+  },
+};
 
 /** Create an adapter source pre-linked to the user. */
 async function seedAdapterSource(userUuid: string): Promise<string> {
@@ -132,5 +157,65 @@ describe("Adapter Refresh", () => {
     expect(resp.status).toBe(400);
     const body = await resp.json<{ error: string }>();
     expect(body.error).toContain("realm");
+  });
+
+  // Characterization of the REST refresh SUCCESS path — uncovered
+  // before the adapter-generic refresh refactor. Pins both the
+  // observable outcome (refresh succeeds, sections persisted) and the
+  // resolved FetchParams contract the refactor changes.
+  describe("success path [characterization]", () => {
+    beforeEach(() => {
+      fetchStateCalls.length = 0;
+      adapters.fakegame = fakeAdapter;
+    });
+    afterEach(() => {
+      delete adapters.fakegame;
+    });
+
+    it("resolves WoW-style identity, calls fetchState, persists sections", async () => {
+      const sourceUuid = await seedAdapterSource(USER_UUID);
+      const saveUuid = await seedAdapterSave(
+        USER_UUID,
+        sourceUuid,
+        "fakegame",
+        "Dratnos-testrealm-US",
+      );
+      await env.DB.prepare(
+        `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+         VALUES (?, 'fakegame', ?, ?, ?, ?, 1)`,
+      )
+        .bind(
+          USER_UUID,
+          "wow-char-id-123",
+          "Dratnos",
+          JSON.stringify({ realm_slug: "testrealm", region: "us" }),
+          sourceUuid,
+        )
+        .run();
+      await env.DB.prepare(
+        `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
+         VALUES (?, 'fakegame', 'acc-tok', 'ref-tok', NULL)`,
+      )
+        .bind(USER_UUID)
+        .run();
+
+      const resp = await SELF.fetch(refreshRequest("fakegame", saveUuid));
+      expect(resp.status).toBe(200);
+
+      // The pre-refactor dispatch contract: characterId is the
+      // reconstructed realmSlug/lowercased-name, region from metadata.
+      expect(fetchStateCalls).toHaveLength(1);
+      expect(fetchStateCalls[0]!.characterId).toBe("testrealm/dratnos");
+      expect(fetchStateCalls[0]!.region).toBe("us");
+      expect(fetchStateCalls[0]!.credentials.accessToken).toBe("acc-tok");
+
+      // Sections persisted (refresh observable outcome).
+      const section = await env.DB.prepare(
+        "SELECT data FROM sections WHERE save_uuid = ? AND name = 'overview'",
+      )
+        .bind(saveUuid)
+        .first<{ data: string }>();
+      expect(section).toBeTruthy();
+    });
   });
 });
