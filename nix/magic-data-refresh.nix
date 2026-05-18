@@ -185,7 +185,11 @@ in {
           TimeoutStartSec = "2h";
           Environment = [
             "HOME=/home/${cfg.user}"
-            "PATH=${lib.makeBinPath [pkgs.bash pkgs.coreutils pkgs.git pkgs.nix]}:/home/${cfg.user}/.nix-profile/bin"
+            # openssh: datagen does git fetch/push over the ssh `origin`
+            # remote; without ssh on PATH git fails "cannot run ssh".
+            # (The data-refresh unit above only makes HTTPS API calls, so
+            # it does not need it.)
+            "PATH=${lib.makeBinPath [pkgs.bash pkgs.coreutils pkgs.git pkgs.openssh pkgs.nix]}:/home/${cfg.user}/.nix-profile/bin"
           ];
         };
       };
