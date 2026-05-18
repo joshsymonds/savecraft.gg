@@ -42,15 +42,75 @@ function buildSectionStatements(
   return statements;
 }
 
-/** Run game-specific post-push hooks (e.g., MTGA match history extraction). */
+/**
+ * Run game-specific post-push hooks. Called from BOTH the insert and
+ * update paths after the save + sections are committed (so `saveUuid`
+ * exists for FK-bound side tables). `extra` carries adapter-only,
+ * out-of-section data (e.g. PoE's PoB XML + refreshed GGG tokens)
+ * threaded from gameState.identity.extra — it never enters a section
+ * or the FTS index.
+ */
 async function postPushHooks(
   db: D1Database,
   gameId: string,
   userUuid: string | null,
   sections: Record<string, SectionInput>,
+  saveUuid: string,
+  extra?: Record<string, unknown>,
 ): Promise<void> {
   if (gameId === "magic" && userUuid) {
     await ingestMatchHistory(db, userUuid, sections);
+  }
+  if (gameId === "poe" && extra) {
+    await persistPoeRefreshArtifacts(db, userUuid, saveUuid, extra);
+  }
+}
+
+interface PoeRefreshedCreds {
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAt: string | null;
+}
+
+/**
+ * Persist PoE refresh side effects that must not live in a section:
+ * the content-addressed PoB build snapshot (raw XML, re-fed to
+ * pob-server /calc on eviction) and any GGG tokens refreshed
+ * in-adapter during fetchState.
+ */
+async function persistPoeRefreshArtifacts(
+  db: D1Database,
+  userUuid: string | null,
+  saveUuid: string,
+  extra: Record<string, unknown>,
+): Promise<void> {
+  const buildId = extra.pobBuildId;
+  const xml = extra.pobXml;
+  if (typeof buildId === "string" && typeof xml === "string") {
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO poe_build_snapshot (save_uuid, pob_build_id, pob_xml, imported_at)
+         VALUES (?, ?, ?, datetime('now'))`,
+      )
+      .bind(saveUuid, buildId, xml)
+      .run();
+  }
+
+  const refreshed = extra.refreshedCreds as PoeRefreshedCreds | undefined;
+  if (refreshed && userUuid) {
+    await db
+      .prepare(
+        `UPDATE game_credentials
+         SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = datetime('now')
+         WHERE user_uuid = ? AND game_id = 'poe'`,
+      )
+      .bind(
+        refreshed.accessToken,
+        refreshed.refreshToken,
+        refreshed.expiresAt,
+        userUuid,
+      )
+      .run();
   }
 }
 
@@ -64,6 +124,7 @@ export async function storePush(
   parsedAt: string,
   sections: Record<string, SectionInput>,
   allSectionNames?: string[],
+  extra?: Record<string, unknown>,
 ): Promise<{ saveUuid: string; changed: boolean }> {
   // Linked sources dedup by (user_uuid, game_id, save_name).
   // Unlinked sources dedup by (last_source_uuid, game_id, save_name) where user_uuid IS NULL.
@@ -93,7 +154,7 @@ export async function storePush(
       ).bind(sourceUuid),
       ...buildSectionStatements(env.DB, saveUuid, saveName, sections),
     ]);
-    await postPushHooks(env.DB, gameId, userUuid, sections);
+    await postPushHooks(env.DB, gameId, userUuid, sections, saveUuid, extra);
     return { saveUuid, changed: true };
   }
 
@@ -140,9 +201,7 @@ export async function storePush(
   }
 
   await env.DB.batch(batch);
-  if (gameId === "magic" && userUuid) {
-    await ingestMatchHistory(env.DB, userUuid, sections);
-  }
+  await postPushHooks(env.DB, gameId, userUuid, sections, saveUuid, extra);
   return { saveUuid, changed: true };
 }
 

@@ -1033,6 +1033,8 @@ async function refreshAdapterSave(
       gameState.summary,
       parsedAt,
       gameState.sections,
+      undefined,
+      gameState.identity.extra,
     );
 
     return textResult({

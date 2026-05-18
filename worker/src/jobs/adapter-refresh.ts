@@ -106,6 +106,8 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
       gameState.summary,
       parsedAt,
       gameState.sections,
+      undefined,
+      gameState.identity.extra,
     );
 
     // Record success

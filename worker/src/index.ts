@@ -1130,6 +1130,8 @@ async function handleAdapterRefresh(
       gameState.summary,
       parsedAt,
       gameState.sections,
+      undefined,
+      gameState.identity.extra,
     );
 
     return Response.json(
