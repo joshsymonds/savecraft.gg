@@ -87,7 +87,7 @@ func (srv *Server) handleImport(
 		return
 	}
 
-	srv.calcAndRespond(writer, request, xml, "", "", nil, nil)
+	srv.calcAndRespond(writer, request, xml, "", "", nil, nil, true)
 }
 
 // runImportLua sends one import request to wrapper.lua and returns the

@@ -117,6 +117,47 @@ func TestHandleImportProducesBuild(t *testing.T) {
 	if summary.Life <= 0 {
 		t.Errorf("imported build Life = %v, want > 0", summary.Life)
 	}
+
+	// /import additionally returns the PoB build XML so the worker can
+	// persist it for deterministic re-feed on pob-server eviction.
+	var xml string
+	if err := json.Unmarshal(env["xml"], &xml); err != nil || xml == "" {
+		t.Fatalf("missing/empty xml in /import response: %v (keys: %v)", err, keysOf(env))
+	}
+	if !strings.Contains(xml, "<PathOfBuilding") {
+		t.Errorf("xml is not a PoB build document: %.80s", xml)
+	}
+}
+
+func TestHandleImportReturnsDeterministicXML(t *testing.T) {
+	srv := setupRealServer(t)
+	ts := realServerHTTP(t, srv)
+
+	xml1 := importBuildXML(t, ts.URL, loadGGGFixture(t))
+	xml2 := importBuildXML(t, ts.URL, loadGGGFixture(t))
+	if xml1 != xml2 {
+		t.Fatalf("non-deterministic /import xml across identical inputs")
+	}
+	if xml1 == "" || !strings.Contains(xml1, "<PathOfBuilding") {
+		t.Fatalf("xml1 is not a PoB build document: %.80s", xml1)
+	}
+}
+
+func importBuildXML(t *testing.T, baseURL string, character json.RawMessage) string {
+	t.Helper()
+	resp := postImport(t, baseURL, character)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, b)
+	}
+	var env struct {
+		XML string `json:"xml"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return env.XML
 }
 
 // Identical GGG input must yield the identical content-addressed

@@ -182,6 +182,12 @@ func TestCalcResponseShape(t *testing.T) {
 		t.Fatal("response missing buildId")
 	}
 
+	// /calc must NOT carry the raw build XML — only /import does
+	// (behavior-preserving guard for the /import xml addition).
+	if _, ok := resp["xml"]; ok {
+		t.Fatal("/calc response must not include an xml field")
+	}
+
 	// Parse data envelope
 	var data map[string]json.RawMessage
 	if err := json.Unmarshal(resp["data"], &data); err != nil {

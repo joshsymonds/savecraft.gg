@@ -128,8 +128,12 @@ func validateAndBuildStatSourcesField(modSources []string, modSourcesLimit int) 
 
 // calcResponse wraps the PoB result with a buildId for caching.
 type calcResponse struct {
-	BuildID     string             `json:"buildId"`
-	PobData     json.RawMessage    `json:"data"`
+	BuildID string          `json:"buildId"`
+	PobData json.RawMessage `json:"data"`
+	// XML is the raw PoB build document. Only /import sets it (so the
+	// worker can persist it for deterministic re-feed on eviction);
+	// omitempty keeps /calc and /resolve responses byte-identical.
+	XML         string             `json:"xml,omitempty"`
 	PowerReport *powerReportResult `json:"powerReport,omitempty"`
 }
 
@@ -195,7 +199,7 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	srv.calcAndRespond(writer, request, xml, "", "", nil, nil)
+	srv.calcAndRespond(writer, request, xml, "", "", nil, nil, false)
 }
 
 func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
@@ -285,7 +289,7 @@ func (srv *Server) handleResolve(
 
 	// External URL — or cached internal URL with a statSources request:
 	// calc through PoB, persist, return.
-	srv.calcAndRespond(writer, request, result.xml, result.sourceURL, "", statSources, allowedCategories)
+	srv.calcAndRespond(writer, request, result.xml, result.sourceURL, "", statSources, allowedCategories, false)
 }
 
 // writeResolveError maps resolveBuildURL errors to user-facing JSON
@@ -339,6 +343,7 @@ func (srv *Server) calcAndRespond(
 	xml, sourceURL, parentID string,
 	statSources *calcLuaStatSourcesField,
 	allowedCategories map[string]bool,
+	includeXML bool,
 ) {
 	proc, err := srv.pool.Acquire()
 	if err != nil {
@@ -427,12 +432,16 @@ func (srv *Server) calcAndRespond(
 		powerReport = srv.attachPowerReport(proc, buildID, xml, extractSummaryFloats(pobResp.Data), allowedCategories)
 	}
 
-	writer.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(writer).Encode(calcResponse{
+	resp := calcResponse{
 		BuildID:     buildID,
 		PobData:     filtered,
 		PowerReport: powerReport,
-	})
+	}
+	if includeXML {
+		resp.XML = xml
+	}
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(resp)
 }
 
 // extractSummaryFloats pulls the top-level `summary` object out of the
