@@ -143,6 +143,7 @@ func main() {
 
 	mux.HandleFunc("/calc", srv.authMiddleware(srv.handleCalc))
 	mux.HandleFunc("/resolve", srv.authMiddleware(srv.handleResolve))
+	mux.HandleFunc("/import", srv.authMiddleware(srv.handleImport))
 	mux.HandleFunc("/modify", srv.authMiddleware(srv.handleModify))
 	mux.HandleFunc("/nearby", srv.authMiddleware(srv.handleNearby))
 	mux.HandleFunc("/audit", srv.authMiddleware(srv.handleAudit))
