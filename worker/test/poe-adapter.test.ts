@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { poeAdapter } from "../../plugins/poe/adapter";
-import { AdapterError } from "../src/adapters/adapter";
 import { adapters } from "../src/adapters/registry";
 import type { Env } from "../src/types";
 
@@ -27,26 +26,11 @@ describe("PoE adapter skeleton", () => {
     expect(cfg.clientId).toBe("");
   });
 
-  it("discoverSaves rejects with a typed AdapterError placeholder", async () => {
-    await expect(poeAdapter.discoverSaves("tok", "pc")).rejects.toSatisfy(
-      (error: unknown) => error instanceof AdapterError && error.code === "api_unavailable",
-    );
-  });
-
-  it("fetchState rejects with a typed AdapterError placeholder", async () => {
-    await expect(
-      poeAdapter.fetchState(
-        {
-          characterId: "x",
-          characterName: "X",
-          region: "pc",
-          metadata: {},
-          credentials: { accessToken: "t" },
-        },
-        env,
-      ),
-    ).rejects.toSatisfy(
-      (error: unknown) => error instanceof AdapterError && error.code === "api_unavailable",
-    );
-  });
+  // NOTE: discoverSaves/fetchState error-typing (token_expired / 401 /
+  // 429 / api_unavailable) is covered with hand-mocked GGG (fetchMock,
+  // disableNetConnect) in poe-oauth.test.ts and poe-fetchstate.test.ts.
+  // The old #5 "skeleton placeholder" cases here were deleted: they made
+  // an UNMOCKED real fetch to api.pathofexile.com and only passed where
+  // outbound network was blocked (transport error → api_unavailable),
+  // failing on CI where GGG answered 401 → token_expired.
 });
