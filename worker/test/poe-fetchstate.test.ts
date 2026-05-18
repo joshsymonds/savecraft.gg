@@ -26,7 +26,9 @@ function params(overrides: Partial<FetchParams> = {}): FetchParams {
 }
 
 describe("ensureGggAccessToken", () => {
-  afterEach(() => { fetchMock.deactivate(); });
+  afterEach(() => {
+    fetchMock.deactivate();
+  });
 
   it("passes through a still-valid token without a refresh call", async () => {
     const future = new Date(Date.now() + 86_400_000).toISOString();
@@ -75,10 +77,7 @@ describe("ensureGggAccessToken", () => {
   it("throws token_expired when the refresh request fails", async () => {
     fetchMock.activate();
     fetchMock.disableNetConnect();
-    fetchMock
-      .get(GGG_OAUTH)
-      .intercept({ path: "/oauth/token", method: "POST" })
-      .reply(400, "bad");
+    fetchMock.get(GGG_OAUTH).intercept({ path: "/oauth/token", method: "POST" }).reply(400, "bad");
     await expect(
       ensureGggAccessToken(
         { accessToken: "old", refreshToken: "rt", expiresAt: "2000-01-01T00:00:00Z" },
@@ -92,7 +91,9 @@ describe("ensureGggAccessToken", () => {
 
 describe("poeAdapter.fetchState", () => {
   beforeEach(cleanAll);
-  afterEach(() => { fetchMock.deactivate(); });
+  afterEach(() => {
+    fetchMock.deactivate();
+  });
 
   function mockGgg(): void {
     fetchMock.activate();
@@ -141,10 +142,7 @@ describe("poeAdapter.fetchState", () => {
 
   it("partial_failure: pob-server down → raw sections kept, no pob_build, no throw", async () => {
     mockGgg();
-    fetchMock
-      .get(POB)
-      .intercept({ path: "/import", method: "POST" })
-      .reply(503, "unavailable");
+    fetchMock.get(POB).intercept({ path: "/import", method: "POST" }).reply(503, "unavailable");
 
     const state = await poeAdapter.fetchState(params(), { ...env, POB_URL: POB } as unknown as Env);
 
@@ -200,9 +198,7 @@ describe("storePush poe snapshot persistence", () => {
     for (const row of secs.results) {
       expect(row.data).not.toContain("<PathOfBuilding>");
     }
-    const fts = await env.DB.prepare(
-      "SELECT content FROM search_index WHERE save_id = ?",
-    )
+    const fts = await env.DB.prepare("SELECT content FROM search_index WHERE save_id = ?")
       .bind(saveUuid)
       .all<{ content: string }>();
     for (const row of fts.results) {

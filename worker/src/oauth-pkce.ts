@@ -15,10 +15,7 @@ function base64UrlEncode(bytes: Uint8Array): string {
 
 /** Derive the S256 code_challenge for a given code_verifier. */
 export async function pkceChallengeS256(verifier: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(verifier),
-  );
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
   return base64UrlEncode(new Uint8Array(digest));
 }
 

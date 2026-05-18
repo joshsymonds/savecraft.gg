@@ -82,9 +82,7 @@ describe("PoE GGG OAuth + discoverSaves", () => {
 
       await expect(poeAdapter.discoverSaves("tok", "pc")).rejects.toSatisfy(
         (error: unknown) =>
-          error instanceof AdapterError &&
-          error.code === "rate_limited" &&
-          error.retryAfter === 47,
+          error instanceof AdapterError && error.code === "rate_limited" && error.retryAfter === 47,
       );
     });
   });
@@ -160,10 +158,10 @@ describe("PoE GGG OAuth + discoverSaves", () => {
         });
 
       const resp = await SELF.fetch(
-        new Request(
-          `https://test-host/oauth/ggg/callback?code=good&state=${stateKey}`,
-          { method: "GET", redirect: "manual" },
-        ),
+        new Request(`https://test-host/oauth/ggg/callback?code=good&state=${stateKey}`, {
+          method: "GET",
+          redirect: "manual",
+        }),
       );
 
       expect(resp.status).toBe(302);
@@ -186,10 +184,7 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       )
         .bind(USER_UUID)
         .all<{ save_name: string }>();
-      expect(saves.results.map((r) => r.save_name)).toEqual([
-        "BoneShatterJugg",
-        "LeagueStarterRF",
-      ]);
+      expect(saves.results.map((r) => r.save_name)).toEqual(["BoneShatterJugg", "LeagueStarterRF"]);
     });
   });
 });

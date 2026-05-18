@@ -354,11 +354,7 @@ function providerAdapter(provider: OAuthProvider): ApiAdapter | null {
   return adapters[provider.adapterId] ?? null;
 }
 
-async function routeAdapterOAuth(
-  request: Request,
-  url: URL,
-  env: Env,
-): Promise<Response | null> {
+async function routeAdapterOAuth(request: Request, url: URL, env: Env): Promise<Response | null> {
   if (request.method !== "GET") return null;
 
   for (const provider of OAUTH_PROVIDERS) {
@@ -435,10 +431,7 @@ async function handleAdapterAuthorize(
   // Build the provider authorize URL
   const authorizeUrl = new URL(oauthConfig.authorizeUrl);
   authorizeUrl.searchParams.set("client_id", oauthConfig.clientId);
-  authorizeUrl.searchParams.set(
-    "redirect_uri",
-    `${url.origin}/oauth/${provider.segment}/callback`,
-  );
+  authorizeUrl.searchParams.set("redirect_uri", `${url.origin}/oauth/${provider.segment}/callback`);
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("scope", oauthConfig.scopes.join(" "));
   authorizeUrl.searchParams.set("state", stateKey);

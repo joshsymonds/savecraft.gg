@@ -29,8 +29,7 @@ describe("PoE adapter skeleton", () => {
 
   it("discoverSaves rejects with a typed AdapterError placeholder", async () => {
     await expect(poeAdapter.discoverSaves("tok", "pc")).rejects.toSatisfy(
-      (error: unknown) =>
-        error instanceof AdapterError && error.code === "api_unavailable",
+      (error: unknown) => error instanceof AdapterError && error.code === "api_unavailable",
     );
   });
 
@@ -47,8 +46,7 @@ describe("PoE adapter skeleton", () => {
         env,
       ),
     ).rejects.toSatisfy(
-      (error: unknown) =>
-        error instanceof AdapterError && error.code === "api_unavailable",
+      (error: unknown) => error instanceof AdapterError && error.code === "api_unavailable",
     );
   });
 });

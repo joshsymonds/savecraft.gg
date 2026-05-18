@@ -104,12 +104,7 @@ async function persistPoeRefreshArtifacts(
          SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = datetime('now')
          WHERE user_uuid = ? AND game_id = 'poe'`,
       )
-      .bind(
-        refreshed.accessToken,
-        refreshed.refreshToken,
-        refreshed.expiresAt,
-        userUuid,
-      )
+      .bind(refreshed.accessToken, refreshed.refreshToken, refreshed.expiresAt, userUuid)
       .run();
   }
 }

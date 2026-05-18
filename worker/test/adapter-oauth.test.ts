@@ -364,9 +364,9 @@ describe("Adapter OAuth", () => {
       )
         .bind(sourceUuid)
         .all<{ event_type: string }>();
-      expect(
-        events.results.some((logged) => logged.event_type === "characterDiscovery"),
-      ).toBe(true);
+      expect(events.results.some((logged) => logged.event_type === "characterDiscovery")).toBe(
+        true,
+      );
     });
   });
 });

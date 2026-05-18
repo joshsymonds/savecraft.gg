@@ -70,7 +70,7 @@ describe("PoE section mappers", () => {
     const serialized = JSON.stringify(s).toLowerCase();
     expect(serialized).not.toContain("<pathofbuilding");
     expect(serialized).not.toContain("pob_xml");
-    expect(serialized).not.toContain("\"xml\"");
+    expect(serialized).not.toContain('"xml"');
   });
 
   it("handles a minimal character without throwing", () => {

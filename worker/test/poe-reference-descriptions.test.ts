@@ -74,10 +74,7 @@ describe("connect-guidance copy (epic Req 14)", () => {
   });
 
   it("build_planner needs-sign-in guidance points at the real dashboard", async () => {
-    const result = await buildPlannerModule.execute(
-      { character: "current" },
-      poeEnv(),
-    );
+    const result = await buildPlannerModule.execute({ character: "current" }, poeEnv());
     expect(result.type).toBe("text");
     if (result.type !== "text") throw new Error("unreachable");
     expect(result.content).toContain("https://my.savecraft.gg");
