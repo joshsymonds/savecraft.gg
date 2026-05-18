@@ -22,9 +22,39 @@ active + support gem, a body armour), one Timeless jewel, a non-empty
 `passives.hashes`, and empty `hashes_ex` / `mastery_effects` /
 `jewel_data`.
 
-**Deliberately out of scope** (covered by a later epic fixture-expansion
-task, since they require real captured data): cluster-jewel
-`passives.jewel_data` subgraphs, `hashes_ex`, mastery effects, and
-multi-league characters. The real-PoB integration test in the
-"wrapper.lua import seam" task is the correctness arbiter for the
-transformer's output against the live engine.
+The real-PoB integration test in the "wrapper.lua import seam" task is
+the correctness arbiter for the transformer's output against the live
+engine.
+
+## ggg_character_settlers.json
+
+The basic Juggernaut, byte-for-byte, with a non-Standard `league`
+("Settlers"). Provenance: derived from `ggg_character_basic.json`; only
+the `league` strings differ. Because the rest is the known-good basic
+build, this is faithful enough to drive the **live PoB engine** —
+`TestImportMultiLeagueRealPoB` asserts a deterministic content-addressed
+buildId plus real calc output (`summary.Life > 0`).
+
+## ggg_character_cluster.json
+
+The basic Juggernaut plus a Large Cluster Jewel in `jewels[]` and a
+`passives.jewel_data` expansion subgraph (groups/nodes/proxy), shaped to
+the GGG OAuth reference + PoB's `PassiveSpec` subgraph consumer.
+
+**Synthetic — not a live capture.** A hand-built cluster subgraph cannot
+be validated against the live PoB passive tree without a real captured
+character, so this fixture is used ONLY for the property Go owns and the
+content-addressed buildId depends on:
+`TestImportClusterJewelTransformPassthroughDeterministic` asserts the
+transform passes `jewel_data` and the cluster jewel item through
+byte-verbatim and deterministically.
+
+**TODO (needs real capture):** drop a real GGG `GET /character/<name>`
+JSON for an actual cluster-jewel character here and add a real-PoB calc
+assertion (deterministic buildId + non-zero Life) mirroring
+`TestImportMultiLeagueRealPoB`. Requires GGG OAuth capture tooling / an
+authorized account; do not fabricate the subgraph for a live-engine
+assertion.
+
+**Still deliberately out of scope** (need real captures): `hashes_ex`
+and mastery-effect-heavy characters.
