@@ -133,7 +133,9 @@ export async function handleSeedCharacter(request: Request, env: Env): Promise<R
       adapter.fetchState(
         {
           characterId: `${input.realmSlug}/${input.characterName}`,
+          characterName: input.characterName,
           region: input.region,
+          metadata: { realm_slug: input.realmSlug, region: input.region },
           credentials: { accessToken: "" },
         },
         env,
