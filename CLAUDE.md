@@ -54,15 +54,16 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 
 ## Worktrees
 
-Feature branches use `.worktrees/` (gitignored). Nix devenv + direnv handles the environment automatically.
+Use `just new-worktree <branch>` — do NOT run `git worktree add` directly. The recipe creates `.worktrees/<branch>` (gitignored), handles the new-vs-existing branch case, and mirrors the gitignored dev+build environment so checks/builds/tests work immediately with zero setup: every `node_modules` (worker, web, site, install/worker, views, reference) is symlinked from the primary checkout, built `*.wasm` is copied, and every `.env.local` is copied. `cd .worktrees/<branch> && direnv allow` after. Remove with `just rm-worktree <branch>` (force-removes the mirrored env; leaves the branch).
 
 ```
-just new-worktree feature/my-branch     # creates worktree, symlinks every
-                                         # node_modules from the primary
-                                         # checkout, copies .env.local
-cd .worktrees/feature/my-branch
-direnv allow
+just new-worktree feature/my-branch
+cd .worktrees/feature/my-branch && direnv allow
 ```
+
+**Run parallel agents in separate worktrees, never the same checkout.** Two agents sharing one working tree corrupt each other's uncommitted state (files mutate mid-operation, diffs interleave). One `just new-worktree` per agent isolates working files; `.git` (refs, stashes, hooks) is still shared, so keep each agent on its own branch.
+
+`node_modules` is symlinked (too large to copy) and therefore **shared** with the primary checkout: fine for editing, building, testing, and `just check`, but a `npm install`/dependency change mutates the shared tree — replace that subdir's `node_modules` symlink with a real `npm ci` first. `*.wasm` is copied (not symlinked), so rebuilding a plugin in a worktree is safe and cannot corrupt the primary checkout's artifacts.
 
 `just new-worktree` symlinks `node_modules` (worker, web, site, install/worker, views, reference) rather than `npm ci`-ing each — instant, no multi-GB reinstall. The symlinks are shared with the primary checkout, which is fine for build/test/run; if you need to change dependencies in the worktree, replace that subdir's `node_modules` symlink with a real `npm ci`. Remove a worktree with `just rm-worktree feature/my-branch`.
 
