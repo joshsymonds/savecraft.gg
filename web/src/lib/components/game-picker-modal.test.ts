@@ -50,6 +50,16 @@ function makeCatalog(): PickerGame[] {
       isApiGame: true,
       adapter: { authProvider: "battlenet", regions: ["us", "eu", "kr", "tw"] },
     },
+    {
+      gameId: "poe",
+      methods: ["adapter"],
+      name: "Path of Exile",
+      description: "Character builds via GGG API",
+      watched: false,
+      saveCount: 0,
+      isApiGame: true,
+      adapter: { authProvider: "ggg", regions: ["pc"] },
+    },
   ];
 }
 
@@ -106,7 +116,7 @@ describe("GamePickerModal", () => {
     expect(onclose).toHaveBeenCalledOnce();
   });
 
-  // -- Source selection step --
+  // -- Computer (source) selection step --
 
   const twoSources = [
     { id: "src-1", name: "Desktop", hostname: "desktop-pc", platform: "windows" },
@@ -115,27 +125,40 @@ describe("GamePickerModal", () => {
 
   const oneSource = [{ id: "src-1", name: "Desktop", hostname: "desktop-pc", platform: "windows" }];
 
-  it("shows source selection when clicking unwatched game with multiple sources", async () => {
+  it("shows the computer hub when clicking an unwatched daemon game with sources", async () => {
     render(GamePickerModal, {
       props: { games: makeCatalog(), configurableSources: twoSources, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
-    expect(screen.getByText("SELECT SOURCE")).toBeInTheDocument();
+    expect(screen.getByText("WHICH COMPUTER?")).toBeInTheDocument();
     expect(screen.getByText("Desktop")).toBeInTheDocument();
     expect(screen.getByText("Laptop")).toBeInTheDocument();
   });
 
-  it("skips source selection with single source and goes to config form", async () => {
+  it("shows the computer hub even with a single source so pair-another stays reachable (#17)", async () => {
     render(GamePickerModal, {
       props: { games: makeCatalog(), configurableSources: oneSource, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
-    // Should go straight to config form, not source selection
-    expect(screen.queryByText("SELECT SOURCE")).not.toBeInTheDocument();
-    expect(screen.getByText(/CONNECT STARDEW VALLEY/)).toBeInTheDocument();
+    // No silent auto-jump to the config form: the hub (and its
+    // pair-another leaf) is always the entry point for daemon games.
+    expect(screen.getByText("WHICH COMPUTER?")).toBeInTheDocument();
+    expect(screen.getByText("Desktop")).toBeInTheDocument();
+    expect(screen.getByText("Pair another computer")).toBeInTheDocument();
+    expect(screen.queryByText(/CONNECT STARDEW VALLEY/)).not.toBeInTheDocument();
   });
 
-  it("proceeds to config form after selecting a source", async () => {
+  it("routes the pair-another leaf to the daemon setup step (#17)", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), configurableSources: twoSources, onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("Stardew Valley"));
+    await userEvent.click(screen.getByText("Pair another computer"));
+    expect(screen.getByText("SET UP DAEMON")).toBeInTheDocument();
+    expect(screen.getByText(/curl -sSL/)).toBeInTheDocument();
+  });
+
+  it("proceeds to config form after selecting a computer", async () => {
     render(GamePickerModal, {
       props: { games: makeCatalog(), configurableSources: twoSources, onclose: vi.fn() },
     });
@@ -155,6 +178,7 @@ describe("GamePickerModal", () => {
       },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
+    await userEvent.click(screen.getByText("Desktop"));
     const input = screen.getByRole("textbox");
     await userEvent.clear(input);
     await userEvent.type(input, "/saves/stardew");
@@ -162,14 +186,17 @@ describe("GamePickerModal", () => {
     expect(onconfigure).toHaveBeenCalledWith("sdv", "/saves/stardew", "src-1");
   });
 
-  it("shows error when clicking unwatched game with no configurable sources", async () => {
+  it("clicking a daemon game with no paired daemon shows contextual setup (#17)", async () => {
     render(GamePickerModal, {
       props: { games: makeCatalog(), configurableSources: [], onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
-    expect(screen.getByText(/No configurable source connected/)).toBeInTheDocument();
-    // Should still be on browsing step, not config form
-    expect(screen.getByText("ADD A GAME")).toBeInTheDocument();
+    // Unified picker: no error — the install + pair step appears inline.
+    expect(screen.getByText("SET UP DAEMON")).toBeInTheDocument();
+    expect(screen.getByText("Install", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Pair", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText(/curl -sSL/)).toBeInTheDocument();
+    expect(screen.queryByText("ADD A GAME")).not.toBeInTheDocument();
   });
 
   it("pre-fills default path based on source platform, not browser OS", async () => {
@@ -194,41 +221,41 @@ describe("GamePickerModal", () => {
       props: { games: gamesWithPaths, configurableSources: linuxSource, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
+    await userEvent.click(screen.getByText("Steam Deck"));
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- svelte-check needs this cast
     const input = screen.getByRole("textbox") as HTMLInputElement;
     expect(input.value).toBe("/home/josh/.config/StardewValley/Saves");
   });
 
-  it("back from source selection returns to game list", async () => {
+  it("back from the computer hub returns to game list", async () => {
     render(GamePickerModal, {
       props: { games: makeCatalog(), configurableSources: twoSources, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
-    expect(screen.getByText("SELECT SOURCE")).toBeInTheDocument();
+    expect(screen.getByText("WHICH COMPUTER?")).toBeInTheDocument();
     await userEvent.click(screen.getByText("←"));
     expect(screen.getByText("ADD A GAME")).toBeInTheDocument();
   });
 
-  // -- API game flow --
+  // -- Adapter (OAuth) flow --
 
-  it("shows region selection when clicking unwatched API game", async () => {
+  it("shows region selection when clicking an unwatched adapter game", async () => {
     render(GamePickerModal, {
       props: { games: makeCatalog(), configurableSources: oneSource, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("World of Warcraft"));
-    expect(screen.getByText("SELECT REGION")).toBeInTheDocument();
-    expect(screen.getByText("US")).toBeInTheDocument();
-    expect(screen.getByText("EU")).toBeInTheDocument();
+    expect(screen.getByText("SELECT YOUR REGION")).toBeInTheDocument();
+    expect(screen.getByText("Americas")).toBeInTheDocument();
+    expect(screen.getByText("Europe")).toBeInTheDocument();
   });
 
-  it("does not show source selection for API games even with multiple sources", async () => {
+  it("does not show the computer hub for adapter games even with multiple sources", async () => {
     render(GamePickerModal, {
       props: { games: makeCatalog(), configurableSources: twoSources, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("World of Warcraft"));
-    // Should go to region selection, not source selection
-    expect(screen.queryByText("SELECT SOURCE")).not.toBeInTheDocument();
-    expect(screen.getByText("SELECT REGION")).toBeInTheDocument();
+    expect(screen.queryByText("WHICH COMPUTER?")).not.toBeInTheDocument();
+    expect(screen.getByText("SELECT YOUR REGION")).toBeInTheDocument();
   });
 
   it("calls onoauthconnect with gameId and region when region is selected", async () => {
@@ -237,19 +264,29 @@ describe("GamePickerModal", () => {
       props: { games: makeCatalog(), onoauthconnect, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("World of Warcraft"));
-    await userEvent.click(screen.getByText("US"));
+    await userEvent.click(screen.getByText("Americas"));
     expect(onoauthconnect).toHaveBeenCalledWith("wow", "us");
   });
 
-  it("does not require configurable sources for API games", async () => {
+  it("auto-skips the region step for a single-region adapter game (#17)", async () => {
+    const onoauthconnect = vi.fn();
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), onoauthconnect, onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("Path of Exile"));
+    // One realm (PoE "pc"): a lone region button is noise, so connect directly.
+    expect(screen.queryByText("SELECT YOUR REGION")).not.toBeInTheDocument();
+    expect(onoauthconnect).toHaveBeenCalledWith("poe", "pc");
+  });
+
+  it("does not require configurable sources for adapter games", async () => {
     const onoauthconnect = vi.fn();
     render(GamePickerModal, {
       props: { games: makeCatalog(), configurableSources: [], onoauthconnect, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("World of Warcraft"));
-    // Should show region picker, not "no configurable source" error
     expect(screen.queryByText(/No configurable source/)).not.toBeInTheDocument();
-    expect(screen.getByText("SELECT REGION")).toBeInTheDocument();
+    expect(screen.getByText("SELECT YOUR REGION")).toBeInTheDocument();
   });
 
   it("back from region selection returns to game list", async () => {
@@ -257,7 +294,7 @@ describe("GamePickerModal", () => {
       props: { games: makeCatalog(), onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("World of Warcraft"));
-    expect(screen.getByText("SELECT REGION")).toBeInTheDocument();
+    expect(screen.getByText("SELECT YOUR REGION")).toBeInTheDocument();
     await userEvent.click(screen.getByText("←"));
     expect(screen.getByText("ADD A GAME")).toBeInTheDocument();
   });

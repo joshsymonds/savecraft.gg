@@ -73,6 +73,24 @@
       isApiGame: true,
       adapter: { authProvider: "battlenet", regions: ["us", "eu", "kr", "tw"] },
     },
+    {
+      gameId: "poe",
+      methods: ["adapter"],
+      name: "Path of Exile",
+      description: "Live characters & PoB builds via your GGG account",
+      watched: false,
+      saveCount: 0,
+      isApiGame: true,
+      adapter: { authProvider: "ggg", regions: ["pc"] },
+    },
+    {
+      gameId: "factorio",
+      methods: ["daemon", "mod"],
+      name: "Factorio",
+      description: "Factory state via the Savecraft mod or local saves",
+      watched: false,
+      saveCount: 0,
+    },
   ];
 
   const allWatched: PickerGame[] = catalog.map((g, index) => ({
@@ -226,6 +244,25 @@
     <GamePickerModal
       games={catalog}
       configurableSources={singleSource}
+      onpair={(code: string) => alert(`Pair: ${code}`)}
+      onclose={noop}
+    />
+  </div>
+</Story>
+
+<!--
+  Unified picker, no daemon paired (#17). Click a daemon game (Stardew
+  Valley / BG3) → contextual SET UP DAEMON (install + pairing) inline,
+  NOT an error. Click Path of Exile / WoW → SELECT REGION (OAuth).
+  Click Path of Exile 2 (reference-only) → "Ready — no setup". Click
+  RimWorld → INSTALL MOD. One catalog; per-game connect method.
+-->
+<Story name="NoDaemonPaired">
+  <div style="width: 560px; position: relative; height: 500px;">
+    <GamePickerModal
+      games={catalog}
+      configurableSources={[]}
+      onoauthconnect={(gameId: string, region: string) => alert(`OAuth: ${gameId} (${region})`)}
       onpair={(code: string) => alert(`Pair: ${code}`)}
       onclose={noop}
     />

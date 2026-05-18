@@ -36,9 +36,22 @@ describe("GamePickerCard", () => {
     expect(screen.getByText(/1 save$/)).toBeInTheDocument();
   });
 
-  it("shows unconfigured badge when not watched", () => {
-    render(GamePickerCard, { props: { game: makePickerGame({ watched: false }) } });
-    expect(screen.getByText("Not configured")).toBeInTheDocument();
+  it("badges an unwatched game by its connection method (#17)", () => {
+    const cases: { methods: PickerGame["methods"]; badge: string }[] = [
+      { methods: ["daemon"], badge: "Set up" },
+      { methods: ["adapter"], badge: "Connect account" },
+      { methods: ["mod"], badge: "Install mod" },
+      { methods: ["reference"], badge: "Ready" },
+      // hybrid: priority adapter > mod > daemon > reference
+      { methods: ["daemon", "mod"], badge: "Install mod" },
+    ];
+    for (const { methods, badge } of cases) {
+      const { unmount } = render(GamePickerCard, {
+        props: { game: makePickerGame({ watched: false, methods }) },
+      });
+      expect(screen.getByText(badge, { exact: false })).toBeInTheDocument();
+      unmount();
+    }
   });
 
   it("calls onclick when clicked", async () => {

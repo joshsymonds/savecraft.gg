@@ -16,13 +16,26 @@
     onclick?: () => void;
   } = $props();
 
-  function getIconVariant(g: PickerGame): "api" | "workshop" | "default" {
-    if (g.isApiGame) return "api";
-    if (g.workshopUrl) return "workshop";
+  // Unified picker (#17): the tile's affordance follows the game's
+  // connection method, not legacy isApiGame/workshopUrl. Priority when a
+  // game supports several (hybrid): adapter > mod > daemon > reference.
+  function primaryMethod(g: PickerGame): "adapter" | "mod" | "daemon" | "reference" {
+    if (g.methods.includes("adapter")) return "adapter";
+    if (g.methods.includes("mod")) return "mod";
+    if (g.methods.includes("daemon")) return "daemon";
+    return "reference";
+  }
+
+  function iconVariantFor(
+    m: "adapter" | "mod" | "daemon" | "reference",
+  ): "api" | "workshop" | "default" {
+    if (m === "adapter") return "api";
+    if (m === "mod") return "workshop";
     return "default";
   }
 
-  const iconVariant = $derived(getIconVariant(game));
+  const method = $derived(primaryMethod(game));
+  const iconVariant = $derived(iconVariantFor(method));
 </script>
 
 <button class="picker-card" class:watched={game.watched} {onclick}>
@@ -40,12 +53,14 @@
         {game.saveCount}
         {game.saveCount === 1 ? "save" : "saves"}
       </span>
-    {:else if game.isApiGame}
-      <span class="picker-badge api-badge">Connect account</span>
-    {:else if game.workshopUrl}
-      <span class="picker-badge workshop-badge">Steam Workshop</span>
+    {:else if method === "adapter"}
+      <span class="picker-badge api-badge">Connect account <span class="chev">&rsaquo;</span></span>
+    {:else if method === "mod"}
+      <span class="picker-badge workshop-badge">Install mod <span class="chev">&rsaquo;</span></span>
+    {:else if method === "daemon"}
+      <span class="picker-badge unconfigured-badge">Set up <span class="chev">&rsaquo;</span></span>
     {:else}
-      <span class="picker-badge unconfigured-badge">Not configured</span>
+      <span class="picker-badge ready-badge">Ready</span>
     {/if}
   </div>
 </button>
@@ -121,6 +136,11 @@
     border-radius: 2px;
   }
 
+  .chev {
+    margin-left: 4px;
+    opacity: 0.7;
+  }
+
   .watched-badge {
     color: var(--color-green);
     background: rgba(90, 190, 138, 0.1);
@@ -147,5 +167,11 @@
     color: var(--color-steam, #c6d4df);
     background: rgba(198, 212, 223, 0.08);
     border: 1px solid rgba(198, 212, 223, 0.2);
+  }
+
+  .ready-badge {
+    color: var(--color-green, #5abe8a);
+    background: rgba(90, 190, 138, 0.1);
+    border: 1px solid rgba(90, 190, 138, 0.22);
   }
 </style>

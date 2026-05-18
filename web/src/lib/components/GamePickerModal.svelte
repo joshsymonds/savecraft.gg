@@ -5,6 +5,7 @@
   Watched games can be selected; unwatched games show a config form.
 -->
 <script lang="ts">
+  import { PUBLIC_API_URL } from "$env/static/public";
   import type { PickerGame } from "$lib/types/source";
   import { defaultPathForPlatform } from "$lib/utils/platform";
 
@@ -12,6 +13,7 @@
   import GamePickerCard from "./GamePickerCard.svelte";
   import Modal from "./Modal.svelte";
   import PairingCodeInput from "./PairingCodeInput.svelte";
+  import TinyButton from "./TinyButton.svelte";
 
   export interface ConfigurableSource {
     id: string;
@@ -38,7 +40,14 @@
     onclose: () => void;
   } = $props();
 
-  type ModalStep = "browsing" | "selectSource" | "selectRegion" | "configuring" | "workshopInstall";
+  type ModalStep =
+    | "browsing"
+    | "selectSource"
+    | "selectRegion"
+    | "configuring"
+    | "workshopInstall"
+    | "daemonSetup"
+    | "ready";
 
   let step: ModalStep = $state("browsing");
   let search = $state("");
@@ -47,6 +56,27 @@
   let configPath = $state("");
   let configState: "idle" | "connecting" | "success" | "error" | "timeout" = $state("idle");
   let configError = $state("");
+  let copied = $state(false);
+
+  const installUrl = PUBLIC_API_URL.includes("staging")
+    ? "https://staging-install.savecraft.gg"
+    : "https://install.savecraft.gg";
+
+  function installCommand(): string {
+    return `curl -sSL ${installUrl} | bash`;
+  }
+
+  async function copyInstallCommand(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(installCommand());
+      copied = true;
+      setTimeout(() => {
+        copied = false;
+      }, 2000);
+    } catch {
+      // Clipboard unavailable; the command stays visible to copy by hand.
+    }
+  }
 
   let filtered = $derived(
     search.trim() === ""
@@ -68,26 +98,39 @@
     step = "configuring";
   }
 
-  let noSourcesError = $state(false);
-
+  // Unified picker (#17): dispatch by the game's connection method, not
+  // legacy isApiGame/workshopUrl. Hybrid priority: adapter > mod >
+  // daemon > reference. Daemon games with no paired daemon get the
+  // install+pair step inline (contextual onboarding); reference-only
+  // games need no setup.
   function handleCardClick(game: PickerGame) {
     if (game.watched) {
       onselect?.(game);
-    } else if (game.isApiGame) {
-      configGame = game;
-      step = "selectRegion";
+      return;
+    }
+    if (game.methods.includes("adapter")) {
+      const regions = game.adapter?.regions ?? [];
+      // Only ask when there's a real choice. One realm/region (e.g. PoE
+      // has only pc) goes straight to OAuth; a lone "PC" button is noise.
+      if (regions.length <= 1) {
+        onoauthconnect?.(game.gameId, regions[0] ?? "");
+      } else {
+        configGame = game;
+        step = "selectRegion";
+      }
     } else if (game.workshopUrl) {
       configGame = game;
       step = "workshopInstall";
-    } else if (configurableSources.length > 1) {
+    } else if (game.methods.includes("daemon")) {
       configGame = game;
-      noSourcesError = false;
-      step = "selectSource";
-    } else if (configurableSources.length === 1) {
-      const source = configurableSources[0];
-      if (source) enterConfigForm(game, source.id);
+      // Any paired computer: show the hub so the "pair another" leaf is
+      // always reachable. No paired computer: the hub would be just that
+      // leaf, so go straight to install and pair.
+      step = configurableSources.length >= 1 ? "selectSource" : "daemonSetup";
     } else {
-      noSourcesError = true;
+      // Reference-only; works with zero setup.
+      configGame = game;
+      step = "ready";
     }
   }
 
@@ -122,7 +165,10 @@
   }
 
   function handleBack() {
-    if (step === "configuring" && configurableSources.length > 1) {
+    if (
+      (step === "configuring" || step === "daemonSetup") &&
+      configurableSources.length >= 1
+    ) {
       step = "selectSource";
       configState = "idle";
       configError = "";
@@ -135,11 +181,12 @@
     }
   }
 
-  const REGION_LABELS: Record<string, string> = {
-    us: "US",
-    eu: "EU",
-    kr: "KR",
-    tw: "TW",
+  // Full, idiomatic region names. A lone "US" code reads as jargon.
+  const REGION_LABELS: Record<string, { name: string; sub: string }> = {
+    us: { name: "Americas", sub: "US / Latin America / Oceania" },
+    eu: { name: "Europe", sub: "EU realms" },
+    kr: { name: "Korea", sub: "KR realms" },
+    tw: { name: "Taiwan", sub: "TW realms" },
   };
 
   function handleModalClose() {
@@ -157,13 +204,19 @@
       <span class="modal-title">ADD A GAME</span>
     {:else if step === "selectRegion"}
       <button class="modal-back" onclick={handleBack}>&#x2190;</button>
-      <span class="modal-title">SELECT REGION</span>
+      <span class="modal-title">SELECT YOUR REGION</span>
     {:else if step === "selectSource"}
       <button class="modal-back" onclick={handleBack}>&#x2190;</button>
-      <span class="modal-title">SELECT SOURCE</span>
+      <span class="modal-title">WHICH COMPUTER?</span>
     {:else if step === "workshopInstall"}
       <button class="modal-back" onclick={handleBack}>&#x2190;</button>
       <span class="modal-title">INSTALL MOD</span>
+    {:else if step === "daemonSetup"}
+      <button class="modal-back" onclick={handleBack}>&#x2190;</button>
+      <span class="modal-title">SET UP DAEMON</span>
+    {:else if step === "ready"}
+      <button class="modal-back" onclick={handleBack}>&#x2190;</button>
+      <span class="modal-title">{configGame?.name.toUpperCase()}</span>
     {:else}
       <button class="modal-back" onclick={handleBack} disabled={configState === "connecting"}
         >&#x2190;</button
@@ -174,13 +227,19 @@
   </div>
 
   {#if step === "selectRegion"}
-    <div class="region-list">
-      <p class="region-intro">Connect your Battle.net account to import characters.</p>
-      {#each configGame?.adapter?.regions ?? [] as region (region)}
-        <button class="source-option" onclick={() => handleRegionSelect(region)}>
-          <span class="source-name">{REGION_LABELS[region] ?? region.toUpperCase()}</span>
-        </button>
-      {/each}
+    <div class="region-panel">
+      <p class="intro-callout">
+        Your {configGame?.name} characters live on a regional realm. Pick the region you play. You'll
+        sign in to that region's account.
+      </p>
+      <div class="region-grid">
+        {#each configGame?.adapter?.regions ?? [] as region (region)}
+          <button class="region-card" onclick={() => handleRegionSelect(region)}>
+            <span class="region-name">{REGION_LABELS[region]?.name ?? region.toUpperCase()}</span>
+            <span class="region-sub">{REGION_LABELS[region]?.sub ?? region.toUpperCase()}</span>
+          </button>
+        {/each}
+      </div>
     </div>
   {:else if step === "workshopInstall"}
     <div class="workshop-panel">
@@ -229,6 +288,9 @@
     </div>
   {:else if step === "selectSource"}
     <div class="source-list">
+      <p class="intro-callout">
+        Pick which computer's {configGame?.name} save files to use, or pair another computer.
+      </p>
       {#each configurableSources as source (source.id)}
         <button class="source-option" onclick={() => handleSourceSelect(source)}>
           <span class="source-name">{source.name}</span>
@@ -237,6 +299,10 @@
           {/if}
         </button>
       {/each}
+      <button class="source-option pair-another" onclick={() => (step = "daemonSetup")}>
+        <span class="source-name">Pair another computer <span class="chev">&rsaquo;</span></span>
+        <span class="source-hostname">Install the daemon on a new machine</span>
+      </button>
     </div>
   {:else if step === "configuring"}
     <div class="config-form">
@@ -270,17 +336,54 @@
         </button>
       {/if}
     </div>
+  {:else if step === "daemonSetup"}
+    <div class="workshop-panel">
+      <p class="intro-callout">
+        {configGame?.name} keeps its saves on your PC. Install the Savecraft daemon and pair it once.
+        After that it watches those saves for you.
+      </p>
+      <div class="workshop-step">
+        <span class="workshop-step-number">1</span>
+        <div class="workshop-step-content">
+          <span class="workshop-step-title">Install</span>
+          <p class="workshop-step-desc">Windows: download and run the installer.</p>
+          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external download URL -->
+          <a class="workshop-button" href={installUrl}>Download</a>
+          <p class="workshop-step-desc spacer-top">Linux or Steam Deck: run this.</p>
+          <div class="command-block">
+            <code class="command-text">{installCommand()}</code>
+            <TinyButton
+              label={copied ? "COPIED" : "COPY"}
+              onclick={() => {
+                void copyInstallCommand();
+              }}
+            />
+          </div>
+        </div>
+      </div>
+      <div class="workshop-step">
+        <span class="workshop-step-number">2</span>
+        <div class="workshop-step-content">
+          <span class="workshop-step-title">Pair</span>
+          <p class="workshop-step-desc">
+            Enter the 6-digit code the daemon shows the first time it runs.
+          </p>
+          <PairingCodeInput onsubmit={onpair} />
+        </div>
+      </div>
+    </div>
+  {:else if step === "ready"}
+    <div class="ready-panel">
+      <span class="ready-title">{configGame?.name} is ready.</span>
+      <p class="ready-desc">
+        Savecraft provides reference modules and expert knowledge for {configGame?.name}. Live
+        character data is not available yet.
+      </p>
+    </div>
   {:else}
     <div class="modal-search">
       <input type="text" placeholder="Search games..." bind:value={search} class="search-input" />
     </div>
-    {#if noSourcesError}
-      <div class="no-sources-error">
-        <span class="error-text"
-          >No configurable source connected. Install the Savecraft daemon to add games.</span
-        >
-      </div>
-    {/if}
     <div class="modal-list">
       {#each filtered as game (game.gameId)}
         <GamePickerCard {game} onclick={() => handleCardClick(game)} />
@@ -313,13 +416,14 @@
   }
 
   .modal-back {
-    font-family: var(--font-pixel);
-    font-size: 12px;
+    font-family: var(--font-body);
+    font-size: 26px;
+    line-height: 1;
     color: var(--color-text-muted);
     background: none;
     border: none;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 6px 10px;
     border-radius: 2px;
   }
 
@@ -448,16 +552,53 @@
     cursor: not-allowed;
   }
 
-  .no-sources-error {
-    padding: 10px 18px;
-    background: rgba(229, 85, 85, 0.08);
-    border-bottom: 1px solid rgba(229, 85, 85, 0.15);
+  /* Daemon setup (contextual, #17) + reference-ready */
+
+  .command-block {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 8px 10px;
+    background: rgba(5, 7, 26, 0.5);
+    border: 1px solid rgba(74, 90, 173, 0.15);
+    border-radius: 3px;
   }
 
-  .no-sources-error .error-text {
+  .command-text {
+    flex: 1;
+    font-family: var(--font-mono, monospace);
+    font-size: 13px;
+    color: var(--color-text);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .spacer-top {
+    margin-top: 12px;
+  }
+
+  .ready-panel {
+    padding: 24px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .ready-title {
+    font-family: var(--font-pixel);
+    font-size: 15px;
+    color: var(--color-green, #5abe8a);
+    letter-spacing: 0.5px;
+    margin: 0;
+  }
+
+  .ready-desc {
     font-family: var(--font-body);
-    font-size: 14px;
-    color: var(--color-red, #e55);
+    font-size: 17px;
+    color: var(--color-text-dim);
+    line-height: 1.55;
+    margin: 0;
   }
 
   /* Workshop install */
@@ -545,24 +686,70 @@
     border-color: rgba(198, 212, 223, 0.4);
   }
 
-  /* Region selection */
+  /* The one designed intro element — a gold-accented callout, not dim
+     floating text. Shared by the region / computer / daemon steps. */
 
-  .region-list {
-    padding: 8px 0;
+  .intro-callout {
+    font-family: var(--font-body);
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--color-text);
+    margin: 0 0 16px;
+    padding: 14px 16px;
+    background: linear-gradient(90deg, rgba(200, 168, 78, 0.12), rgba(200, 168, 78, 0.03));
+    border-left: 3px solid var(--color-gold);
+    border-radius: 0 4px 4px 0;
   }
 
-  .region-intro {
+  /* Region selection */
+
+  .region-panel {
+    padding: 16px 18px;
+  }
+
+  .region-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .region-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    background: rgba(74, 90, 173, 0.06);
+    border: 1px solid rgba(74, 90, 173, 0.18);
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
+  }
+
+  .region-card:hover {
+    background: rgba(110, 168, 254, 0.12);
+    border-color: var(--color-blue, #6ea8fe);
+  }
+
+  .region-name {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    color: var(--color-text);
+    letter-spacing: 0.5px;
+  }
+
+  .region-sub {
     font-family: var(--font-body);
-    font-size: 15px;
-    color: var(--color-text-dim);
-    padding: 8px 18px 4px;
-    margin: 0;
+    font-size: 13px;
+    color: var(--color-text-muted);
   }
 
   /* Source selection */
 
   .source-list {
-    padding: 8px 0;
+    padding: 16px 18px;
   }
 
   .source-option {
@@ -570,7 +757,7 @@
     align-items: center;
     gap: 10px;
     width: 100%;
-    padding: 14px 18px;
+    padding: 14px 0;
     background: none;
     border: none;
     border-bottom: 1px solid rgba(74, 90, 173, 0.06);
@@ -593,5 +780,24 @@
     font-family: var(--font-body);
     font-size: 14px;
     color: var(--color-text-muted);
+  }
+
+  .source-option.pair-another {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    margin-top: 8px;
+    border-bottom: none;
+    border-top: 1px solid rgba(200, 168, 78, 0.25);
+    padding-top: 16px;
+  }
+
+  .pair-another .source-name {
+    color: var(--color-gold);
+  }
+
+  .chev {
+    margin-left: 4px;
+    opacity: 0.7;
   }
 </style>

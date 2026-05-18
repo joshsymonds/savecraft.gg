@@ -184,8 +184,8 @@
   /* ── Global close button for modal headers ──────── */
 
   :global(.modal-close) {
-    font-family: var(--font-pixel);
-    font-size: 18px;
+    font-family: var(--font-body);
+    font-size: 26px;
     color: var(--color-text-muted);
     background: none;
     border: 1px solid rgba(74, 90, 173, 0.25);
@@ -196,8 +196,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
   }
 
   :global(.modal-close:hover) {
