@@ -54,4 +54,8 @@ export interface Env {
   POB_URL?: string;
   /** API key for the PoB calc service. Set via `wrangler secret put POB_API_KEY`. */
   POB_API_KEY?: string;
+  /** GGG (Path of Exile) OAuth confidential-client ID. */
+  GGG_CLIENT_ID?: string;
+  /** GGG OAuth confidential-client secret. Set via `wrangler secret put GGG_CLIENT_SECRET`. */
+  GGG_CLIENT_SECRET?: string;
 }

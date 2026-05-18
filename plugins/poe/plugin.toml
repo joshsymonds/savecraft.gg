@@ -1,16 +1,22 @@
 game_id = "poe"
-sources = []
+sources = ["api"]
 icon = "icon.png"
 name = "Path of Exile"
-description = "Build analysis and modification via headless Path of Building — paste a build link or iterate on existing builds"
+description = "Connect your GGG account to analyze your live characters, or paste a build link — full headless Path of Building analysis either way"
 channel = "beta"
 coverage = "partial"
 file_extensions = []
 
 limitations = [
-  "Build analysis only — no live character data yet (GGG API access pending)",
+  "Character data reflects the last refresh, not real-time",
   "Timeless jewel calculations are not supported",
 ]
+
+[adapter]
+auth_provider = "ggg"
+auth_flow = "oauth2_code_pkce"
+scopes = ["account:characters", "account:profile"]
+regions = ["pc"]
 
 [attribution]
 sources = ["ggg", "pob"]
