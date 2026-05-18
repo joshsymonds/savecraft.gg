@@ -51,11 +51,19 @@ export interface GggCharacter {
   passives?: GggPassives;
 }
 
-/** GGG `GET /character` list response. */
+/** One entry of the GGG `GET /character` list response. */
 export interface GggCharacterListEntry {
+  /** Stable 64-hex id — survives renames; used as the reconcile key. */
+  id: string;
   name: string;
   class: string;
   league: string;
   level: number;
   realm?: string;
+  expired?: boolean;
+  deleted?: boolean;
+}
+
+export interface GggCharacterListResponse {
+  characters: GggCharacterListEntry[];
 }

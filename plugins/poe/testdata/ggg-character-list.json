@@ -1,0 +1,34 @@
+{
+  "characters": [
+    {
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "name": "BoneShatterJugg",
+      "realm": "pc",
+      "class": "Juggernaut",
+      "league": "Standard",
+      "level": 92,
+      "expired": false,
+      "deleted": false
+    },
+    {
+      "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "name": "LeagueStarterRF",
+      "realm": "pc",
+      "class": "Chieftain",
+      "league": "Settlers",
+      "level": 68,
+      "expired": false,
+      "deleted": false
+    },
+    {
+      "id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "name": "DeletedAlt",
+      "realm": "pc",
+      "class": "Witch",
+      "league": "Standard",
+      "level": 4,
+      "expired": false,
+      "deleted": true
+    }
+  ]
+}

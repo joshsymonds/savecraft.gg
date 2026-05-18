@@ -22,6 +22,8 @@ import {
   type OAuthConfig,
 } from "../../../worker/src/adapters/adapter";
 import type { Env } from "../../../worker/src/types";
+import { gggGet } from "./ggg-api";
+import type { GggCharacterListResponse } from "./types";
 
 const GGG_AUTHORIZE_URL = "https://www.pathofexile.com/oauth/authorize";
 const GGG_TOKEN_URL = "https://www.pathofexile.com/oauth/token";
@@ -47,12 +49,34 @@ export const poeAdapter: ApiAdapter = {
     };
   },
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- placeholder; real impl is async (GET /character)
   async discoverSaves(
-    _accessToken: string,
-    _region: string,
+    accessToken: string,
+    region: string,
   ): Promise<DiscoveredSave[]> {
-    throw new AdapterError("api_unavailable", NOT_IMPLEMENTED);
+    // Single global endpoint; PoE1-PC is the default realm (no path
+    // segment). `region` is the realm label, carried into metadata.
+    const { characters } = await gggGet<GggCharacterListResponse>(
+      "/character",
+      accessToken,
+    );
+
+    return characters
+      .filter((char) => !char.deleted)
+      .map((char) => ({
+        // GGG id is stable across renames — the reconcile key. saveName
+        // is the human identity (name); a rename is reconciled via the
+        // stable characterId, mirroring the WoW adapter.
+        saveName: char.name,
+        characterId: char.id,
+        displayName: char.name,
+        metadata: {
+          class: char.class,
+          league: char.league,
+          level: char.level,
+          realm: char.realm ?? region,
+          expired: char.expired ?? false,
+        },
+      }));
   },
 
   // eslint-disable-next-line @typescript-eslint/require-await -- placeholder; real impl is async (GET /character/<name> + pob-server /import)

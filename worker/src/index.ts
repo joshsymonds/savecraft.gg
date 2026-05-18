@@ -12,6 +12,7 @@ import { authenticateSession, authenticateSource, sha256Hex } from "./auth";
 import { dispatch } from "./jobs/dispatch";
 import { indexNote, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
+import { generatePkcePair } from "./oauth-pkce";
 import { Message } from "./proto/savecraft/v1/protocol";
 import { reconcileOrphanSaves, storePush } from "./store";
 import type { Env } from "./types";
@@ -323,6 +324,8 @@ interface OAuthProvider {
   adapterId: string;
   defaultRegion: string;
   clientSecret: (env: Env) => string;
+  /** When true, use Authorization Code + PKCE S256 (GGG requires it). */
+  pkce?: boolean;
 }
 
 const OAUTH_PROVIDERS: readonly OAuthProvider[] = [
@@ -331,6 +334,13 @@ const OAUTH_PROVIDERS: readonly OAuthProvider[] = [
     adapterId: "wow",
     defaultRegion: "us",
     clientSecret: (env) => env.BATTLENET_CLIENT_SECRET ?? "",
+  },
+  {
+    segment: "ggg",
+    adapterId: "poe",
+    defaultRegion: "pc",
+    clientSecret: (env) => env.GGG_CLIENT_SECRET ?? "",
+    pkce: true,
   },
 ];
 
@@ -402,11 +412,18 @@ async function handleAdapterAuthorize(
     pushGameStatus(env, sourceUuid, userUuid, adapter.gameId, adapter.gameName, "watching"),
   ]);
 
+  // PKCE (RFC 7636) for providers that require it. The verifier is
+  // stored only in the short-TTL KV state blob — never in the state
+  // param, the redirect URL, or a cookie.
+  const pkce = provider.pkce ? await generatePkcePair() : null;
+
   // Store state in KV (one-time use, 10 min TTL)
   const stateKey = crypto.randomUUID();
+  const callbackState: OAuthCallbackState = { userUuid, region, returnUrl, sourceUuid };
+  if (pkce) callbackState.codeVerifier = pkce.verifier;
   await env.OAUTH_KV.put(
     `${provider.segment}-oauth-state:${stateKey}`,
-    JSON.stringify({ userUuid, region, returnUrl, sourceUuid }),
+    JSON.stringify(callbackState),
     { expirationTtl: 600 },
   );
 
@@ -420,6 +437,10 @@ async function handleAdapterAuthorize(
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("scope", oauthConfig.scopes.join(" "));
   authorizeUrl.searchParams.set("state", stateKey);
+  if (pkce) {
+    authorizeUrl.searchParams.set("code_challenge", pkce.challenge);
+    authorizeUrl.searchParams.set("code_challenge_method", "S256");
+  }
 
   return Response.json({ url: authorizeUrl.toString() });
 }
@@ -435,18 +456,24 @@ async function exchangeAdapterToken(
   code: string,
   redirectUri: string,
   oauthConfig: { readonly tokenUrl: string; readonly clientId: string },
+  codeVerifier: string | undefined,
   env: Env,
 ): Promise<AdapterTokenResult | Response> {
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: redirectUri,
+    client_id: oauthConfig.clientId,
+    client_secret: provider.clientSecret(env),
+  });
+  // Confidential client + PKCE: GGG wants both client_secret and the
+  // code_verifier. Sent only when the provider negotiated PKCE.
+  if (codeVerifier) body.set("code_verifier", codeVerifier);
+
   const tokenResp = await fetch(oauthConfig.tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: redirectUri,
-      client_id: oauthConfig.clientId,
-      client_secret: provider.clientSecret(env),
-    }),
+    body,
   });
 
   if (!tokenResp.ok) {
@@ -522,6 +549,8 @@ interface OAuthCallbackState {
   region: string;
   returnUrl: string;
   sourceUuid: string;
+  /** PKCE code_verifier — only present for pkce providers; never leaves KV. */
+  codeVerifier?: string;
 }
 
 async function handleTokenFailure(
@@ -563,7 +592,7 @@ async function exchangeAndStoreToken(
   try {
     const [, exchangeResult] = await Promise.all([
       env.OAUTH_KV.delete(`${provider.segment}-oauth-state:${stateKey}`),
-      exchangeAdapterToken(provider, code, redirectUri, oauthConfig, env),
+      exchangeAdapterToken(provider, code, redirectUri, oauthConfig, state.codeVerifier, env),
     ]);
     tokenResult = exchangeResult;
   } catch (error: unknown) {
