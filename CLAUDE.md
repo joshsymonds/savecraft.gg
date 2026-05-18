@@ -54,16 +54,17 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 
 ## Worktrees
 
-Feature branches use `.worktrees/` (gitignored). Nix devenv + direnv handles the environment automatically. Worktrees need `.env.local` copied (gitignored secrets) and `npm ci` for each JS subdirectory.
+Feature branches use `.worktrees/` (gitignored). Nix devenv + direnv handles the environment automatically.
 
 ```
-git worktree add .worktrees/feature/my-branch -b feature/my-branch
+just new-worktree feature/my-branch     # creates worktree, symlinks every
+                                         # node_modules from the primary
+                                         # checkout, copies .env.local
 cd .worktrees/feature/my-branch
 direnv allow
-cp ../../.env.local .env.local          # gitignored secrets needed by SvelteKit / Storybook
-cd web && npm ci && cd ..               # install from lockfile exactly
-cd worker && npm ci && cd ..            # install from lockfile exactly
 ```
+
+`just new-worktree` symlinks `node_modules` (worker, web, site, install/worker, views, reference) rather than `npm ci`-ing each — instant, no multi-GB reinstall. The symlinks are shared with the primary checkout, which is fine for build/test/run; if you need to change dependencies in the worktree, replace that subdir's `node_modules` symlink with a real `npm ci`. Remove a worktree with `just rm-worktree feature/my-branch`.
 
 ## Development Principles
 
