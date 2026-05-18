@@ -2030,6 +2030,53 @@ local function handleNearbyPerturb(request)
 	}
 end
 
+-- Import a GGG account character. getItemsJson / getPassiveSkillsJson
+-- are the two legacy-shaped bodies built Go-side by
+-- transformToImportJSON; loadBuildFromJSON (HeadlessWrapper) feeds them
+-- into PoB's own account-import (ImportItemsAndSkills +
+-- ImportPassiveTreeAndJewels). No mapping/algorithm here — pure PoB
+-- API access; SaveDB serializes the resulting build to a build code.
+local function handleImport(request)
+	local getItemsJson = request.getItemsJson
+	local getPassiveSkillsJson = request.getPassiveSkillsJson
+	if not getItemsJson or getItemsJson == "" then
+		return { type = "error", message = "missing 'getItemsJson' field" }
+	end
+	if not getPassiveSkillsJson or getPassiveSkillsJson == "" then
+		return { type = "error", message = "missing 'getPassiveSkillsJson' field" }
+	end
+
+	-- ImportPassiveTreeAndJewels (ImportTab.lua:769-771) reads the
+	-- UI-only global `charSelectLeague`, which HeadlessWrapper does not
+	-- stub — nil headless, so loadBuildFromJSON crashes there. Provide
+	-- the minimal UI stub PoB's headless harness omits, returning the
+	-- league Go already parsed from the character. This is headless
+	-- glue (same kind HeadlessWrapper itself provides), not algorithm:
+	-- no GGG→PoB logic lives here.
+	local importLeague = request.league
+	if not importLeague or importLeague == "" then
+		importLeague = "Standard"
+	end
+	charSelectLeague = {
+		GetSelValueByKey = function() return importLeague end,
+	}
+
+	loadBuildFromJSON(getItemsJson, getPassiveSkillsJson)
+
+	-- A fresh build is now in memory but did not go through
+	-- ensureBuildLoaded, so clear the affinity hint and the modify
+	-- index caches; the next request must reload, not reuse stale state.
+	_lastLoadedBuildId = ""
+	nodeIndex = nil
+	allocationLog = {}
+
+	local xml = build:SaveDB("import")
+	if not xml or xml == "" then
+		return { type = "error", message = "failed to serialize imported build" }
+	end
+	return { type = "result", xml = xml }
+end
+
 -- Main request loop
 log("Ready for requests")
 
@@ -2055,6 +2102,13 @@ for line in io.stdin:lines() do
 				response = result
 			else
 				response = { type = "error", message = "modify crashed: " .. tostring(result) }
+			end
+		elseif request.type == "import" then
+			local ok, result = pcall(handleImport, request)
+			if ok then
+				response = result
+			else
+				response = { type = "error", message = "import crashed: " .. tostring(result) }
 			end
 		elseif request.type == "nearby_extract" then
 			local ok, result = pcall(handleNearbyExtract, request)

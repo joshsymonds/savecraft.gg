@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -16,11 +17,6 @@ import (
 func importTestServer() *Server {
 	return &Server{log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 }
-
-// A syntactically valid GGG character body. Mirrors the documented
-// shape (name/class/level + equipment + passives) without being a full
-// fixture — the skeleton only decodes and validates presence.
-const validGGGCharacterBody = `{"character":{"name":"Boneshatterer","class":"Juggernaut","level":92,"equipment":[],"passives":{"hashes":[]}}}`
 
 func TestHandleImportRejectsGet(t *testing.T) {
 	srv := importTestServer()
@@ -62,21 +58,108 @@ func TestHandleImportRejectsEmptyBody(t *testing.T) {
 	assertErrorEnvelope(t, recorder.Body.Bytes())
 }
 
-func TestHandleImportValidCharacterNotImplemented(t *testing.T) {
+// A JSON-valid character whose class can't be mapped fails in the Go
+// transform, before any PoB process is touched — so importTestServer
+// (no pool) is sufficient and the error is a 422, mirroring
+// writeResolveError's unprocessable convention.
+func TestHandleImportRejectsUnmappableCharacter(t *testing.T) {
 	srv := importTestServer()
 
-	req := httptest.NewRequest(http.MethodPost, "/import", strings.NewReader(validGGGCharacterBody))
+	body := `{"character":{"name":"X","class":"NotARealClass","level":1}}`
+	req := httptest.NewRequest(http.MethodPost, "/import", strings.NewReader(body))
 	recorder := httptest.NewRecorder()
 	srv.handleImport(recorder, req)
 
-	// pob-server convention: not-yet-available conditions return 501 via
-	// jsonError (see handleResolve's store == nil path), not a 200 with an
-	// embedded code. The error envelope is the same {"error": msg} shape
-	// every other endpoint emits — that is what "mirrors /resolve" means.
-	if recorder.Code != http.StatusNotImplemented {
-		t.Fatalf("expected 501, got %d: %s", recorder.Code, recorder.Body.String())
+	if recorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", recorder.Code, recorder.Body.String())
 	}
 	assertErrorEnvelope(t, recorder.Body.Bytes())
+}
+
+// End-to-end: a real GGG character fixture imported through the live
+// PoB engine yields a {buildId,data} envelope identical in shape to
+// /resolve, with real calc numbers. Skips cleanly without POB_DIR.
+func TestHandleImportProducesBuild(t *testing.T) {
+	srv := setupRealServer(t)
+	ts := realServerHTTP(t, srv)
+
+	resp := postImport(t, ts.URL, loadGGGFixture(t))
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, b)
+	}
+
+	var env map[string]json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	var buildID string
+	if err := json.Unmarshal(env["buildId"], &buildID); err != nil || buildID == "" {
+		t.Fatalf("missing/empty buildId: %v (env keys: %v)", err, keysOf(env))
+	}
+
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(env["data"], &data); err != nil {
+		t.Fatalf("data not an object: %v", err)
+	}
+	for _, key := range []string{"character", "summary", "section_index"} {
+		if _, ok := data[key]; !ok {
+			t.Fatalf("data missing %q (keys: %v)", key, keysOf(data))
+		}
+	}
+	var summary struct {
+		Life float64 `json:"Life"`
+	}
+	if err := json.Unmarshal(data["summary"], &summary); err != nil {
+		t.Fatalf("summary not an object: %v", err)
+	}
+	if summary.Life <= 0 {
+		t.Errorf("imported build Life = %v, want > 0", summary.Life)
+	}
+}
+
+// Identical GGG input must yield the identical content-addressed
+// buildId — the property build_planner's stored-XML re-feed relies on.
+func TestHandleImportDeterministic(t *testing.T) {
+	srv := setupRealServer(t)
+	ts := realServerHTTP(t, srv)
+
+	id1 := importBuildID(t, ts.URL, loadGGGFixture(t))
+	id2 := importBuildID(t, ts.URL, loadGGGFixture(t))
+	if id1 != id2 {
+		t.Fatalf("non-deterministic buildId: %q != %q", id1, id2)
+	}
+}
+
+func postImport(t *testing.T, baseURL string, character json.RawMessage) *http.Response {
+	t.Helper()
+	body, err := json.Marshal(map[string]json.RawMessage{"character": character})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	resp, err := http.Post(baseURL+"/import", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST /import: %v", err)
+	}
+	return resp
+}
+
+func importBuildID(t *testing.T, baseURL string, character json.RawMessage) string {
+	t.Helper()
+	resp := postImport(t, baseURL, character)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, b)
+	}
+	var env struct {
+		BuildID string `json:"buildId"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return env.BuildID
 }
 
 // assertErrorEnvelope verifies the response is the standard pob-server
