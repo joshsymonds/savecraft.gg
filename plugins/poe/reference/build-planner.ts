@@ -14,6 +14,10 @@
  * enabling iterative build design without the player exporting build codes.
  */
 
+import {
+  connectAdapterGuidance,
+  SAVECRAFT_APP_URL,
+} from "../../../worker/src/adapters/adapter";
 import type { Env } from "../../../worker/src/types";
 import type {
   NativeReferenceModule,
@@ -178,7 +182,7 @@ async function resolvePoeCharacterSnapshot(
     : `character "${character}"`;
   const guidance = saveExists
     ? `No imported Path of Exile build yet for ${who}. Run refresh_save for this PoE character first — that imports the live build into Savecraft — then call build_planner again with the same character.`
-    : `No connected Path of Exile character ${isCurrent ? "found" : `named "${character}"`}. Connect your Path of Exile account at savecraft.gg/settings, run refresh_save, then retry. (To analyze a build that isn't yours, pass its URL via the build parameter instead.)`;
+    : `No connected Path of Exile character ${isCurrent ? "found" : `named "${character}"`}. To analyze the player's own character, ${connectAdapterGuidance("Path of Exile")}, then retry. (To analyze a build that isn't theirs, pass its URL via the build parameter instead.)`;
   return { ok: false, guidance };
 }
 
@@ -214,7 +218,7 @@ export const buildPlannerModule: NativeReferenceModule = {
     character: {
       type: "string",
       description:
-        'Analyze the player\'s own connected Path of Exile character — no URL needed. Pass "current" for their most-recently-played character, or the exact character name. Requires the player to have connected their PoE account (savecraft.gg/settings) and run refresh_save for that character. Preferred over `build` whenever the player asks about THEIR character/build. Mutually exclusive with `build`; ignored if `build` or `build_id` is also given.',
+        `Analyze the player's own connected Path of Exile character — no URL needed. Pass "current" for their most-recently-played character, or the exact character name. Requires the player to have connected their PoE account at ${SAVECRAFT_APP_URL} and run refresh_save for that character. Preferred over \`build\` whenever the player asks about THEIR character/build. Mutually exclusive with \`build\`; ignored if \`build\` or \`build_id\` is also given.`,
     },
     build: {
       type: "string",
@@ -558,7 +562,7 @@ export const buildPlannerModule: NativeReferenceModule = {
         return {
           type: "text",
           content:
-            "Error: the character parameter needs a signed-in player. Connect your Path of Exile account at savecraft.gg/settings, or pass a build URL instead.",
+            `Error: the character parameter needs a signed-in player. To use it, ${connectAdapterGuidance("Path of Exile")}, then retry — or pass a build URL instead.`,
         };
       }
       const resolved = await resolvePoeCharacterSnapshot(

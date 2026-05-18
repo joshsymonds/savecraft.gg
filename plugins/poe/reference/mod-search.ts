@@ -147,6 +147,7 @@ export const modSearchModule: NativeReferenceModule = {
     "mod tier values, ilvl requirements, and which item classes a mod can",
     "appear on. Prevents hallucinating mod values or wrong tier ranges.",
     "Covers prefixes and suffixes.",
+    "If the player has connected their Path of Exile account, build_planner can analyze their own character directly (character:'current' or a character name) — this module complements that connected-account workflow.",
   ].join(" "),
   parameters: {
     query: {

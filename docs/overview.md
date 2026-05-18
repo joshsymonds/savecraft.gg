@@ -85,7 +85,7 @@ Runs on the gaming device (Windows PC, Linux PC, Steam Deck). Background process
 - **No MCP involvement.** Pure background service.
 - **Linux / Steam Deck:** Static binary installed to `~/.local/bin/` + systemd user unit. Sandboxed via systemd directives. See `docs/infrastructure.md`.
 - **First boot:** Daemon connects to `/ws/register` WebSocket to get a source token. Displays a 6-digit link code for the user to enter in the web UI. Token is persisted locally; subsequent boots use the existing token.
-- **Configuration:** All configuration happens via the web interface at savecraft.gg/settings. Config changes push to daemon in real time via binary protobuf WebSocket (`Message` envelope). Per-source configs stored server-side in D1.
+- **Configuration:** All configuration happens via the web dashboard at my.savecraft.gg. Config changes push to daemon in real time via binary protobuf WebSocket (`Message` envelope). Per-source configs stored server-side in D1.
 
 ### Component 2: Remote MCP Server
 

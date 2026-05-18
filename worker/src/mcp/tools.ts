@@ -4,7 +4,12 @@
  * Tested independently of the MCP protocol layer.
  */
 
-import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError } from "../adapters/adapter";
+import {
+  ADAPTER_REFRESH_COOLDOWN_SEC,
+  AdapterError,
+  reconnectAdapterAction,
+  SAVECRAFT_APP_URL,
+} from "../adapters/adapter";
 import { adapters } from "../adapters/registry";
 import { resolveAdapterCharacter } from "../adapters/resolve-character";
 import { normalizeGameId } from "../gameid";
@@ -956,17 +961,17 @@ function handleAdapterError(error: {
 }): ToolResult {
   if (error.code === "token_expired") {
     return errorResult(
-      `Battle.net token expired. ${error.userAction ?? "The player needs to reconnect their Battle.net account at savecraft.gg/settings."}`,
+      `Account token expired. ${error.userAction ?? reconnectAdapterAction("the game")}`,
     );
   }
   if (error.code === "rate_limited") {
     return errorResult(
-      `Blizzard API rate limited. Try again in ${String(error.retryAfter ?? 60)} seconds.`,
+      `The game's API is rate limited. Try again in ${String(error.retryAfter ?? 60)} seconds.`,
     );
   }
   if (error.code === "character_not_found") {
     return errorResult(
-      "Character not found on Blizzard's servers. They may have been deleted or transferred.",
+      "Character not found on the game's servers. It may have been deleted or transferred.",
     );
   }
   return errorResult(`Game API error: ${error.message}`);
@@ -1000,7 +1005,7 @@ async function refreshAdapterSave(
   const resolved = resolveAdapterCharacter(linkedChar);
   if (!resolved) {
     return errorResult(
-      "Character is not linked — reconnect the account at savecraft.gg/settings.",
+      `Character is not linked — open ${SAVECRAFT_APP_URL}, sign in, and reconnect the account from the dashboard.`,
     );
   }
 
@@ -1460,7 +1465,7 @@ const PAIRING_GUIDE =
   "After installing, the daemon self-registers and displays a pairing link (https://my.savecraft.gg/link/<code>). Click the link, use the tray app's 'Link Account' button, or enter the 6-digit code on the my.savecraft.gg homepage. Once paired, your game saves appear automatically. Codes expire after 20 minutes — restart the daemon to generate a new one.";
 
 const ADAPTER_SETUP_GUIDE =
-  "Some games connect through their official API instead of local save files — for example, World of Warcraft connects through Battle.net. These are called adapter sources. No local daemon install is needed. To set up an API-backed game: visit savecraft.gg, select the game, choose your region if prompted, and complete the OAuth authorization with the game's provider (e.g. Battle.net for WoW). Once authorized, Savecraft discovers your characters automatically. Each adapter source includes an adapter_credentials array showing credential status per game: 'connected' means the OAuth token is valid, 'expired' means the token needs re-authorization at savecraft.gg, and 'missing' means the game is linked but OAuth hasn't been completed yet.";
+  `Some games connect through their official API instead of local save files — for example, World of Warcraft connects through Battle.net and Path of Exile through your GGG account. These are called adapter sources. No local daemon install is needed. To set up an API-backed game: open ${SAVECRAFT_APP_URL}, sign in, and connect the game from the dashboard (add a game → choose your region if prompted → authorize with the game's provider, e.g. Battle.net for WoW or pathofexile.com for PoE). Once authorized, Savecraft discovers your characters automatically. Each adapter source includes an adapter_credentials array showing credential status per game: 'connected' means the OAuth token is valid, 'expired' means the token needs re-authorization (reconnect the game from the ${SAVECRAFT_APP_URL} dashboard), and 'missing' means the game is linked but OAuth hasn't been completed yet.`;
 
 const CATEGORIES_MENU: Record<string, CategoryDescription> = {
   games: {

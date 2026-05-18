@@ -379,6 +379,7 @@ export const economyModule: NativeReferenceModule = {
     "USE PROACTIVELY: query this module when discussing item value, trade decisions,",
     "upgrade budgets, or farming strategies. Returns chaos and divine orb values,",
     "7-day price trends, and listing confidence.",
+    "If the player has connected their Path of Exile account, build_planner can analyze their own character directly (character:'current' or a character name) — this module complements that connected-account workflow.",
   ].join(" "),
   parameters: {
     query: {

@@ -3,7 +3,12 @@ import "../../plugins/magic/reference/register";
 import "../../plugins/poe/reference/register";
 import "../../plugins/wow/reference/register";
 
-import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError, type ApiAdapter } from "./adapters/adapter";
+import {
+  ADAPTER_REFRESH_COOLDOWN_SEC,
+  AdapterError,
+  type ApiAdapter,
+  SAVECRAFT_APP_URL,
+} from "./adapters/adapter";
 import { discoverAndReconcileSaves } from "./adapters/discover";
 import { adapters } from "./adapters/registry";
 import { resolveAdapterCharacter, type ResolvedCharacter } from "./adapters/resolve-character";
@@ -1055,7 +1060,9 @@ async function lookupRefreshContext(
   const resolved = resolveAdapterCharacter(linkedChar);
   if (!resolved) {
     return Response.json(
-      { error: "Character is not linked — reconnect the account at savecraft.gg/settings" },
+      {
+        error: `Character is not linked — open ${SAVECRAFT_APP_URL}, sign in, and reconnect the account from the dashboard.`,
+      },
       { status: 400 },
     );
   }

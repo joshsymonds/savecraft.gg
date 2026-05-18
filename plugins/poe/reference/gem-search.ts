@@ -82,6 +82,7 @@ export const gemSearchModule: NativeReferenceModule = {
     "minion_excluded_effects (stats that don't apply to minions/totems),",
     "require_skill_types and exclude_skill_types. stats_at_20 includes both",
     "constant and level-scaled effects (e.g. the actual 'more damage' multiplier).",
+    "If the player has connected their Path of Exile account, build_planner can analyze their own character directly (character:'current' or a character name) — this module complements that connected-account workflow.",
   ].join(" "),
   parameters: {
     query: {

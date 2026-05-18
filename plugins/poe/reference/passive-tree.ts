@@ -57,6 +57,7 @@ export const passiveTreeModule: NativeReferenceModule = {
     "USE PROACTIVELY: query this module to verify keystone effects, find notable",
     "locations, or check ascendancy nodes before advising on tree pathing.",
     "Supports filtering by type (keystone, notable, mastery, small) and ascendancy.",
+    "If the player has connected their Path of Exile account, build_planner can analyze their own character directly (character:'current' or a character name) — this module complements that connected-account workflow.",
   ].join(" "),
   parameters: {
     query: {

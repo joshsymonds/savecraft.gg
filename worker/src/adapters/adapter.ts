@@ -42,6 +42,40 @@ export class AdapterError extends Error {
 /** Max 1 refresh per character per 5 minutes. Shared across REST API and MCP paths. */
 export const ADAPTER_REFRESH_COOLDOWN_SEC = 300;
 
+/**
+ * The Savecraft web app origin. The apex `savecraft.gg` is the
+ * marketing/docs/privacy site; the live dashboard — sign-in plus the
+ * add/connect-a-game picker that starts adapter OAuth — is here. There
+ * is NO `/settings` route; never construct one. Single source of truth
+ * for every user-facing connect/reconnect string the LLM may relay.
+ */
+export const SAVECRAFT_APP_URL = "https://my.savecraft.gg";
+
+/**
+ * userAction for an expired or unlinked OAuth adapter credential. `game`
+ * is the display name (e.g. "Path of Exile", "World of Warcraft"). The
+ * LLM relays this verbatim to walk the player back through authorization.
+ */
+export function reconnectAdapterAction(game: string): string {
+  return (
+    `Reconnect your ${game} account: open ${SAVECRAFT_APP_URL}, sign in, ` +
+    `and reconnect ${game} from the dashboard (add a game → authorize with the provider).`
+  );
+}
+
+/**
+ * Ordered, relayable steps to connect an OAuth adapter game from zero
+ * and get its state into Savecraft. Used where the player has no save
+ * yet (e.g. build_planner's character resolver) — distinct from
+ * {@link reconnectAdapterAction}, which is for an existing-but-stale link.
+ */
+export function connectAdapterGuidance(game: string): string {
+  return (
+    `open ${SAVECRAFT_APP_URL}, sign in, connect ${game} from the dashboard ` +
+    `(add a game → authorize with the provider), then run refresh_save for the character`
+  );
+}
+
 // ---------------------------------------------------------------------------
 // GameState types
 // ---------------------------------------------------------------------------

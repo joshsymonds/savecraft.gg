@@ -10,6 +10,7 @@ import {
   type FetchParams,
   type GameState,
   type OAuthConfig,
+  reconnectAdapterAction,
 } from "../../../worker/src/adapters/adapter";
 import type { Env } from "../../../worker/src/types";
 import {
@@ -100,7 +101,7 @@ async function adapterFetch<T>(
         case 401:
           throw new AdapterError("token_expired", `Blizzard API: ${url}`, {
             userAction:
-              "Reconnect your Battle.net account at savecraft.gg/settings",
+              reconnectAdapterAction("World of Warcraft"),
           });
         case 404:
           throw new AdapterError(
@@ -206,7 +207,7 @@ export const wowAdapter: ApiAdapter = {
         "Battle.net token expired or revoked",
         {
           userAction:
-            "Reconnect your Battle.net account at savecraft.gg/settings",
+            reconnectAdapterAction("World of Warcraft"),
         },
       );
     }

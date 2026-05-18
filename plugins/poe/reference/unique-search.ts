@@ -58,6 +58,7 @@ export const uniqueSearchModule: NativeReferenceModule = {
     "USE PROACTIVELY: query this module to verify unique item names, check exact",
     "mod values, or find uniques by keyword before referencing them in build advice.",
     "Prevents hallucinating unique names or wrong mod values.",
+    "If the player has connected their Path of Exile account, build_planner can analyze their own character directly (character:'current' or a character name) — this module complements that connected-account workflow.",
   ].join(" "),
   parameters: {
     query: {

@@ -6,7 +6,11 @@
  * fetchState later) behaves consistently.
  */
 
-import { AdapterError, type GameCredentials } from "../../../worker/src/adapters/adapter";
+import {
+  AdapterError,
+  type GameCredentials,
+  reconnectAdapterAction,
+} from "../../../worker/src/adapters/adapter";
 import type { Env } from "../../../worker/src/types";
 
 const GGG_API_BASE = "https://api.pathofexile.com";
@@ -42,7 +46,7 @@ export async function gggGet<T>(path: string, accessToken: string): Promise<T> {
 
   if (res.status === 401) {
     throw new AdapterError("token_expired", "GGG token expired or revoked", {
-      userAction: "Reconnect your Path of Exile account at savecraft.gg/settings",
+      userAction: reconnectAdapterAction("Path of Exile"),
     });
   }
   if (res.status === 429) {
@@ -90,7 +94,7 @@ export async function ensureGggAccessToken(
   }
   if (!creds.refreshToken) {
     throw new AdapterError("token_expired", "GGG token expired", {
-      userAction: "Reconnect your Path of Exile account at savecraft.gg/settings",
+      userAction: reconnectAdapterAction("Path of Exile"),
     });
   }
 
@@ -109,7 +113,7 @@ export async function ensureGggAccessToken(
   });
   if (!res.ok) {
     throw new AdapterError("token_expired", `GGG token refresh failed (${res.status})`, {
-      userAction: "Reconnect your Path of Exile account at savecraft.gg/settings",
+      userAction: reconnectAdapterAction("Path of Exile"),
     });
   }
   const tok = await res.json<{

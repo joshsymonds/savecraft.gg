@@ -295,13 +295,13 @@ Adapter errors are typed via `AdapterError` so the Worker and MCP layer can give
 
 | Error Code | Meaning | MCP Response |
 |------------|---------|--------------|
-| `token_expired` | OAuth token invalid, refresh failed | "Your Battle.net connection expired. Reconnect at savecraft.gg/settings." |
+| `token_expired` | OAuth token invalid, refresh failed | "Account token expired. Reconnect the game from the my.savecraft.gg dashboard." |
 | `rate_limited` | API budget exhausted | "Too many refreshes. Try again in {retryAfter} seconds." |
 | `api_unavailable` | Primary API is down | "Blizzard's API is temporarily unavailable. Try again shortly." |
 | `character_not_found` | Character deleted or transferred | "Character not found. They may have been deleted or transferred." |
 | `partial_failure` | Enrichment source failed | Not thrown — handled via `enrichment` field on sections |
 
-**Token refresh failure path:** Before calling `fetchState`, the Worker checks `game_credentials.expires_at`. If expired, it attempts a refresh using the stored refresh token. If refresh fails (token revoked, user changed password), the Worker throws `AdapterError` with `code: "token_expired"` and `userAction: "Reconnect your Battle.net account at savecraft.gg/settings"`. The MCP layer passes this message to the AI, which relays it to the user.
+**Token refresh failure path:** Before calling `fetchState`, the Worker checks `game_credentials.expires_at`. If expired, it attempts a refresh using the stored refresh token. If refresh fails (token revoked, user changed password), the Worker throws `AdapterError` with `code: "token_expired"` and a `userAction` from `reconnectAdapterAction(game)` (`worker/src/adapters/adapter.ts`) — "Reconnect your {game} account: open https://my.savecraft.gg, sign in, and reconnect {game} from the dashboard …". The MCP layer passes this message to the AI, which relays it to the user. The single source of truth for the app URL is `SAVECRAFT_APP_URL`; there is no `/settings` route (the apex `savecraft.gg` is the marketing/docs site).
 
 **Partial failure (enrichment degradation):** When Raider.io (or any enrichment source) is unavailable, the adapter does NOT throw. Instead, it returns the GameState with primary data fully populated and sets `enrichment` on affected sections:
 
