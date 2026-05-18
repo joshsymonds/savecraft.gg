@@ -75,7 +75,7 @@ go run ./plugins/magic/tools/mtga-carddb/ \
 go run ./plugins/magic/tools/scryfall-fetch/ \
   --cf-account-id=cc0a94bb7aff760efd48b49ce983fe97 \
   --d1-database-id=0147892e-82e6-413e-a0ef-52f6d8787fdf \
-  --vectorize-index=mtga-cards-staging
+  --vectorize-index=magic-cards-staging
 
 # Single set for 17lands
 go run ./plugins/magic/tools/17lands-fetch/ \

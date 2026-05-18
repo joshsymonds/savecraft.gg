@@ -61,6 +61,28 @@ Reference modules have **split deploy targets** depending on their type:
 
 The script handles this automatically. When both cloud and plugin show changes for the same game, **both need releases** — the view HTML and the WASM binary are separate artifacts.
 
+## Datagen artifacts (game-dependabot pattern)
+
+Committed codegen — `plugins/magic/parser/data/arena_cards_gen.go` and the
+`plugins/{d2r,factorio,rimworld,stellaris}/reference/data/*_gen.{go,rs}`
+files — is **version-pinned code, not cadence data.** It is regenerated
+through a reviewed, CI-gated **Pull Request**, never by the nightly data
+refresh and never by a direct push to `main`.
+
+- Refresh command: `just datagen-<game>` (v1: `just datagen-magic`). It runs
+  the game's datagen on the host where the game data lives, and **only if
+  the artifact changed** opens/updates a PR on `datagen/<game>-...` using the
+  host's existing `gh` auth (no bot account). A no-diff run is a no-op.
+- The nightly `just update-mtga` populates D1 cadence data **only** and must
+  never mutate a tracked file. (Cadence data — Scryfall/17lands/rules —
+  lives in D1 and is out of git entirely.)
+- **Before tagging a `plugin-{game}-v` release that should carry new
+  game-data coverage** (e.g. a new MTGA set), run `just datagen-<game>`,
+  merge the resulting PR, then cut the tag. The merged codegen is what the
+  WASM/parser build embeds.
+- Other games adopt the identical `just datagen-<game>` shape as their
+  datagen is automated; the rule above is the same for each.
+
 ## What the script does internally
 
 1. Finds the latest semver tag per family using `git tag --sort=-version:refname`
