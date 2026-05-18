@@ -54,13 +54,40 @@ function friendlyBuildLabel(input: string): string {
   }
 }
 
-function pobFetch(
+/**
+ * Re-feed a stored PoB XML snapshot to pob-server /calc. The buildId is
+ * content-addressed, so this deterministically re-materializes the SAME
+ * build that was evicted from pob-server's store — no GGG call, no
+ * /import, no buildId drift. Used to transparently recover when a
+ * connected-character snapshot's buildId is no longer resident.
+ */
+function refeedBuild(
+  pobUrl: string,
+  xml: string,
+  apiKey?: string,
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  return fetch(`${pobUrl}/calc`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ buildXml: xml }),
+    signal: AbortSignal.timeout(POB_TIMEOUT_MS),
+  });
+}
+
+async function pobFetch(
   pobUrl: string,
   path: string,
   body: Record<string, unknown>,
   apiKey?: string,
   sections?: string,
   statKeys?: string,
+  recoveryXml?: string,
 ): Promise<Response> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -73,12 +100,86 @@ function pobFetch(
   if (statKeys) params.set("stat_keys", statKeys);
   const qs = params.toString();
   const url = qs ? `${pobUrl}${path}?${qs}` : `${pobUrl}${path}`;
-  return fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(POB_TIMEOUT_MS),
-  });
+  const issue = (): Promise<Response> =>
+    fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(POB_TIMEOUT_MS),
+    });
+  const response = await issue();
+  // A 404 on a connected-character buildId means pob-server evicted the
+  // build from its store. Re-feed the stored XML (deterministic identical
+  // buildId) and retry the original call once.
+  if (response.status === 404 && recoveryXml) {
+    const refed = await refeedBuild(pobUrl, recoveryXml, apiKey);
+    if (refed.ok) return issue();
+  }
+  return response;
+}
+
+interface CharacterSnapshot {
+  buildId: string;
+  xml: string;
+}
+
+type SnapshotResolution =
+  | { ok: true; snapshot: CharacterSnapshot }
+  | { ok: false; guidance: string };
+
+/**
+ * Resolve a connected PoE character to its stored PoB snapshot.
+ *
+ * `character:"current"` → the user's most-recently-played (most recently
+ * refreshed) PoE save; otherwise an exact save_name match. Joins
+ * poe_build_snapshot so a save with no imported build is treated as
+ * "refresh first" guidance, not a hit. NEVER calls GGG or pob-server
+ * /import — pure D1 read of state populated by refresh_save (epic req 10).
+ */
+async function resolvePoeCharacterSnapshot(
+  env: Env,
+  userUuid: string,
+  character: string,
+): Promise<SnapshotResolution> {
+  const isCurrent = character.toLowerCase() === "current";
+  const base =
+    `SELECT bs.pob_build_id AS buildId, bs.pob_xml AS xml
+       FROM saves s
+       JOIN poe_build_snapshot bs ON bs.save_uuid = s.uuid
+      WHERE s.user_uuid = ? AND s.game_id = 'poe' AND s.removed_at IS NULL`;
+  const row = isCurrent
+    ? await env.DB.prepare(`${base} ORDER BY s.last_updated DESC LIMIT 1`)
+        .bind(userUuid)
+        .first<{ buildId: string; xml: string }>()
+    : await env.DB.prepare(`${base} AND s.save_name = ? LIMIT 1`)
+        .bind(userUuid, character)
+        .first<{ buildId: string; xml: string }>();
+
+  if (row) {
+    return { ok: true, snapshot: { buildId: row.buildId, xml: row.xml } };
+  }
+
+  // No snapshot. Distinguish "save exists, never refreshed" from "no such
+  // connected character" so the guidance points at the right next step.
+  const saveExists = isCurrent
+    ? await env.DB.prepare(
+        "SELECT 1 AS x FROM saves WHERE user_uuid = ? AND game_id = 'poe' AND removed_at IS NULL LIMIT 1",
+      )
+        .bind(userUuid)
+        .first()
+    : await env.DB.prepare(
+        "SELECT 1 AS x FROM saves WHERE user_uuid = ? AND game_id = 'poe' AND removed_at IS NULL AND save_name = ? LIMIT 1",
+      )
+        .bind(userUuid, character)
+        .first();
+
+  const who = isCurrent
+    ? "your most-recently-played character"
+    : `character "${character}"`;
+  const guidance = saveExists
+    ? `No imported Path of Exile build yet for ${who}. Run refresh_save for this PoE character first — that imports the live build into Savecraft — then call build_planner again with the same character.`
+    : `No connected Path of Exile character ${isCurrent ? "found" : `named "${character}"`}. Connect your Path of Exile account at savecraft.gg/settings, run refresh_save, then retry. (To analyze a build that isn't yours, pass its URL via the build parameter instead.)`;
+  return { ok: false, guidance };
 }
 
 export const buildPlannerModule: NativeReferenceModule = {
@@ -107,12 +208,18 @@ export const buildPlannerModule: NativeReferenceModule = {
     'Each compared socket group carries mainGemLinkCount (link count of the main gem\'s socket), hostItemMaxLink (largest link on the host item), and hostItemName — read these directly to answer "is this skill 6-linked?" instead of re-correlating with sections.gear.items by slot. ' +
     "diffs.tree.allocatedOnlyIn is an array indexed parallel to builds[]; failed builds get [] at their index — index by build position, not buildId. " +
     "Config keys prefixed multiplier (e.g. multiplierRage, multiplierWitheredStackCount, multiplierFrenzyCharges) are user-set knobs the calc reads as inputs; the resulting runtime stats live in offense/defense (Rage, WitherEffect, FrenzyCharges) and may be cap-clamped against gear-derived maxima. Read the runtime stat in offense/defense for the post-calc effect — the config value is what was requested, not what's being applied. " +
-    "Every response includes a buildId for follow-up calls.",
+    "Every response includes a buildId for follow-up calls. " +
+    "If the player has connected their Path of Exile account to Savecraft, pass `character:\"current\"` (their most-recently-played character) or `character:\"<name>\"` instead of a build URL — Savecraft analyzes their live imported character with no copy-paste. The `build` URL remains the fallback for builds that aren't theirs or for players who haven't connected an account.",
   parameters: {
+    character: {
+      type: "string",
+      description:
+        'Analyze the player\'s own connected Path of Exile character — no URL needed. Pass "current" for their most-recently-played character, or the exact character name. Requires the player to have connected their PoE account (savecraft.gg/settings) and run refresh_save for that character. Preferred over `build` whenever the player asks about THEIR character/build. Mutually exclusive with `build`; ignored if `build` or `build_id` is also given.',
+    },
     build: {
       type: "string",
       description:
-        "URL to a PoB build (pobb.in, pastebin, pob.savecraft.gg link). Required on first call. Omit when modifying an existing build by buildId.",
+        "URL to a PoB build (pobb.in, pastebin, pob.savecraft.gg link). Use for builds that are NOT the player's own connected character (e.g. a guide/build they want to inspect). For the player's own character prefer `character`. Omit when modifying an existing build by buildId.",
     },
     build_id: {
       type: "string",
@@ -369,7 +476,9 @@ export const buildPlannerModule: NativeReferenceModule = {
     env: Env,
   ): Promise<ReferenceResult> {
     const build = query.build as string | undefined;
-    const buildId = query.build_id as string | undefined;
+    let buildId = query.build_id as string | undefined;
+    const character = query.character as string | undefined;
+    const userUuid = query.user_id as string | undefined;
     const operations = query.operations;
     const sections = query.sections as string | undefined;
     const statKeys = query.stat_keys as string | undefined;
@@ -438,10 +547,37 @@ export const buildPlannerModule: NativeReferenceModule = {
       }
     }
 
+    // Connected-character path: resolve `character` → the stored PoB
+    // snapshot's buildId, then proceed exactly as if build_id was given.
+    // `build`/`build_id` win if also supplied (explicit override).
+    // recoveryXml lets pob-server calls transparently re-materialize the
+    // build if it was evicted (deterministic identical buildId).
+    let recoveryXml: string | undefined;
+    if (character && !build && !buildId) {
+      if (!userUuid) {
+        return {
+          type: "text",
+          content:
+            "Error: the character parameter needs a signed-in player. Connect your Path of Exile account at savecraft.gg/settings, or pass a build URL instead.",
+        };
+      }
+      const resolved = await resolvePoeCharacterSnapshot(
+        env,
+        userUuid,
+        character,
+      );
+      if (!resolved.ok) {
+        return { type: "text", content: resolved.guidance };
+      }
+      buildId = resolved.snapshot.buildId;
+      recoveryXml = resolved.snapshot.xml;
+    }
+
     if (!build && !buildId) {
       return {
         type: "text",
-        content: "Error: either build (URL) or build_id is required.",
+        content:
+          "Error: provide character (your connected PoE character), a build URL, or a build_id — one of build/build_id is required.",
       };
     }
 
@@ -696,7 +832,15 @@ export const buildPlannerModule: NativeReferenceModule = {
 
       let response: Response;
       try {
-        response = await pobFetch(pobUrl, "/audit", auditBody, env.POB_API_KEY);
+        response = await pobFetch(
+          pobUrl,
+          "/audit",
+          auditBody,
+          env.POB_API_KEY,
+          undefined,
+          undefined,
+          recoveryXml,
+        );
       } catch (e) {
         return {
           type: "text",
@@ -776,6 +920,9 @@ export const buildPlannerModule: NativeReferenceModule = {
           "/nearby",
           nearbyBody,
           env.POB_API_KEY,
+          undefined,
+          undefined,
+          recoveryXml,
         );
       } catch (e) {
         return {
@@ -900,6 +1047,7 @@ export const buildPlannerModule: NativeReferenceModule = {
           env.POB_API_KEY,
           sections,
           statKeys,
+          recoveryXml,
         );
       } catch (e) {
         return {
@@ -942,6 +1090,31 @@ export const buildPlannerModule: NativeReferenceModule = {
         type: "text",
         content: `PoB calc service is currently unavailable: ${e instanceof Error ? e.message : "unknown error"}. Try again later.`,
       };
+    }
+
+    // Connected-character build evicted from pob-server's store: re-feed
+    // the stored XML to /calc. It is content-addressed, so it yields the
+    // identical buildId plus a fresh calc result — the analysis the
+    // summary lookup would have returned.
+    if (response.status === 404 && recoveryXml) {
+      let refed: Response;
+      try {
+        refed = await refeedBuild(pobUrl, recoveryXml, env.POB_API_KEY);
+      } catch (e) {
+        return {
+          type: "text",
+          content: `PoB calc service is currently unavailable: ${e instanceof Error ? e.message : "unknown error"}. Try again later.`,
+        };
+      }
+      if (!refed.ok) {
+        const body = await refed.text().catch(() => "");
+        return {
+          type: "text",
+          content: `PoB re-feed error (${String(refed.status)}): ${body}`,
+        };
+      }
+      const refedResult = (await refed.json()) as Record<string, unknown>;
+      return { type: "structured", data: refedResult };
     }
 
     if (!response.ok) {

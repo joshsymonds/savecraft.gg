@@ -2292,7 +2292,7 @@ describe("buildPlannerModule", () => {
     } as unknown as Env);
     expect(result).toEqual({
       type: "text",
-      content: expect.stringContaining("either build (URL) or build_id is required"),
+      content: expect.stringContaining("provide character (your connected PoE character), a build URL, or a build_id"),
     });
   });
 
@@ -2680,7 +2680,7 @@ describe("buildPlannerModule", () => {
     // compare doesn't get a special bypass.
     expect(result).toEqual({
       type: "text",
-      content: expect.stringContaining("either build (URL) or build_id is required"),
+      content: expect.stringContaining("provide character (your connected PoE character), a build URL, or a build_id"),
     });
   });
 
