@@ -77,6 +77,14 @@ export interface PluginManifest {
   file_extensions: string[] | null;
   default_paths: { windows?: string; linux?: string; darwin?: string };
   coverage: string;
+  /**
+   * Connection methods the server advertises for this game
+   * (`plugins/<id>/manifest.json`): "api" (OAuth adapter), "wasm"
+   * (daemon-parsed save files), "mod" (game mod). The server always
+   * sends this array; classify via connectionMethods(), never `source`.
+   */
+  sources?: string[];
+  /** @deprecated dead field — server sends `sources` + `adapter`, never this. */
   source?: string;
   icon_url?: string;
   workshop_url?: string;

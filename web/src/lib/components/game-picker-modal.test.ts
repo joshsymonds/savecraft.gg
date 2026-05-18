@@ -9,6 +9,7 @@ function makeCatalog(): PickerGame[] {
   return [
     {
       gameId: "d2r",
+      methods: ["daemon"],
       name: "Diablo II: Resurrected",
       description: "Parses .d2s character saves",
       watched: true,
@@ -16,6 +17,7 @@ function makeCatalog(): PickerGame[] {
     },
     {
       gameId: "sdv",
+      methods: ["daemon"],
       name: "Stardew Valley",
       description: "Farm saves and skills",
       watched: false,
@@ -23,6 +25,7 @@ function makeCatalog(): PickerGame[] {
     },
     {
       gameId: "bg3",
+      methods: ["daemon"],
       name: "Baldur's Gate 3",
       description: "Party and quest progress",
       watched: false,
@@ -30,6 +33,7 @@ function makeCatalog(): PickerGame[] {
     },
     {
       gameId: "rimworld",
+      methods: ["mod"],
       name: "RimWorld",
       description: "In-game mod pushes full colony state on save",
       watched: false,
@@ -38,6 +42,7 @@ function makeCatalog(): PickerGame[] {
     },
     {
       gameId: "wow",
+      methods: ["adapter"],
       name: "World of Warcraft",
       description: "Character profiles via Battle.net API",
       watched: false,
@@ -171,6 +176,7 @@ describe("GamePickerModal", () => {
     const gamesWithPaths: PickerGame[] = [
       {
         gameId: "sdv",
+        methods: ["daemon"],
         name: "Stardew Valley",
         description: "Farm saves",
         watched: false,

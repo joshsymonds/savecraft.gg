@@ -119,4 +119,14 @@ export interface PickerGame {
   isApiGame?: boolean;
   workshopUrl?: string;
   adapter?: { authProvider: string; regions: string[] };
+  /**
+   * How this game can be connected (unified picker, #17). Derived from
+   * the manifest by connectionMethods(): "adapter" (OAuth, no install),
+   * "daemon" (local save files), "mod" (game mod / Workshop),
+   * "reference" (no setup — reference modules work immediately).
+   * Hybrid games carry multiple (e.g. ["daemon","mod"]).
+   */
+  methods: ConnectionMethod[];
 }
+
+export type ConnectionMethod = "adapter" | "daemon" | "mod" | "reference";

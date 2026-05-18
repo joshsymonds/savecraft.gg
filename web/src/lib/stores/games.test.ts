@@ -2,7 +2,7 @@ import type { PluginManifest } from "$lib/api/client";
 import type { Game, Save, Source } from "$lib/types/source";
 import { describe, expect, it } from "vitest";
 
-import { buildPickerCatalog, mergeGames } from "./games";
+import { buildPickerCatalog, connectionMethods, mergeGames } from "./games";
 
 function makeSource(overrides: Partial<Source> & { id: string }): Source {
   return {
@@ -487,80 +487,172 @@ describe("buildPickerCatalog", () => {
     expect(result[0]!.gameId).toBe("d2r");
   });
 
-  it("excludes reference-only manifests with no install path", () => {
+  // Unified model (#17): every supported game is in the catalog. The
+  // wire contract is `sources: string[]` + `adapter`; the singular
+  // `source` is dead and never sent by the server. Classification drives
+  // off connectionMethods, never `manifest.source`.
+
+  it("includes adapter games (wow/poe) as OAuth, isApiGame + adapter set", () => {
     const plugins = new Map<string, PluginManifest>([
       [
         "poe",
         makeManifest({
           game_id: "poe",
           name: "Path of Exile",
+          sources: ["api"],
+          file_extensions: [],
+          adapter: { authProvider: "ggg", regions: ["pc"] },
+        }),
+      ],
+    ]);
+    const [poe] = buildPickerCatalog(plugins, []);
+    expect(poe!.gameId).toBe("poe");
+    expect(poe!.isApiGame).toBe(true);
+    expect(poe!.adapter).toEqual({ authProvider: "ggg", regions: ["pc"] });
+    expect(poe!.methods).toEqual(["adapter"]);
+  });
+
+  it("includes reference-only games as ready (no setup), not excluded", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "refonly",
+        makeManifest({
+          game_id: "refonly",
+          name: "Reference Only",
+          sources: [],
           file_extensions: [],
         }),
       ],
     ]);
     const result = buildPickerCatalog(plugins, []);
-    expect(result).toHaveLength(0);
-  });
-
-  it("excludes reference-only manifests when file_extensions is null", () => {
-    const plugins = new Map<string, PluginManifest>([
-      [
-        "poe",
-        makeManifest({
-          game_id: "poe",
-          name: "Path of Exile",
-          file_extensions: null,
-        }),
-      ],
-    ]);
-    const result = buildPickerCatalog(plugins, []);
-    expect(result).toHaveLength(0);
-  });
-
-  it("includes a reference-only manifest if the game is already watched", () => {
-    const plugins = new Map<string, PluginManifest>([
-      [
-        "poe",
-        makeManifest({
-          game_id: "poe",
-          name: "Path of Exile",
-          file_extensions: [],
-        }),
-      ],
-    ]);
-    const mergedGames: Game[] = [
-      {
-        gameId: "poe",
-        name: "Path of Exile",
-        iconUrl: undefined,
-        statusLine: "No saves",
-        saves: [],
-        sourceCount: 1,
-        sources: [],
-        needsConfig: false,
-      },
-    ];
-    const result = buildPickerCatalog(plugins, mergedGames);
     expect(result).toHaveLength(1);
-    expect(result[0]!.gameId).toBe("poe");
-    expect(result[0]!.watched).toBe(true);
+    expect(result[0]!.methods).toEqual(["reference"]);
+    expect(result[0]!.isApiGame).toBeFalsy();
+    expect(result[0]!.watched).toBe(false);
   });
 
-  it("filters multiple manifests, keeping only those with install paths", () => {
+  it("classifies a wasm save-file game as daemon", () => {
     const plugins = new Map<string, PluginManifest>([
-      ["d2r", makeManifest({ game_id: "d2r", name: "Diablo II: Resurrected" })],
-      ["poe", makeManifest({ game_id: "poe", name: "Path of Exile", file_extensions: [] })],
       [
-        "wow",
+        "d2r",
+        makeManifest({
+          game_id: "d2r",
+          name: "Diablo II: Resurrected",
+          sources: ["wasm"],
+          file_extensions: [".d2s"],
+        }),
+      ],
+    ]);
+    const [d2r] = buildPickerCatalog(plugins, []);
+    expect(d2r!.methods).toEqual(["daemon"]);
+    expect(d2r!.isApiGame).toBeFalsy();
+  });
+
+  it("classifies a mod/workshop game as mod (no daemon)", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "rimworld",
+        makeManifest({
+          game_id: "rimworld",
+          name: "RimWorld",
+          sources: ["mod"],
+          file_extensions: [],
+          workshop_url: "steam://workshop/123",
+        }),
+      ],
+    ]);
+    const [rim] = buildPickerCatalog(plugins, []);
+    expect(rim!.methods).toEqual(["mod"]);
+  });
+
+  it("classifies a hybrid wasm+mod game as both daemon and mod", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "factorio",
+        makeManifest({
+          game_id: "factorio",
+          name: "Factorio",
+          sources: ["wasm", "mod"],
+          file_extensions: [".zip"],
+        }),
+      ],
+    ]);
+    const [fac] = buildPickerCatalog(plugins, []);
+    expect(fac!.methods).toEqual(["daemon", "mod"]);
+  });
+
+  it("includes every supported game (catalog), regardless of method", () => {
+    const plugins = new Map<string, PluginManifest>([
+      ["d2r", makeManifest({ game_id: "d2r", name: "Diablo II", sources: ["wasm"] })],
+      [
+        "poe",
+        makeManifest({
+          game_id: "poe",
+          name: "Path of Exile",
+          sources: ["api"],
+          file_extensions: [],
+          adapter: { authProvider: "ggg", regions: ["pc"] },
+        }),
+      ],
+      [
+        "refonly",
+        makeManifest({ game_id: "refonly", name: "Ref Only", sources: [], file_extensions: [] }),
+      ],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    expect(result.map((g) => g.gameId).sort((a, b) => a.localeCompare(b))).toEqual([
+      "d2r",
+      "poe",
+      "refonly",
+    ]);
+  });
+});
+
+describe("connectionMethods", () => {
+  it("adapter block → ['adapter']", () => {
+    expect(
+      connectionMethods(
         makeManifest({
           game_id: "wow",
-          name: "World of Warcraft",
-          source: "api",
-          file_extensions: [],
+          sources: ["api"],
+          adapter: { authProvider: "battlenet", regions: ["us"] },
         }),
-      ],
+      ),
+    ).toEqual(["adapter"]);
+  });
+
+  it("sources includes wasm → ['daemon']", () => {
+    expect(connectionMethods(makeManifest({ game_id: "d2r", sources: ["wasm"] }))).toEqual([
+      "daemon",
     ]);
-    const result = buildPickerCatalog(plugins, []);
-    expect(result.map((g) => g.gameId).sort((a, b) => a.localeCompare(b))).toEqual(["d2r", "wow"]);
+  });
+
+  it("sources includes mod OR workshop_url → ['mod']", () => {
+    expect(connectionMethods(makeManifest({ game_id: "rw", sources: ["mod"] }))).toEqual(["mod"]);
+    expect(
+      connectionMethods(
+        makeManifest({ game_id: "rw2", sources: [], workshop_url: "steam://workshop/1" }),
+      ),
+    ).toEqual(["mod"]);
+  });
+
+  it("wasm + mod → ['daemon','mod'] (hybrid)", () => {
+    expect(connectionMethods(makeManifest({ game_id: "fac", sources: ["wasm", "mod"] }))).toEqual([
+      "daemon",
+      "mod",
+    ]);
+  });
+
+  it("no adapter, no sources, no workshop → ['reference']", () => {
+    expect(connectionMethods(makeManifest({ game_id: "x", sources: [] }))).toEqual(["reference"]);
+    expect(connectionMethods(makeManifest({ game_id: "y" }))).toEqual(["reference"]);
+  });
+
+  it("never keys off the dead singular `source` field", () => {
+    // source:"api" with no adapter block and no sources must NOT be treated
+    // as an adapter — the server never sends a singular `source`.
+    expect(connectionMethods(makeManifest({ game_id: "z", source: "api", sources: [] }))).toEqual([
+      "reference",
+    ]);
   });
 });

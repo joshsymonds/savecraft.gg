@@ -12,6 +12,7 @@ function makePickerGame(overrides: Partial<PickerGame> = {}): PickerGame {
     description: "Parses .d2s character saves",
     watched: false,
     saveCount: 0,
+    methods: ["daemon"],
     ...overrides,
   };
 }

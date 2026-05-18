@@ -12,6 +12,7 @@
   const catalog: PickerGame[] = [
     {
       gameId: "d2r",
+      methods: ["daemon"],
       name: "Diablo II: Resurrected",
       description: "Parses .d2s character saves and shared stash",
       watched: true,
@@ -23,6 +24,7 @@
     },
     {
       gameId: "sdv",
+      methods: ["daemon"],
       name: "Stardew Valley",
       description: "Farm saves, skills, relationships, collections",
       watched: false,
@@ -34,6 +36,7 @@
     },
     {
       gameId: "poe2",
+      methods: ["reference"],
       name: "Path of Exile 2",
       description: "Character builds, atlas progress, stash contents",
       watched: false,
@@ -41,6 +44,7 @@
     },
     {
       gameId: "bg3",
+      methods: ["daemon"],
       name: "Baldur's Gate 3",
       description: "Party composition, quest progress, inventory",
       watched: false,
@@ -52,6 +56,7 @@
     },
     {
       gameId: "rimworld",
+      methods: ["mod"],
       name: "RimWorld",
       description: "In-game mod pushes full colony state on save",
       watched: false,
@@ -60,6 +65,7 @@
     },
     {
       gameId: "wow",
+      methods: ["adapter"],
       name: "World of Warcraft",
       description: "Character profiles via Battle.net API",
       watched: false,
