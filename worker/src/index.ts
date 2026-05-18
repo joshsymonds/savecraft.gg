@@ -6,7 +6,7 @@ import "../../plugins/wow/reference/register";
 import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError, type ApiAdapter } from "./adapters/adapter";
 import { discoverAndReconcileSaves } from "./adapters/discover";
 import { adapters } from "./adapters/registry";
-import { resolveCharacterContext } from "./adapters/resolve-character";
+import { resolveAdapterCharacter, type ResolvedCharacter } from "./adapters/resolve-character";
 import { handleAdminRoute } from "./admin";
 import { authenticateSession, authenticateSource, sha256Hex } from "./auth";
 import { dispatch } from "./jobs/dispatch";
@@ -1038,25 +1038,29 @@ async function lookupRefreshContext(
   userUuid: string,
   gameId: string,
   save: AdapterSaveRow,
-): Promise<{ realmSlug: string; region: string; characterName: string } | Response> {
+): Promise<ResolvedCharacter | Response> {
   const linkedChar = await env.DB.prepare(
     `SELECT character_id, character_name, metadata
      FROM linked_characters
      WHERE user_uuid = ? AND game_id = ? AND source_uuid = ? AND active = 1
      AND character_name = ?`,
   )
-    // WoW-specific: save_name format is "Name-realm-REGION", character_name is the first segment.
-    // Future adapters with different naming conventions will need their own lookup logic.
+    // save↔linked_character bridge: character_name is the first
+    // "-"-delimited save_name segment. Holds for every current adapter
+    // (WoW "Name-realm-REGION"; PoE save_name == character name, which
+    // cannot contain "-").
     .bind(userUuid, gameId, save.source_uuid, save.save_name.split("-")[0] ?? "")
     .first<LinkedCharRow>();
 
-  const ctx = resolveCharacterContext(linkedChar, save.save_name);
-
-  if (!ctx.realmSlug) {
-    return Response.json({ error: "Cannot determine character realm" }, { status: 400 });
+  const resolved = resolveAdapterCharacter(linkedChar);
+  if (!resolved) {
+    return Response.json(
+      { error: "Character is not linked — reconnect the account at savecraft.gg/settings" },
+      { status: 400 },
+    );
   }
 
-  return ctx;
+  return resolved;
 }
 
 async function lookupGameCredentials(
@@ -1106,8 +1110,10 @@ async function handleAdapterRefresh(
   try {
     const gameState = await adapter.fetchState(
       {
-        characterId: `${ctxResult.realmSlug}/${ctxResult.characterName}`,
+        characterId: ctxResult.characterId,
+        characterName: ctxResult.characterName,
         region: ctxResult.region,
+        metadata: ctxResult.metadata,
         credentials,
       },
       env,

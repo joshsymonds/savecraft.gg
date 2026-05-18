@@ -37,7 +37,13 @@ describe("PoE adapter skeleton", () => {
   it("fetchState rejects with a typed AdapterError placeholder", async () => {
     await expect(
       poeAdapter.fetchState(
-        { characterId: "x", region: "pc", credentials: { accessToken: "t" } },
+        {
+          characterId: "x",
+          characterName: "X",
+          region: "pc",
+          metadata: {},
+          credentials: { accessToken: "t" },
+        },
         env,
       ),
     ).rejects.toSatisfy(

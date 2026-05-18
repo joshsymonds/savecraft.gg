@@ -148,15 +148,16 @@ describe("Adapter Refresh", () => {
     expect(body.retry_after).toBeGreaterThan(0);
   });
 
-  it("returns 400 when realm cannot be determined", async () => {
+  it("returns 400 when the save has no linked character", async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
-    // Save with no linked character and name that can't be parsed
+    // Save with no linked_characters row — the unrefreshable-save guard
+    // (formerly the WoW-only !realmSlug check) must still fire.
     const saveUuid = await seedAdapterSave(USER_UUID, sourceUuid, "wow", "BadName");
 
     const resp = await SELF.fetch(refreshRequest("wow", saveUuid));
     expect(resp.status).toBe(400);
     const body = await resp.json<{ error: string }>();
-    expect(body.error).toContain("realm");
+    expect(body.error).toContain("not linked");
   });
 
   // Characterization of the REST refresh SUCCESS path — uncovered
@@ -202,11 +203,15 @@ describe("Adapter Refresh", () => {
       const resp = await SELF.fetch(refreshRequest("fakegame", saveUuid));
       expect(resp.status).toBe(200);
 
-      // The pre-refactor dispatch contract: characterId is the
-      // reconstructed realmSlug/lowercased-name, region from metadata.
+      // Adapter-generic dispatch contract: the stored character_id and
+      // discovered name pass through verbatim; region + metadata from
+      // linked_characters. (Observable outcome — refresh succeeds,
+      // sections persist — is unchanged from pre-refactor.)
       expect(fetchStateCalls).toHaveLength(1);
-      expect(fetchStateCalls[0]!.characterId).toBe("testrealm/dratnos");
+      expect(fetchStateCalls[0]!.characterId).toBe("wow-char-id-123");
+      expect(fetchStateCalls[0]!.characterName).toBe("Dratnos");
       expect(fetchStateCalls[0]!.region).toBe("us");
+      expect(fetchStateCalls[0]!.metadata.realm_slug).toBe("testrealm");
       expect(fetchStateCalls[0]!.credentials.accessToken).toBe("acc-tok");
 
       // Sections persisted (refresh observable outcome).

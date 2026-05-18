@@ -8,7 +8,7 @@
 
 import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError } from "../adapters/adapter";
 import { adapters } from "../adapters/registry";
-import { resolveCharacterContext } from "../adapters/resolve-character";
+import { resolveAdapterCharacter } from "../adapters/resolve-character";
 import { pushGameStatus } from "../index";
 import { storePush } from "../store";
 import type { Env } from "../types";
@@ -23,6 +23,7 @@ interface RefreshRow {
   source_uuid: string;
   user_uuid: string;
   // linked_characters
+  character_id: string;
   character_name: string;
   metadata: string | null;
   // game_credentials
@@ -40,14 +41,18 @@ export async function refreshAdapterSources(env: Env): Promise<void> {
   const rows = await env.DB.prepare(
     `SELECT s.uuid AS save_uuid, s.save_name, s.game_id, s.last_source_uuid AS source_uuid,
             src.user_uuid,
-            lc.character_name, lc.metadata,
+            lc.character_id, lc.character_name, lc.metadata,
             gc.access_token, gc.refresh_token, gc.expires_at
      FROM saves s
      JOIN sources src ON s.last_source_uuid = src.source_uuid
      JOIN linked_characters lc
        ON lc.user_uuid = src.user_uuid AND lc.game_id = s.game_id
           AND lc.source_uuid = src.source_uuid AND lc.active = 1
-          AND lc.character_name = SUBSTR(s.save_name, 1, INSTR(s.save_name, '-') - 1)
+          AND lc.character_name = CASE
+                WHEN INSTR(s.save_name, '-') > 0
+                  THEN SUBSTR(s.save_name, 1, INSTR(s.save_name, '-') - 1)
+                ELSE s.save_name
+              END
      JOIN game_credentials gc
        ON gc.user_uuid = src.user_uuid AND gc.game_id = s.game_id
      WHERE src.source_kind = 'adapter'
@@ -67,17 +72,20 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
   const adapter = adapters[row.game_id];
   if (!adapter) return;
 
-  const ctx = resolveCharacterContext(
-    { character_name: row.character_name, metadata: row.metadata },
-    row.save_name,
-  );
-  if (!ctx.realmSlug) return;
+  const resolved = resolveAdapterCharacter({
+    character_id: row.character_id,
+    character_name: row.character_name,
+    metadata: row.metadata,
+  });
+  if (!resolved) return;
 
   try {
     const gameState = await adapter.fetchState(
       {
-        characterId: `${ctx.realmSlug}/${ctx.characterName}`,
-        region: ctx.region,
+        characterId: resolved.characterId,
+        characterName: resolved.characterName,
+        region: resolved.region,
+        metadata: resolved.metadata,
         credentials: {
           accessToken: row.access_token,
           refreshToken: row.refresh_token ?? undefined,

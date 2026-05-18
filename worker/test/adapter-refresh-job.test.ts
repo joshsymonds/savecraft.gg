@@ -36,7 +36,7 @@ const fakeAdapter: ApiAdapter = {
     fetchStateCalls.push(params);
     if (fetchStateError) return Promise.reject(fetchStateError);
     // Derive identity from characterId so batch tests get distinct save names
-    const charName = params.characterId.split("/")[1] ?? "unknown";
+    const charName = params.characterName || "unknown";
     return Promise.resolve({
       ...fakeGameState,
       identity: { ...fakeGameState.identity, saveName: `${charName}-testrealm-US` },

@@ -1314,7 +1314,7 @@ describe("MCP Tools", () => {
 
       const result = await refreshSave(env, USER_A, "save-adapter-norealm");
       expect(result.isError).toBe(true);
-      expect(result.content[0]!.text).toContain("realm");
+      expect(result.content[0]!.text).toContain("not linked");
     });
 
     // Characterization of the MCP refresh_save SUCCESS path — uncovered
@@ -1393,8 +1393,10 @@ describe("MCP Tools", () => {
 
         expect(result.isError).toBeFalsy();
         expect(fetchStateCalls).toHaveLength(1);
-        expect(fetchStateCalls[0]!.characterId).toBe("testrealm/dratnos");
+        expect(fetchStateCalls[0]!.characterId).toBe("char-id-xyz");
+        expect(fetchStateCalls[0]!.characterName).toBe("Dratnos");
         expect(fetchStateCalls[0]!.region).toBe("us");
+        expect(fetchStateCalls[0]!.metadata.realm_slug).toBe("testrealm");
         expect(fetchStateCalls[0]!.credentials.accessToken).toBe("acc-tok");
 
         const section = await env.DB.prepare(

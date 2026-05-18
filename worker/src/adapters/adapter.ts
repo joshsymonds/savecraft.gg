@@ -111,8 +111,14 @@ export interface GameCredentials {
 }
 
 export interface FetchParams {
+  /** The adapter's own stable id, as stored in linked_characters.character_id. */
   characterId: string;
+  /** Display name as discovered (original case — adapters that need an
+   *  exact-case name, e.g. GGG, rely on this not being mangled). */
+  characterName: string;
   region: string;
+  /** Parsed linked_characters.metadata — each adapter reads what its API needs. */
+  metadata: Record<string, unknown>;
   credentials: GameCredentials;
 }
 

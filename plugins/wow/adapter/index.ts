@@ -244,18 +244,21 @@ export const wowAdapter: ApiAdapter = {
   },
 
   async fetchState(params: FetchParams, env: Env): Promise<GameState> {
-    assertValidRegion(params.region);
-    // characterId format: "realm-slug/character-name"
-    const slashIdx = params.characterId.indexOf("/");
-    if (slashIdx === -1) {
+    // Region/realm now come from discovery metadata (region defaults to
+    // "us" exactly as the previous resolver did); name is the discovered
+    // character name, lowercased for the Blizzard API as before — so the
+    // Blizzard request URLs are byte-identical to the pre-refactor path.
+    const region = params.region || "us";
+    assertValidRegion(region);
+    const realm =
+      typeof params.metadata.realm_slug === "string" ? params.metadata.realm_slug : "";
+    if (!realm) {
       throw new AdapterError(
         "character_not_found",
-        `Invalid characterId format: ${params.characterId} (expected realm-slug/character-name)`,
+        `Missing realm_slug for character ${params.characterName}`,
       );
     }
-    const realm = params.characterId.substring(0, slashIdx);
-    const name = params.characterId.substring(slashIdx + 1);
-    const region = params.region;
+    const name = params.characterName.toLowerCase();
 
     // Get app token for public character data
     const token = await getAppToken(env);

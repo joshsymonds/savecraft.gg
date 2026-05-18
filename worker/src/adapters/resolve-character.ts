@@ -1,56 +1,56 @@
 /**
- * Shared character context resolution for adapter refresh paths.
+ * Adapter-generic refresh-target resolution.
  *
- * Both the REST API refresh route (index.ts) and MCP refresh tool (tools.ts)
- * need to resolve realm/region/character name from linked_characters metadata,
- * falling back to parsing save_name. This module provides the single canonical
- * implementation.
+ * Both the REST refresh route (index.ts) and the MCP refresh tool
+ * (tools.ts) need to turn a save's linked_characters row into the
+ * FetchParams an adapter receives. The adapter's own stable id and the
+ * discovery metadata are stored verbatim by reconcile — pass them
+ * through untouched; each adapter interprets its own characterId /
+ * metadata. No game-specific reconstruction lives here.
  */
 
-export interface CharacterContext {
-  realmSlug: string;
-  region: string;
-  characterName: string;
-}
-
-interface LinkedCharacterInfo {
+export interface LinkedCharacterInfo {
+  character_id: string;
   character_name: string;
   metadata: string | null;
 }
 
-/**
- * Resolve realm, region, and character name from linked_characters data,
- * falling back to parsing save_name (format: "Name-realm-REGION").
- *
- * NOTE: save_name.split("-")[0] for character name is WoW-specific.
- * WoW character names cannot contain hyphens. Future adapters with
- * different naming conventions will need their own resolution logic.
- */
-export function resolveCharacterContext(
-  linkedChar: LinkedCharacterInfo | null,
-  saveName: string,
-): CharacterContext {
-  let realmSlug = "";
-  let region = "us";
+export interface ResolvedCharacter {
+  /** Stable adapter id (linked_characters.character_id). */
+  characterId: string;
+  /** Discovered display name, original case. */
+  characterName: string;
+  /** metadata.region if present, else "" (adapter applies its default). */
+  region: string;
+  /** Parsed linked_characters.metadata. */
+  metadata: Record<string, unknown>;
+}
 
-  if (linkedChar?.metadata) {
+/**
+ * Resolve the refresh target from a linked_characters row, or null when
+ * the save has no active linked character — the caller turns null into
+ * a user-facing "not linked, reconnect" error (the unrefreshable-save
+ * guard, formerly the WoW-only `!realmSlug` check).
+ */
+export function resolveAdapterCharacter(
+  linkedChar: LinkedCharacterInfo | null,
+): ResolvedCharacter | null {
+  if (!linkedChar?.character_id) return null;
+
+  let metadata: Record<string, unknown> = {};
+  if (linkedChar.metadata) {
     try {
-      const meta = JSON.parse(linkedChar.metadata) as Record<string, unknown>;
-      realmSlug = typeof meta.realm_slug === "string" ? meta.realm_slug : "";
-      region = typeof meta.region === "string" ? meta.region : "us";
+      metadata = JSON.parse(linkedChar.metadata) as Record<string, unknown>;
     } catch {
-      // Malformed metadata — fall through to save_name parsing
+      // Malformed metadata — adapters fall back to their own defaults.
+      metadata = {};
     }
   }
 
-  if (!realmSlug) {
-    // Fallback: parse from save_name (Name-Realm-REGION)
-    const nameParts = saveName.split("-");
-    realmSlug = nameParts[1] ?? "";
-    region = (nameParts[2] ?? "US").toLowerCase();
-  }
-
-  const characterName = (linkedChar?.character_name ?? saveName.split("-")[0] ?? "").toLowerCase();
-
-  return { realmSlug, region, characterName };
+  return {
+    characterId: linkedChar.character_id,
+    characterName: linkedChar.character_name,
+    region: typeof metadata.region === "string" ? metadata.region : "",
+    metadata,
+  };
 }

@@ -6,7 +6,7 @@
 
 import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError } from "../adapters/adapter";
 import { adapters } from "../adapters/registry";
-import { resolveCharacterContext } from "../adapters/resolve-character";
+import { resolveAdapterCharacter } from "../adapters/resolve-character";
 import { normalizeGameId } from "../gameid";
 import { getNativeGameIds, getNativeModule, getNativeModules } from "../reference/registry";
 import type { ListedReferenceModule, NativeReferenceModule } from "../reference/types";
@@ -997,9 +997,11 @@ async function refreshAdapterSave(
     .bind(userUuid, save.game_id, sourceUuid, save.save_name.split("-")[0] ?? "")
     .first<LinkedCharRow>();
 
-  const ctx = resolveCharacterContext(linkedChar, save.save_name);
-  if (!ctx.realmSlug) {
-    return errorResult("Cannot determine character realm. The character may need to be re-linked.");
+  const resolved = resolveAdapterCharacter(linkedChar);
+  if (!resolved) {
+    return errorResult(
+      "Character is not linked — reconnect the account at savecraft.gg/settings.",
+    );
   }
 
   const creds = await env.DB.prepare(
@@ -1011,8 +1013,10 @@ async function refreshAdapterSave(
   try {
     const gameState = await adapter.fetchState(
       {
-        characterId: `${ctx.realmSlug}/${ctx.characterName}`,
-        region: ctx.region,
+        characterId: resolved.characterId,
+        characterName: resolved.characterName,
+        region: resolved.region,
+        metadata: resolved.metadata,
         credentials: buildCredentials(creds),
       },
       env,
