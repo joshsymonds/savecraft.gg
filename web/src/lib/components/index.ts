@@ -16,7 +16,7 @@ export { default as Panel } from "./Panel.svelte";
 export { default as ParentChip } from "./ParentChip.svelte";
 export { default as SaveDetailModal } from "./SaveDetailModal.svelte";
 export { default as SaveRow } from "./SaveRow.svelte";
-export { default as SourceCardGrid } from "./SourceCardGrid.svelte";
+export { default as SidebarSources } from "./SidebarSources.svelte";
 export { default as SourceDetailModal } from "./SourceDetailModal.svelte";
 export { default as SourceEditModal } from "./SourceEditModal.svelte";
 export { default as StatusDot } from "./StatusDot.svelte";

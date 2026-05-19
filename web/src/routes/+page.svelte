@@ -26,7 +26,7 @@
     GamePickerModal,
     LinkingCard,
     SaveDetailModal,
-    SourceCardGrid,
+    SidebarSources,
     SourceDetailModal,
     StatusDot,
   } from "$lib/components";
@@ -177,6 +177,11 @@
   );
   let showSourceBadges = $derived($sources.length > 1);
 
+  // The sidebar COMPUTERS block is paired machines only. Adapter
+  // accounts (WoW/PoE) are a game's connection, not a computer — they
+  // live in the game's detail, never here (Req 17e).
+  let computerSources = $derived($sources.filter((s) => s.sourceKind !== "adapter"));
+
   // -- Game picker catalog --
   let pickerGames = $derived(buildPickerCatalog($plugins, mergedGames));
 
@@ -250,14 +255,6 @@
     {/if}
 
     <main class="content">
-      {#if $sources.length > 0}
-        <SourceCardGrid
-          sources={$sources}
-          oncardclick={(source) => {
-            selectedSource = source;
-          }}
-        />
-      {/if}
       {#if $linkState === "linking"}
         <LinkingCard cardState="linking" displayCode={$linkCode} ondismiss={handleCancelLink} />
       {:else if $linkState === "error"}
@@ -315,6 +312,14 @@
 
   <!-- Sidebar: activity feed -->
   <aside class="activity-sidebar">
+    {#if computerSources.length > 0}
+      <SidebarSources
+        sources={computerSources}
+        oncardclick={(source) => {
+          selectedSource = source;
+        }}
+      />
+    {/if}
     <div class="activity-header">
       <span class="activity-label">ACTIVITY</span>
       <span
