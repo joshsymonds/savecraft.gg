@@ -5,7 +5,7 @@ import type { ApiAdapter, FetchParams, GameState } from "../src/adapters/adapter
 import { AdapterError } from "../src/adapters/adapter";
 import { adapters } from "../src/adapters/registry";
 import { sha256Hex } from "../src/auth";
-import { refreshAdapterSources } from "../src/jobs/adapter-refresh";
+import { REFRESH_CONCURRENCY, refreshAdapterSources } from "../src/jobs/adapter-refresh";
 
 import { cleanAll } from "./helpers";
 
@@ -299,5 +299,111 @@ describe("Adapter Refresh Job", () => {
   it("does nothing when no adapter saves exist", async () => {
     await refreshAdapterSources(env);
     expect(fetchStateCalls).toHaveLength(0);
+  });
+});
+
+describe("Adapter Refresh Job — backpressure (#30)", () => {
+  let inFlight = 0;
+  let maxInFlight = 0;
+  let poolCalls = 0;
+  let poolError: Error | null = null;
+
+  const poolAdapter: ApiAdapter = {
+    gameId: "poolgame",
+    gameName: "Pool Game",
+    getOAuthConfig() {
+      return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+    },
+    discoverSaves() {
+      return Promise.resolve([]);
+    },
+    async fetchState(params: FetchParams): Promise<GameState> {
+      poolCalls++;
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      inFlight--;
+      if (poolError) throw poolError;
+      const charName = params.characterName || "unknown";
+      return {
+        identity: { saveName: `${charName}-testrealm-US`, gameId: "poolgame" },
+        summary: "s",
+        sections: { o: { description: "o", data: {} } },
+      };
+    },
+  };
+
+  beforeEach(async () => {
+    await cleanAll();
+    inFlight = 0;
+    maxInFlight = 0;
+    poolCalls = 0;
+    poolError = null;
+    adapters.poolgame = poolAdapter;
+  });
+
+  afterEach(() => {
+    delete adapters.poolgame;
+  });
+
+  it("caps concurrent refreshes — bounded fan-out, not 1-by-1", async () => {
+    const sourceUuid = await seedAdapterSource(USER_UUID);
+    await seedGameCredentials(USER_UUID, "poolgame", "tok");
+    for (let index = 0; index < 8; index++) {
+      const n = String(index);
+      await seedAdapterSave(USER_UUID, sourceUuid, "poolgame", `Char${n}-testrealm-US`);
+      await seedLinkedCharacter(USER_UUID, sourceUuid, "poolgame", `Char${n}`, {
+        realm_slug: "testrealm",
+        region: "us",
+      });
+    }
+
+    await refreshAdapterSources(env);
+
+    expect(poolCalls).toBe(8); // every due save still processed
+    expect(maxInFlight).toBeLessThanOrEqual(REFRESH_CONCURRENCY); // bounded
+    expect(maxInFlight).toBeGreaterThan(1); // genuinely concurrent, not serial
+  });
+
+  it("defers a rate-limited row by Retry-After (beyond the plain cooldown)", async () => {
+    const sourceUuid = await seedAdapterSource(USER_UUID);
+    await seedGameCredentials(USER_UUID, "poolgame", "tok");
+    const saveUuid = await seedAdapterSave(USER_UUID, sourceUuid, "poolgame", "RL-testrealm-US");
+    await seedLinkedCharacter(USER_UUID, sourceUuid, "poolgame", "RL", {
+      realm_slug: "testrealm",
+      region: "us",
+    });
+    poolError = new AdapterError("rate_limited", "GGG rate limit", { retryAfter: 3600 });
+
+    await refreshAdapterSources(env);
+
+    const row = await env.DB.prepare(
+      "SELECT refresh_status, (last_refresh_at > datetime('now','+1800 seconds')) AS deferred FROM saves WHERE uuid = ?",
+    )
+      .bind(saveUuid)
+      .first<{ refresh_status: string; deferred: number }>();
+    expect(row!.refresh_status).toBe("error");
+    // retryAfter 3600 - cooldown 300 ≈ +3300s, so it's pushed > 30 min out.
+    expect(row!.deferred).toBe(1);
+  });
+
+  it("a non-rate-limit error keeps the normal cooldown (no future deferral)", async () => {
+    const sourceUuid = await seedAdapterSource(USER_UUID);
+    await seedGameCredentials(USER_UUID, "poolgame", "tok");
+    const saveUuid = await seedAdapterSave(USER_UUID, sourceUuid, "poolgame", "TE-testrealm-US");
+    await seedLinkedCharacter(USER_UUID, sourceUuid, "poolgame", "TE", {
+      realm_slug: "testrealm",
+      region: "us",
+    });
+    poolError = new AdapterError("token_expired", "expired");
+
+    await refreshAdapterSources(env);
+
+    const row = await env.DB.prepare(
+      "SELECT (last_refresh_at > datetime('now','+5 seconds')) AS in_future FROM saves WHERE uuid = ?",
+    )
+      .bind(saveUuid)
+      .first<{ in_future: number }>();
+    expect(row!.in_future).toBe(0); // stamped ~now, not deferred into the future
   });
 });

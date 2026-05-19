@@ -15,6 +15,14 @@ import type { Env } from "../types";
 
 const BATCH_LIMIT = 50;
 
+/**
+ * Max simultaneous in-flight refreshes. Each refresh does 2+ sequential
+ * GGG calls + a pob-server LuaJIT import, so an unbounded fan-out over
+ * BATCH_LIMIT rows self-inflicts GGG 429s and a pob CPU stampede for a
+ * single altoholic account. Kept small on purpose.
+ */
+export const REFRESH_CONCURRENCY = 4;
+
 /** Single-query row with save, linked character, and credentials pre-joined. */
 interface RefreshRow {
   save_uuid: string;
@@ -66,8 +74,32 @@ export async function refreshAdapterSources(env: Env): Promise<void> {
     .bind(`-${String(cooldownSeconds)} seconds`, BATCH_LIMIT)
     .all<RefreshRow>();
 
-  // Saves are user-isolated — refresh in parallel for better wall-clock time.
-  await Promise.allSettled(rows.results.map((row) => refreshOneSave(env, row)));
+  // Saves are user-isolated, but each refresh fires 2+ sequential GGG
+  // calls + a pob-server import — refreshing all BATCH_LIMIT rows at
+  // once would self-inflict GGG 429s and a pob CPU stampede for one
+  // altoholic account. Bound the in-flight count. refreshOneSave never
+  // throws (it catches internally), so a plain worker pool is safe.
+  await runWithConcurrency(rows.results, REFRESH_CONCURRENCY, (row) => refreshOneSave(env, row));
+}
+
+/**
+ * Run `worker` over `items` with at most `limit` in flight. Each pool
+ * lane pulls the next item until the list is exhausted. Assumes
+ * `worker` does not throw (refreshOneSave swallows its own errors).
+ */
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const lane = async (): Promise<void> => {
+    while (next < items.length) {
+      const item = items[next++];
+      if (item !== undefined) await worker(item);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => lane()));
 }
 
 async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
@@ -139,11 +171,23 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
     // Truncate to prevent unbounded third-party error messages in D1/MCP responses
     const truncated = message.length > 500 ? `${message.slice(0, 497)}...` : message;
 
+    // Honor GGG's Retry-After (Req 4). The cron re-selects a row once
+    // last_refresh_at is older than the cooldown, so to defer a
+    // rate-limited row by `retryAfter` seconds we push last_refresh_at
+    // into the future by (retryAfter - cooldown). Without this, a
+    // rate-limited cohort all stamp ~now and, with #27's
+    // ORDER BY last_refresh_at ASC, reappear together every cooldown
+    // window and re-thrash GGG. Non-rate-limit errors keep the normal
+    // cooldown (deferSeconds = 0 → datetime('now')).
+    const retryAfter =
+      error instanceof AdapterError && error.code === "rate_limited" ? (error.retryAfter ?? 0) : 0;
+    const deferSeconds = Math.max(0, retryAfter - ADAPTER_REFRESH_COOLDOWN_SEC);
+
     // Record failure
     await env.DB.prepare(
-      "UPDATE saves SET refresh_status = 'error', refresh_error = ?, last_refresh_at = datetime('now') WHERE uuid = ?",
+      "UPDATE saves SET refresh_status = 'error', refresh_error = ?, last_refresh_at = datetime('now', ?) WHERE uuid = ?",
     )
-      .bind(truncated, row.save_uuid)
+      .bind(truncated, `+${String(deferSeconds)} seconds`, row.save_uuid)
       .run();
 
     // Update SourceHub state with error — message flows to dashboard via proto
