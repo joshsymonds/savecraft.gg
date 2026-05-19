@@ -91,6 +91,31 @@ export const CLEANUP_TABLES = [
  * Delete order: children before parents (FK-safe).
  */
 export async function cleanAll(): Promise<void> {
+  // Reset SourceHub/UserHub DOs BEFORE wiping D1. The workers pool runs
+  // singleWorker + isolatedStorage:false, so DO instances (and their
+  // self-rescheduling 100ms alarms) outlive a D1 wipe and bleed into
+  // later tests. Every source still in D1 here was created by the test
+  // that just finished; reset its DOs (storage + alarm) so nothing
+  // leaks forward. /cleanup = close sockets + deleteAlarm + deleteAll.
+  const live = await env.DB.prepare("SELECT source_uuid, user_uuid FROM sources").all<{
+    source_uuid: string;
+    user_uuid: string | null;
+  }>();
+  const userUuids = new Set<string>();
+  await Promise.all(
+    live.results.map((row) => {
+      if (row.user_uuid) userUuids.add(row.user_uuid);
+      const id = env.SOURCE_HUB.idFromName(row.source_uuid);
+      return env.SOURCE_HUB.get(id).fetch(new Request("https://do/cleanup", { method: "POST" }));
+    }),
+  );
+  await Promise.all(
+    [...userUuids].map((userUuid) => {
+      const id = env.USER_HUB.idFromName(userUuid);
+      return env.USER_HUB.get(id).fetch(new Request("https://do/cleanup", { method: "POST" }));
+    }),
+  );
+
   await env.DB.batch(CLEANUP_TABLES.map((table) => env.DB.prepare(`DELETE FROM ${table}`)));
   const listed = await env.PLUGINS.list();
   for (const object of listed.objects) {

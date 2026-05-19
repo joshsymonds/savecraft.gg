@@ -1562,11 +1562,11 @@ export class SourceHub extends DurableObject<Env> {
     await this.saveState(state);
     await this.forwardStateToUserHub();
 
-    // Set alarm to trigger forwardStateToUserHub on next tick. For adapter
-    // sources the alarm handler returns early (no stale-eviction), so this
-    // alarm fires once and is not rescheduled.
-    const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
-    await this.ctx.storage.setAlarm(Date.now() + interval);
+    // No alarm: set-game-status is adapter-only (its sole caller is
+    // pushGameStatus), and alarm() early-returns for adapter sources —
+    // so an alarm here never does work. forwardStateToUserHub already
+    // ran synchronously above. (Arming it only leaked across the shared
+    // single-worker test pool, where alarms outlive cleanAll.)
 
     return Response.json({ ok: true });
   }
