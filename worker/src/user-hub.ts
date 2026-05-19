@@ -87,9 +87,6 @@ export class UserHub extends DurableObject<Env> {
     if (url.pathname === "/refresh-state" && request.method === "POST") {
       return this.handleRefreshState();
     }
-    if (url.pathname === "/cleanup" && request.method === "POST") {
-      return this.handleCleanup();
-    }
     if (url.pathname.startsWith("/debug/") && request.method === "GET") {
       return this.routeDebugRequest(url);
     }
@@ -198,25 +195,6 @@ export class UserHub extends DurableObject<Env> {
     if (mergedState) {
       this.broadcastRelayedMessage(mergedState);
     }
-    return Response.json({ ok: true });
-  }
-
-  /**
-   * Full DO reset: close UI sockets, cancel any alarm, wipe storage.
-   * Mirrors SourceHub /cleanup. Used by the test harness's cleanAll to
-   * prevent cross-test DO state/alarm bleed in the shared single-worker
-   * pool (isolatedStorage:false).
-   */
-  private async handleCleanup(): Promise<Response> {
-    for (const ws of this.ctx.getWebSockets()) {
-      try {
-        ws.close(1000, "user hub reset");
-      } catch {
-        // already closed
-      }
-    }
-    await this.ctx.storage.deleteAlarm();
-    await this.ctx.storage.deleteAll();
     return Response.json({ ok: true });
   }
 
