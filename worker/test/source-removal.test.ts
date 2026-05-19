@@ -416,3 +416,120 @@ describe("Game Removal", () => {
     });
   });
 });
+
+describe("Adapter Removal", () => {
+  beforeEach(cleanAll);
+
+  /** One adapter source per user (shared across adapter games), with
+   *  linked_characters + game_credentials for the given games. */
+  async function seedAdapter(
+    userUuid: string,
+    games: { gameId: string; chars: string[] }[],
+  ): Promise<string> {
+    const sourceUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+    )
+      .bind(sourceUuid, userUuid, `h-${sourceUuid}`)
+      .run();
+    for (const { gameId, chars } of games) {
+      await env.DB.prepare(
+        `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
+         VALUES (?, ?, ?, ?, '2099-01-01T00:00:00Z')`,
+      )
+        .bind(userUuid, gameId, `acc-${gameId}`, `ref-${gameId}`)
+        .run();
+      for (const name of chars) {
+        await env.DB.prepare(
+          `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+           VALUES (?, ?, ?, ?, '{}', ?, 1)`,
+        )
+          .bind(userUuid, gameId, `id-${name}`, name, sourceUuid)
+          .run();
+      }
+    }
+    return sourceUuid;
+  }
+
+  it("DELETE /api/v1/games/:gameId tears down the adapter game but keeps the shared source and other games", async () => {
+    const sourceUuid = await seedAdapter(TEST_USER, [
+      { gameId: "poe", chars: ["Chantome", "Atmus"] },
+      { gameId: "wow", chars: ["Thrall"] },
+    ]);
+    await seedSaveWithData(TEST_USER, "poe", "Chantome", { sourceUuid });
+
+    const resp = await SELF.fetch("https://test-host/api/v1/games/poe", {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${TEST_USER}` },
+    });
+    expect(resp.status).toBe(200);
+
+    // PoE adapter rows gone
+    const lc = await env.DB.prepare(
+      "SELECT COUNT(*) n FROM linked_characters WHERE user_uuid = ? AND game_id = 'poe'",
+    )
+      .bind(TEST_USER)
+      .first<{ n: number }>();
+    expect(lc!.n).toBe(0);
+    const gc = await env.DB.prepare(
+      "SELECT COUNT(*) n FROM game_credentials WHERE user_uuid = ? AND game_id = 'poe'",
+    )
+      .bind(TEST_USER)
+      .first<{ n: number }>();
+    expect(gc!.n).toBe(0);
+    const saves = await env.DB.prepare(
+      "SELECT COUNT(*) n FROM saves WHERE user_uuid = ? AND game_id = 'poe'",
+    )
+      .bind(TEST_USER)
+      .first<{ n: number }>();
+    expect(saves!.n).toBe(0);
+
+    // Shared adapter source row preserved (still serves wow)
+    const sharedSource = await env.DB.prepare("SELECT 1 FROM sources WHERE source_uuid = ?")
+      .bind(sourceUuid)
+      .first();
+    expect(sharedSource).not.toBeNull();
+
+    // WoW adapter rows untouched (game-scoped delete)
+    const wowLc = await env.DB.prepare(
+      "SELECT COUNT(*) n FROM linked_characters WHERE user_uuid = ? AND game_id = 'wow'",
+    )
+      .bind(TEST_USER)
+      .first<{ n: number }>();
+    expect(wowLc!.n).toBe(1);
+    const wowGc = await env.DB.prepare(
+      "SELECT COUNT(*) n FROM game_credentials WHERE user_uuid = ? AND game_id = 'wow'",
+    )
+      .bind(TEST_USER)
+      .first<{ n: number }>();
+    expect(wowGc!.n).toBe(1);
+  });
+
+  it("DELETE /api/v1/sources/:sourceUuid removes all adapter linked_characters + credentials", async () => {
+    const sourceUuid = await seedAdapter(TEST_USER, [
+      { gameId: "poe", chars: ["Chantome"] },
+      { gameId: "wow", chars: ["Thrall"] },
+    ]);
+
+    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${TEST_USER}` },
+    });
+    expect(resp.status).toBe(200);
+
+    const deletedSource = await env.DB.prepare("SELECT 1 FROM sources WHERE source_uuid = ?")
+      .bind(sourceUuid)
+      .first();
+    expect(deletedSource).toBeNull();
+    const lc = await env.DB.prepare(
+      "SELECT COUNT(*) n FROM linked_characters WHERE source_uuid = ?",
+    )
+      .bind(sourceUuid)
+      .first<{ n: number }>();
+    expect(lc!.n).toBe(0);
+    const gc = await env.DB.prepare("SELECT COUNT(*) n FROM game_credentials WHERE user_uuid = ?")
+      .bind(TEST_USER)
+      .first<{ n: number }>();
+    expect(gc!.n).toBe(0);
+  });
+});

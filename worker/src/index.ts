@@ -1486,6 +1486,42 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
     .bind(gameId, userUuid)
     .run();
 
+  // Adapter-backed games have no daemon/source_configs path, so the
+  // generic cleanup above never touches their auth state. Tear down the
+  // game-scoped adapter rows (the adapter `sources` row is shared across
+  // all the user's adapter games, so it must NOT be deleted here) and
+  // drop the game from each adapter source's live DO state.
+  if (adapters[gameId]) {
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM linked_characters WHERE user_uuid = ? AND game_id = ?").bind(
+        userUuid,
+        gameId,
+      ),
+      env.DB.prepare("DELETE FROM game_credentials WHERE user_uuid = ? AND game_id = ?").bind(
+        userUuid,
+        gameId,
+      ),
+    ]);
+
+    const adapterSources = await env.DB.prepare(
+      "SELECT source_uuid FROM sources WHERE user_uuid = ? AND source_kind = 'adapter'",
+    )
+      .bind(userUuid)
+      .all<{ source_uuid: string }>();
+
+    await Promise.allSettled(
+      adapterSources.results.map((s) => {
+        const doId = env.SOURCE_HUB.idFromName(s.source_uuid);
+        return env.SOURCE_HUB.get(doId).fetch(
+          new Request("https://do/remove-game", {
+            method: "POST",
+            body: JSON.stringify({ gameId }),
+          }),
+        );
+      }),
+    );
+  }
+
   await pushConfigAndNotify(env, userUuid);
 
   return Response.json({

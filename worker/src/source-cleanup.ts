@@ -51,6 +51,30 @@ export async function cleanupSource(
     }
   }
 
+  // Adapter teardown: linked_characters are keyed by source, credentials
+  // by (user, game). Deleting an adapter source disconnects every adapter
+  // game it served, so clear both. No-op for daemon sources (no
+  // linked_characters rows).
+  const adapterGames = await env.DB.prepare(
+    "SELECT DISTINCT game_id FROM linked_characters WHERE source_uuid = ?",
+  )
+    .bind(sourceUuid)
+    .all<{ game_id: string }>();
+  const adapterCleanup: D1PreparedStatement[] = [
+    env.DB.prepare("DELETE FROM linked_characters WHERE source_uuid = ?").bind(sourceUuid),
+  ];
+  if (userUuid) {
+    for (const row of adapterGames.results) {
+      adapterCleanup.push(
+        env.DB.prepare("DELETE FROM game_credentials WHERE user_uuid = ? AND game_id = ?").bind(
+          userUuid,
+          row.game_id,
+        ),
+      );
+    }
+  }
+  await env.DB.batch(adapterCleanup);
+
   // D1 cleanup
   await env.DB.batch([
     env.DB.prepare("DELETE FROM source_events WHERE source_uuid = ?").bind(sourceUuid),

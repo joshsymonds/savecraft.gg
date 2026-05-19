@@ -442,6 +442,9 @@ export class SourceHub extends DurableObject<Env> {
       case "/sync-discovered-saves": {
         return this.handleSyncDiscoveredSaves(request);
       }
+      case "/remove-game": {
+        return this.handleRemoveGame(request);
+      }
       case "/set-user": {
         return this.handleSetUser(request);
       }
@@ -1604,6 +1607,26 @@ export class SourceHub extends DurableObject<Env> {
     await this.saveState(state);
     await this.forwardStateToUserHub();
 
+    return Response.json({ ok: true });
+  }
+
+  /**
+   * Drop a single game from this source's in-memory state. Used by
+   * adapter game-removal (DELETE /api/v1/games/:gameId), where there is
+   * no daemon/source_configs path to prune it. Reuses the same
+   * filterStateEntries helper that daemon config-disable uses.
+   */
+  private async handleRemoveGame(request: Request): Promise<Response> {
+    const body = await request.json<{ gameId?: string }>();
+    if (!body.gameId) {
+      return Response.json({ error: "Missing required field: gameId" }, { status: 400 });
+    }
+    const state = await this.loadState();
+    const changed = this.filterStateEntries(state, new Set([body.gameId]), new Map());
+    if (changed) {
+      await this.saveState(state);
+      await this.forwardStateToUserHub();
+    }
     return Response.json({ ok: true });
   }
 
