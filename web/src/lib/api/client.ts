@@ -185,10 +185,17 @@ export function toNoteSummary(note: ApiNote): NoteSummary {
 
 // ── OAuth ─────────────────────────────────────────────────────
 
-export async function fetchOAuthAuthorizeUrl(region: string): Promise<string> {
+/**
+ * Resolve the OAuth authorize URL for an adapter game. `provider` is the
+ * game's `adapter.authProvider` from the served manifest (e.g. "ggg",
+ * "battlenet"); it maps 1:1 to the worker's `/oauth/<provider>/authorize`
+ * route. Never hardcode a provider here — that is the bug that sent every
+ * adapter (PoE included) to Battle.net.
+ */
+export async function fetchOAuthAuthorizeUrl(provider: string, region: string): Promise<string> {
   const returnUrl = encodeURIComponent(globalThis.location.href);
   const data = await request<{ url: string }>(
-    `/oauth/battlenet/authorize?region=${region}&return_url=${returnUrl}`,
+    `/oauth/${provider}/authorize?region=${region}&return_url=${returnUrl}`,
   );
   return data.url;
 }

@@ -462,8 +462,10 @@
       if (!sourceId) throw new Error("No configurable source selected");
       await saveConfigAndWait(sourceId, gameId, savePath);
     }}
-    onoauthconnect={async (_gameId: string, region: string) => {
-      const url = await fetchOAuthAuthorizeUrl(region);
+    onoauthconnect={async (gameId: string, region: string) => {
+      const provider = pickerGames.find((g) => g.gameId === gameId)?.adapter?.authProvider;
+      if (!provider) return;
+      const url = await fetchOAuthAuthorizeUrl(provider, region);
       globalThis.location.href = url;
     }}
     onpair={handleManualLink}

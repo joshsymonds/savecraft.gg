@@ -10,7 +10,42 @@ vi.mock("$env/static/public", () => ({
 }));
 
 const { getToken } = await import("$lib/auth/clerk");
-const { linkSource } = await import("./client");
+const { linkSource, fetchOAuthAuthorizeUrl } = await import("./client");
+
+describe("fetchOAuthAuthorizeUrl", () => {
+  beforeEach(() => {
+    vi.mocked(getToken).mockResolvedValue("test-token");
+    globalThis.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("hits the provider-specific authorize route, not a hardcoded one", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ url: "https://ggg.example/oauth" }), { status: 200 }),
+    );
+
+    const url = await fetchOAuthAuthorizeUrl("ggg", "pc");
+
+    const calledWith = vi.mocked(globalThis.fetch).mock.calls[0]![0] as string;
+    expect(calledWith).toContain("https://api.test/oauth/ggg/authorize?region=pc");
+    expect(calledWith).not.toContain("/oauth/battlenet/");
+    expect(url).toBe("https://ggg.example/oauth");
+  });
+
+  it("uses the battlenet route for the wow provider", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ url: "https://bnet.example/oauth" }), { status: 200 }),
+    );
+
+    await fetchOAuthAuthorizeUrl("battlenet", "us");
+
+    const calledWith = vi.mocked(globalThis.fetch).mock.calls[0]![0] as string;
+    expect(calledWith).toContain("https://api.test/oauth/battlenet/authorize?region=us");
+  });
+});
 
 describe("linkSource", () => {
   beforeEach(() => {
