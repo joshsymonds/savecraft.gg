@@ -46,6 +46,7 @@ interface SaveRow {
   last_source_uuid: string | null;
   refresh_status: string | null;
   refresh_error: string | null;
+  last_refresh_at: string | null;
 }
 
 /** Maximum bytes for a single section's JSON before we reject it (~20K tokens). */
@@ -928,12 +929,20 @@ interface CredentialRow {
 }
 
 function checkAdapterCooldown(save: SaveRow): ToolResult | null {
-  if (!save.last_updated) return null;
-  const lastUpdated = new Date(save.last_updated).getTime();
+  // Cooldown is "time since last refresh ATTEMPT", not row mtime. A
+  // just-discovered save (last_refresh_at NULL) has never been fetched,
+  // so the first refresh after connect is always allowed.
+  if (!save.last_refresh_at) return null;
+  // SQLite datetime('now') is "YYYY-MM-DD HH:MM:SS" (UTC, no zone) —
+  // normalize to ISO so Date parses it as UTC, not local.
+  const iso = save.last_refresh_at.includes("T")
+    ? save.last_refresh_at
+    : `${save.last_refresh_at.replace(" ", "T")}Z`;
+  const lastRefreshAt = new Date(iso).getTime();
   const cooldownMs = ADAPTER_REFRESH_COOLDOWN_SEC * 1000;
   const now = Date.now();
-  if (now - lastUpdated < cooldownMs) {
-    const retryAfter = Math.ceil((cooldownMs - (now - lastUpdated)) / 1000);
+  if (now - lastRefreshAt < cooldownMs) {
+    const retryAfter = Math.ceil((cooldownMs - (now - lastRefreshAt)) / 1000);
     return errorResult(
       `This character was refreshed recently. Try again in ${String(retryAfter)} seconds.`,
     );
@@ -1042,6 +1051,12 @@ async function refreshAdapterSave(
       gameState.identity.extra,
     );
 
+    await env.DB.prepare(
+      "UPDATE saves SET refresh_status = 'ok', refresh_error = NULL, last_refresh_at = datetime('now') WHERE uuid = ?",
+    )
+      .bind(save.uuid)
+      .run();
+
     return textResult({
       save_id: save.uuid,
       refreshed: true,
@@ -1050,6 +1065,14 @@ async function refreshAdapterSave(
     });
   } catch (error) {
     if (error instanceof AdapterError) {
+      // Stamp the attempt so a failed fetch (e.g. rate_limited) still
+      // starts the cooldown — don't let the AI hammer the upstream API.
+      const message = `${error.code}: ${error.message}`;
+      await env.DB.prepare(
+        "UPDATE saves SET refresh_status = 'error', refresh_error = ?, last_refresh_at = datetime('now') WHERE uuid = ?",
+      )
+        .bind(message.length > 500 ? `${message.slice(0, 497)}...` : message, save.uuid)
+        .run();
       return handleAdapterError(error);
     }
     throw error;

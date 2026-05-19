@@ -41,6 +41,7 @@ const statements = [
     last_source_uuid TEXT,
     refresh_status TEXT,
     refresh_error TEXT,
+    last_refresh_at TEXT,
     removed_at TEXT,
     UNIQUE (user_uuid, game_id, save_name)
   )`,

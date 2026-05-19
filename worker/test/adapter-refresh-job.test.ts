@@ -68,11 +68,12 @@ async function seedAdapterSave(
   gameId: string,
   saveName: string,
   lastUpdated?: string,
+  lastRefreshAt?: string,
 ): Promise<string> {
   const saveUuid = crypto.randomUUID();
   await env.DB.prepare(
-    `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
-     VALUES (?, ?, ?, ?, ?, '', ?, ?)`,
+    `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_refresh_at, last_source_uuid)
+     VALUES (?, ?, ?, ?, ?, '', ?, ?, ?)`,
   )
     .bind(
       saveUuid,
@@ -81,6 +82,7 @@ async function seedAdapterSave(
       "Fake Game",
       saveName,
       lastUpdated ?? "2020-01-01T00:00:00",
+      lastRefreshAt ?? null,
       sourceUuid,
     )
     .run();
@@ -204,14 +206,15 @@ describe("Adapter Refresh Job", () => {
 
   it("skips saves refreshed within cooldown window", async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
-    // last_updated is 1 minute ago — within 5-min cooldown
-    const recentlyUpdated = new Date(Date.now() - 60_000).toISOString();
+    // last_refresh_at is 1 minute ago — within the 5-min cooldown
+    const recentlyRefreshed = new Date(Date.now() - 60_000).toISOString();
     await seedAdapterSave(
       USER_UUID,
       sourceUuid,
       "fakegame",
       "Testchar-testrealm-US",
-      recentlyUpdated,
+      recentlyRefreshed,
+      recentlyRefreshed,
     );
     await seedLinkedCharacter(USER_UUID, sourceUuid, "fakegame", "Testchar", {
       realm_slug: "testrealm",

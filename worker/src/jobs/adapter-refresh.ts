@@ -30,6 +30,7 @@ interface RefreshRow {
   access_token: string;
   refresh_token: string | null;
   expires_at: string | null;
+  last_refresh_at: string | null;
 }
 
 export async function refreshAdapterSources(env: Env): Promise<void> {
@@ -42,7 +43,8 @@ export async function refreshAdapterSources(env: Env): Promise<void> {
     `SELECT s.uuid AS save_uuid, s.save_name, s.game_id, s.last_source_uuid AS source_uuid,
             src.user_uuid,
             lc.character_id, lc.character_name, lc.metadata,
-            gc.access_token, gc.refresh_token, gc.expires_at
+            gc.access_token, gc.refresh_token, gc.expires_at,
+            s.last_refresh_at
      FROM saves s
      JOIN sources src ON s.last_source_uuid = src.source_uuid
      JOIN linked_characters lc
@@ -57,8 +59,8 @@ export async function refreshAdapterSources(env: Env): Promise<void> {
        ON gc.user_uuid = src.user_uuid AND gc.game_id = s.game_id
      WHERE src.source_kind = 'adapter'
        AND src.user_uuid IS NOT NULL
-       AND (s.last_updated IS NULL OR s.last_updated < datetime('now', ?))
-     ORDER BY s.last_updated ASC
+       AND (s.last_refresh_at IS NULL OR s.last_refresh_at < datetime('now', ?))
+     ORDER BY s.last_refresh_at ASC
      LIMIT ?`,
   )
     .bind(`-${String(cooldownSeconds)} seconds`, BATCH_LIMIT)
@@ -112,7 +114,7 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
 
     // Record success
     await env.DB.prepare(
-      "UPDATE saves SET refresh_status = 'ok', refresh_error = NULL WHERE uuid = ?",
+      "UPDATE saves SET refresh_status = 'ok', refresh_error = NULL, last_refresh_at = datetime('now') WHERE uuid = ?",
     )
       .bind(row.save_uuid)
       .run();
@@ -139,7 +141,7 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
 
     // Record failure
     await env.DB.prepare(
-      "UPDATE saves SET refresh_status = 'error', refresh_error = ? WHERE uuid = ?",
+      "UPDATE saves SET refresh_status = 'error', refresh_error = ?, last_refresh_at = datetime('now') WHERE uuid = ?",
     )
       .bind(truncated, row.save_uuid)
       .run();

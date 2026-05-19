@@ -1265,10 +1265,10 @@ describe("MCP Tools", () => {
         .bind(sourceUuid, USER_A, `hash-adapter-${USER_A}`)
         .run();
 
-      // Create save with recent last_updated (within 5 min cooldown)
+      // Save was refreshed 1 min ago (within the 5 min cooldown)
       const recentTimestamp = new Date(Date.now() - 60_000).toISOString();
       await env.DB.prepare(
-        "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_refresh_at, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
         .bind(
           "save-adapter-rate",
@@ -1278,6 +1278,7 @@ describe("MCP Tools", () => {
           "Dratnos-tichondrius-US",
           "Level 80 Rogue",
           recentTimestamp,
+          recentTimestamp,
           sourceUuid,
         )
         .run();
@@ -1285,6 +1286,38 @@ describe("MCP Tools", () => {
       const result = await refreshSave(env, USER_A, "save-adapter-rate");
       expect(result.isError).toBe(true);
       expect(result.content[0]!.text).toContain("refreshed recently");
+    });
+
+    it("does NOT cooldown-block a never-refreshed adapter save (just discovered)", async () => {
+      const sourceUuid = crypto.randomUUID();
+      await env.DB.prepare(
+        "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+      )
+        .bind(sourceUuid, USER_A, `hash-adapter-fresh-${USER_A}`)
+        .run();
+
+      // reconcile stamps last_updated=now at DISCOVERY but never refreshes:
+      // last_refresh_at stays NULL → first refresh must be allowed.
+      const justDiscovered = new Date(Date.now() - 1000).toISOString();
+      await env.DB.prepare(
+        "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+        .bind(
+          "save-adapter-fresh",
+          USER_A,
+          "wow",
+          "World of Warcraft",
+          "Dratnos-tichondrius-US",
+          "",
+          justDiscovered,
+          sourceUuid,
+        )
+        .run();
+
+      const result = await refreshSave(env, USER_A, "save-adapter-fresh");
+      // It will fail later (no credentials/linked char in this test), but it
+      // must get PAST the cooldown gate — never "refreshed recently".
+      expect(result.content[0]!.text).not.toContain("refreshed recently");
     });
 
     it("returns error when adapter save has no realm info", async () => {
