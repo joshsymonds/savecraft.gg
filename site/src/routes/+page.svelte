@@ -1,9 +1,9 @@
 <!--
   @component
-  Marketing homepage — public landing page for savecraft.gg
+  Marketing homepage -- public landing page for savecraft.gg
 -->
 <script lang="ts">
-  import { PUBLIC_APP_URL, PUBLIC_INSTALL_URL } from "$env/static/public";
+  import { PUBLIC_APP_URL } from "$env/static/public";
   import type { GameInfo } from "$lib/server/plugins";
   import {
     ConversationDemo,
@@ -13,7 +13,6 @@
     ParticleField,
   } from "$lib/components/marketing";
   import type { DemoMessage } from "$lib/components/marketing/types";
-  import { onMount } from "svelte";
 
   let { data } = $props<{ data: { availableGames: GameInfo[] } }>();
 
@@ -21,15 +20,15 @@
   const heroFrames = [
     {
       src: "/images/magic/magic-good.jpeg",
-      alt: "Claude reviewing a Magic draft — user asks 'how did I do?', Claude renders a 14/12/3/12 Optimal/Good/Questionable/Miss review with a pick timeline",
+      alt: "Claude reviewing a Magic draft -- user asks 'how did I do?', Claude renders a 14/12/3/12 Optimal/Good/Questionable/Miss review with a pick timeline",
     },
     {
       src: "/images/factorio/factorio3.jpg",
-      alt: "Factorio factory diagnosis — 5 bottlenecks, 51 active items, 7 critical. Steel Plate shown as a no-production-line bottleneck with downstream impact",
+      alt: "Factorio factory diagnosis -- 5 bottlenecks, 51 active items, 7 critical. Steel Plate shown as a no-production-line bottleneck with downstream impact",
     },
     {
       src: "/images/stellaris/stellaris1.jpg",
-      alt: "Stellaris tech path to Battleships — prerequisite chain with 6,500 remaining research cost, Engineering tier",
+      alt: "Stellaris tech path to Battleships -- prerequisite chain with 6,500 remaining research cost, Engineering tier",
     },
   ];
 
@@ -49,7 +48,7 @@
     { role: "player", text: "How do I optimize my Echoing Strike Warlock?" },
     {
       role: "ai",
-      text: "Atmus is at 75 — time to push for the 125% FCR breakpoint. Fortitude Thunder Maul gets you there with massive Enhanced Damage and Deadly Strike. Next priority: bind Hephasto The Armorer with Cursed + Fanaticism from River of Flame. He shreds Physical Immunes.",
+      text: "Atmus is at 75 -- time to push for the 125% FCR breakpoint. Fortitude Thunder Maul gets you there with massive Enhanced Damage and Deadly Strike. Next priority: bind Hephasto The Armorer with Cursed + Fanaticism from River of Flame. He shreds Physical Immunes.",
     },
   ];
 
@@ -75,16 +74,6 @@
     })),
     ...plannedGames,
   ]);
-
-  // ── OS detection for install commands ──────────────────
-  type Platform = "windows" | "linux";
-  let selectedPlatform: Platform = $state("linux");
-
-  onMount(() => {
-    const nav = navigator as Navigator & { userAgentData?: { platform: string } };
-    const platform = nav.userAgentData?.platform ?? navigator.platform ?? "";
-    if (/win/i.test(platform)) selectedPlatform = "windows";
-  });
 </script>
 
 <svelte:head>
@@ -133,76 +122,63 @@
     <span class="proof-sep">*</span>
     <span class="proof-item">Updated every patch</span>
     <span class="proof-sep">*</span>
-    <span class="proof-item">Read-only — can never modify your saves</span>
+    <span class="proof-item">Read-only -- can never modify your saves</span>
   </div>
 
   <!-- ═══ HOW IT WORKS ═══ -->
-  <MarketingSection id="how" eyebrow="HOW IT WORKS" title="Connect in 30 seconds.">
-    <!-- Reference modules — zero install, immediate value -->
+  <MarketingSection
+    id="how"
+    eyebrow="HOW IT WORKS"
+    title="Add a game. It wires itself up."
+    subtitle="You add a game; Savecraft connects it the right way for that game. You never pick the plumbing, and you never start with an install."
+  >
+    <!-- Reference baseline: instant, every game, zero setup -->
     <div class="reference-callout">
-      <h3 class="reference-callout-title">Draft stats. Drop tables. Crop planners. No install.</h3>
+      <h3 class="reference-callout-title">
+        Rules, items, builds, drop tables, live prices. No setup.
+      </h3>
       <p class="reference-callout-desc">
-        Games ship with expert modules your AI can query instantly. Connect and start asking.
+        Every supported game answers expert questions the second you add it -- no account, no
+        install, no save files touched. Ask away.
       </p>
       <div class="reference-callout-cta">
-        <a href={`${PUBLIC_APP_URL}/connect`} class="btn-gold">CONNECT CLAUDE OR CHATGPT</a>
+        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT CLAUDE OR CHATGPT</a>
       </div>
     </div>
 
-    <!-- Divider between tiers -->
     <div class="tier-divider">
       <div class="tier-divider-line"></div>
       <span class="tier-divider-label">+</span>
       <div class="tier-divider-line"></div>
     </div>
 
-    <!-- Three-step grid for full save data access -->
-    <h3 class="unlock-label">Unlock your saves.</h3>
+    <h3 class="unlock-label">
+      Want your live characters in the conversation? The game decides how.
+    </h3>
     <div class="steps-grid">
       <div class="step-card">
-        <div class="step-num">01</div>
-        <div class="step-icon" style="color: var(--color-green);">></div>
-        <h3 class="step-name">INSTALL</h3>
+        <h3 class="step-name">YOUR ACCOUNT</h3>
         <p class="step-desc">
-          A background daemon watches your save files. Runs on Windows, Linux, and Steam Deck. One
-          click or one command.
-        </p>
-        <div class="install-tabs">
-          <button
-            class="install-tab"
-            class:active={selectedPlatform === "windows"}
-            onclick={() => (selectedPlatform = "windows")}>Windows</button
-          >
-          <button
-            class="install-tab"
-            class:active={selectedPlatform === "linux"}
-            onclick={() => (selectedPlatform = "linux")}>Linux</button
-          >
-        </div>
-        {#if selectedPlatform === "windows"}
-          <a href={PUBLIC_INSTALL_URL} class="install-btn" target="_blank" rel="noopener"
-            >Download installer</a
-          >
-        {:else}
-          <code class="step-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
-        {/if}
-      </div>
-      <div class="step-card">
-        <div class="step-num">02</div>
-        <div class="step-icon" style="color: var(--color-blue);">{"{ }"}</div>
-        <h3 class="step-name">PARSE</h3>
-        <p class="step-desc">
-          Plugins read your save files and extract the good stuff — gear, skills, progress, items.
-          They're sandboxed and can't touch anything else on your machine.
+          Path of Exile -- we're a GGG-approved app -- and World of Warcraft connect through their
+          own sign-in. Read-only, no install: your AI reads your live characters straight from the
+          game's servers. As fresh as your last refresh, not live to the second.
         </p>
       </div>
       <div class="step-card">
-        <div class="step-num">03</div>
-        <div class="step-icon" style="color: var(--color-gold);">?</div>
-        <h3 class="step-name">ASK</h3>
+        <h3 class="step-name">YOUR SAVE FILES</h3>
         <p class="step-desc">
-          Open Claude or ChatGPT — they can now see your actual game state. Real items, real stats,
-          real progress. No more invented gear or wrong ability descriptions.
+          Diablo II, Stardew Valley, RimWorld, Stellaris and the rest live in save files on the
+          machine you play on. Add the game and Savecraft walks you through pairing that machine
+          once. The files are read in place and never leave your device -- only the parsed state is
+          sent.
+        </p>
+      </div>
+      <div class="step-card">
+        <h3 class="step-name">AN IN-GAME MOD</h3>
+        <p class="step-desc">
+          Moddable games like Factorio push their state from inside the game through a Savecraft
+          mod. Add the game, install the mod it hands you, and your factory shows up. A few games
+          offer more than one of these -- you still only ever add the game.
         </p>
       </div>
     </div>
@@ -211,7 +187,7 @@
   <!-- ═══ BEFORE / AFTER ═══ -->
   <MarketingSection eyebrow="THE DIFFERENCE" title="What changes">
     <div class="compare-grid">
-      <!-- WITHOUT — distinct generic chat style -->
+      <!-- WITHOUT -- distinct generic chat style -->
       <div class="compare-card compare-without">
         <div class="compare-header compare-header-without">
           <span class="compare-dot compare-dot-red"></span>
@@ -234,11 +210,11 @@
         </p>
       </div>
 
-      <!-- WITH — uses ConversationDemo -->
+      <!-- WITH -- uses ConversationDemo -->
       <div class="compare-card compare-with">
         <ConversationDemo
           conversation={withConversation}
-          headerLabel="DIABLO II — ATMUS, LEVEL 75 WARLOCK"
+          headerLabel="DIABLO II -- ATMUS, LEVEL 75 WARLOCK"
           headerDotColor="var(--color-green)"
           startDelay={800}
         />
@@ -267,7 +243,7 @@
           },
           {
             role: "ai",
-            text: "23 runs tracked. She only drops up to Io in Hell though — if you need Shaels, Normal Countess is actually better odds. Your Sorc clears it in 40 seconds. Want to switch it up?",
+            text: "23 runs tracked. She only drops up to Io in Hell though -- if you need Shaels, Normal Countess is actually better odds. Your Sorc clears it in 40 seconds. Want to switch it up?",
           },
         ]}
       />
@@ -279,7 +255,7 @@
           { role: "player", text: "Am I hitting my FCR breakpoint?" },
           {
             role: "ai",
-            text: "You're at 75% FCR — one breakpoint short of 125%. Swapping your Spirit shield for a 35% FCR one would get you there. Or craft a 20% amulet to keep the resistances.",
+            text: "You're at 75% FCR -- one breakpoint short of 125%. Swapping your Spirit shield for a 35% FCR one would get you there. Or craft a 20% amulet to keep the resistances.",
           },
         ]}
       />
@@ -335,7 +311,7 @@
         <div>
           <span class="security-label">Fully Sandboxed</span>
           <span class="security-desc"
-            >Plugins are isolated in a sandbox. They can read your save file and nothing else — no
+            >Plugins are isolated in a sandbox. They can read your save file and nothing else -- no
             filesystem access, no network access, no exceptions.</span
           >
         </div>
@@ -355,8 +331,8 @@
         <div>
           <span class="security-label">Read-Only by Design</span>
           <span class="security-desc"
-            >Savecraft can never modify your save files. It watches and reads, that's it. Open
-            source — inspect it yourself.</span
+            >Savecraft can never modify your saves or your account. Save files are read in place;
+            connected accounts use read-only sign-in. Open source -- inspect it yourself.</span
           >
         </div>
       </div>
@@ -365,7 +341,7 @@
         <div>
           <span class="security-label">AI Sees Data, Not Files</span>
           <span class="security-desc"
-            >Your AI gets game state — items, skills, progress — never your local files or folder
+            >Your AI gets game state -- items, skills, progress -- never your local files or folder
             paths.</span
           >
         </div>
@@ -422,34 +398,12 @@
     <div class="cta-inner">
       <h2 class="cta-title">Fix your AI.</h2>
       <p class="cta-sub">
-        Connect Claude or ChatGPT in 30 seconds. Optionally install the daemon to read your saves on
-        supported games.
+        Connect Claude or ChatGPT, add your games, and watch your assistant stop making things up.
       </p>
       <div class="cta-actions">
         <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large"
           >CONNECT CLAUDE OR CHATGPT</a
         >
-      </div>
-      <div class="cta-install">
-        <div class="install-tabs cta-install-tabs">
-          <button
-            class="install-tab"
-            class:active={selectedPlatform === "windows"}
-            onclick={() => (selectedPlatform = "windows")}>Windows</button
-          >
-          <button
-            class="install-tab"
-            class:active={selectedPlatform === "linux"}
-            onclick={() => (selectedPlatform = "linux")}>Linux</button
-          >
-        </div>
-        {#if selectedPlatform === "windows"}
-          <a href={PUBLIC_INSTALL_URL} class="install-btn" target="_blank" rel="noopener"
-            >Download installer</a
-          >
-        {:else}
-          <code class="install-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
-        {/if}
       </div>
     </div>
   </section>
@@ -643,22 +597,6 @@
     border-color: var(--color-border-light);
   }
 
-  .step-num {
-    font-family: var(--font-heading);
-    font-size: 36px;
-    font-weight: 700;
-    color: var(--color-border);
-    opacity: 0.4;
-    margin-bottom: 16px;
-  }
-
-  .step-icon {
-    font-family: var(--font-heading);
-    font-size: 28px;
-    font-weight: 700;
-    margin-bottom: 16px;
-  }
-
   .step-name {
     font-family: var(--font-heading);
     font-size: 16px;
@@ -675,74 +613,6 @@
     font-weight: 400;
     color: var(--color-text-dim);
     line-height: 1.6;
-  }
-
-  .step-code {
-    display: block;
-    font-family: var(--font-body);
-    font-size: 17px;
-    color: var(--color-green);
-    background: rgba(5, 7, 26, 0.6);
-    padding: 8px 12px;
-    border-radius: 3px;
-    border: 1px solid rgba(90, 190, 138, 0.15);
-  }
-
-  .install-btn {
-    display: block;
-    text-align: center;
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    letter-spacing: 2px;
-    color: var(--color-gold);
-    background: rgba(200, 168, 78, 0.1);
-    border: 1px solid rgba(200, 168, 78, 0.3);
-    border-radius: 4px;
-    padding: 12px 20px;
-    text-decoration: none;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .install-btn:hover {
-    background: rgba(200, 168, 78, 0.2);
-    border-color: var(--color-gold);
-  }
-
-  .install-tabs {
-    display: flex;
-    gap: 4px;
-    margin-top: 14px;
-    margin-bottom: 8px;
-  }
-
-  .install-tab {
-    font-family: var(--font-pixel);
-    font-size: 10px;
-    letter-spacing: 1px;
-    color: var(--color-text-muted);
-    background: none;
-    border: 1px solid rgba(74, 90, 173, 0.2);
-    border-radius: 3px;
-    padding: 6px 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .install-tab:hover {
-    border-color: var(--color-border-light);
-    color: var(--color-text-dim);
-  }
-
-  .install-tab.active {
-    color: var(--color-green);
-    border-color: rgba(90, 190, 138, 0.3);
-    background: rgba(90, 190, 138, 0.06);
-  }
-
-  .cta-install-tabs {
-    justify-content: center;
-    margin-bottom: 10px;
   }
 
   /* ── Before / After ─────────────────────────────────── */
@@ -1109,20 +979,6 @@
 
   .cta-actions {
     margin-bottom: 28px;
-  }
-
-  .cta-install {
-    display: inline-block;
-    padding: 12px 24px;
-    background: linear-gradient(135deg, #0a0e2e 0%, #111b47 50%, #0a0e2e 100%);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-  }
-
-  .install-code {
-    font-family: var(--font-body);
-    font-size: 20px;
-    color: var(--color-green);
   }
 
   /* ── Responsive ──────────────────────────────────────── */
