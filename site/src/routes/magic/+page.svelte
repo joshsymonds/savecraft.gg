@@ -1,7 +1,8 @@
 <!--
   @component
-  Magic: The Gathering landing page — all-format reference tools (Commander, Standard,
-  draft, Legacy) plus Arena-specific coaching when the daemon is connected.
+  Magic: The Gathering landing page -- all-format reference tools (Commander, Standard,
+  draft, Legacy) that work the moment Magic is added, plus Arena coaching once Magic is
+  reading your Player.log.
 -->
 <script lang="ts">
   import { PUBLIC_APP_URL } from "$env/static/public";
@@ -14,27 +15,26 @@
     ParticleField,
   } from "$lib/components/marketing";
   import type { DemoMessage } from "$lib/components/marketing/types";
-  import type { GameInfo, ReferenceModule } from "$lib/server/plugins";
+  import type { GameInfo } from "$lib/server/plugins";
 
   let { data } = $props<{ data: { game: GameInfo } }>();
 
   const heroFrames = [
     {
       src: "/images/magic/magic-good.jpeg",
-      alt: "Claude reviewing a Magic TMNT draft — user asks 'how did I do?', Claude pulls draft history and renders a 14/12/3/12 Optimal/Good/Questionable/Miss review with a pick timeline filtered by outcome",
+      alt: "Claude reviewing a Magic TMNT draft -- user asks 'how did I do?', Claude pulls draft history and renders a 14/12/3/12 Optimal/Good/Questionable/Miss review with a pick timeline filtered by outcome",
     },
     {
       src: "/images/magic/rocks.jpg",
-      alt: "Claude recommending 3-CMC mana rocks for Commander — tabbed grid of Eye / Heart / Horn / Skull / Tooth of Ramos colored by mana identity",
+      alt: "Claude recommending 3-CMC mana rocks for Commander -- tabbed grid of Eye / Heart / Horn / Skull / Tooth of Ramos colored by mana identity",
     },
     {
       src: "/images/magic/lifelink.jpg",
-      alt: "Claude listing every white lifelink creature 2 mana or less — framed card grid with rarity chips and abilities",
+      alt: "Claude listing every white lifelink creature 2 mana or less -- framed card grid with rarity chips and abilities",
     },
   ];
 
   let referenceModules = $derived(data.game.referenceModules);
-  let instantModules = $derived(referenceModules.filter((m: ReferenceModule) => !m.requires_save));
 
   // ── Before/After demo data ─────────────────────────────────
   const withoutStandard = [
@@ -49,7 +49,7 @@
     { role: "player", text: "Should I craft Sheoldred for my mono-black deck?" },
     {
       role: "ai",
-      text: "Can't — Sheoldred rotated with Dominaria United, she's not Standard-legal. But Archfiend of the Dross does the same job in your list at 58.2% GIH WR. You're missing 2 copies, that's 2 rare wildcards. You have 4 in the bank.",
+      text: "Can't -- Sheoldred rotated with Dominaria United, she's not Standard-legal. But Archfiend of the Dross does the same job in your list at 58.2% GIH WR. You're missing 2 copies, that's 2 rare wildcards. You have 4 in the bank.",
     },
   ];
 
@@ -57,7 +57,7 @@
     { role: "player" as const, text: "Is my Atraxa superfriends deck missing anything?" },
     {
       role: "ai" as const,
-      text: "Your Atraxa deck looks solid — lots of options for improvement depending on your playstyle. I'd suggest adding more planeswalkers and counters synergy.",
+      text: "Your Atraxa deck looks solid -- lots of options for improvement depending on your playstyle. I'd suggest adding more planeswalkers and counters synergy.",
     },
   ];
 
@@ -65,21 +65,21 @@
     { role: "player", text: "Is my Atraxa superfriends deck missing anything?" },
     {
       role: "ai",
-      text: "58% overlap with EDHREC's Atraxa build. Missing 3 high-inclusion staples: Anointed Procession, Smothering Tithe, Doubling Season (all above 40% inclusion). Your 4 extras are off-meta but thematic. Combo search finds 2 infinite lines involving Atraxa + The Chain Veil — neither in your list.",
+      text: "58% overlap with EDHREC's Atraxa build. Missing 3 high-inclusion staples: Anointed Procession, Smothering Tithe, Doubling Season (all above 40% inclusion). Your 4 extras are off-meta but thematic. Combo search finds 2 infinite lines involving Atraxa + The Chain Veil -- neither in your list.",
     },
   ];
 </script>
 
 <svelte:head>
-  <title>Magic: The Gathering — Real Data for Your AI | Savecraft</title>
+  <title>Magic: The Gathering -- Real Data for Your AI | Savecraft</title>
   <meta
     name="description"
-    content="Savecraft gives Claude and ChatGPT all-format Magic reference — Commander, Standard, draft, Legacy — plus your Arena data when you connect the daemon. 17Lands stats, EDHREC Commander data, Frank Karsten's mana math, and the full MTG Comprehensive Rules."
+    content="Savecraft gives Claude and ChatGPT all-format Magic reference -- Commander, Standard, draft, Legacy -- the moment you add Magic: 17Lands stats, EDHREC Commander data, Frank Karsten's mana math, and the full MTG Comprehensive Rules. Add Magic on the machine you play Arena on and your AI coaches with your live rank, match history, and draft picks too."
   />
-  <meta property="og:title" content="Savecraft — Real MTG Data for Claude and ChatGPT" />
+  <meta property="og:title" content="Savecraft -- Real MTG Data for Claude and ChatGPT" />
   <meta
     property="og:description"
-    content="All-format Magic reference — EDHREC Commander data, 17Lands draft stats across 31 color archetypes, Frank Karsten's mana math, and the full MTG rules. Plus your Arena rank, match history, and draft picks when you connect the daemon."
+    content="All-format Magic reference -- EDHREC Commander data, 17Lands draft stats across 31 color archetypes, Frank Karsten's mana math, and the full MTG rules -- the moment you add Magic. Add it on the machine you play Arena on and your AI sees your live rank, match history, and draft picks too."
   />
   <meta property="og:url" content="https://savecraft.gg/magic" />
   <meta property="og:type" content="website" />
@@ -96,7 +96,7 @@
         accent="gold"
         eyebrow="REAL DATA FOR MAGIC: THE GATHERING"
         title="Your AI stops inventing cards here."
-        subtitle="All-format reference — Commander, Standard, draft, Legacy. EDHREC combos, 17Lands stats, Frank Karsten's mana math, and the full MTG rules. Plus your Arena data when you connect the daemon."
+        subtitle="All-format reference -- Commander, Standard, draft, Legacy -- the second you add Magic. EDHREC combos, 17Lands stats, Frank Karsten's mana math, the full MTG rules. Play Arena? Add Magic on that machine and your live picks, rank, and matches join the conversation too."
         actions={heroActions}
         frames={heroFrames}
       />
@@ -104,8 +104,8 @@
   </div>
 
   {#snippet heroActions()}
-    <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">TRY THE EXPERT MODULES</a>
-    <a href="#tiers" class="btn-outline">CONNECT YOUR ARENA DATA</a>
+    <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT CLAUDE OR CHATGPT</a>
+    <a href="#tools" class="btn-outline">SEE WHAT YOUR AI KNOWS</a>
   {/snippet}
 
   <!-- ═══ CREDIBILITY BAR ═══ -->
@@ -168,7 +168,7 @@
       <div class="compare-card compare-with">
         <ConversationDemo
           conversation={withStandard}
-          headerLabel="STANDARD — MONO-BLACK WILDCARDS"
+          headerLabel="STANDARD -- MONO-BLACK WILDCARDS"
           headerDotColor="var(--color-green)"
           startDelay={800}
         />
@@ -205,7 +205,7 @@
       <div class="compare-card compare-with">
         <ConversationDemo
           conversation={withCommander}
-          headerLabel="COMMANDER — ATRAXA DECK REVIEW"
+          headerLabel="COMMANDER -- ATRAXA DECK REVIEW"
           headerDotColor="var(--color-green)"
           startDelay={800}
         />
@@ -230,11 +230,11 @@
         examples={[
           {
             role: "player",
-            text: "P2P1 — Liliana or Elenda? Liliana's the bomb but I'm UW with one black source.",
+            text: "P2P1 -- Liliana or Elenda? Liliana's the bomb but I'm UW with one black source.",
           },
           {
             role: "ai",
-            text: "Liliana. 63.6% GIH WR vs Elenda's 60.3% — that gap is too large to leave on the table at pick 15. Your archetype confidence is only 0.16, so pivoting to UB or Esper is wide open. The pivot model estimates ~5.4 acquirable black sources over 28 remaining picks. Prioritize black fixing next 3-4 picks.",
+            text: "Liliana. 63.6% GIH WR vs Elenda's 60.3% -- that gap is too large to leave on the table at pick 15. Your archetype confidence is only 0.16, so pivoting to UB or Esper is wide open. The pivot model estimates ~5.4 acquirable black sources over 28 remaining picks. Prioritize black fixing next 3-4 picks.",
           },
         ]}
       />
@@ -249,7 +249,7 @@
           },
           {
             role: "ai",
-            text: "Cut Raphael, Tough Turtle. I know, he looks cool — but 52.3% GIH WR and your pool only has 5 red sources for his RR cost. Karsten says you need 8 for on-curve. You're also short on removal (2 pieces vs the 4.6 winning decks average). Everything Pizza does more for this deck.",
+            text: "Cut Raphael, Tough Turtle. I know, he looks cool -- but 52.3% GIH WR and your pool only has 5 red sources for his RR cost. Karsten says you need 8 for on-curve. You're also short on removal (2 pieces vs the 4.6 winning decks average). Everything Pizza does more for this deck.",
           },
         ]}
       />
@@ -260,7 +260,7 @@
         examples={[
           {
             role: "player",
-            text: "Building Korvold — what combos should I include?",
+            text: "Building Korvold -- what combos should I include?",
           },
           {
             role: "ai",
@@ -271,52 +271,35 @@
     </div>
   </MarketingSection>
 
-  <!-- ═══ TWO-TIER CTA ═══ -->
+  <!-- ═══ HOW IT WORKS ═══ -->
   <MarketingSection
-    id="tiers"
-    eyebrow="CONNECT"
-    title="Two ways in"
-    subtitle="All-format reference works immediately. Install the daemon to unlock your Arena rank, match history, and live draft coaching."
+    eyebrow="HOW IT WORKS"
+    title="Add Magic. It connects the right way."
+    subtitle="You add Magic; Savecraft connects it the way Magic works. There's no tier to upgrade into and nothing to install first."
   >
-    <div class="tiers-grid">
-      <div class="tier-card">
-        <div class="tier-header tier-instant">
-          <span class="tier-label">TRY IT NOW</span>
-          <span class="tier-badge">NO INSTALL</span>
-        </div>
-        <div class="tier-body">
-          <p class="tier-desc">
-            Connect Savecraft to Claude or ChatGPT. All-format expert modules work immediately, no
-            install required:
-          </p>
-          <ul class="tier-features">
-            {#each instantModules as mod (mod.name)}
-              <li>{mod.name}</li>
-            {/each}
-          </ul>
-          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold tier-cta">TRY THE EXPERT MODULES</a>
-        </div>
+    <div class="method-grid">
+      <div class="method-item">
+        <span class="method-source">Reference, the second you add it</span>
+        <span class="method-desc">
+          Every format -- Commander, Standard, draft, Legacy -- answers the moment Magic is on your
+          list. EDHREC combos, 17Lands win rates, Karsten mana math, the full Comprehensive Rules.
+          No account, no install, no log. Ask away.
+        </span>
       </div>
-
-      <div class="tier-card">
-        <div class="tier-header tier-deep">
-          <span class="tier-label">GO DEEPER</span>
-          <span class="tier-badge">YOUR DATA</span>
-        </div>
-        <div class="tier-body">
-          <p class="tier-desc">
-            Install the Savecraft daemon to sync your MTGA Player.log. Your AI can then coach with
-            your actual game state:
-          </p>
-          <ul class="tier-features">
-            <li>Review your draft picks against optimal lines</li>
-            <li>Health-check your deck vs winning archetypes</li>
-            <li>Calculate wildcard cost for any decklist</li>
-            <li>Track your rank, currencies, wildcards, and match history</li>
-          </ul>
-          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-outline tier-cta">INSTALL THE DAEMON</a>
-        </div>
+      <div class="method-item">
+        <span class="method-source">Your Arena game, once it's reading your Player.log</span>
+        <span class="method-desc">
+          Add Magic on the machine you play Arena on and Savecraft walks you through pairing it
+          once. It reads MTGA's Player.log in place -- the log never leaves your device, only parsed
+          state is sent -- so your AI can coach your live draft, health-check your deck against
+          winning archetypes, and price a wildcard swap. Honest limits: turn on Arena's Detailed
+          Logs first, the log resets each time Arena restarts, and Arena never writes your card
+          collection to it -- so ownership is the one thing Savecraft cannot see.
+        </span>
       </div>
+    </div>
+    <div class="cta-actions" style="margin-top: 28px;">
+      <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT CLAUDE OR CHATGPT</a>
     </div>
   </MarketingSection>
 
@@ -330,10 +313,10 @@
       <div class="method-item">
         <span class="method-source">17Lands</span>
         <span class="method-desc">
-          Per-card win rates across all 31 color archetypes — mono through five-color — plus synergy
-          matrices and draft signal data from millions of real Arena games. Bayesian shrinkage
-          ensures sparse archetypes blend toward the overall mean instead of producing noisy
-          recommendations. Licensed CC BY 4.0.
+          Per-card win rates across all 31 color archetypes -- mono through five-color -- plus
+          synergy matrices and draft signal data from millions of real Arena games. Bayesian
+          shrinkage ensures sparse archetypes blend toward the overall mean instead of producing
+          noisy recommendations. Licensed CC BY 4.0.
         </span>
       </div>
       <div class="method-item">
@@ -354,7 +337,7 @@
       <div class="method-item">
         <span class="method-source">WASPAS</span>
         <span class="method-desc">
-          Weighted Aggregated Sum Product Assessment — a multi-criteria decision method that blends
+          Weighted Aggregated Sum Product Assessment -- a multi-criteria decision method that blends
           8 scoring axes with pick-adaptive weights across all 31 archetype candidates,
           format-adjusted by empirical win rate so the system naturally steers toward stronger
           archetypes. Early picks favor baseline power; late picks favor synergy and castability.
@@ -375,9 +358,13 @@
   <section class="section cta-section">
     <div class="cta-inner">
       <h2 class="cta-title">Give your AI the real data.</h2>
-      <p class="cta-sub">Connect in 30 seconds. Works with Claude and ChatGPT.</p>
+      <p class="cta-sub">
+        Connect Claude or ChatGPT, add Magic, and your AI stops inventing cards.
+      </p>
       <div class="cta-actions">
-        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">CONNECT YOUR ARENA DATA</a>
+        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large"
+          >CONNECT CLAUDE OR CHATGPT</a
+        >
       </div>
     </div>
   </section>
@@ -648,114 +635,6 @@
     gap: 20px;
   }
 
-  /* ── Two-tier CTA ────────────────────────────────────── */
-  .tiers-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-
-  .tier-card {
-    background: linear-gradient(135deg, #0a0e2e 0%, #111b47 50%, #0a0e2e 100%);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    overflow: hidden;
-    transition: border-color 0.3s;
-  }
-
-  .tier-card:hover {
-    border-color: var(--color-border-light);
-  }
-
-  .tier-header {
-    padding: 14px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid rgba(74, 90, 173, 0.2);
-    background: rgba(5, 7, 26, 0.4);
-  }
-
-  .tier-label {
-    font-family: var(--font-heading);
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-  }
-
-  .tier-badge {
-    font-family: var(--font-pixel);
-    font-size: 7px;
-    letter-spacing: 1.5px;
-    padding: 4px 10px;
-    border-radius: 2px;
-  }
-
-  .tier-instant .tier-label {
-    color: var(--color-green);
-  }
-
-  .tier-instant .tier-badge {
-    color: var(--color-green);
-    background: rgba(90, 190, 138, 0.1);
-    border: 1px solid rgba(90, 190, 138, 0.25);
-  }
-
-  .tier-deep .tier-label {
-    color: var(--color-gold);
-  }
-
-  .tier-deep .tier-badge {
-    color: var(--color-gold);
-    background: rgba(200, 168, 78, 0.1);
-    border: 1px solid rgba(200, 168, 78, 0.25);
-  }
-
-  .tier-body {
-    padding: 22px 20px;
-  }
-
-  .tier-desc {
-    font-family: var(--font-heading);
-    font-size: 15px;
-    font-weight: 400;
-    color: var(--color-text-dim);
-    line-height: 1.6;
-    margin-bottom: 16px;
-  }
-
-  .tier-features {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .tier-features li {
-    font-family: var(--font-heading);
-    font-size: 14px;
-    font-weight: 400;
-    color: var(--color-text);
-    padding-left: 18px;
-    position: relative;
-    line-height: 1.5;
-  }
-
-  .tier-features li::before {
-    content: "+";
-    position: absolute;
-    left: 0;
-    color: var(--color-green);
-    font-weight: 700;
-  }
-
-  .tier-cta {
-    display: inline-block;
-  }
-
   /* ── Methodology ─────────────────────────────────────── */
   .method-grid {
     display: grid;
@@ -841,10 +720,6 @@
     }
 
     .modes-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .tiers-grid {
       grid-template-columns: 1fr;
     }
 
