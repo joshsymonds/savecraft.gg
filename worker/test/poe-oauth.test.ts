@@ -127,9 +127,7 @@ describe("PoE GGG OAuth + discoverSaves", () => {
         }),
       );
 
-      const sourceCount = await env.DB.prepare(
-        "SELECT COUNT(*) c FROM sources WHERE user_uuid = ?",
-      )
+      const sourceCount = await env.DB.prepare("SELECT COUNT(*) c FROM sources WHERE user_uuid = ?")
         .bind(USER_UUID)
         .first<{ c: number }>();
       expect(sourceCount!.c).toBe(0);
@@ -298,9 +296,7 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       expect(resp.status).toBe(302);
       expect(new URL(resp.headers.get("Location")!).searchParams.get("error")).toBe("token_failed");
 
-      const sourceCount = await env.DB.prepare(
-        "SELECT COUNT(*) c FROM sources WHERE user_uuid = ?",
-      )
+      const sourceCount = await env.DB.prepare("SELECT COUNT(*) c FROM sources WHERE user_uuid = ?")
         .bind(USER_UUID)
         .first<{ c: number }>();
       expect(sourceCount!.c).toBe(0);
