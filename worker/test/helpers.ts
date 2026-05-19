@@ -102,17 +102,31 @@ export async function cleanAll(): Promise<void> {
     user_uuid: string | null;
   }>();
   const userUuids = new Set<string>();
+  // Best-effort: a DO invalidated by a file change ("please retry") or a
+  // dropped connection during teardown must not fail the next
+  // beforeEach. Swallow per-DO errors.
+  const bestEffort = async (p: Promise<unknown>): Promise<void> => {
+    try {
+      await p;
+    } catch {
+      /* teardown is best-effort */
+    }
+  };
   await Promise.all(
     live.results.map((row) => {
       if (row.user_uuid) userUuids.add(row.user_uuid);
       const id = env.SOURCE_HUB.idFromName(row.source_uuid);
-      return env.SOURCE_HUB.get(id).fetch(new Request("https://do/cleanup", { method: "POST" }));
+      return bestEffort(
+        env.SOURCE_HUB.get(id).fetch(new Request("https://do/cleanup", { method: "POST" })),
+      );
     }),
   );
   await Promise.all(
     [...userUuids].map((userUuid) => {
       const id = env.USER_HUB.idFromName(userUuid);
-      return env.USER_HUB.get(id).fetch(new Request("https://do/cleanup", { method: "POST" }));
+      return bestEffort(
+        env.USER_HUB.get(id).fetch(new Request("https://do/cleanup", { method: "POST" })),
+      );
     }),
   );
 

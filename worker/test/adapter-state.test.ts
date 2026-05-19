@@ -274,7 +274,7 @@ describe("SourceHub /set-game-status", () => {
     await closeWs(uiWs);
   });
 
-  it("sets alarm after marking adapter source online", async () => {
+  it("marks the adapter source online without arming a (dead) alarm (#24)", async () => {
     const userUuid = "adapter-alarm-user";
     const sourceUuid = await seedAdapterSource(userUuid);
 
@@ -287,12 +287,14 @@ describe("SourceHub /set-game-status", () => {
     const debug = await getDebugState(sourceUuid);
     expect(debug.sourceState.sources[0]!.online).toBe(true);
 
-    // Verify alarm is set via debug endpoint
+    // set-game-status forwards to UserHub synchronously; alarm() early-
+    // returns for adapter sources, so arming an alarm here is dead work
+    // that only leaked across the shared test pool. No alarm must be set.
     const doId = env.SOURCE_HUB.idFromName(sourceUuid);
     const doStub = env.SOURCE_HUB.get(doId);
     const resp = await doStub.fetch(new Request("https://do/debug/state"));
     const fullDebug = await resp.json<{ alarm: string | null }>();
-    expect(fullDebug.alarm).not.toBeNull();
+    expect(fullDebug.alarm).toBeNull();
   });
 
   it("does not evict adapter sources via alarm (adapter lifecycle driven by cron)", async () => {
