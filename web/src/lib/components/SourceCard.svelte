@@ -1,7 +1,7 @@
 <!--
   @component
   Source card: displays a single source with platform/device icon,
-  hostname, and connection status. Used in SourceCardGrid.
+  hostname, and connection status.
 -->
 <script lang="ts">
   import type { Source } from "$lib/types/source";

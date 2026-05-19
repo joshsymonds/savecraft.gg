@@ -34,14 +34,30 @@ export async function discoverAndReconcileSaves(
     discovered,
   );
 
-  // Reflect the active characters as named saves in the live source
+  // Reflect the ACTIVE characters as named saves in the live source
   // state. reconcile owns D1; the dashboard renders the SourceHub DO,
   // which only learns of saves via a push (Req 5 discovery is
-  // summary-less, so reconcile alone never reaches the DO).
+  // summary-less, so reconcile alone never reaches the DO). reconcile
+  // soft-deletes a vanished/renamed character by setting
+  // linked_characters.active=0 only — the saves row survives — so the
+  // sync MUST be gated on an active linked_character or a deleted
+  // character re-appears on the dashboard. Name match mirrors the
+  // adapter-refresh cron (WoW save_name is "Name-realm-REGION").
   const saves = await env.DB.prepare(
-    "SELECT uuid, save_name FROM saves WHERE user_uuid = ? AND game_id = ?",
+    `SELECT s.uuid, s.save_name FROM saves s
+     WHERE s.user_uuid = ? AND s.game_id = ?
+       AND EXISTS (
+         SELECT 1 FROM linked_characters lc
+         WHERE lc.user_uuid = s.user_uuid AND lc.game_id = s.game_id
+           AND lc.source_uuid = ? AND lc.active = 1
+           AND lc.character_name = CASE
+                 WHEN INSTR(s.save_name, '-') > 0
+                   THEN SUBSTR(s.save_name, 1, INSTR(s.save_name, '-') - 1)
+                 ELSE s.save_name
+               END
+       )`,
   )
-    .bind(userUuid, adapter.gameId)
+    .bind(userUuid, adapter.gameId, sourceUuid)
     .all<{ uuid: string; save_name: string }>();
 
   if (saves.results.length > 0) {

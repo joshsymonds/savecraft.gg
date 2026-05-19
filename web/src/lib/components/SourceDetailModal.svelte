@@ -1,7 +1,7 @@
 <!--
   @component
   Modal showing source diagnostics and per-game config.
-  Opened by clicking a SourceCard in the SourceCardGrid.
+  Opened from the dashboard's paired-computers list.
 -->
 <script lang="ts">
   import { deleteSource } from "$lib/api/client";

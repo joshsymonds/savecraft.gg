@@ -15,6 +15,10 @@ import type { Env } from "../../../worker/src/types";
 
 const GGG_API_BASE = "https://api.pathofexile.com";
 
+// Caps any single GGG HTTP call so a hung socket can't pin a cron
+// fan-out slot for the Worker's full wall-clock budget.
+const GGG_REQUEST_TIMEOUT_MS = 30_000;
+
 // GGG requires `OAuth {clientId}/{version} (contact: {email})`. The id
 // segment is our registered OAuth app slug (not a secret); the access
 // token is the actual credential. Keep in sync with the registered app.
@@ -36,6 +40,9 @@ export async function gggGet<T>(path: string, accessToken: string): Promise<T> {
         "User-Agent": GGG_USER_AGENT,
         Accept: "application/json",
       },
+      // A hung GGG socket otherwise holds a cron fan-out slot for the
+      // Worker's whole wall-clock budget (mirrors the pob-server call).
+      signal: AbortSignal.timeout(GGG_REQUEST_TIMEOUT_MS),
     });
   } catch (cause) {
     throw new AdapterError(
@@ -110,6 +117,7 @@ export async function ensureGggAccessToken(
       client_id: env.GGG_CLIENT_ID ?? "",
       client_secret: env.GGG_CLIENT_SECRET ?? "",
     }),
+    signal: AbortSignal.timeout(GGG_REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new AdapterError("token_expired", `GGG token refresh failed (${res.status})`, {

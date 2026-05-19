@@ -1,6 +1,8 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import type { ApiAdapter, DiscoveredSave } from "../src/adapters/adapter";
+import { discoverAndReconcileSaves } from "../src/adapters/discover";
 import { GameStatusEnum } from "../src/proto/savecraft/v1/protocol";
 
 import {
@@ -447,5 +449,57 @@ describe("SourceHub /sync-discovered-saves (#23)", () => {
     };
     const game = debug.sourceState.sources[0]!.games.find((g) => g.gameId === "poe")!;
     expect(game.saves).toHaveLength(1);
+  });
+});
+
+describe("discoverAndReconcileSaves only syncs ACTIVE characters to the DO", () => {
+  beforeEach(cleanAll);
+
+  it("does not re-push a soft-deleted (active=0) character's stale save", async () => {
+    const userUuid = crypto.randomUUID();
+    const sourceUuid = await seedAdapterSource(userUuid);
+
+    // A previously-linked character that has since been soft-deleted
+    // (reconcile sets active=0 but leaves the saves row behind).
+    await env.DB.prepare(
+      `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+       VALUES (?, 'poe', 'id-gone', 'Gone', '{}', ?, 0)`,
+    )
+      .bind(userUuid, sourceUuid)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
+       VALUES ('save-gone', ?, 'poe', 'Path of Exile', 'Gone', '', datetime('now'), ?)`,
+    )
+      .bind(userUuid, sourceUuid)
+      .run();
+
+    const fakeAdapter = {
+      gameId: "poe",
+      gameName: "Path of Exile",
+      getOAuthConfig() {
+        throw new Error("unused");
+      },
+      discoverSaves(): Promise<DiscoveredSave[]> {
+        return Promise.resolve([
+          { saveName: "Keep", characterId: "id-keep", displayName: "Keep", metadata: {} },
+        ]);
+      },
+      fetchState() {
+        throw new Error("unused");
+      },
+    } as unknown as ApiAdapter;
+
+    await discoverAndReconcileSaves(fakeAdapter, env, "tok", "pc", userUuid, sourceUuid);
+
+    const debug = (await getDebugState(sourceUuid)) as unknown as {
+      sourceState: {
+        sources: { games: { gameId: string; saves: { identity?: { name: string } }[] }[] }[];
+      };
+    };
+    const game = debug.sourceState.sources[0]!.games.find((g) => g.gameId === "poe")!;
+    const names = game.saves.map((s) => s.identity?.name);
+    expect(names).toEqual(["Keep"]);
+    expect(names).not.toContain("Gone");
   });
 });
