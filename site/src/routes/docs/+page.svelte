@@ -10,31 +10,32 @@
   <title>Docs - Savecraft</title>
   <meta
     name="description"
-    content="Connect your AI assistant to your game saves. Setup guides for Claude and ChatGPT."
+    content="How Savecraft works: add a game and your AI gets real data for it -- reference instantly, your live characters when you connect an account or your save files. Setup guides for Claude and ChatGPT."
   />
 </svelte:head>
 
 <article class="docs">
   <h1 class="docs-title">Documentation</h1>
   <p class="docs-subtitle">
-    Connect your AI assistant to your actual game state &mdash; characters, gear, progress, and
-    goals &mdash; parsed from real save files and game APIs.
+    Add a game and your AI gets real data for it -- characters, gear, progress, goals -- instead of
+    confidently making things up.
   </p>
 
   <!-- WHAT IS SAVECRAFT -->
   <section class="section">
     <h2 class="section-title">What is Savecraft?</h2>
     <p>
-      Savecraft is an MCP server that gives AI assistants access to your video game data. It works
-      two ways: a local daemon watches your save files on your PC and pushes parsed game state to
-      the cloud, and server-side adapters pull character data from game APIs like Battle.net. Both
-      feed the same set of MCP tools, so your AI assistant sees your real characters, gear, stats,
-      and progress &mdash; not hallucinated guesses.
+      Savecraft is an MCP server that gives AI assistants real data for the games you add. You
+      connect your assistant once, then add a game -- and Savecraft connects it the right way for
+      that game. You never pick the plumbing and you never start with an install. Your assistant
+      sees real characters, gear, stats, and progress, not hallucinated guesses.
     </p>
     <p>
-      Your assistant can read your game state, search across saves and notes, run reference
-      computations (like exact drop rates or stat breakpoints), and help you track goals between
-      sessions using notes.
+      Reference data -- rules, items, builds, drop rates, prices -- works the second a game is on
+      your list, with no account and no install. Connect a game's account (Path of Exile, World of
+      Warcraft) or add it on the machine you play it on, and your live characters come along too.
+      Your assistant can read that state, search across your saves and notes, run reference
+      computations, and track goals between sessions.
     </p>
   </section>
 
@@ -74,8 +75,8 @@
             >
           </li>
           <li class="success-step">
-            <strong>Success looks like:</strong> Claude responds with your game saves &mdash; character
-            names, levels, builds, and stats.
+            <strong>Success looks like:</strong> Claude responds with your game saves -- character names,
+            levels, builds, and stats.
           </li>
         </ol>
       </div>
@@ -102,17 +103,19 @@
             >
           </li>
           <li class="success-step">
-            <strong>Success looks like:</strong> ChatGPT responds with your game saves &mdash; character
-            names, levels, builds, and stats.
+            <strong>Success looks like:</strong> ChatGPT responds with your game saves -- character names,
+            levels, builds, and stats.
           </li>
         </ol>
       </div>
     </div>
 
     <p class="section-note">
-      You can revoke access at any time from your
-      <a href={`${PUBLIC_APP_URL}/sources`} class="text-link">sources page</a>. Your AI assistant
-      never sees your password &mdash; only a token that grants access to your saves and notes.
+      Revoke access whenever you want: remove the Savecraft connector from Claude's or ChatGPT's own
+      settings, or open your
+      <a href={PUBLIC_APP_URL} class="text-link">Savecraft dashboard</a> to disconnect a game or unpair
+      a computer. Your AI assistant never sees your password -- only a token that grants access to your
+      games and notes.
     </p>
   </section>
 
@@ -130,7 +133,7 @@
           <li>&ldquo;What level is my character and what difficulty am I on?&rdquo;</li>
           <li>&ldquo;Show me what gear my character has equipped.&rdquo;</li>
           <li>&ldquo;What skills do I have allocated?&rdquo;</li>
-          <li>&ldquo;Compare my resistances &mdash; am I ready for the next difficulty?&rdquo;</li>
+          <li>&ldquo;Compare my resistances -- am I ready for the next difficulty?&rdquo;</li>
         </ul>
       </div>
 
@@ -139,7 +142,7 @@
         <ul class="example-list">
           <li>&ldquo;Save a note with my farming goals for this week.&rdquo;</li>
           <li>&ldquo;What notes do I have on my Paladin?&rdquo;</li>
-          <li>&ldquo;Update my build guide &mdash; I swapped to a different weapon.&rdquo;</li>
+          <li>&ldquo;Update my build guide -- I swapped to a different weapon.&rdquo;</li>
         </ul>
       </div>
 
@@ -163,7 +166,7 @@
     <div class="not-examples">
       <h3 class="not-examples-title">What Savecraft doesn't do</h3>
       <p>
-        Savecraft provides your game data &mdash; it doesn't replace the AI's general knowledge.
+        Savecraft provides your game data -- it doesn't replace the AI's general knowledge.
         Questions like &ldquo;What's the best build for a Paladin?&rdquo; or &ldquo;How do I beat
         this boss?&rdquo; use the AI's own training data, not Savecraft. Savecraft kicks in when the
         answer depends on <em>your</em> actual game state.
@@ -176,7 +179,7 @@
     <h2 class="section-title">Tools reference</h2>
     <p class="section-intro">
       Savecraft exposes 11 MCP tools. Your AI assistant chooses the right tool automatically based
-      on your question &mdash; you don't need to call these directly.
+      on your question -- you don't need to call these directly.
     </p>
 
     <div class="tools-table-wrap">
@@ -218,7 +221,10 @@
           </tr>
           <tr>
             <td><code>refresh_save</code></td>
-            <td>Requests fresh data from your source or game API.</td>
+            <td
+              >Pulls the latest data for a save -- re-reads the save file or refetches from the
+              game's API.</td
+            >
           </tr>
           <tr>
             <td><code>search_saves</code></td>
@@ -237,31 +243,37 @@
     </div>
   </section>
 
-  <!-- DATA SOURCES -->
+  <!-- HOW A GAME CONNECTS -->
   <section class="section">
-    <h2 class="section-title">How your data gets here</h2>
+    <h2 class="section-title">How a game connects</h2>
+    <p class="section-intro">
+      You only ever do one thing: add a game. What that does follows from the game itself -- it's
+      not a menu you navigate. Here's what "add a game" means for each kind.
+    </p>
     <div class="source-cards">
       <div class="source-card">
-        <h3 class="source-card-title">Local daemon</h3>
+        <h3 class="source-card-title">Reference, instantly</h3>
         <p>
-          A lightweight service on your PC watches your game's save directory. When a save file
-          changes, the daemon parses it with a game-specific WASM plugin and pushes structured game
-          state to Savecraft over WebSocket. Supports any game with local save files.
+          Every supported game answers expert questions the moment you add it -- rules, items,
+          builds, drop rates, prices. No account, no install, no save files touched. This is the
+          floor for every game.
         </p>
       </div>
       <div class="source-card">
-        <h3 class="source-card-title">API adapters</h3>
+        <h3 class="source-card-title">Your account</h3>
         <p>
-          For games with public APIs (like Battle.net), Savecraft fetches your character data
-          server-side. No daemon needed &mdash; just link your game account and your data stays
-          current automatically.
+          Path of Exile (a GGG-approved connection) and World of Warcraft sign in through the game's
+          own provider -- read-only, no install. Savecraft reads your live characters from the
+          game's servers, as fresh as your last refresh.
         </p>
       </div>
       <div class="source-card">
-        <h3 class="source-card-title">Game mods</h3>
+        <h3 class="source-card-title">Your save files or a mod</h3>
         <p>
-          For moddable games, a Savecraft mod can push game state directly from inside the game. No
-          daemon, no save file parsing &mdash; the mod sees everything the game knows.
+          Save-file games (Diablo II, Stardew Valley, RimWorld, Stellaris) read in place on the
+          machine you play on -- the files never leave your device, only parsed state is sent.
+          Moddable games like Factorio push state from a Savecraft mod instead. Adding the game
+          walks you through whichever it needs.
         </p>
       </div>
     </div>
@@ -272,14 +284,13 @@
     <h2 class="section-title">More</h2>
     <ul class="link-list">
       <li>
-        <a href="/games" class="text-link">Supported games</a> &mdash; see what's available and what's
-        coming
+        <a href="/games" class="text-link">Supported games</a> -- see what's available and what's coming
       </li>
       <li>
-        <a href="/privacy" class="text-link">Privacy policy</a> &mdash; what we collect and why
+        <a href="/privacy" class="text-link">Privacy policy</a> -- what we collect and why
       </li>
       <li>
-        <a href="/support" class="text-link">Support</a> &mdash; Discord and email
+        <a href="/support" class="text-link">Support</a> -- Discord and email
       </li>
       <li>
         <a
@@ -287,7 +298,7 @@
           class="text-link"
           target="_blank"
           rel="noopener">Source code</a
-        > &mdash; Savecraft is open source
+        > -- Savecraft is open source
       </li>
     </ul>
   </section>
@@ -406,27 +417,6 @@
     border-left: 3px solid var(--color-green);
     border-radius: 0 4px 4px 0;
     margin-top: 4px;
-  }
-
-  .substeps {
-    list-style: disc;
-    padding-left: 22px;
-    margin-top: 8px;
-    margin-bottom: 0;
-  }
-
-  .substeps li {
-    font-family: var(--font-heading);
-    font-size: 15px;
-    font-weight: 400;
-    color: var(--color-text-dim);
-    line-height: 1.6;
-    padding: 2px 0;
-  }
-
-  .substeps .url-block {
-    margin-top: 6px;
-    margin-bottom: 0;
   }
 
   .section-note {
