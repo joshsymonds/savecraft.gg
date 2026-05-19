@@ -2,11 +2,13 @@
  * Path of Exile API adapter — connects a player's GGG account via
  * OAuth and imports their characters as builds.
  *
- * Skeleton: structure + static OAuth config + registration only. The
- * OAuth flow (PKCE S256 routes), discoverSaves (GET /character), and
- * fetchState (GET /character/<name> → sections + pob-server /import)
- * land in subsequent tasks. discoverSaves/fetchState throw a typed
- * AdapterError placeholder until then.
+ * Confidential OAuth client (Authorization Code + PKCE S256; routes in
+ * worker/src/index.ts). discoverSaves lists characters via GET
+ * /character and reconciles them into saves (connect = discover-only).
+ * fetchState (the sole GGG-touching path, driven by refresh_save) calls
+ * GET /profile + GET /character/<name>, maps the result to GameState
+ * sections, and converts the character to a PoB build via pob-server
+ * POST /import. GGG token refresh happens in-adapter (see ggg-api.ts).
  *
  * GGG is a single global OAuth endpoint (no per-region hosts, unlike
  * Battle.net); `region` is the PoE realm ("pc" for PoE1 PC) and does
