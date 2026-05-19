@@ -7,29 +7,31 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 )
 
 // Real-fixture coverage for the GGG→PoB import path beyond the single
 // basic fixture (epic Req 8 / fixture-expansion success criterion).
 //
-// Provenance: like ggg_character_basic.json these are hand-constructed
-// to the GGG OAuth reference schema (not live captures — GGG OAuth
-// capture tooling isn't wired yet). See testdata/README.md.
+// Provenance (see testdata/README.md):
 //
-//   - ggg_character_settlers.json: byte-for-byte the basic Juggernaut
-//     with a non-Standard league. Faithful enough (only the league
-//     string differs from the known-good basic build) to drive the
-//     live PoB engine — asserts deterministic buildId + real calc.
-//   - ggg_character_cluster.json: adds a Large Cluster Jewel + a
-//     passives.jewel_data expansion subgraph. A synthetic cluster
-//     subgraph cannot be validated against the live PoB tree without a
-//     real capture, so this fixture exercises the property Go actually
-//     owns and the content-addressed buildId depends on: the transform
-//     passes jewel_data and the cluster jewel through byte-verbatim and
-//     deterministically. Real-PoB calc assertion for cluster jewels is
-//     deferred until a real captured character is dropped in (TODO in
-//     testdata/README.md).
+//   - ggg_character_settlers.json: hand-constructed — byte-for-byte the
+//     basic Juggernaut with a non-Standard league. Faithful enough
+//     (only the league string differs from the known-good basic build)
+//     to drive the live PoB engine — asserts deterministic buildId +
+//     real calc.
+//   - ggg_character_cluster.json: hand-constructed — adds a Large
+//     Cluster Jewel + a passives.jewel_data expansion subgraph. A
+//     synthetic cluster subgraph cannot be validated against the live
+//     PoB tree, so this fixture exercises only the property Go owns:
+//     the transform passes jewel_data and the cluster jewel through
+//     byte-verbatim and deterministically.
+//   - ggg_character_real_chalith.json: a REAL live GGG capture (via the
+//     OAuth adapter from staging) — a level 90 Ascendant with 9 jewels
+//     socketed in the passive tree. Closes the cluster fixture's
+//     deferred "needs real capture" TODO: drives the live PoB engine
+//     and asserts all 9 jewels actually land in tree sockets.
 
 func loadFixture(t *testing.T, name string) json.RawMessage {
 	t.Helper()
@@ -137,11 +139,19 @@ func TestImportClusterJewelTransformPassthroughDeterministic(t *testing.T) {
 		t.Fatalf("parse passives body: %v", err)
 	}
 	if !jsonEqual(t, src.Passives.JewelData, out.JewelData) {
-		t.Errorf("jewel_data not passed through verbatim\n in: %s\nout: %s", src.Passives.JewelData, out.JewelData)
+		t.Errorf(
+			"jewel_data not passed through verbatim\n in: %s\nout: %s",
+			src.Passives.JewelData,
+			out.JewelData,
+		)
 	}
 	// The Large Cluster Jewel reaches the passive importer's items[].
 	if len(out.Items) != len(src.Jewels) {
-		t.Fatalf("passives items length = %d, want %d (jewels passthrough)", len(out.Items), len(src.Jewels))
+		t.Fatalf(
+			"passives items length = %d, want %d (jewels passthrough)",
+			len(out.Items),
+			len(src.Jewels),
+		)
 	}
 	found := false
 	for _, it := range out.Items {
@@ -234,6 +244,111 @@ func TestImportTransformNegativePaths(t *testing.T) {
 				t.Errorf("get-items items = %s, want [] when equipment absent/null", items.Items)
 			}
 		})
+	}
+}
+
+// ggg_character_real_chalith.json is a REAL GGG `GET /character/<name>`
+// capture (level 90 Ascendant, 9 jewels socketed in the passive tree
+// with a real passives.jewel_data, captured live via the OAuth adapter
+// from staging). It closes the README "TODO (needs real capture)" and
+// epic Req 16 (no synthetic-only evidence) for the jewel import path —
+// previously only a hand-built synthetic cluster fixture existed.
+
+// All 9 real socketed jewels must reach PoB's passive importer items[],
+// and jewel_data must pass through verbatim. Always runs (no PoB).
+func TestImportRealCharacterJewelsTransformPassthrough(t *testing.T) {
+	fixture := loadFixture(t, "ggg_character_real_chalith.json")
+
+	_, passives, err := transformToImportJSON(fixture)
+	if err != nil {
+		t.Fatalf("transform: %v", err)
+	}
+
+	var src struct {
+		Passives struct {
+			JewelData json.RawMessage `json:"jewel_data"`
+		} `json:"passives"`
+		Jewels []json.RawMessage `json:"jewels"`
+	}
+	if err := json.Unmarshal(fixture, &src); err != nil {
+		t.Fatalf("parse fixture: %v", err)
+	}
+	if len(src.Jewels) != 9 {
+		t.Fatalf("fixture precondition: want 9 captured jewels, got %d", len(src.Jewels))
+	}
+
+	var out struct {
+		JewelData json.RawMessage   `json:"jewel_data"`
+		Items     []json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(passives, &out); err != nil {
+		t.Fatalf("parse passives body: %v", err)
+	}
+	if len(out.Items) != len(src.Jewels) {
+		t.Fatalf(
+			"passives items = %d, want %d (every real socketed jewel reaches the passive importer)",
+			len(out.Items),
+			len(src.Jewels),
+		)
+	}
+	if !jsonEqual(t, src.Passives.JewelData, out.JewelData) {
+		t.Errorf("jewel_data not passed through verbatim for the real capture")
+	}
+}
+
+// The real-PoB calc assertion the README explicitly deferred: drive the
+// live PoB engine with the real capture and prove all 9 jewels actually
+// land in passive-tree sockets bound to their items — i.e. the
+// inventoryId/x → socket placement #15 names works end to end. Skips
+// without POB_DIR (outside the devenv shell).
+func TestImportRealCharacterJewelsPlacedRealPoB(t *testing.T) {
+	srv := setupRealServer(t)
+	ts := realServerHTTP(t, srv)
+
+	fixture := loadFixture(t, "ggg_character_real_chalith.json")
+	resp := postImport(t, ts.URL, fixture)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, b)
+	}
+
+	var env struct {
+		XML  string `json:"xml"`
+		Data struct {
+			Summary struct {
+				Life float64 `json:"Life"`
+			} `json:"summary"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if env.Data.Summary.Life <= 0 {
+		t.Errorf("real build Life = %v, want > 0", env.Data.Summary.Life)
+	}
+
+	// PoB writes one `<Socket .../>` per allocated jewel socket with
+	// nodeId (the passive tree node) + itemId (the bound jewel, 0 =
+	// empty). PoB's Lua XML serializer emits attributes in
+	// non-deterministic order, so match per-element, not by fixed
+	// attribute order. The leading space excludes `<Sockets>` and
+	// `<SocketIdURL>`. Chalith has 9 jewels socketed in the tree.
+	itemIDRe := regexp.MustCompile(`\bitemId="(\d+)"`)
+	nodeIDRe := regexp.MustCompile(`\bnodeId="\d+"`)
+	bound := 0
+	for _, el := range regexp.MustCompile(`<Socket [^>]*/>`).FindAllString(env.XML, -1) {
+		id := itemIDRe.FindStringSubmatch(el)
+		if len(id) == 2 && id[1] != "0" && nodeIDRe.MatchString(el) {
+			bound++
+		}
+	}
+	if bound != 9 {
+		t.Fatalf(
+			"jewels placed in tree sockets = %d, want 9 (real capture)\nxml len=%d",
+			bound,
+			len(env.XML),
+		)
 	}
 }
 

@@ -49,12 +49,27 @@ content-addressed buildId depends on:
 transform passes `jewel_data` and the cluster jewel item through
 byte-verbatim and deterministically.
 
-**TODO (needs real capture):** drop a real GGG `GET /character/<name>`
-JSON for an actual cluster-jewel character here and add a real-PoB calc
-assertion (deterministic buildId + non-zero Life) mirroring
-`TestImportMultiLeagueRealPoB`. Requires GGG OAuth capture tooling / an
-authorized account; do not fabricate the subgraph for a live-engine
-assertion.
+## ggg_character_real_chalith.json
 
-**Still deliberately out of scope** (need real captures): `hashes_ex`
-and mastery-effect-heavy characters.
+**Real live capture.** A genuine GGG `GET /character/<name>` response
+(bare character object, envelope stripped) captured via the OAuth
+adapter from staging: a level 90 Ascendant with **9 jewels socketed in
+the passive tree** (`inventoryId: "PassiveJewels"`, distinct `x` socket
+indices) and a matching 9-entry `passives.jewel_data`. This is the real
+capture the cluster TODO asked for — none of the authorized account's
+characters run a cluster jewel, but a 9-socket tree-jewel build
+exercises the same `inventoryId`/`x` → tree-socket placement path the
+synthetic cluster fixture could not validate against the live engine.
+
+- `TestImportRealCharacterJewelsTransformPassthrough` (always runs):
+  all 9 jewels reach the passive importer's `items[]` and `jewel_data`
+  passes through verbatim.
+- `TestImportRealCharacterJewelsPlacedRealPoB` (needs `POB_DIR`): the
+  live PoB engine places all 9 jewels into tree sockets bound to their
+  items (non-zero Life). Asserts per-`<Socket>` because PoB's Lua XML
+  serializer emits attributes in non-deterministic order.
+
+**Still deliberately out of scope** (need real captures): an actual
+cluster-jewel character (`jewel_data` expansion subgraph against the
+live tree — `ggg_character_cluster.json` still covers transform
+passthrough only), `hashes_ex`, and mastery-effect-heavy characters.
