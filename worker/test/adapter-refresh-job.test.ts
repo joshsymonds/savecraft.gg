@@ -387,6 +387,30 @@ describe("Adapter Refresh Job — backpressure (#30)", () => {
     expect(row!.deferred).toBe(1);
   });
 
+  it("clamps an absurd Retry-After so a save is never parked forever", async () => {
+    const sourceUuid = await seedAdapterSource(USER_UUID);
+    await seedGameCredentials(USER_UUID, "poolgame", "tok");
+    const saveUuid = await seedAdapterSave(USER_UUID, sourceUuid, "poolgame", "Huge-testrealm-US");
+    await seedLinkedCharacter(USER_UUID, sourceUuid, "poolgame", "Huge", {
+      realm_slug: "testrealm",
+      region: "us",
+    });
+    // A malformed GGG header (absolute epoch instead of a delta).
+    poolError = new AdapterError("rate_limited", "GGG rate limit", { retryAfter: 1e12 });
+
+    await refreshAdapterSources(env);
+
+    const row = await env.DB.prepare(
+      `SELECT (last_refresh_at > datetime('now')) AS deferred,
+              (last_refresh_at <= datetime('now','+86460 seconds')) AS clamped
+       FROM saves WHERE uuid = ?`,
+    )
+      .bind(saveUuid)
+      .first<{ deferred: number; clamped: number }>();
+    expect(row!.deferred).toBe(1); // still deferred…
+    expect(row!.clamped).toBe(1); // …but capped at ~24h, not year 33000
+  });
+
   it("a non-rate-limit error keeps the normal cooldown (no future deferral)", async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
     await seedGameCredentials(USER_UUID, "poolgame", "tok");

@@ -23,6 +23,13 @@ const BATCH_LIMIT = 50;
  */
 export const REFRESH_CONCURRENCY = 4;
 
+/**
+ * Upper bound on a rate-limit deferral. GGG's Retry-After is trusted
+ * but unvalidated upstream — a malformed header (e.g. an absolute epoch
+ * instead of a delta) must not park a save effectively forever.
+ */
+const MAX_DEFER_SEC = 24 * 60 * 60;
+
 /** Single-query row with save, linked character, and credentials pre-joined. */
 interface RefreshRow {
   save_uuid: string;
@@ -77,15 +84,16 @@ export async function refreshAdapterSources(env: Env): Promise<void> {
   // Saves are user-isolated, but each refresh fires 2+ sequential GGG
   // calls + a pob-server import — refreshing all BATCH_LIMIT rows at
   // once would self-inflict GGG 429s and a pob CPU stampede for one
-  // altoholic account. Bound the in-flight count. refreshOneSave never
-  // throws (it catches internally), so a plain worker pool is safe.
+  // altoholic account. Bound the in-flight count; the pool isolates a
+  // throwing row (incl. refreshOneSave's own error-recording path) so
+  // one failure can't abort the rest of the batch.
   await runWithConcurrency(rows.results, REFRESH_CONCURRENCY, (row) => refreshOneSave(env, row));
 }
 
 /**
  * Run `worker` over `items` with at most `limit` in flight. Each pool
- * lane pulls the next item until the list is exhausted. Assumes
- * `worker` does not throw (refreshOneSave swallows its own errors).
+ * lane pulls the next item until the list is exhausted. A throwing
+ * `worker` is isolated per-item so it can't abort sibling lanes.
  */
 async function runWithConcurrency<T>(
   items: T[],
@@ -96,7 +104,15 @@ async function runWithConcurrency<T>(
   const lane = async (): Promise<void> => {
     while (next < items.length) {
       const item = items[next++];
-      if (item !== undefined) await worker(item);
+      if (item === undefined) continue;
+      try {
+        await worker(item);
+      } catch {
+        // Best-effort: even refreshOneSave's own error-recording path
+        // (D1 UPDATE + pushGameStatus) can throw if D1/the DO is down.
+        // Swallow so one bad row can't reject Promise.all and abort the
+        // remaining lanes — the row is simply retried next cron window.
+      }
     }
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => lane()));
@@ -181,7 +197,10 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
     // cooldown (deferSeconds = 0 → datetime('now')).
     const retryAfter =
       error instanceof AdapterError && error.code === "rate_limited" ? (error.retryAfter ?? 0) : 0;
-    const deferSeconds = Math.max(0, retryAfter - ADAPTER_REFRESH_COOLDOWN_SEC);
+    const deferSeconds = Math.min(
+      MAX_DEFER_SEC,
+      Math.max(0, retryAfter - ADAPTER_REFRESH_COOLDOWN_SEC),
+    );
 
     // Record failure
     await env.DB.prepare(
