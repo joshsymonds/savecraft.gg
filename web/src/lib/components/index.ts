@@ -1,6 +1,4 @@
 export { default as ActivityEvent } from "./ActivityEvent.svelte";
-export { default as AddSourceContent } from "./AddSourceContent.svelte";
-export { default as AddSourceModal } from "./AddSourceModal.svelte";
 export { default as Banner } from "./Banner.svelte";
 export { default as ConfigSuccess } from "./ConfigSuccess.svelte";
 export { default as ConnectCard } from "./ConnectCard.svelte";

@@ -1,42 +1,43 @@
 <!--
   @component
-  Retro terminal/boot screen panel shown beneath ConnectCard when no sources are connected.
-  Frames daemon install + API account-linking as the optional save-integration upgrade,
-  not the primary onboarding step (that's ConnectCard, rendered above this on the dashboard).
-  Wraps AddSourceContent with CRT-inspired visual effects.
+  Retro terminal/boot panel shown beneath ConnectCard when nothing is
+  connected yet. First-run leads with one verb — "Add a game" — which
+  opens the unified catalog (Req 17b). Daemon install, OAuth, mod-install
+  and reference-ready are contextual outcomes of picking a game, never
+  the first-run headline.
 -->
 <script lang="ts">
-  import AddSourceContent from "./AddSourceContent.svelte";
   import Panel from "./Panel.svelte";
 
-  let {
-    onsubmit,
-    onapiskip,
-  }: {
-    onsubmit?: (code: string) => void;
-    onapiskip?: () => void;
-  } = $props();
+  let { onaddgame }: { onaddgame?: () => void } = $props();
 </script>
 
 <div class="empty-state">
-  <div class="terminal" class:wide={!!onapiskip}>
-    <!-- Terminal header lines -->
+  <div class="terminal">
     <div class="terminal-header">
-      <p class="terminal-line prompt">&gt; SAVE INTEGRATION (OPTIONAL)</p>
+      <p class="terminal-line prompt">&gt; CONNECT A GAME</p>
       <p class="terminal-line prompt dim">
-        &gt; WANT YOUR AI TO ALSO READ YOUR SAVES?<span class="cursor">_</span>
+        &gt; PICK A GAME AND SAVECRAFT WIRES IT UP<span class="cursor">_</span>
       </p>
     </div>
 
-    <!-- Content panel with glow -->
     <div class="glow-wrap">
       <Panel accent="#c8a84e30">
-        <AddSourceContent {onsubmit} {onapiskip} />
+        <div class="cta-body">
+          <p class="cta-desc">
+            Add a game and Savecraft connects it the right way for that game: your account,
+            your save files, or an in-game mod. Reference data (rules, items, builds, prices)
+            works the moment it is added.
+          </p>
+          <button class="add-game-button" onclick={() => onaddgame?.()}>
+            <span class="add-game-icon">+</span>
+            <span class="add-game-label">ADD A GAME</span>
+          </button>
+        </div>
       </Panel>
     </div>
   </div>
 
-  <!-- CRT scan line overlay -->
   <div class="scanlines"></div>
 </div>
 
@@ -56,10 +57,6 @@
     gap: 20px;
     max-width: 560px;
     width: 100%;
-  }
-
-  .terminal.wide {
-    max-width: 720px;
   }
 
   /* -- Terminal header lines -------------------------------- */
@@ -99,6 +96,64 @@
     50% {
       opacity: 0;
     }
+  }
+
+  /* -- Call to action --------------------------------------- */
+
+  .cta-body {
+    padding: 24px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .cta-desc {
+    font-family: var(--font-body);
+    font-size: 17px;
+    color: var(--color-text-dim);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .add-game-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    align-self: flex-start;
+    padding: 12px 24px;
+    background: rgba(200, 168, 78, 0.08);
+    border: 2px solid var(--color-gold);
+    border-radius: 4px;
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      box-shadow 0.15s;
+    box-shadow: 0 0 12px rgba(200, 168, 78, 0.1);
+  }
+
+  .add-game-button:hover {
+    background: rgba(200, 168, 78, 0.15);
+    box-shadow: 0 0 20px rgba(200, 168, 78, 0.2);
+  }
+
+  .add-game-button:focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+  }
+
+  .add-game-icon {
+    font-family: var(--font-body);
+    font-size: 22px;
+    color: var(--color-gold);
+    line-height: 1;
+  }
+
+  .add-game-label {
+    font-family: var(--font-pixel);
+    font-size: 13px;
+    color: var(--color-gold);
+    letter-spacing: 2px;
   }
 
   /* -- Glow wrap -------------------------------------------- */

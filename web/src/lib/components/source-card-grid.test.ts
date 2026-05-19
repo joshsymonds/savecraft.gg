@@ -40,9 +40,9 @@ describe("SourceCardGrid", () => {
     expect(screen.getByText("PC")).toBeInTheDocument();
   });
 
-  it("always renders AddSourceCard", () => {
-    render(SourceCardGrid, { props: { sources: [] } });
-    expect(screen.getByText("ADD SOURCE")).toBeInTheDocument();
+  it("does not render a generic add-source card (#17a — one verb, Add a game)", () => {
+    render(SourceCardGrid, { props: { sources: [makeSource()] } });
+    expect(screen.queryByText("ADD SOURCE")).not.toBeInTheDocument();
   });
 
   it("calls oncardclick with the source when a card is clicked", async () => {
@@ -51,12 +51,5 @@ describe("SourceCardGrid", () => {
     render(SourceCardGrid, { props: { sources: [source], oncardclick } });
     await userEvent.click(screen.getByText("DECK"));
     expect(oncardclick).toHaveBeenCalledExactlyOnceWith(source);
-  });
-
-  it("calls onadd when AddSourceCard is clicked", async () => {
-    const onadd = vi.fn();
-    render(SourceCardGrid, { props: { sources: [], onadd } });
-    await userEvent.click(screen.getByText("ADD SOURCE"));
-    expect(onadd).toHaveBeenCalledOnce();
   });
 });

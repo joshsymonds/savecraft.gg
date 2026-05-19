@@ -46,9 +46,6 @@
   <div
     style="height: 100vh; background: var(--color-bg, #05071a); display: flex; align-items: center; justify-content: center;"
   >
-    <EmptySourceState
-      onsubmit={(code) => alert(`Pairing with code: ${String(code)}`)}
-      onapiskip={() => alert("Skip to game catalog")}
-    />
+    <EmptySourceState onaddgame={() => alert("Open the game catalog")} />
   </div>
 </Story>

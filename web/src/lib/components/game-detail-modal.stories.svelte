@@ -457,6 +457,20 @@
   {/if}
 </Story>
 
+<!--
+  Pair a new computer (#17c): open "ADD A COMPUTER" → "Pair a new
+  computer" to reach the shared install + 6-digit pair step inline.
+-->
+<Story name="PairNewComputer">
+  <GameDetailModal
+    game={noSourcesGame}
+    availableSources={[]}
+    onclose={() => alert("Close")}
+    onsaveclick={handleSaveClick}
+    onpair={(code) => alert(`Pair: ${code}`)}
+  />
+</Story>
+
 <style>
   .demo-btn {
     font-family: var(--font-pixel);

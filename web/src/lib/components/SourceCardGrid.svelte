@@ -6,17 +6,14 @@
 <script lang="ts">
   import type { Source } from "$lib/types/source";
 
-  import AddSourceCard from "./AddSourceCard.svelte";
   import SourceCard from "./SourceCard.svelte";
 
   let {
     sources,
     oncardclick,
-    onadd,
   }: {
     sources: Source[];
     oncardclick?: (source: Source) => void;
-    onadd?: () => void;
   } = $props();
 </script>
 
@@ -26,7 +23,6 @@
     {#each sources as source (source.id)}
       <SourceCard {source} onclick={() => oncardclick?.(source)} />
     {/each}
-    <AddSourceCard onclick={() => onadd?.()} />
   </div>
 </div>
 

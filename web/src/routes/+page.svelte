@@ -18,7 +18,6 @@
   } from "$lib/api/client";
   import {
     ActivityEvent,
-    AddSourceModal,
     Banner,
     ConnectCard,
     EmptySourceState,
@@ -142,9 +141,6 @@
   // -- Source detail modal --
   let selectedSource: Source | null = $state(null);
 
-  // -- Add source modal --
-  let addSourceOpen = $state(false);
-
   // -- Game picker modal --
   let pickerOpen = $state(false);
 
@@ -187,7 +183,7 @@
   function handleManualLink(code: string): void {
     wasManualInput = true;
     showLinkInput = false;
-    addSourceOpen = false;
+    pickerOpen = false;
     void submitLinkCode(code);
   }
 
@@ -260,9 +256,6 @@
           oncardclick={(source) => {
             selectedSource = source;
           }}
-          onadd={() => {
-            addSourceOpen = true;
-          }}
         />
       {/if}
       {#if $linkState === "linking"}
@@ -285,8 +278,7 @@
         {:else if $linkState !== "linking"}
           <ConnectCard />
           <EmptySourceState
-            onsubmit={handleManualLink}
-            onapiskip={() => {
+            onaddgame={() => {
               pickerOpen = true;
             }}
           />
@@ -361,19 +353,6 @@
 </div>
 
 <!-- Modals -->
-{#if addSourceOpen}
-  <AddSourceModal
-    onsubmit={handleManualLink}
-    onapiskip={() => {
-      addSourceOpen = false;
-      pickerOpen = true;
-    }}
-    onclose={() => {
-      addSourceOpen = false;
-    }}
-  />
-{/if}
-
 {#if selectedSource}
   <SourceDetailModal
     source={selectedSource}
@@ -432,6 +411,7 @@
         }
       : null}
     validationState={deriveValidationState($testPathResult, testPathChecking)}
+    onpair={handleManualLink}
   />
 {/if}
 

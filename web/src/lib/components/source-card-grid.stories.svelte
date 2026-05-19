@@ -102,7 +102,6 @@
     <SourceCardGrid
       sources={[steamDeck]}
       oncardclick={(s: Source) => alert(`Clicked: ${s.hostname ?? s.name}`)}
-      onadd={() => alert("Add Source")}
     />
   </div>
 </Story>
@@ -112,7 +111,6 @@
     <SourceCardGrid
       sources={[steamDeck, windowsPC, wowAdapter]}
       oncardclick={(s: Source) => alert(`Clicked: ${s.hostname ?? s.name}`)}
-      onadd={() => alert("Add Source")}
     />
   </div>
 </Story>
@@ -122,13 +120,12 @@
     <SourceCardGrid
       sources={[steamDeck, windowsPC, linuxBox, macBook, wowAdapter]}
       oncardclick={(s: Source) => alert(`Clicked: ${s.hostname ?? s.name}`)}
-      onadd={() => alert("Add Source")}
     />
   </div>
 </Story>
 
 <Story name="NoSources">
   <div style="width: 700px;">
-    <SourceCardGrid sources={[]} onadd={() => alert("Add Source")} />
+    <SourceCardGrid sources={[]} />
   </div>
 </Story>

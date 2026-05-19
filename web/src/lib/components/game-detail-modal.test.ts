@@ -165,4 +165,59 @@ describe("GameDetailModal", () => {
     expect(await screen.findByText("Network error")).toBeInTheDocument();
     expect(onclose).not.toHaveBeenCalled();
   });
+
+  // -- Pair a new computer (#17c) --
+
+  it("offers Pair a new computer even when no other computers are paired", async () => {
+    render(GameDetailModal, {
+      props: {
+        game: makeGame({ sources: [] }),
+        availableSources: [],
+        onclose: vi.fn(),
+        onsaveclick: vi.fn(),
+      },
+    });
+    await userEvent.click(screen.getByText("ADD A COMPUTER"));
+    expect(screen.getByText("Pair a new computer")).toBeInTheDocument();
+  });
+
+  it("picking Pair a new computer shows the shared install + pair step", async () => {
+    render(GameDetailModal, {
+      props: {
+        game: makeGame({ sources: [] }),
+        availableSources: [],
+        onclose: vi.fn(),
+        onsaveclick: vi.fn(),
+        onpair: vi.fn(),
+      },
+    });
+    await userEvent.click(screen.getByText("ADD A COMPUTER"));
+    await userEvent.click(screen.getByText("Pair a new computer"));
+    expect(screen.getByText(/curl -sSL/)).toBeInTheDocument();
+    expect(screen.getByText("Install")).toBeInTheDocument();
+    expect(screen.getByText("Pair")).toBeInTheDocument();
+  });
+
+  it("does not offer pairing for adapter-connected games", () => {
+    render(GameDetailModal, {
+      props: {
+        game: makeGame({
+          sources: [
+            {
+              sourceId: "ggg-1",
+              sourceName: "GGG Account",
+              sourceKind: "adapter",
+              status: "watching",
+              hostname: null,
+              saveCount: 1,
+            },
+          ],
+        }),
+        availableSources: [],
+        onclose: vi.fn(),
+        onsaveclick: vi.fn(),
+      },
+    });
+    expect(screen.queryByText("ADD A COMPUTER")).not.toBeInTheDocument();
+  });
 });

@@ -16,6 +16,7 @@
   } from "$lib/types/source";
   import { defaultPathForPlatform } from "$lib/utils/platform";
 
+  import DaemonSetup from "./DaemonSetup.svelte";
   import DropdownMenu from "./DropdownMenu.svelte";
   import Modal from "./Modal.svelte";
   import SaveRow from "./SaveRow.svelte";
@@ -38,6 +39,7 @@
     onremovesource,
     removedSaves = [],
     onrestoresave,
+    onpair,
   }: {
     game: Game;
     showSourceBadges?: boolean;
@@ -53,6 +55,7 @@
     onremovesource?: (sourceId: string) => Promise<void>;
     removedSaves?: RemovedSave[];
     onrestoresave?: (saveUuid: string) => Promise<void>;
+    onpair?: (code: string) => void;
   } = $props();
 
   // -- Stacked source editor state --
@@ -61,14 +64,21 @@
   let editingSourceName: string | null = $state(null);
   let editingPath: string = $state("");
 
-  // -- Dropdown options derived from availableSources --
-  let dropdownOptions = $derived(
-    availableSources.map((s) => ({
+  // -- Add-a-computer affordance (#17c) --
+  // Adapter-connected games have no daemon to pair; everything else can
+  // attach this game to an already-paired computer OR pair a new one.
+  const PAIR_NEW = "__pair_new__";
+  let hasAdapterSource = $derived(game.sources.some((s) => s.sourceKind === "adapter"));
+  let pairingNew = $state(false);
+
+  let dropdownOptions = $derived([
+    ...availableSources.map((s) => ({
       id: s.id,
       label: s.name,
       sublabel: s.hostname ?? undefined,
     })),
-  );
+    { id: PAIR_NEW, label: "Pair a new computer", sublabel: "Install the daemon on a new machine" },
+  ]);
 
   function statusToDot(status: GameSourceEntry["status"]): "online" | "error" | "offline" {
     if (status === "watching") return "online";
@@ -103,6 +113,10 @@
   }
 
   function handleDropdownPick(option: { id: string; label: string }) {
+    if (option.id === PAIR_NEW) {
+      pairingNew = true;
+      return;
+    }
     openEditor(option.id, option.label, defaultPathForSource(option.id));
   }
 
@@ -180,6 +194,17 @@
     {/snippet}
   </WindowTitleBar>
 
+  {#if pairingNew}
+    <div class="pair-new">
+      <button class="pair-back" onclick={() => (pairingNew = false)}>
+        &larr; Back to {game.name}
+      </button>
+      <DaemonSetup
+        {onpair}
+        intro={`Install the Savecraft daemon on the new computer and pair it once. ${game.name}'s save directory is set per computer afterward.`}
+      />
+    </div>
+  {:else}
   <div class="saves-area">
     {#each game.saves as save (save.saveUuid)}
       <div class="save-row-wrap">
@@ -196,12 +221,16 @@
   </div>
 
   <!-- Sources section -->
-  {#if game.sources.length > 0 || availableSources.length > 0}
+  {#if game.sources.length > 0 || availableSources.length > 0 || !hasAdapterSource}
     <div class="sources-section">
       <div class="sources-header">
         <span class="section-label">SOURCES</span>
-        {#if availableSources.length > 0 && !game.sources.some((s) => s.sourceKind === "adapter")}
-          <DropdownMenu label="ADD SOURCE" options={dropdownOptions} onpick={handleDropdownPick} />
+        {#if !hasAdapterSource}
+          <DropdownMenu
+            label="ADD A COMPUTER"
+            options={dropdownOptions}
+            onpick={handleDropdownPick}
+          />
         {/if}
       </div>
 
@@ -300,6 +329,7 @@
       {/if}
     </div>
   {/if}
+  {/if}
 
   {#snippet footer()}
     {#if confirmingRemove}
@@ -334,6 +364,29 @@
 {/if}
 
 <style>
+  .pair-new {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pair-back {
+    align-self: flex-start;
+    margin: 12px 0 0 14px;
+    padding: 6px 10px;
+    background: none;
+    border: none;
+    border-radius: 2px;
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+
+  .pair-back:hover {
+    color: var(--color-text);
+  }
+
   .saves-area {
     padding: 0;
   }

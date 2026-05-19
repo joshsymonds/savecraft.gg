@@ -5,15 +5,14 @@
   Watched games can be selected; unwatched games show a config form.
 -->
 <script lang="ts">
-  import { PUBLIC_API_URL } from "$env/static/public";
   import type { PickerGame } from "$lib/types/source";
   import { defaultPathForPlatform } from "$lib/utils/platform";
 
   import ConfigSuccess from "./ConfigSuccess.svelte";
+  import DaemonSetup from "./DaemonSetup.svelte";
   import GamePickerCard from "./GamePickerCard.svelte";
   import Modal from "./Modal.svelte";
   import PairingCodeInput from "./PairingCodeInput.svelte";
-  import TinyButton from "./TinyButton.svelte";
 
   export interface ConfigurableSource {
     id: string;
@@ -56,27 +55,6 @@
   let configPath = $state("");
   let configState: "idle" | "connecting" | "success" | "error" | "timeout" = $state("idle");
   let configError = $state("");
-  let copied = $state(false);
-
-  const installUrl = PUBLIC_API_URL.includes("staging")
-    ? "https://staging-install.savecraft.gg"
-    : "https://install.savecraft.gg";
-
-  function installCommand(): string {
-    return `curl -sSL ${installUrl} | bash`;
-  }
-
-  async function copyInstallCommand(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(installCommand());
-      copied = true;
-      setTimeout(() => {
-        copied = false;
-      }, 2000);
-    } catch {
-      // Clipboard unavailable; the command stays visible to copy by hand.
-    }
-  }
 
   let filtered = $derived(
     search.trim() === ""
@@ -337,41 +315,10 @@
       {/if}
     </div>
   {:else if step === "daemonSetup"}
-    <div class="workshop-panel">
-      <p class="intro-callout">
-        {configGame?.name} keeps its saves on your PC. Install the Savecraft daemon and pair it once.
-        After that it watches those saves for you.
-      </p>
-      <div class="workshop-step">
-        <span class="workshop-step-number">1</span>
-        <div class="workshop-step-content">
-          <span class="workshop-step-title">Install</span>
-          <p class="workshop-step-desc">Windows: download and run the installer.</p>
-          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external download URL -->
-          <a class="workshop-button" href={installUrl}>Download</a>
-          <p class="workshop-step-desc spacer-top">Linux or Steam Deck: run this.</p>
-          <div class="command-block">
-            <code class="command-text">{installCommand()}</code>
-            <TinyButton
-              label={copied ? "COPIED" : "COPY"}
-              onclick={() => {
-                void copyInstallCommand();
-              }}
-            />
-          </div>
-        </div>
-      </div>
-      <div class="workshop-step">
-        <span class="workshop-step-number">2</span>
-        <div class="workshop-step-content">
-          <span class="workshop-step-title">Pair</span>
-          <p class="workshop-step-desc">
-            Enter the 6-digit code the daemon shows the first time it runs.
-          </p>
-          <PairingCodeInput onsubmit={onpair} />
-        </div>
-      </div>
-    </div>
+    <DaemonSetup
+      {onpair}
+      intro={`${configGame?.name} keeps its saves on your PC. Install the Savecraft daemon and pair it once. After that it watches those saves for you.`}
+    />
   {:else if step === "ready"}
     <div class="ready-panel">
       <span class="ready-title">{configGame?.name} is ready.</span>
@@ -552,31 +499,7 @@
     cursor: not-allowed;
   }
 
-  /* Daemon setup (contextual, #17) + reference-ready */
-
-  .command-block {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 6px;
-    padding: 8px 10px;
-    background: rgba(5, 7, 26, 0.5);
-    border: 1px solid rgba(74, 90, 173, 0.15);
-    border-radius: 3px;
-  }
-
-  .command-text {
-    flex: 1;
-    font-family: var(--font-mono, monospace);
-    font-size: 13px;
-    color: var(--color-text);
-    overflow-x: auto;
-    white-space: nowrap;
-  }
-
-  .spacer-top {
-    margin-top: 12px;
-  }
+  /* Reference-ready */
 
   .ready-panel {
     padding: 24px 18px;
