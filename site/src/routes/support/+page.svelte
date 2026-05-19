@@ -54,7 +54,7 @@
         <div class="channel-content">
           <h2 class="channel-name">Email</h2>
           <p class="channel-desc">
-            support@savecraft.gg &mdash; for anything that doesn't fit in Discord.
+            support@savecraft.gg -- for anything that doesn't fit in Discord.
           </p>
         </div>
         <span class="channel-arrow">&rarr;</span>
@@ -67,9 +67,23 @@
       <div class="faq-item">
         <h3>My saves aren't showing up</h3>
         <p>
-          Make sure the Savecraft daemon is running and paired to your account. Check the
-          <a href={`${PUBLIC_APP_URL}/sources`} class="text-link">sources page</a> to see if your device
-          is online. If it shows offline, restart the daemon and check the logs.
+          It depends on how that game connects, so check the matching one. Open your
+          <a href={PUBLIC_APP_URL} class="text-link">Savecraft dashboard</a> and find the game first.
+        </p>
+        <p>
+          <strong>Account games (Path of Exile, WoW):</strong> if it says the connection expired, reconnect
+          the game from the dashboard. Imported characters refresh on demand, not live -- ask your assistant
+          to refresh the character, or refresh it from the dashboard.
+        </p>
+        <p>
+          <strong>Save-file games (Diablo II, Stardew, RimWorld, Stellaris):</strong> the computer you
+          play on has to be paired and online -- the dashboard shows each computer's status. If it's offline,
+          restart the Savecraft app on that machine. If it's online but a game is missing, confirm the
+          save directory for that game on that computer.
+        </p>
+        <p>
+          <strong>Mod games (Factorio):</strong> make sure the Savecraft mod is installed and enabled,
+          and that you've launched the game at least once since.
         </p>
       </div>
 
@@ -82,7 +96,7 @@
             class="text-link"
             target="_blank"
             rel="noopener">Savecraft app</a
-          > and click Connect &mdash; one step.
+          > and click Connect -- one step.
         </p>
         <p>
           <strong>Claude:</strong> paste your MCP URL into your client's connector settings. Full

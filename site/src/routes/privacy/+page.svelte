@@ -1,6 +1,6 @@
 <!--
   @component
-  Privacy policy page — rendered from PRIVACY.md content at savecraft.gg/privacy
+  Privacy policy page -- rendered from PRIVACY.md content at savecraft.gg/privacy
 -->
 <svelte:head>
   <title>Privacy Policy - Savecraft</title>
@@ -18,11 +18,11 @@
     <div class="privacy-tldr">
       <strong>TL;DR:</strong> Savecraft collects the minimum data needed to connect your game saves
       to AI assistants. We store your email address, your game save data (which you push to us),
-      notes you create, and — for API-connected games like World of Warcraft — OAuth tokens from
+      notes you create, and -- for API-connected games like World of Warcraft -- OAuth tokens from
       game platform accounts solely to verify character ownership and refresh data on demand. We do
       not run analytics, do not track you, do not sell your data, and do not see your conversations
       with AI assistants. Our code is
-      <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">open source</a> — you can
+      <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">open source</a> -- you can
       verify all of this yourself.
     </div>
 
@@ -36,10 +36,13 @@
         <a href="mailto:privacy@savecraft.gg" class="text-link">privacy@savecraft.gg</a>
       </p>
       <p>
-        Savecraft is a gaming companion tool that parses your game save files and serves structured
-        game state data to AI assistants (Claude, ChatGPT) via the Model Context Protocol (MCP). It
-        consists of a local daemon that runs on your gaming device, a cloud service that stores and
-        serves your data, and a web interface for managing your devices and settings.
+        Savecraft is a gaming companion tool that serves structured game state data to AI assistants
+        (Claude, ChatGPT) via the Model Context Protocol (MCP). How a game's data reaches us depends
+        on the game: reference data needs nothing; account games (such as World of Warcraft or Path
+        of Exile) connect through the game's own read-only OAuth; save-file games are read by a
+        local daemon that runs on the device you play on; some moddable games push state from an
+        in-game mod. It consists of that optional local daemon, a cloud service that stores and
+        serves your data, and a web interface for managing your games and devices.
       </p>
       <p>
         This policy applies to the hosted service at <strong>savecraft.gg</strong> and the Savecraft daemon
@@ -62,7 +65,7 @@
         your account and display which account your devices are linked to.
       </p>
       <p class="legal-basis">
-        <strong>Legal basis (GDPR):</strong> Contract performance — you provide this to create and use
+        <strong>Legal basis (GDPR):</strong> Contract performance -- you provide this to create and use
         your account.
       </p>
       <p class="retention"><strong>Retention:</strong> Until you delete your account.</p>
@@ -75,7 +78,7 @@
         token is generated; we store only a SHA-256 hash of this token, never the token itself.
       </p>
       <p class="legal-basis">
-        <strong>Legal basis:</strong> Contract performance — device identification is required for the
+        <strong>Legal basis:</strong> Contract performance -- device identification is required for the
         daemon to push save data.
       </p>
       <p class="retention">
@@ -95,15 +98,15 @@
       <p>
         This is the core of the service. When the daemon detects a save file change, it parses the
         file locally on your device, converts it to structured JSON (character stats, gear, skills,
-        quest progress — whatever the game plugin extracts), and pushes that JSON to our cloud. We
+        quest progress -- whatever the game plugin extracts), and pushes that JSON to our cloud. We
         store every snapshot as an immutable record so you can track changes over time.
       </p>
       <p>
         The daemon reads your save files in <strong>read-only</strong> mode. It cannot modify your saves.
-        The raw save file never leaves your device — only the parsed JSON output is transmitted.
+        The raw save file never leaves your device -- only the parsed JSON output is transmitted.
       </p>
       <p class="legal-basis">
-        <strong>Legal basis:</strong> Contract performance — serving your game state to AI assistants
+        <strong>Legal basis:</strong> Contract performance -- serving your game state to AI assistants
         is the entire service.
       </p>
       <p class="retention">
@@ -115,7 +118,7 @@
       <h3>Notes</h3>
       <p>
         You (or an AI assistant acting on your behalf during conversation) can create notes attached
-        to your saves — build guides, farming goals, session reminders. Notes are user-authored
+        to your saves -- build guides, farming goals, session reminders. Notes are user-authored
         markdown stored alongside your save data.
       </p>
       <p class="legal-basis"><strong>Legal basis:</strong> Contract performance.</p>
@@ -139,9 +142,10 @@
 
       <h3>Third-party game API credentials</h3>
       <p>
-        Some games (such as World of Warcraft) are supported via API adapters instead of local save
-        file parsing. For these games, you connect your game platform account (e.g., Battle.net)
-        through an OAuth flow. We store the resulting <strong>OAuth access token</strong> and
+        Some games (such as World of Warcraft and Path of Exile) connect through the game's own
+        account instead of local save files. For these games, you authorize through the provider's
+        OAuth flow (Battle.net for WoW, your GGG account for Path of Exile -- Savecraft is a
+        GGG-approved application). We store the resulting <strong>OAuth access token</strong> and
         <strong>refresh token</strong> in our database.
       </p>
       <p>
@@ -157,7 +161,7 @@
         so your save history is preserved.
       </p>
       <p class="legal-basis">
-        <strong>Legal basis:</strong> Contract performance — connecting your game account is required
+        <strong>Legal basis:</strong> Contract performance -- connecting your game account is required
         to fetch character data for API-backed games.
       </p>
       <p class="retention">
@@ -173,7 +177,7 @@
         device.
       </p>
       <p class="legal-basis">
-        <strong>Legal basis:</strong> Legitimate interest — operational monitoring helps you verify your
+        <strong>Legal basis:</strong> Legitimate interest -- operational monitoring helps you verify your
         daemon is working and helps us debug issues.
       </p>
       <p class="retention">
@@ -225,7 +229,7 @@
         We serve data to the AI assistant <strong
           >on your behalf and under your authorization.</strong
         >
-        We do not control what the AI provider does with the data after receiving it — that is governed
+        We do not control what the AI provider does with the data after receiving it -- that is governed
         by your agreement with the AI provider (Anthropic, OpenAI, Google, etc.). We do not cache requests
         from AI providers, and we do not retain logs of which tools are called or what data is returned.
       </p>
@@ -264,10 +268,10 @@
       <h3>Cloudflare</h3>
       <p><strong>Role:</strong> Infrastructure provider (data processor under GDPR).</p>
       <p>
-        <strong>What they process:</strong> All application data — save snapshots, account metadata, notes,
-        authentication tokens, device events. Cloudflare Workers execute your API requests; R2 stores
-        save snapshots; D1 (SQLite) stores account and device metadata, notes, and the search index; KV
-        stores OAuth tokens.
+        <strong>What they process:</strong> All application data -- save snapshots, account metadata,
+        notes, authentication tokens, device events. Cloudflare Workers execute your API requests; R2
+        stores save snapshots; D1 (SQLite) stores account and device metadata, notes, and the search index;
+        KV stores OAuth tokens.
       </p>
       <p>
         <strong>Data location:</strong> Your data is stored and processed on Cloudflare's global network,
@@ -338,14 +342,14 @@
       </p>
       <p>
         <strong>What we receive from them:</strong> Mythic+ scores, rankings, and raid progression summaries.
-        This data enriches your character's game state but is not required — if Raider.io is unavailable,
+        This data enriches your character's game state but is not required -- if Raider.io is unavailable,
         your save data is still complete from Blizzard's API alone.
       </p>
 
       <h3>Stripe (future)</h3>
       <p>
         When we add paid subscriptions, Stripe will process payments. Stripe will receive your
-        payment card details, billing address, and transaction data directly — we will not store
+        payment card details, billing address, and transaction data directly -- we will not store
         payment information ourselves. Stripe acts as both a data processor (handling transactions
         on our behalf) and an independent data controller (for fraud prevention and regulatory
         compliance). We will update this policy before adding Stripe.
@@ -400,7 +404,7 @@
         <li><strong>Restrict</strong> processing in certain circumstances</li>
         <li><strong>Object</strong> to processing based on legitimate interest</li>
         <li>
-          <strong>Data portability</strong> — receive your data in a structured, machine-readable format
+          <strong>Data portability</strong> -- receive your data in a structured, machine-readable format
           (your game state is already structured JSON)
         </li>
         <li>
@@ -453,7 +457,7 @@
         Clerk credentials). MCP OAuth tokens are opaque and stored with automatic expiration. Game
         platform OAuth tokens (e.g., Battle.net) are stored in our database and can be revoked by
         disconnecting the account or revoking access from the game platform's settings. The daemon
-        runs with minimal system permissions — on Linux/Steam Deck, kernel-enforced sandboxing (via
+        runs with minimal system permissions -- on Linux/Steam Deck, kernel-enforced sandboxing (via
         systemd) restricts it to read-only access to save file directories and write access only to
         its own configuration. WASM plugins that parse save files are sandboxed and cannot access
         the filesystem, network, or environment variables.
@@ -467,8 +471,8 @@
     <section class="privacy-section">
       <h2>Changes to this policy</h2>
       <p>
-        We will update this policy when our data practices change. For material changes — new data
-        collection, new third-party services, changes to retention periods — we will notify you via
+        We will update this policy when our data practices change. For material changes -- new data
+        collection, new third-party services, changes to retention periods -- we will notify you via
         email and/or a prominent notice on savecraft.gg at least 30 days before the changes take
         effect. For minor clarifications or formatting changes, we will update the "Last updated"
         date at the top.

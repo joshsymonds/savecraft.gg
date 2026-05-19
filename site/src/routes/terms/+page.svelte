@@ -1,6 +1,6 @@
 <!--
   @component
-  Terms of Service page — rendered at savecraft.gg/terms
+  Terms of Service page -- rendered at savecraft.gg/terms
 -->
 <svelte:head>
   <title>Terms of Service - Savecraft</title>
@@ -19,26 +19,32 @@
       <strong>TL;DR:</strong> Savecraft parses your game saves and serves that data to AI assistants
       you connect. You own your data. We don't control what AI assistants do with it. Don't abuse
       the service. We can change or discontinue things with notice. Our code is
-      <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">open source</a> — you can
+      <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">open source</a> -- you can
       verify what we do.
     </div>
 
     <section class="privacy-section">
       <h2>1. What Savecraft is</h2>
       <p>
-        Savecraft is a service operated by Josh Symonds ("we," "us," "our") that parses video game
-        save files and serves structured game state data to AI assistants via the Model Context
-        Protocol (MCP). It consists of:
+        Savecraft is a service operated by Josh Symonds ("we," "us," "our") that serves structured
+        game state data to AI assistants via the Model Context Protocol (MCP). How a game's data is
+        obtained depends on the game. It consists of:
       </p>
       <ul>
         <li>
-          A <strong>local daemon</strong> that runs on your gaming device and parses save files
+          A <strong>cloud service</strong> that stores and serves your data, including reference data
+          that requires no account, install, or save files
         </li>
-        <li>A <strong>cloud service</strong> that stores and serves your parsed game data</li>
-        <li>A <strong>web interface</strong> at savecraft.gg for managing devices and settings</li>
         <li>
-          <strong>API adapters</strong> that connect to game platform APIs (e.g., Battle.net) on your
-          behalf
+          <strong>API adapters</strong> that connect to a game's own account on your behalf via OAuth
+          (e.g., Battle.net for World of Warcraft, your GGG account for Path of Exile)
+        </li>
+        <li>
+          An optional <strong>local daemon</strong> that, for save-file games, runs on the device you
+          play on and parses those saves
+        </li>
+        <li>
+          A <strong>web interface</strong> at savecraft.gg for managing your games and devices
         </li>
       </ul>
       <p>
@@ -70,7 +76,7 @@
       </p>
       <p>
         You grant us a limited license to store, process, and serve your data solely to provide the
-        Savecraft service — parsing saves, storing structured game state, serving it to AI
+        Savecraft service -- parsing saves, storing structured game state, serving it to AI
         assistants you authorize, and displaying it in the web interface. This license ends when you
         delete your data or account.
       </p>
@@ -96,8 +102,9 @@
     <section class="privacy-section">
       <h2>4. Game platform accounts</h2>
       <p>
-        Some games (such as World of Warcraft) require you to connect a game platform account (e.g.,
-        Battle.net) via OAuth. When you do this:
+        Some games connect through a game account via OAuth instead of save files -- World of
+        Warcraft through Battle.net, Path of Exile through your GGG account (Savecraft is a
+        GGG-approved application). When you do this:
       </p>
       <ul>
         <li>We access only the data necessary to fetch your character profiles</li>
@@ -125,9 +132,9 @@
       </p>
       <p>
         AI assistants may produce inaccurate, misleading, or incomplete responses based on data
-        Savecraft provides. The AI assistant provider — not Savecraft — is responsible for how that
-        data is interpreted, presented, or acted upon. You should not rely on AI-generated output as
-        a substitute for your own judgment.
+        Savecraft provides. The AI assistant provider -- not Savecraft -- is responsible for how
+        that data is interpreted, presented, or acted upon. You should not rely on AI-generated
+        output as a substitute for your own judgment.
       </p>
       <p>
         AI assistants can create, update, and delete notes on your behalf during conversation. These
@@ -143,7 +150,7 @@
       </p>
       <ul>
         <li>
-          Reads game save files in <strong>read-only</strong> mode — it cannot modify your saves
+          Reads game save files in <strong>read-only</strong> mode -- it cannot modify your saves
         </li>
         <li>Parses save files locally using sandboxed WASM plugins</li>
         <li>Transmits only parsed JSON data, never raw save files</li>
@@ -229,7 +236,7 @@
         <strong
           >These Terms govern your use of the hosted service at savecraft.gg, not the source code
           itself.</strong
-        > If you self-host the Savecraft software, only the Apache License applies — these Terms do not.
+        > If you self-host the Savecraft software, only the Apache License applies -- these Terms do not.
       </p>
       <p>
         Nothing in these Terms limits your rights under, or grants you rights that supersede, the
@@ -307,7 +314,7 @@
         agree to resolve any claims relating to these Terms or the service through final and binding individual
         arbitration, except as set forth below. The arbitration will be administered by JAMS under its
         Streamlined Arbitration Rules or, if JAMS is unavailable, by a mutually agreed provider. The arbitration
-        will be conducted by telephone, online, or based on written submissions — the arbitrator will
+        will be conducted by telephone, online, or based on written submissions -- the arbitrator will
         determine whether a hearing is necessary. The arbitrator's decision will be binding and may be
         entered as a judgment in any court of competent jurisdiction.
       </p>
@@ -387,7 +394,7 @@
     min-height: 100vh;
   }
 
-  /* Reuse privacy page styles — same layout and typography */
+  /* Reuse privacy page styles -- same layout and typography */
   .privacy {
     max-width: 800px;
     margin: 0 auto;
