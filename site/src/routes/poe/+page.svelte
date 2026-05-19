@@ -61,15 +61,15 @@
 </script>
 
 <svelte:head>
-  <title>Path of Exile — Build Planner for Claude | Savecraft</title>
+  <title>Path of Exile — Build Planner for Claude & ChatGPT | Savecraft</title>
   <meta
     name="description"
-    content="Savecraft runs Path of Building's real calc engine inside your AI. Paste a pobb.in link — Claude swaps gems, tests passive nodes, audits your tree, and returns actual DPS and defensive deltas. Plus live poe.ninja prices for budget-aware upgrades."
+    content="Savecraft is a GGG-approved connected app. Link your Path of Exile account and your AI analyzes your live characters through the real Path of Building calc engine — or paste a pobb.in link. Gem swaps, tree audits, actual DPS deltas, live poe.ninja prices."
   />
   <meta property="og:title" content="Savecraft — Path of Building in Chat" />
   <meta
     property="og:description"
-    content="Paste a pobb.in link. Claude calls real Path of Building, swaps gems, tests nodes, and returns actual DPS deltas — not guesses. Anti-hallucination gem, tree, unique, and mod lookups. Live poe.ninja prices."
+    content="GGG-approved account connect: your AI reads your live PoE characters and runs them through real Path of Building — no export, no copy-paste. Or paste a pobb.in link. Real DPS deltas, not guesses. Live poe.ninja prices."
   />
   <meta property="og:url" content="https://savecraft.gg/poe" />
   <meta property="og:type" content="website" />
@@ -86,7 +86,7 @@
         accent="gold"
         eyebrow="PATH OF BUILDING IN CHAT"
         title="Real DPS deltas. Real tree math. Real answers."
-        subtitle="Paste a pobb.in link. Claude calls the real Path of Building calc engine, swaps gems, tests nodes, and returns actual numbers — not guesses. Plus live poe.ninja prices for budget-aware upgrades."
+        subtitle="GGG approved Savecraft as a connecting application. Link your account and your AI reads your live characters -- or paste a pobb.in link. Either way your AI calls the real Path of Building calc engine, swaps gems, tests nodes, and returns actual numbers, not guesses. Plus live poe.ninja prices for budget-aware upgrades."
         actions={heroActions}
         frames={heroFrames}
       />
@@ -94,12 +94,14 @@
   </div>
 
   {#snippet heroActions()}
-    <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">PASTE A POB LINK</a>
+    <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT YOUR ACCOUNT</a>
     <a href="#tools" class="btn-outline">SEE THE TOOLS</a>
   {/snippet}
 
   <!-- ═══ CREDIBILITY BAR ═══ -->
   <div class="proof-bar">
+    <span class="proof-item">GGG-approved connected app</span>
+    <span class="proof-sep">*</span>
     <span class="proof-item">Path of Building calc engine</span>
     <span class="proof-sep">*</span>
     <span class="proof-item">poe.ninja live economy</span>
@@ -108,6 +110,34 @@
     <span class="proof-sep">*</span>
     <span class="proof-item">GGG passive tree export</span>
   </div>
+
+  <!-- ═══ ACCOUNT CONNECT ═══ -->
+  <MarketingSection
+    eyebrow="NEW — GGG-APPROVED ACCOUNT CONNECT"
+    title="Connect your account, or paste a link."
+    subtitle="Savecraft is an approved GGG connecting application. The trust model doesn't change: every number still comes out of Path of Building itself. Connecting just deletes the export-and-paste step between you and the real calc."
+  >
+    <div class="method-grid">
+      <div class="method-item">
+        <span class="method-source">Connect your account</span>
+        <span class="method-desc">
+          Link your Path of Exile account once, through GGG's official OAuth -- read-only, character
+          data only. Every non-deleted character is imported: gear, the full passive tree, jewels
+          (cluster jewels included), skill links. Then you ask your AI about your own characters by
+          name -- "where is my Champion losing the most damage?" -- with no PoB export and nothing
+          to copy-paste.
+        </span>
+      </div>
+      <div class="method-item">
+        <span class="method-source">Or paste a link</span>
+        <span class="method-desc">
+          Not your build, or not connected? The link path is unchanged. Drop a pobb.in, pastebin,
+          maxroll, poe.ninja, rentry, or poedb URL and it runs through the same headless Path of
+          Building. Compare your live character against a guide's link in a single request.
+        </span>
+      </div>
+    </div>
+  </MarketingSection>
 
   <!-- ═══ REFERENCE TOOLS ═══ -->
   <MarketingSection
@@ -226,17 +256,18 @@
   <!-- ═══ HOW IT WORKS ═══ -->
   <MarketingSection
     eyebrow="NO INSTALL REQUIRED"
-    title="Paste a link. Get real answers."
-    subtitle="Path of Exile is a server-side game — your build lives on pobb.in, pastebin, or in a PoB code. Savecraft's build planner takes any of those and runs them through real Path of Building on our infrastructure. No daemon, no save-file sync, no download."
+    title="Connect or paste. Get real answers."
+    subtitle="Path of Exile is a server-side game. Connect your account and Savecraft reads your live characters straight from GGG -- or hand it a build link. Either way it runs through real Path of Building on our infrastructure. No daemon, no save-file sync, no download."
   >
     <div class="flow-grid">
       <div class="flow-step">
         <div class="flow-num">1</div>
         <div class="flow-body">
-          <h3 class="flow-title">Paste your build link</h3>
+          <h3 class="flow-title">Connect your account or paste a link</h3>
           <p class="flow-desc">
-            pobb.in, pastebin, maxroll, poe.ninja, rentry, poedb — all supported. Claude calls the
-            build_planner tool with your URL.
+            Connect once via GGG's official OAuth and every character is available by name -- or
+            drop a pobb.in, pastebin, maxroll, poe.ninja, rentry, or poedb URL. Your AI calls the
+            build_planner tool either way.
           </p>
         </div>
       </div>
@@ -256,7 +287,7 @@
         <div class="flow-body">
           <h3 class="flow-title">Iterate in conversation</h3>
           <p class="flow-desc">
-            Ask Claude to swap a gem, allocate a passive, equip a unique, or scan nearby nodes by
+            Ask your AI to swap a gem, allocate a passive, equip a unique, or scan nearby nodes by
             impact. Each modification returns a new buildId, so you can branch hypotheses and
             compare results.
           </p>
@@ -312,9 +343,11 @@
   <section class="section cta-section">
     <div class="cta-inner">
       <h2 class="cta-title">Give your AI the real calc.</h2>
-      <p class="cta-sub">Works with Claude and ChatGPT. No install. No GGG API signup.</p>
+      <p class="cta-sub">
+        Works with Claude and ChatGPT. No install. Connect your account or paste a link.
+      </p>
       <div class="cta-actions">
-        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">PASTE A POB LINK</a>
+        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">CONNECT YOUR ACCOUNT</a>
       </div>
     </div>
   </section>
