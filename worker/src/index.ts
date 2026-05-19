@@ -453,7 +453,11 @@ async function exchangeAdapterToken(
   provider: OAuthProvider,
   code: string,
   redirectUri: string,
-  oauthConfig: { readonly tokenUrl: string; readonly clientId: string },
+  oauthConfig: {
+    readonly tokenUrl: string;
+    readonly clientId: string;
+    readonly userAgent?: string;
+  },
   codeVerifier: string | undefined,
   env: Env,
 ): Promise<AdapterTokenResult | Response> {
@@ -468,9 +472,16 @@ async function exchangeAdapterToken(
   // code_verifier. Sent only when the provider negotiated PKCE.
   if (codeVerifier) body.set("code_verifier", codeVerifier);
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+  // GGG mandates its User-Agent on every request, the token exchange
+  // included; Battle.net sets none and is unchanged.
+  if (oauthConfig.userAgent) headers["User-Agent"] = oauthConfig.userAgent;
+
   const tokenResp = await fetch(oauthConfig.tokenUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers,
     body,
   });
 

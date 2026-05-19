@@ -18,7 +18,7 @@ const GGG_API_BASE = "https://api.pathofexile.com";
 // GGG requires `OAuth {clientId}/{version} (contact: {email})`. The id
 // segment is our registered OAuth app slug (not a secret); the access
 // token is the actual credential. Keep in sync with the registered app.
-const GGG_USER_AGENT = "OAuth savecraft/1.0 (contact: oauth@savecraft.gg)";
+export const GGG_USER_AGENT = "OAuth savecraft/1.0 (contact: oauth@savecraft.gg)";
 
 /**
  * GET a GGG API path with the user's access token. Maps GGG failure

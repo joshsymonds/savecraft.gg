@@ -117,6 +117,12 @@ export interface OAuthConfig {
   tokenUrl: string;
   scopes: string[];
   clientId: string;
+  /**
+   * Provider-mandated User-Agent for the server-to-server token
+   * exchange. GGG hard-rejects requests without it; Battle.net has no
+   * UA requirement and omits this, so its behavior is unchanged.
+   */
+  userAgent?: string;
 }
 
 // ---------------------------------------------------------------------------

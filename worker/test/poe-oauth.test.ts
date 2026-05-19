@@ -186,5 +186,65 @@ describe("PoE GGG OAuth + discoverSaves", () => {
         .all<{ save_name: string }>();
       expect(saves.results.map((r) => r.save_name)).toEqual(["BoneShatterJugg", "LeagueStarterRF"]);
     });
+
+    it("sends the mandatory GGG User-Agent on the token exchange (Req 4)", async () => {
+      const sourceUuid = await seedAdapterSource(USER_UUID);
+      const stateKey = crypto.randomUUID();
+      await env.OAUTH_KV.put(
+        `ggg-oauth-state:${stateKey}`,
+        JSON.stringify({
+          userUuid: USER_UUID,
+          region: "pc",
+          returnUrl: "",
+          sourceUuid,
+          codeVerifier: "test-verifier-1234567890-abcdefghijklmnop",
+        }),
+        { expirationTtl: 600 },
+      );
+
+      fetchMock.activate();
+      fetchMock.disableNetConnect();
+      // Intercept ONLY requests carrying GGG's required User-Agent. A
+      // UA-less token POST won't match → fetch fails → no poe cred.
+      fetchMock
+        .get("https://www.pathofexile.com")
+        .intercept({
+          path: "/oauth/token",
+          method: "POST",
+          headers: { "user-agent": "OAuth savecraft/1.0 (contact: oauth@savecraft.gg)" },
+        })
+        .reply(
+          200,
+          JSON.stringify({
+            access_token: "ggg-access",
+            refresh_token: "ggg-refresh",
+            expires_in: 2_419_200,
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
+      fetchMock
+        .get("https://api.pathofexile.com")
+        .intercept({ path: "/character", method: "GET" })
+        .reply(200, JSON.stringify(characterListFixture), {
+          headers: { "content-type": "application/json" },
+        });
+
+      const resp = await SELF.fetch(
+        new Request(`https://test-host/oauth/ggg/callback?code=good&state=${stateKey}`, {
+          method: "GET",
+          redirect: "manual",
+        }),
+      );
+
+      expect(resp.status).toBe(302);
+      expect(new URL(resp.headers.get("Location")!).searchParams.get("connected")).toBe("true");
+
+      const cred = await env.DB.prepare(
+        "SELECT game_id FROM game_credentials WHERE user_uuid = ? AND game_id = 'poe'",
+      )
+        .bind(USER_UUID)
+        .first<{ game_id: string }>();
+      expect(cred?.game_id).toBe("poe");
+    });
   });
 });

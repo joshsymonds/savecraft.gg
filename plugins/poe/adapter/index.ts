@@ -22,7 +22,7 @@ import {
   type OAuthConfig,
 } from "../../../worker/src/adapters/adapter";
 import type { Env } from "../../../worker/src/types";
-import { ensureGggAccessToken, gggGet } from "./ggg-api";
+import { ensureGggAccessToken, GGG_USER_AGENT, gggGet } from "./ggg-api";
 import {
   buildPobSection,
   mapCharacterOverview,
@@ -51,6 +51,9 @@ export const poeAdapter: ApiAdapter = {
       tokenUrl: GGG_TOKEN_URL,
       scopes: GGG_SCOPES,
       clientId: env.GGG_CLIENT_ID ?? "",
+      // GGG hard-rejects every request without this; the OAuth token
+      // exchange is server-to-server, so it must carry it too (Req 4).
+      userAgent: GGG_USER_AGENT,
     };
   },
 
