@@ -31,7 +31,11 @@ import {
   mapPassives,
   mapSkills,
 } from "./sections";
-import type { GggCharacter, GggCharacterListResponse } from "./types";
+import type {
+  GggCharacter,
+  GggCharacterListResponse,
+  GggCharacterResponse,
+} from "./types";
 
 const GGG_AUTHORIZE_URL = "https://www.pathofexile.com/oauth/authorize";
 const GGG_TOKEN_URL = "https://www.pathofexile.com/oauth/token";
@@ -97,7 +101,9 @@ export const poeAdapter: ApiAdapter = {
     // documented source of the correctly-cased account name; the
     // character is then fetched by its exact-case discovered name.
     await gggGet<unknown>("/profile", accessToken);
-    const character = await gggGet<GggCharacter>(
+    // GGG wraps the single-character payload in { "character": {...} }
+    // (unlike GET /character which is { "characters": [...] }).
+    const { character } = await gggGet<GggCharacterResponse>(
       `/character/${encodeURIComponent(params.characterName)}`,
       accessToken,
     );

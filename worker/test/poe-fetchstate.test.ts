@@ -104,10 +104,14 @@ describe("poeAdapter.fetchState", () => {
       .reply(200, JSON.stringify({ name: "AccountName" }), {
         headers: { "content-type": "application/json" },
       });
+    // GGG's GET /character/<name> wraps the character in a
+    // { "character": {...} } envelope (verified live). The fixture file
+    // is the bare inner character (shared with the section-mapper unit
+    // tests); the HTTP mock must wrap it to mirror the real API.
     fetchMock
       .get(GGG_API)
       .intercept({ path: "/character/BoneShatterJugg", method: "GET" })
-      .reply(200, JSON.stringify(characterFixture), {
+      .reply(200, JSON.stringify({ character: characterFixture }), {
         headers: { "content-type": "application/json" },
       });
   }
@@ -131,6 +135,13 @@ describe("poeAdapter.fetchState", () => {
 
     expect(state.identity.saveName).toBe("BoneShatterJugg");
     expect(state.summary).toContain("Level 92");
+    // Regression guard: an unwrapped envelope yields an all-undefined
+    // character whose mappers still produce structurally-valid but
+    // EMPTY sections. Assert the real character actually flowed through.
+    expect(state.sections.character_overview!.data.name).toBe("BoneShatterJugg");
+    expect((state.sections.gear!.data.items as unknown[]).length).toBeGreaterThan(0);
+    expect((state.sections.jewels!.data.jewels as unknown[]).length).toBeGreaterThan(0);
+    expect(state.sections.passives!.data.allocated as number).toBeGreaterThan(0);
     expect(state.sections.character_overview).toBeTruthy();
     expect(state.sections.pob_build!.data.build_id).toBe("deadbeefcafe");
     expect(state.sections.pob_build!.data.Life).toBe(5200);

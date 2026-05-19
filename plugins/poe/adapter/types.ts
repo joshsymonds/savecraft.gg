@@ -76,3 +76,8 @@ export interface GggCharacterListEntry {
 export interface GggCharacterListResponse {
   characters: GggCharacterListEntry[];
 }
+
+/** GGG `GET /character/<name>` wraps the character in this envelope. */
+export interface GggCharacterResponse {
+  character: GggCharacter;
+}
