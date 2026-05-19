@@ -47,6 +47,7 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_uuid)`,
   `CREATE INDEX IF NOT EXISTS idx_saves_last_updated ON saves(last_updated)`,
+  `CREATE INDEX IF NOT EXISTS idx_saves_last_refresh ON saves(last_refresh_at)`,
   `CREATE TABLE IF NOT EXISTS source_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source_uuid TEXT NOT NULL,
