@@ -1,6 +1,6 @@
 <!--
   @component
-  Path of Exile landing page — headless Path of Building in chat, plus
+  Path of Exile landing page -- headless Path of Building in chat, plus
   reference modules grounded in real game data (gems, tree, uniques,
   mods, live economy).
 -->
@@ -22,11 +22,11 @@
   const heroFrames = [
     {
       src: "/images/poe/poe3.jpeg",
-      alt: "Claude swapping Void Manipulation for Concentrated Effect in a PoE build — before/after table showing +766k DPS (+14.7%) with real Path of Building calc deltas",
+      alt: "Claude swapping Void Manipulation for Concentrated Effect in a PoE build -- before/after table showing +766k DPS (+14.7%) with real Path of Building calc deltas",
     },
     {
       src: "/images/poe/poe2.jpg",
-      alt: "Hierophant Level 94 Templar build analysis — 5.22M DPS, 20.9k Life, resistances, offense stats, socket groups rendered from pob-server",
+      alt: "Hierophant Level 94 Templar build analysis -- 5.22M DPS, 20.9k Life, resistances, offense stats, socket groups rendered from pob-server",
     },
     {
       src: "/images/poe/poe2.jpg",
@@ -61,15 +61,15 @@
 </script>
 
 <svelte:head>
-  <title>Path of Exile — Build Planner for Claude & ChatGPT | Savecraft</title>
+  <title>Path of Exile -- Build Planner for Claude & ChatGPT | Savecraft</title>
   <meta
     name="description"
-    content="Savecraft is a GGG-approved connected app. Link your Path of Exile account and your AI analyzes your live characters through the real Path of Building calc engine — or paste a pobb.in link. Gem swaps, tree audits, actual DPS deltas, live poe.ninja prices."
+    content="Savecraft is a GGG-approved connected app. Link your Path of Exile account and your AI analyzes your live characters through the real Path of Building calc engine -- or paste a pobb.in link. Gem swaps, tree audits, actual DPS deltas, live poe.ninja prices."
   />
-  <meta property="og:title" content="Savecraft — Path of Building in Chat" />
+  <meta property="og:title" content="Savecraft -- Path of Building in Chat" />
   <meta
     property="og:description"
-    content="GGG-approved account connect: your AI reads your live PoE characters and runs them through real Path of Building — no export, no copy-paste. Or paste a pobb.in link. Real DPS deltas, not guesses. Live poe.ninja prices."
+    content="GGG-approved account connect: your AI reads your live PoE characters and runs them through real Path of Building -- no export, no copy-paste. Or paste a pobb.in link. Real DPS deltas, not guesses. Live poe.ninja prices."
   />
   <meta property="og:url" content="https://savecraft.gg/poe" />
   <meta property="og:type" content="website" />
@@ -106,14 +106,14 @@
     <span class="proof-sep">*</span>
     <span class="proof-item">poe.ninja live economy</span>
     <span class="proof-sep">*</span>
-    <span class="proof-item">RePoE — gems, uniques, mods, tree</span>
+    <span class="proof-item">RePoE -- gems, uniques, mods, tree</span>
     <span class="proof-sep">*</span>
     <span class="proof-item">GGG passive tree export</span>
   </div>
 
   <!-- ═══ ACCOUNT CONNECT ═══ -->
   <MarketingSection
-    eyebrow="NEW — GGG-APPROVED ACCOUNT CONNECT"
+    eyebrow="NEW -- GGG-APPROVED ACCOUNT CONNECT"
     title="Connect your account, or paste a link."
     subtitle="Savecraft is an approved GGG connecting application. The trust model doesn't change: every number still comes out of Path of Building itself. Connecting just deletes the export-and-paste step between you and the real calc."
   >
@@ -187,7 +187,7 @@
       <div class="compare-card compare-with">
         <ConversationDemo
           conversation={withPoB}
-          headerLabel="GEM SWAP — REAL CALC DELTA"
+          headerLabel="GEM SWAP -- REAL CALC DELTA"
           headerDotColor="var(--color-green)"
           startDelay={800}
         />
@@ -227,7 +227,7 @@
         examples={[
           {
             role: "player",
-            text: "Audit my passive tree — what's underperforming?",
+            text: "Audit my passive tree -- what's underperforming?",
           },
           {
             role: "ai",
@@ -246,7 +246,7 @@
           },
           {
             role: "ai",
-            text: "Three options in budget. Taste of Hate (14 div) — +12% DPS via freeze + chaos conversion. Headhunter jewel slot mods (22 div for T1) — flex utility. A +1 to all gems amulet (28 div) — +6% DPS, +4% max resists. Taste of Hate wins DPS/div.",
+            text: "Three options in budget. Taste of Hate (14 div) -- +12% DPS via freeze + chaos conversion. Headhunter jewel slot mods (22 div for T1) -- flex utility. A +1 to all gems amulet (28 div) -- +6% DPS, +4% max resists. Taste of Hate wins DPS/div.",
           },
         ]}
       />
@@ -315,8 +315,8 @@
       <div class="method-item">
         <span class="method-source">RePoE</span>
         <span class="method-desc">
-          The community-maintained extraction of PoE's game data — gems, uniques, mods, base items,
-          stat translations — updated per patch. Indexed into D1 with FTS5 full-text search and
+          The community-maintained extraction of PoE's game data -- gems, uniques, mods, base items,
+          stat translations -- updated per patch. Indexed into D1 with FTS5 full-text search and
           Vectorize embeddings for semantic lookup.
         </span>
       </div>

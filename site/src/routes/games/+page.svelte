@@ -1,6 +1,6 @@
 <!--
   @component
-  Games page — lists all supported games from plugin manifests.
+  Games page -- lists all supported games from plugin manifests.
 -->
 <script lang="ts">
   import { ModuleBadge } from "$lib/components/marketing";
@@ -32,7 +32,7 @@
   <title>Supported Games - Savecraft</title>
   <meta
     name="description"
-    content="Games supported by Savecraft — local plugins, in-game mods, and API integrations that connect your game state to Claude and ChatGPT."
+    content="Games supported by Savecraft -- local plugins, in-game mods, and API integrations that connect your game state to Claude and ChatGPT."
   />
 </svelte:head>
 
@@ -41,7 +41,7 @@
     <h1 class="page-title">Supported Games</h1>
     <p class="page-subtitle">
       Every game Savecraft supports. Local plugins parse save files on your machine, in-game mods
-      push colony state directly, and API integrations connect through official game services.
+      push game state directly, and API integrations connect through the game's own account.
     </p>
 
     <div class="search-bar">
