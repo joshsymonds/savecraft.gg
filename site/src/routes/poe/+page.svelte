@@ -30,7 +30,7 @@
     },
     {
       src: "/images/poe/poe2.jpg",
-      alt: "PoE build analysis (placeholder for a third distinct PoE product shot)",
+      alt: "Path of Building analysis of a Level 94 Hierophant in chat -- 5.22M DPS, 20.9k Life, full resistances and socket groups, no copy-paste",
     },
   ];
 
