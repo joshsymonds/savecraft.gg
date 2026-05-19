@@ -2,51 +2,61 @@
 
 ## Dashboard & Onboarding
 
-The root page (`/`) is both the dashboard and the onboarding experience. The layout is a two-column split: main content area (flex-1) on the left, activity feed sidebar (380px) on the right.
+The root page (`/`) is both the dashboard and the onboarding experience. The layout is a two-column split: main content area (flex-1) on the left, activity feed sidebar (380px) on the right. The sidebar additionally renders a compact COMPUTERS block (`SidebarSources`) when the user has at least one paired daemon computer.
 
-What renders in the main content area depends on the user's setup state:
+There is exactly one add verb: **Add a game**. There is no "add a source" / "pair a computer" entry point and no daemon-install-first screen — pairing a computer is reached only as a per-game leaf (via `GamePickerModal` or `GameDetailModal`). "Source" remains the internal data model (sources own saves; users own sources); the UI surfaces daemon machines as "computers" and never asks the user to "add a source".
 
-**Onboarding state machine:**
+**Render state (`web/src/routes/+page.svelte`):**
 
-| State | Condition | What renders |
-|-------|-----------|--------------|
-| **No sources** | `sources.length === 0` | `EmptySourceState` — retro terminal boot screen with install instructions + pairing code input via `AddSourceContent` |
-| **Has source(s), no MCP** | `sources.length > 0 && !mcpConnected` | `SourceStrip` (with "+ ADD SOURCE" chip) → `ConnectCard` (prominent CTA) → `GamePanel` |
-| **Has source(s) + MCP** | `sources.length > 0 && mcpConnected` | `SourceStrip` (with "+ ADD SOURCE" chip) → `ConnectCard` (compact) → `GamePanel` |
+| Condition | What renders in the main area |
+|-----------|-------------------------------|
+| `connectionStatus === "reconnecting"` | reconnecting indicator |
+| linking / `showLinkInput` (`$linkState`) | `LinkingCard` (6-digit code input; linking/error/success) |
+| `sources.length === 0` && `connectionStatus === "connecting"` | connecting spinner |
+| `sources.length === 0` (settled) | `ConnectCard` + `EmptySourceState` (the "Add a game" entry) |
+| `sources.length > 0` | `ConnectCard` + `GamePanel` |
 
-The state machine is implicit — the page template checks source count and MCP status, rendering the appropriate component variants. No explicit state variable; the reactive stores (`$sources`, MCP status from API) drive the UI.
+Modals are driven by selection state: `selectedSource` → `SourceDetailModal`; `selectedGame` → `GameDetailModal`; `selectedSave` → save/notes modal; `pickerOpen` → `GamePickerModal`.
+
+The state machine is implicit — the page template reacts to `$sources`, `$connectionStatus`, `$linkState`, and MCP status. No explicit state variable.
 
 ## Components
 
-### SourceStrip
+### EmptySourceState
 
-Horizontal strip of source chips at the top of the page. Each chip shows hostname/name and connection status (online/offline). Clicking a chip opens `SourceDetailModal` for detailed source info. A gold-accented "+ ADD SOURCE" chip at the end opens `AddSourceModal`. Only rendered when `$sources.length > 0`.
+First-run state when no sources exist. A retro terminal header ("CONNECT A GAME" / "pick a game and Savecraft wires it up") with an **ADD A GAME** button that opens `GamePickerModal`. It does NOT lead with daemon install or a "no sources / awaiting daemon" boot screen — the connect method is contextual to the picked game.
 
-Sources and games are visually separated: sources are a compact strip for status-at-a-glance, while games get the full content area below.
+### GamePickerModal (unified catalog)
+
+The single add-a-game surface. Lists every supported game from the server manifest, each classified by connection method via the shared `connectionMethods()` predicate (derived from `manifest.adapter` + the `sources` array → `adapter | daemon | mod | reference`; hybrid priority adapter > mod > daemon > reference) — never from the dead singular `manifest.source`. Each `GamePickerCard` shows the primary-method affordance: adapter "Connect account", mod "Install mod", daemon "Set up", reference "Ready". Flow: pick a game → adapter games show a region step when the game has >1 region, then redirect to the provider's OAuth (Battle.net for WoW, GGG for PoE — `oauth2_code_pkce`); daemon games with no paired computer show a contextual `DaemonSetup` step; reference games are immediately usable.
+
+### GamePickerCard
+
+One card per game in the catalog: name, icon, and the primary-method badge from the priority chain above.
 
 ### GamePanel (progressive disclosure)
 
-Game-centric dashboard that uses drill-down navigation:
+Game-centric drill-down navigation:
 
-1. **Games Grid** (default view): `GameCard` components in a flex grid showing all games merged across all sources. Each card displays game name with icon, save count, and a list of save names. "Add a game" button opens `GamePickerModal`.
-2. **Saves List** (clicking a game): Shows all saves for the selected game. Each save displayed as a `SaveRow`. If multiple sources have the same game, shows source badges. Has "back to games" navigation via `WindowTitleBar`.
-3. **Save Details** (clicking a save): Shows notes for that specific save. Allows creating/editing/deleting notes. Has breadcrumb navigation: GAMES > GameName > SaveName.
+1. **Games Grid** (default view): `GameCard` components in a flex grid showing all games merged across all sources. Each card displays game name with icon, save count, and a list of save names. "Add a game" opens `GamePickerModal`.
+2. **Saves List** (clicking a game): all saves for the selected game as `SaveRow`s; source badges when more than one source has the game. "Back to games" via `WindowTitleBar`.
+3. **Save Details** (clicking a save): notes for that save (create/edit/delete). Breadcrumb: GAMES > GameName > SaveName.
 
-### GamePickerModal
+### GameDetailModal
 
-Modal for adding new games. Includes search, game selection, and configuration (save path, file extensions). Config writes to D1 and pushes to the daemon in real time via SourceHub → daemon WebSocket.
+Per-game detail. Its SOURCES section owns per-(game, computer) configuration — save directory per machine, adding the game to another already-paired computer, editing/removing a path — and exposes an add-another-computer affordance whose "Pair a new computer" option reuses `DaemonSetup` (the only other place pairing is reached). Adapter-backed games (WoW/PoE) appear here as visual-only, non-editable "API" status rows: connected/reconnect/remove only, no path config.
 
-### AddSourceContent
+### DaemonSetup
 
-Shared component with install instructions (Windows CMD download via install worker, Linux curl command) and pairing code input. Used by both `AddSourceModal` and `EmptySourceState`.
+Install + 6-digit pairing flow for a daemon machine. Rendered contextually only: the `GamePickerModal` daemon step (a daemon game with zero paired computers) and `GameDetailModal`'s "Pair a new computer" leaf. Never a standalone or first-run entry.
 
-### AddSourceModal
+### SidebarSources (COMPUTERS)
 
-Modal (480px, backdrop, Esc to close) wrapping `AddSourceContent`. Opened by clicking "+ ADD SOURCE" in `SourceStrip`. Uses `WindowTitleBar` with "ADD SOURCE" label and close button.
+Compact block atop the activity sidebar listing paired daemon computers with online/offline status; clicking one opens `SourceDetailModal`. Rendered only when at least one daemon computer exists. Adapters are not shown here — they are visual-only rows in `GameDetailModal`.
 
-### EmptySourceState
+### SourceDetailModal
 
-Retro terminal/boot screen shown when no sources are connected. Displays `> NO SOURCES DETECTED` and `> AWAITING DAEMON CONNECTION...` in pixel font with CRT scan line overlay and pulsing glow, then wraps `AddSourceContent` for the install + pairing flow.
+Diagnostics and per-game config for a single paired daemon computer. Opened from the COMPUTERS block.
 
 ### ConnectCard (MCP status)
 
@@ -55,7 +65,7 @@ Retro terminal/boot screen shown when no sources are connected. Displays `> NO S
 
 ### LinkingCard
 
-Appears during the source linking flow. Shows a text input for the 6-digit code, linking state animation, and error/success states.
+Appears during the 6-digit linking flow. Shows the code input, linking-state animation, and error/success states.
 
 ### Activity Feed (sidebar)
 
