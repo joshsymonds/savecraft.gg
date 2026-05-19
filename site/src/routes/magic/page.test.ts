@@ -64,10 +64,21 @@ describe("Magic landing page reframe", () => {
     expect(badges).toHaveLength(13);
   });
 
-  it("derives the instant tier from requires_save (9 instant modules from the mock)", () => {
+  it("dropped the two-tier TRY-IT-NOW/GO-DEEPER model for the game-centric spine", () => {
     const { container } = render(Page, { props: { data: { game: mockGame } } });
-    const items = container.querySelectorAll(".tier-card:has(.tier-instant) .tier-features li");
-    expect(items).toHaveLength(9);
+    // The rejected two-tier plumbing menu is gone entirely.
+    expect(container.querySelector(".tiers-grid")).toBeNull();
+    expect(container.querySelector(".tier-card")).toBeNull();
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("Two ways in");
+    expect(text).not.toContain("GO DEEPER");
+    expect(text).not.toContain("TRY IT NOW");
+    // Replaced by the one-verb spine: reference is instant, the Player.log
+    // path is Magic's nature, and the honest collection limit is stated.
+    expect(text).toContain("Add Magic. It connects the right way.");
+    expect(text).toContain("Reference, the second you add it");
+    expect(text).toContain("Player.log");
+    expect(text).toContain("ownership is the one thing Savecraft cannot see");
   });
 
   it("renders an EDHREC methodology entry", () => {
