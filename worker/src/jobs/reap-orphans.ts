@@ -9,7 +9,7 @@
  * sources never have saves to clean up — unlinked sources cannot push saves.
  */
 
-import { cleanupSource } from "../index";
+import { cleanupSource } from "../source-cleanup";
 import type { Env } from "../types";
 
 const ORPHAN_THRESHOLD_DAYS = 7;

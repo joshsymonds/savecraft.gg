@@ -1,3 +1,4 @@
+import { cleanupSource } from "../source-cleanup";
 import type { Env } from "../types";
 
 import { handleSeedCharacter } from "./seed-character";
@@ -88,6 +89,14 @@ async function routeSourceAdmin(
   if (subpath === "push-update" && request.method === "POST") {
     const body = await request.json();
     return proxyDoPost(env.SOURCE_HUB, sourceUuid, "push-update", body);
+  }
+  if (subpath === "delete" && request.method === "DELETE") {
+    const row = await env.DB.prepare("SELECT user_uuid FROM sources WHERE source_uuid = ?")
+      .bind(sourceUuid)
+      .first<{ user_uuid: string | null }>();
+    if (!row) return NOT_FOUND();
+    await cleanupSource(env, sourceUuid, row.user_uuid);
+    return Response.json({ deleted: true, sourceUuid });
   }
   return (await proxyDoDebug(env.SOURCE_HUB, sourceUuid, subpath)) ?? NOT_FOUND();
 }

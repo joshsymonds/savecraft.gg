@@ -248,6 +248,50 @@ describe("Admin API", () => {
     });
   });
 
+  describe("DELETE /admin/source/:uuid/delete", () => {
+    function adminDelete(path: string, key?: string): Promise<Response> {
+      const headers: Record<string, string> = {};
+      if (key) headers.Authorization = `Bearer ${key}`;
+      return SELF.fetch(`https://test-host${path}`, { method: "DELETE", headers });
+    }
+
+    it("returns 401 without the admin key", async () => {
+      const { sourceUuid } = await seedSource("u1");
+      const resp = await adminDelete(`/admin/source/${sourceUuid}/delete`);
+      expect(resp.status).toBe(401);
+    });
+
+    it("runs cleanupSource: removes the source row and its events", async () => {
+      const userUuid = "purge-user";
+      const { sourceUuid } = await seedSource(userUuid);
+      await env.DB.prepare(
+        "INSERT INTO source_events (source_uuid, event_type, event_data) VALUES (?, 'oauthStarted', '{}')",
+      )
+        .bind(sourceUuid)
+        .run();
+
+      const resp = await adminDelete(`/admin/source/${sourceUuid}/delete`, ADMIN_KEY);
+      expect(resp.status).toBe(200);
+      expect(await resp.json()).toEqual({ deleted: true, sourceUuid });
+
+      const source = await env.DB.prepare("SELECT 1 FROM sources WHERE source_uuid = ?")
+        .bind(sourceUuid)
+        .first();
+      expect(source).toBeNull();
+      const eventCount = await env.DB.prepare(
+        "SELECT COUNT(*) c FROM source_events WHERE source_uuid = ?",
+      )
+        .bind(sourceUuid)
+        .first<{ c: number }>();
+      expect(eventCount!.c).toBe(0);
+    });
+
+    it("returns 404 for an unknown source", async () => {
+      const resp = await adminDelete(`/admin/source/${crypto.randomUUID()}/delete`, ADMIN_KEY);
+      expect(resp.status).toBe(404);
+    });
+  });
+
   describe("unknown admin routes", () => {
     it("returns 404 for unknown admin path", async () => {
       const response = await adminFetch("/admin/nonexistent", ADMIN_KEY);
