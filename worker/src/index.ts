@@ -402,16 +402,10 @@ async function handleAdapterAuthorize(
 
   const oauthConfig = adapter.getOAuthConfig(region, env);
 
-  // Create adapter source immediately — the user requested this game
-  const sourceUuid = await findOrCreateAdapterSource(env, userUuid);
-
-  // Log oauthStarted event and push initial game state to SourceHub in parallel
-  await Promise.all([
-    logSourceEvent(env, sourceUuid, "oauthStarted", {
-      oauthStarted: { gameId: adapter.gameId, region, provider: provider.segment },
-    }),
-    pushGameStatus(env, sourceUuid, userUuid, adapter.gameId, adapter.gameName, "watching"),
-  ]);
+  // No source/DO writes here. Authorize is unauthenticated intent; an
+  // abandoned or failed flow must leave nothing behind. The adapter
+  // source and "watching" status are created in the callback only after
+  // the token exchange succeeds (#22).
 
   // PKCE (RFC 7636) for providers that require it. The verifier is
   // stored only in the short-TTL KV state blob — never in the state
@@ -420,7 +414,7 @@ async function handleAdapterAuthorize(
 
   // Store state in KV (one-time use, 10 min TTL)
   const stateKey = crypto.randomUUID();
-  const callbackState: OAuthCallbackState = { userUuid, region, returnUrl, sourceUuid };
+  const callbackState: OAuthCallbackState = { userUuid, region, returnUrl };
   if (pkce) callbackState.codeVerifier = pkce.verifier;
   await env.OAUTH_KV.put(
     `${provider.segment}-oauth-state:${stateKey}`,
@@ -557,30 +551,8 @@ interface OAuthCallbackState {
   userUuid: string;
   region: string;
   returnUrl: string;
-  sourceUuid: string;
   /** PKCE code_verifier — only present for pkce providers; never leaves KV. */
   codeVerifier?: string;
-}
-
-async function handleTokenFailure(
-  state: OAuthCallbackState,
-  adapter: { gameId: string; gameName: string },
-  eventData: Record<string, unknown>,
-  env: Env,
-  errorMessage?: string,
-): Promise<void> {
-  await Promise.all([
-    logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", { oauthTokenFailed: eventData }),
-    pushGameStatus(
-      env,
-      state.sourceUuid,
-      state.userUuid,
-      adapter.gameId,
-      adapter.gameName,
-      "error",
-      errorMessage,
-    ),
-  ]);
 }
 
 async function exchangeAndStoreToken(
@@ -604,14 +576,9 @@ async function exchangeAndStoreToken(
       exchangeAdapterToken(provider, code, redirectUri, oauthConfig, state.codeVerifier, env),
     ]);
     tokenResult = exchangeResult;
-  } catch (error: unknown) {
-    await handleTokenFailure(
-      state,
-      adapter,
-      { gameId: adapter.gameId, region: state.region, error: toErrorMessage(error) },
-      env,
-      toErrorMessage(error),
-    );
+  } catch {
+    // No source exists yet (#22) — nothing to roll back. The cause
+    // rides the user-facing error redirect.
     return errorRedirect(
       redirectUrl,
       adapter.gameId,
@@ -621,12 +588,6 @@ async function exchangeAndStoreToken(
   }
 
   if (tokenResult instanceof Response) {
-    await handleTokenFailure(
-      state,
-      adapter,
-      { gameId: adapter.gameId, region: state.region, status: tokenResult.status },
-      env,
-    );
     return errorRedirect(
       redirectUrl,
       adapter.gameId,
@@ -635,29 +596,26 @@ async function exchangeAndStoreToken(
     );
   }
 
-  // Log token exchange and store credentials in parallel
-  await Promise.all([
-    logSourceEvent(env, state.sourceUuid, "oauthTokenExchanged", {
-      oauthTokenExchanged: { gameId: adapter.gameId, region: state.region },
-    }),
-    env.DB.prepare(
-      `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
+  // Exchange succeeded — persist the credential (keyed by user+game,
+  // not source). Source creation + status push happen in the caller,
+  // now that the connection is real (#22).
+  await env.DB.prepare(
+    `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
        VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(user_uuid, game_id) DO UPDATE SET
          access_token = excluded.access_token,
          refresh_token = excluded.refresh_token,
          expires_at = excluded.expires_at,
          updated_at = datetime('now')`,
+  )
+    .bind(
+      state.userUuid,
+      adapter.gameId,
+      tokenResult.accessToken,
+      tokenResult.refreshToken,
+      tokenResult.expiresAt,
     )
-      .bind(
-        state.userUuid,
-        adapter.gameId,
-        tokenResult.accessToken,
-        tokenResult.refreshToken,
-        tokenResult.expiresAt,
-      )
-      .run(),
-  ]);
+    .run();
 
   return tokenResult;
 }
@@ -703,10 +661,21 @@ async function handleAdapterCallback(
   );
   if (tokenResult instanceof Response) return tokenResult;
 
+  // Connection is real now: create the adapter source and push the
+  // "watching" status (previously done prematurely at authorize, #22).
+  const sourceUuid = await findOrCreateAdapterSource(env, state.userUuid);
+  await Promise.all([
+    logSourceEvent(env, sourceUuid, "oauthTokenExchanged", {
+      oauthTokenExchanged: { gameId: adapter.gameId, region: state.region },
+    }),
+    pushGameStatus(env, sourceUuid, state.userUuid, adapter.gameId, adapter.gameName, "watching"),
+  ]);
+
   const discoveryError = await discoverReconcileOrError(
     adapter,
     env,
     state,
+    sourceUuid,
     tokenResult.accessToken,
     redirectUrl,
   );
@@ -729,6 +698,7 @@ async function discoverReconcileOrError(
   adapter: ApiAdapter,
   env: Env,
   state: OAuthCallbackState,
+  sourceUuid: string,
   accessToken: string,
   redirectUrl: URL,
 ): Promise<Response | null> {
@@ -739,10 +709,10 @@ async function discoverReconcileOrError(
       accessToken,
       state.region,
       state.userUuid,
-      state.sourceUuid,
+      sourceUuid,
     );
 
-    await logSourceEvent(env, state.sourceUuid, "characterDiscovery", {
+    await logSourceEvent(env, sourceUuid, "characterDiscovery", {
       characterDiscovery: {
         gameId: adapter.gameId,
         region: state.region,
@@ -755,7 +725,7 @@ async function discoverReconcileOrError(
     return null;
   } catch (error: unknown) {
     await Promise.all([
-      logSourceEvent(env, state.sourceUuid, "characterDiscoveryFailed", {
+      logSourceEvent(env, sourceUuid, "characterDiscoveryFailed", {
         characterDiscoveryFailed: {
           gameId: adapter.gameId,
           region: state.region,
@@ -764,7 +734,7 @@ async function discoverReconcileOrError(
       }),
       pushGameStatus(
         env,
-        state.sourceUuid,
+        sourceUuid,
         state.userUuid,
         adapter.gameId,
         adapter.gameName,

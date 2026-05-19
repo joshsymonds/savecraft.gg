@@ -118,6 +118,27 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       expect(parsed.codeVerifier).toBeTruthy();
       expect(url).not.toContain(parsed.codeVerifier!);
     });
+
+    it("persists no source and no DO game status (state created only on success, #22)", async () => {
+      await SELF.fetch(
+        new Request("https://test-host/oauth/ggg/authorize", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${USER_UUID}` },
+        }),
+      );
+
+      const sourceCount = await env.DB.prepare(
+        "SELECT COUNT(*) c FROM sources WHERE user_uuid = ?",
+      )
+        .bind(USER_UUID)
+        .first<{ c: number }>();
+      expect(sourceCount!.c).toBe(0);
+
+      const events = await env.DB.prepare(
+        "SELECT COUNT(*) c FROM source_events WHERE event_type = 'oauthStarted'",
+      ).first<{ c: number }>();
+      expect(events!.c).toBe(0);
+    });
   });
 
   describe("GET /oauth/ggg/callback", () => {
@@ -245,6 +266,51 @@ describe("PoE GGG OAuth + discoverSaves", () => {
         .bind(USER_UUID)
         .first<{ game_id: string }>();
       expect(cred?.game_id).toBe("poe");
+    });
+
+    it("a failed token exchange leaves no source and no credential (#22)", async () => {
+      const stateKey = crypto.randomUUID();
+      await env.OAUTH_KV.put(
+        `ggg-oauth-state:${stateKey}`,
+        JSON.stringify({
+          userUuid: USER_UUID,
+          region: "pc",
+          returnUrl: "",
+          codeVerifier: "test-verifier-1234567890-abcdefghijklmnop",
+        }),
+        { expirationTtl: 600 },
+      );
+
+      fetchMock.activate();
+      fetchMock.disableNetConnect();
+      fetchMock
+        .get("https://www.pathofexile.com")
+        .intercept({ path: "/oauth/token", method: "POST" })
+        .reply(400, "invalid_grant");
+
+      const resp = await SELF.fetch(
+        new Request(`https://test-host/oauth/ggg/callback?code=bad&state=${stateKey}`, {
+          method: "GET",
+          redirect: "manual",
+        }),
+      );
+
+      expect(resp.status).toBe(302);
+      expect(new URL(resp.headers.get("Location")!).searchParams.get("error")).toBe("token_failed");
+
+      const sourceCount = await env.DB.prepare(
+        "SELECT COUNT(*) c FROM sources WHERE user_uuid = ?",
+      )
+        .bind(USER_UUID)
+        .first<{ c: number }>();
+      expect(sourceCount!.c).toBe(0);
+
+      const cred = await env.DB.prepare(
+        "SELECT COUNT(*) c FROM game_credentials WHERE user_uuid = ?",
+      )
+        .bind(USER_UUID)
+        .first<{ c: number }>();
+      expect(cred!.c).toBe(0);
     });
   });
 });

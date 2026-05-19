@@ -2,27 +2,10 @@ import { env, fetchMock, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { sha256Hex } from "../src/auth";
-import { GameStatusEnum } from "../src/proto/savecraft/v1/protocol";
 
 import { cleanAll } from "./helpers";
 
 const USER_UUID = "adapter-oauth-user";
-
-/** Read SourceHub debug state for a given source. */
-async function getSourceHubState(sourceUuid: string): Promise<{
-  sourceState: {
-    sources: {
-      sourceId: string;
-      online: boolean;
-      games: { gameId: string; gameName: string; status: number }[];
-    }[];
-  };
-}> {
-  const doId = env.SOURCE_HUB.idFromName(sourceUuid);
-  const doStub = env.SOURCE_HUB.get(doId);
-  const resp = await doStub.fetch(new Request("https://do/debug/state"));
-  return resp.json();
-}
 
 /** Seed an adapter source pre-linked to the user. */
 async function seedAdapterSource(userUuid: string): Promise<string> {
@@ -64,7 +47,7 @@ describe("Adapter OAuth", () => {
       expect(body.url).toContain("scope=wow.profile");
       expect(body.url).toContain("state=");
 
-      // Verify state was stored in KV with sourceUuid
+      // State holds only intent; no pre-created source (#22).
       const url = new URL(body.url);
       const state = url.searchParams.get("state")!;
       const stored = await env.OAUTH_KV.get(`battlenet-oauth-state:${state}`);
@@ -72,11 +55,11 @@ describe("Adapter OAuth", () => {
       const parsed = JSON.parse(stored!) as {
         userUuid: string;
         region: string;
-        sourceUuid: string;
+        sourceUuid?: string;
       };
       expect(parsed.userUuid).toBe(USER_UUID);
       expect(parsed.region).toBe("us");
-      expect(parsed.sourceUuid).toBeTruthy();
+      expect(parsed.sourceUuid).toBeUndefined();
     });
 
     it("uses EU OAuth URLs for region=eu", async () => {
@@ -124,7 +107,7 @@ describe("Adapter OAuth", () => {
       expect(parsed.returnUrl).toBe("");
     });
 
-    it("pushes WATCHING game state to SourceHub after source creation", async () => {
+    it("persists no source and no DO game status at authorize (#22)", async () => {
       const resp = await SELF.fetch(
         new Request("https://test-host/oauth/battlenet/authorize?region=us", {
           method: "GET",
@@ -133,21 +116,17 @@ describe("Adapter OAuth", () => {
       );
       expect(resp.status).toBe(200);
 
-      // Extract sourceUuid from KV state
-      const body = await resp.json<{ url: string }>();
-      const authorizeUrl = new URL(body.url);
-      const stateKey = authorizeUrl.searchParams.get("state")!;
-      const stored = await env.OAUTH_KV.get(`battlenet-oauth-state:${stateKey}`);
-      const parsed = JSON.parse(stored!) as { sourceUuid: string };
+      const sourceCount = await env.DB.prepare(
+        "SELECT COUNT(*) c FROM sources WHERE user_uuid = ?",
+      )
+        .bind(USER_UUID)
+        .first<{ c: number }>();
+      expect(sourceCount!.c).toBe(0);
 
-      // Verify SourceHub has the game with WATCHING status
-      const debug = await getSourceHubState(parsed.sourceUuid);
-      expect(debug.sourceState.sources).toHaveLength(1);
-      const source = debug.sourceState.sources[0]!;
-      expect(source.games).toHaveLength(1);
-      expect(source.games[0]!.gameId).toBe("wow");
-      expect(source.games[0]!.gameName).toBe("World of Warcraft");
-      expect(source.games[0]!.status).toBe(GameStatusEnum.GAME_STATUS_ENUM_WATCHING);
+      const events = await env.DB.prepare(
+        "SELECT COUNT(*) c FROM source_events WHERE event_type = 'oauthStarted'",
+      ).first<{ c: number }>();
+      expect(events!.c).toBe(0);
     });
   });
 
@@ -200,65 +179,37 @@ describe("Adapter OAuth", () => {
       expect(location.searchParams.get("error_detail")).toBeTruthy();
     });
 
-    it("logs oauthTokenFailed event when token exchange fails", async () => {
-      const sourceUuid = await seedAdapterSource(USER_UUID);
+    it("a failed token exchange leaves no source, event, or credential (#22)", async () => {
       const stateKey = crypto.randomUUID();
       await env.OAUTH_KV.put(
         `battlenet-oauth-state:${stateKey}`,
-        JSON.stringify({
-          userUuid: USER_UUID,
-          region: "us",
-          returnUrl: "",
-          sourceUuid,
-        }),
+        JSON.stringify({ userUuid: USER_UUID, region: "us", returnUrl: "" }),
         { expirationTtl: 600 },
       );
 
-      await SELF.fetch(
+      const resp = await SELF.fetch(
         new Request(`https://test-host/oauth/battlenet/callback?code=fake-code&state=${stateKey}`, {
           method: "GET",
           redirect: "manual",
         }),
       );
 
-      const events = await env.DB.prepare(
-        "SELECT event_type, event_data FROM source_events WHERE source_uuid = ? ORDER BY id",
+      expect(resp.status).toBe(302);
+      expect(new URL(resp.headers.get("Location")!).searchParams.get("error")).toBe("token_failed");
+
+      const sourceCount = await env.DB.prepare(
+        "SELECT COUNT(*) c FROM sources WHERE user_uuid = ?",
       )
-        .bind(sourceUuid)
-        .all<{ event_type: string; event_data: string }>();
+        .bind(USER_UUID)
+        .first<{ c: number }>();
+      expect(sourceCount!.c).toBe(0);
 
-      const tokenFailed = events.results.find((event) => event.event_type === "oauthTokenFailed");
-      expect(tokenFailed).toBeTruthy();
-    });
-
-    it("pushes ERROR state to SourceHub when token exchange fails", async () => {
-      const sourceUuid = await seedAdapterSource(USER_UUID);
-      const stateKey = crypto.randomUUID();
-      await env.OAUTH_KV.put(
-        `battlenet-oauth-state:${stateKey}`,
-        JSON.stringify({
-          userUuid: USER_UUID,
-          region: "us",
-          returnUrl: "",
-          sourceUuid,
-        }),
-        { expirationTtl: 600 },
-      );
-
-      await SELF.fetch(
-        new Request(`https://test-host/oauth/battlenet/callback?code=fake-code&state=${stateKey}`, {
-          method: "GET",
-          redirect: "manual",
-        }),
-      );
-
-      const debug = await getSourceHubState(sourceUuid);
-      expect(debug.sourceState.sources).toHaveLength(1);
-      expect(debug.sourceState.sources[0]!.games).toHaveLength(1);
-      expect(debug.sourceState.sources[0]!.games[0]!.gameId).toBe("wow");
-      expect(debug.sourceState.sources[0]!.games[0]!.status).toBe(
-        GameStatusEnum.GAME_STATUS_ENUM_ERROR,
-      );
+      const cred = await env.DB.prepare(
+        "SELECT COUNT(*) c FROM game_credentials WHERE user_uuid = ?",
+      )
+        .bind(USER_UUID)
+        .first<{ c: number }>();
+      expect(cred!.c).toBe(0);
     });
   });
 
