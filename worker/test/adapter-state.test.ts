@@ -361,3 +361,89 @@ describe("SourceHub /set-game-status", () => {
     await closeWs(uiWs);
   });
 });
+
+describe("SourceHub /sync-discovered-saves (#23)", () => {
+  beforeEach(cleanAll);
+
+  async function syncDiscoveredSaves(
+    sourceUuid: string,
+    userUuid: string,
+    body: Record<string, unknown>,
+  ): Promise<Response> {
+    const doId = env.SOURCE_HUB.idFromName(sourceUuid);
+    const doStub = env.SOURCE_HUB.get(doId);
+    return doStub.fetch(
+      new Request("https://do/sync-discovered-saves", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Source-UUID": sourceUuid,
+          "X-User-UUID": userUuid,
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+  }
+
+  it("adds discovered characters as named saves with empty summaries", async () => {
+    const userUuid = crypto.randomUUID();
+    const sourceUuid = await seedAdapterSource(userUuid);
+
+    await setGameStatus(sourceUuid, userUuid, {
+      gameId: "poe",
+      gameName: "Path of Exile",
+      status: "watching",
+    });
+
+    const resp = await syncDiscoveredSaves(sourceUuid, userUuid, {
+      gameId: "poe",
+      gameName: "Path of Exile",
+      saves: [
+        { saveUuid: "s-atmus", name: "Atmus" },
+        { saveUuid: "s-ceral", name: "Ceral" },
+      ],
+    });
+    expect(resp.status).toBe(200);
+
+    const debug = (await getDebugState(sourceUuid)) as unknown as {
+      sourceState: {
+        sources: {
+          games: {
+            gameId: string;
+            saves: { saveUuid: string; summary: string; identity?: { name: string } }[];
+          }[];
+        }[];
+      };
+    };
+    const game = debug.sourceState.sources[0]!.games.find((g) => g.gameId === "poe")!;
+    expect(game.saves).toHaveLength(2);
+    const names = game.saves
+      .map((s) => s.identity?.name)
+      .toSorted((a, b) => (a ?? "").localeCompare(b ?? ""));
+    expect(names).toEqual(["Atmus", "Ceral"]);
+    expect(game.saves.every((s) => s.summary === "")).toBe(true);
+  });
+
+  it("is idempotent — re-syncing the same characters does not duplicate", async () => {
+    const userUuid = crypto.randomUUID();
+    const sourceUuid = await seedAdapterSource(userUuid);
+    await setGameStatus(sourceUuid, userUuid, {
+      gameId: "poe",
+      gameName: "Path of Exile",
+      status: "watching",
+    });
+    const body = {
+      gameId: "poe",
+      gameName: "Path of Exile",
+      saves: [{ saveUuid: "s-atmus", name: "Atmus" }],
+    };
+    await syncDiscoveredSaves(sourceUuid, userUuid, body);
+    await syncDiscoveredSaves(sourceUuid, userUuid, body);
+
+    const debug = (await getDebugState(sourceUuid)) as unknown as {
+      sourceState: { sources: { games: { gameId: string; saves: unknown[] }[] }[] };
+    };
+    const game = debug.sourceState.sources[0]!.games.find((g) => g.gameId === "poe")!;
+    expect(game.saves).toHaveLength(1);
+  });
+});

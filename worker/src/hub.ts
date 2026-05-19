@@ -439,6 +439,9 @@ export class SourceHub extends DurableObject<Env> {
       case "/set-game-status": {
         return this.handleSetGameStatus(request);
       }
+      case "/sync-discovered-saves": {
+        return this.handleSyncDiscoveredSaves(request);
+      }
       case "/set-user": {
         return this.handleSetUser(request);
       }
@@ -1564,6 +1567,42 @@ export class SourceHub extends DurableObject<Env> {
     // alarm fires once and is not rescheduled.
     const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
     await this.ctx.storage.setAlarm(Date.now() + interval);
+
+    return Response.json({ ok: true });
+  }
+
+  /**
+   * Reflect an adapter's discovered characters as named saves in the
+   * source state so the dashboard lists them immediately. Discovery is
+   * summary-less by design (Req 5); summaries fill on refresh_save.
+   * Idempotent — keyed by saveUuid via the pushCompleted mutation.
+   */
+  private async handleSyncDiscoveredSaves(request: Request): Promise<Response> {
+    const body = await request.json<{
+      gameId?: string;
+      saves?: { saveUuid: string; name: string }[];
+    }>();
+
+    if (!body.gameId || !Array.isArray(body.saves)) {
+      return Response.json({ error: "Missing required fields: gameId, saves" }, { status: 400 });
+    }
+
+    const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+    const sourceId = sourceUuid ?? crypto.randomUUID();
+
+    const state = await this.loadState();
+    for (const save of body.saves) {
+      applyMutation(state, {
+        kind: "pushCompleted",
+        sourceId,
+        gameId: body.gameId,
+        saveUuid: save.saveUuid,
+        summary: "",
+        identity: { name: save.name, extra: undefined },
+      });
+    }
+    await this.saveState(state);
+    await this.forwardStateToUserHub();
 
     return Response.json({ ok: true });
   }
