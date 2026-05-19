@@ -104,7 +104,7 @@
       // Any paired computer: show the hub so the "pair another" leaf is
       // always reachable. No paired computer: the hub would be just that
       // leaf, so go straight to install and pair.
-      step = configurableSources.length >= 1 ? "selectSource" : "daemonSetup";
+      step = configurableSources.length > 0 ? "selectSource" : "daemonSetup";
     } else {
       // Reference-only; works with zero setup.
       configGame = game;
@@ -143,10 +143,7 @@
   }
 
   function handleBack() {
-    if (
-      (step === "configuring" || step === "daemonSetup") &&
-      configurableSources.length >= 1
-    ) {
+    if ((step === "configuring" || step === "daemonSetup") && configurableSources.length > 0) {
       step = "selectSource";
       configState = "idle";
       configError = "";
@@ -317,7 +314,7 @@
   {:else if step === "daemonSetup"}
     <DaemonSetup
       {onpair}
-      intro={`${configGame?.name} keeps its saves on your PC. Install the Savecraft daemon and pair it once. After that it watches those saves for you.`}
+      intro={`${configGame?.name ?? ""} keeps its saves on your PC. Install the Savecraft daemon and pair it once. After that it watches those saves for you.`}
     />
   {:else if step === "ready"}
     <div class="ready-panel">

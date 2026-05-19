@@ -25,9 +25,9 @@
       <Panel accent="#c8a84e30">
         <div class="cta-body">
           <p class="cta-desc">
-            Add a game and Savecraft connects it the right way for that game: your account,
-            your save files, or an in-game mod. Reference data (rules, items, builds, prices)
-            works the moment it is added.
+            Add a game and Savecraft connects it the right way for that game: your account, your
+            save files, or an in-game mod. Reference data (rules, items, builds, prices) works the
+            moment it is added.
           </p>
           <button class="add-game-button" onclick={() => onaddgame?.()}>
             <span class="add-game-icon">+</span>

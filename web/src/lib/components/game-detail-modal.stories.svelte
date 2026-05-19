@@ -467,7 +467,7 @@
     availableSources={[]}
     onclose={() => alert("Close")}
     onsaveclick={handleSaveClick}
-    onpair={(code) => alert(`Pair: ${code}`)}
+    onpair={(code) => alert(`Pair: ${String(code)}`)}
   />
 </Story>
 

@@ -56,7 +56,8 @@
     {:else if method === "adapter"}
       <span class="picker-badge api-badge">Connect account <span class="chev">&rsaquo;</span></span>
     {:else if method === "mod"}
-      <span class="picker-badge workshop-badge">Install mod <span class="chev">&rsaquo;</span></span>
+      <span class="picker-badge workshop-badge">Install mod <span class="chev">&rsaquo;</span></span
+      >
     {:else if method === "daemon"}
       <span class="picker-badge unconfigured-badge">Set up <span class="chev">&rsaquo;</span></span>
     {:else}

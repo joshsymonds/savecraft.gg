@@ -205,130 +205,130 @@
       />
     </div>
   {:else}
-  <div class="saves-area">
-    {#each game.saves as save (save.saveUuid)}
-      <div class="save-row-wrap">
-        <SaveRow {save} onclick={() => onsaveclick(save)} />
-        {#if showSourceBadges && game.sourceCount > 1}
-          <span class="source-badge">{save.sourceName}</span>
-        {/if}
-      </div>
-    {:else}
-      <div class="empty-saves">
-        <span class="empty-text">No saves detected</span>
-      </div>
-    {/each}
-  </div>
-
-  <!-- Sources section -->
-  {#if game.sources.length > 0 || availableSources.length > 0 || !hasAdapterSource}
-    <div class="sources-section">
-      <div class="sources-header">
-        <span class="section-label">SOURCES</span>
-        {#if !hasAdapterSource}
-          <DropdownMenu
-            label="ADD A COMPUTER"
-            options={dropdownOptions}
-            onpick={handleDropdownPick}
-          />
-        {/if}
-      </div>
-
-      {#each game.sources as source (source.sourceId)}
-        <button
-          class="source-row"
-          class:adapter-source={source.sourceKind === "adapter"}
-          onclick={() => handleSourceClick(source)}
-        >
-          <div class="source-row-left">
-            <StatusDot status={statusToDot(source.status)} size={6} />
-            <span class="source-name">{source.sourceName}</span>
-          </div>
-          <div class="source-row-right">
-            {#if source.sourceKind === "adapter"}
-              <span class="status-badge api-connected">API</span>
-            {:else}
-              <span
-                class="status-badge"
-                class:watching={source.status === "watching"}
-                class:error-status={source.status === "error"}
-                class:not-found={source.status === "not_found"}
-              >
-                {statusLabel(source.status)}
-              </span>
-            {/if}
-          </div>
-        </button>
-        {#if source.sourceKind !== "adapter" && source.path}
-          <div class="source-path">{source.path}</div>
-        {/if}
-        {#if source.error}
-          <div class="source-error">{source.error}</div>
-        {/if}
-      {/each}
-    </div>
-  {/if}
-
-  <!-- Removed saves section -->
-  {#if removedSaves.length > 0}
-    <div class="removed-section">
-      <div class="removed-header">
-        <span class="section-label">REMOVED SAVES</span>
-        <span class="removed-count">{removedSaves.length}</span>
-      </div>
-
-      {#each removedSaves as rs (rs.saveUuid)}
-        <div class="removed-row">
-          <div class="removed-info">
-            <span class="removed-name">{rs.saveName}</span>
-            <span class="removed-summary">{rs.summary}</span>
-            <div class="removed-meta">
-              <span class="removed-date">Removed {rs.removedAt}</span>
-              {#if rs.noteCount > 0}
-                <span class="removed-notes"
-                  >{rs.noteCount} {rs.noteCount === 1 ? "note" : "notes"} preserved</span
-                >
-              {/if}
-            </div>
-          </div>
-          {#if onrestoresave}
-            <button
-              class="restore-btn"
-              disabled={restoringId === rs.saveUuid}
-              onclick={() => handleRestore(rs.saveUuid)}
-            >
-              {restoringId === rs.saveUuid ? "..." : "RESTORE"}
-            </button>
+    <div class="saves-area">
+      {#each game.saves as save (save.saveUuid)}
+        <div class="save-row-wrap">
+          <SaveRow {save} onclick={() => onsaveclick(save)} />
+          {#if showSourceBadges && game.sourceCount > 1}
+            <span class="source-badge">{save.sourceName}</span>
           {/if}
+        </div>
+      {:else}
+        <div class="empty-saves">
+          <span class="empty-text">No saves detected</span>
         </div>
       {/each}
     </div>
-  {/if}
 
-  {#if confirmingRemove}
-    <div class="confirm-section">
-      <p class="confirm-warning">
-        This will permanently delete <strong
-          >{game.saves.length}
-          {game.saves.length === 1 ? "save" : "saves"}</strong
-        >
-        and all associated notes and snapshots for <strong>{game.name}</strong>.
-      </p>
-      <p class="confirm-prompt">
-        Type <strong>{game.name}</strong> to confirm:
-      </p>
-      <input
-        type="text"
-        class="confirm-input"
-        bind:value={removeInput}
-        placeholder={game.name}
-        disabled={removing}
-      />
-      {#if removeError}
-        <p class="remove-error">{removeError}</p>
-      {/if}
-    </div>
-  {/if}
+    <!-- Sources section -->
+    {#if game.sources.length > 0 || availableSources.length > 0 || !hasAdapterSource}
+      <div class="sources-section">
+        <div class="sources-header">
+          <span class="section-label">SOURCES</span>
+          {#if !hasAdapterSource}
+            <DropdownMenu
+              label="ADD A COMPUTER"
+              options={dropdownOptions}
+              onpick={handleDropdownPick}
+            />
+          {/if}
+        </div>
+
+        {#each game.sources as source (source.sourceId)}
+          <button
+            class="source-row"
+            class:adapter-source={source.sourceKind === "adapter"}
+            onclick={() => handleSourceClick(source)}
+          >
+            <div class="source-row-left">
+              <StatusDot status={statusToDot(source.status)} size={6} />
+              <span class="source-name">{source.sourceName}</span>
+            </div>
+            <div class="source-row-right">
+              {#if source.sourceKind === "adapter"}
+                <span class="status-badge api-connected">API</span>
+              {:else}
+                <span
+                  class="status-badge"
+                  class:watching={source.status === "watching"}
+                  class:error-status={source.status === "error"}
+                  class:not-found={source.status === "not_found"}
+                >
+                  {statusLabel(source.status)}
+                </span>
+              {/if}
+            </div>
+          </button>
+          {#if source.sourceKind !== "adapter" && source.path}
+            <div class="source-path">{source.path}</div>
+          {/if}
+          {#if source.error}
+            <div class="source-error">{source.error}</div>
+          {/if}
+        {/each}
+      </div>
+    {/if}
+
+    <!-- Removed saves section -->
+    {#if removedSaves.length > 0}
+      <div class="removed-section">
+        <div class="removed-header">
+          <span class="section-label">REMOVED SAVES</span>
+          <span class="removed-count">{removedSaves.length}</span>
+        </div>
+
+        {#each removedSaves as rs (rs.saveUuid)}
+          <div class="removed-row">
+            <div class="removed-info">
+              <span class="removed-name">{rs.saveName}</span>
+              <span class="removed-summary">{rs.summary}</span>
+              <div class="removed-meta">
+                <span class="removed-date">Removed {rs.removedAt}</span>
+                {#if rs.noteCount > 0}
+                  <span class="removed-notes"
+                    >{rs.noteCount} {rs.noteCount === 1 ? "note" : "notes"} preserved</span
+                  >
+                {/if}
+              </div>
+            </div>
+            {#if onrestoresave}
+              <button
+                class="restore-btn"
+                disabled={restoringId === rs.saveUuid}
+                onclick={() => handleRestore(rs.saveUuid)}
+              >
+                {restoringId === rs.saveUuid ? "..." : "RESTORE"}
+              </button>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+    {#if confirmingRemove}
+      <div class="confirm-section">
+        <p class="confirm-warning">
+          This will permanently delete <strong
+            >{game.saves.length}
+            {game.saves.length === 1 ? "save" : "saves"}</strong
+          >
+          and all associated notes and snapshots for <strong>{game.name}</strong>.
+        </p>
+        <p class="confirm-prompt">
+          Type <strong>{game.name}</strong> to confirm:
+        </p>
+        <input
+          type="text"
+          class="confirm-input"
+          bind:value={removeInput}
+          placeholder={game.name}
+          disabled={removing}
+        />
+        {#if removeError}
+          <p class="remove-error">{removeError}</p>
+        {/if}
+      </div>
+    {/if}
   {/if}
 
   {#snippet footer()}
