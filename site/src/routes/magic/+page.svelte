@@ -308,7 +308,7 @@
   <MarketingSection
     eyebrow="METHODOLOGY"
     title="We show our work"
-    subtitle="Every tool is built on published methodology and public data -- sources named below."
+    subtitle="The same sources serious Magic players already trust."
   >
     <div class="method-grid">
       <div class="method-item">
