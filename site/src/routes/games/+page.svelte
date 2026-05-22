@@ -32,7 +32,7 @@
   <title>Supported Games - Savecraft</title>
   <meta
     name="description"
-    content="Games supported by Savecraft -- local plugins, in-game mods, and API integrations that connect your game state to Claude and ChatGPT."
+    content="Every game Savecraft supports for Claude and ChatGPT, with each card showing how the game connects."
   />
 </svelte:head>
 
@@ -40,8 +40,7 @@
   <main class="content">
     <h1 class="page-title">Supported Games</h1>
     <p class="page-subtitle">
-      Every game Savecraft supports. Local plugins parse save files on your machine, in-game mods
-      push game state directly, and API integrations connect through the game's own account.
+      Every game Savecraft supports. Each card shows what your AI gets and how the game connects.
     </p>
 
     <div class="search-bar">
