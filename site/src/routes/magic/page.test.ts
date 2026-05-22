@@ -75,10 +75,10 @@ describe("Magic landing page reframe", () => {
     expect(text).not.toContain("TRY IT NOW");
     // Replaced by the one-verb spine: reference is instant, the Player.log
     // path is Magic's nature, and the honest collection limit is stated.
-    expect(text).toContain("Add Magic. It connects the right way.");
-    expect(text).toContain("Reference, the second you add it");
+    expect(text).toContain("Add Magic.");
+    expect(text).toContain("Reference, immediately");
     expect(text).toContain("Player.log");
-    expect(text).toContain("ownership is the one thing Savecraft cannot see");
+    expect(text).toContain("ownership is the one thing Savecraft can't see");
   });
 
   it("renders an EDHREC methodology entry", () => {

@@ -74,12 +74,12 @@
   <title>Magic: The Gathering -- Real Data for Your AI | Savecraft</title>
   <meta
     name="description"
-    content="Real card data for Claude and ChatGPT -- every Magic format, the moment you add the game. EDHREC for Commander, 17Lands for limited, Karsten for mana math, plus the full MTG rules. Add Magic on the machine you play Arena on and your live game state comes along too."
+    content="Real card data for Claude and ChatGPT -- every Magic format, the moment you add the game. EDHREC for Commander, 17Lands for limited, plus the full MTG rules. Add Magic on the machine you play Arena on and your live game state comes along too."
   />
   <meta property="og:title" content="Savecraft -- Real MTG Data for Claude and ChatGPT" />
   <meta
     property="og:description"
-    content="Real card data, every Magic format, the moment you add the game. EDHREC for Commander, 17Lands for limited, Karsten for mana math, plus the full MTG rules. Add Magic on the machine you play Arena on and your live game state comes along too."
+    content="Real card data, every Magic format, the moment you add the game. EDHREC for Commander, 17Lands for limited, plus the full MTG rules. Add Magic on the machine you play Arena on and your live game state comes along too."
   />
   <meta property="og:url" content="https://savecraft.gg/magic" />
   <meta property="og:type" content="website" />
@@ -96,7 +96,7 @@
         accent="gold"
         eyebrow="MAGIC, WITHOUT THE HALLUCINATED CARDS"
         title="Your AI stops inventing cards here."
-        subtitle="Every Magic format, the second you add the game. EDHREC, 17Lands, Karsten mana math, the full MTG rules. Play Arena? Add Magic on that machine and your live picks come along too."
+        subtitle="Every Magic format, the second you add the game. EDHREC, 17Lands, the full MTG rules. Play Arena? Add Magic on that machine and your live picks come along too."
         actions={heroActions}
         frames={heroFrames}
       />
@@ -293,9 +293,8 @@
           once. It reads MTGA's Player.log in place -- the log stays on your device, only parsed
           state goes up. From that, your AI can coach a live draft, audit your Constructed list
           against winning archetypes, or quote the wildcard cost of a swap before you spend it.
-          Caveats: turn on Arena's Detailed Logs first, the log resets when Arena restarts, and
-          Arena never writes your card collection to it -- ownership is the one thing Savecraft
-          can't see.
+          Caveats: turn on Arena's Detailed Logs first; the log resets when Arena restarts; and
+          Arena never writes your card collection to it, so ownership is the one thing Savecraft can't see.
         </span>
       </div>
     </div>
