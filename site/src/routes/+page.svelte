@@ -101,7 +101,7 @@
       <HeroScreenshots
         variant="solo-peek"
         accent="gold"
-        eyebrow="FOR PLAYERS WHO NOTICE THE GUESSES"
+        eyebrow="FIX AI HALLUCINATIONS"
         title="Real game data for your AI."
         subtitle="Savecraft connects Claude and ChatGPT to real, current game data for Magic, Path of Exile, Factorio, Stellaris, and more. Where the game supports it, your live characters come along too."
         actions={heroActions}

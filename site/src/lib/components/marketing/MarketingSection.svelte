@@ -89,10 +89,10 @@
 
   .section-sub {
     font-family: var(--font-heading);
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 400;
     color: var(--color-text-dim);
-    max-width: 560px;
+    max-width: 720px;
     margin-bottom: 40px;
     line-height: 1.6;
   }
