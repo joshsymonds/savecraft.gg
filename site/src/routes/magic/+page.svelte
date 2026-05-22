@@ -74,12 +74,12 @@
   <title>Magic: The Gathering -- Real Data for Your AI | Savecraft</title>
   <meta
     name="description"
-    content="Savecraft gives Claude and ChatGPT all-format Magic reference -- Commander, Standard, draft, Legacy -- the moment you add Magic: 17Lands stats, EDHREC Commander data, Frank Karsten's mana math, and the full MTG Comprehensive Rules. Add Magic on the machine you play Arena on and your AI coaches with your live rank, match history, and draft picks too."
+    content="Real card data for Claude and ChatGPT -- every Magic format, the moment you add the game. EDHREC for Commander, 17Lands for limited, Karsten for mana math, plus the full MTG rules. Add Magic on the machine you play Arena on and your live game state comes along too."
   />
   <meta property="og:title" content="Savecraft -- Real MTG Data for Claude and ChatGPT" />
   <meta
     property="og:description"
-    content="All-format Magic reference -- EDHREC Commander data, 17Lands draft stats across 31 color archetypes, Frank Karsten's mana math, and the full MTG rules -- the moment you add Magic. Add it on the machine you play Arena on and your AI sees your live rank, match history, and draft picks too."
+    content="Real card data, every Magic format, the moment you add the game. EDHREC for Commander, 17Lands for limited, Karsten for mana math, plus the full MTG rules. Add Magic on the machine you play Arena on and your live game state comes along too."
   />
   <meta property="og:url" content="https://savecraft.gg/magic" />
   <meta property="og:type" content="website" />
@@ -94,9 +94,9 @@
       <HeroScreenshots
         variant="solo-peek"
         accent="gold"
-        eyebrow="REAL DATA FOR MAGIC: THE GATHERING"
+        eyebrow="MAGIC, WITHOUT THE HALLUCINATED CARDS"
         title="Your AI stops inventing cards here."
-        subtitle="All-format reference -- Commander, Standard, draft, Legacy -- the second you add Magic. EDHREC combos, 17Lands stats, Frank Karsten's mana math, the full MTG rules. Play Arena? Add Magic on that machine and your live picks, rank, and matches join the conversation too."
+        subtitle="Every Magic format, the second you add the game. EDHREC, 17Lands, Karsten mana math, the full MTG rules. Play Arena? Add Magic on that machine and your live picks come along too."
         actions={heroActions}
         frames={heroFrames}
       />
@@ -124,7 +124,7 @@
     id="tools"
     eyebrow="EXPERT MODULES"
     title="Real data for every format."
-    subtitle="Every answer is grounded in real card data, real match statistics, and published methodology. No hallucinated cards. No invented abilities."
+    subtitle="Every answer is grounded in real card data and published methodology."
   >
     <div class="modules-grid">
       {#each referenceModules as mod (mod.name)}
@@ -173,7 +173,7 @@
           startDelay={800}
         />
         <p class="compare-caption compare-caption-good">
-          Current format. Real win rates. Your actual wildcards.
+          Current Standard, your wildcards counted.
         </p>
       </div>
     </div>
@@ -198,7 +198,7 @@
           {/each}
         </div>
         <p class="compare-caption compare-caption-bad">
-          Vague advice. No staple detection. No combo awareness.
+          Vague advice. Nothing specific.
         </p>
       </div>
 
@@ -210,7 +210,7 @@
           startDelay={800}
         />
         <p class="compare-caption compare-caption-good">
-          EDHREC aggregate data. Specific staples. Real combo lines.
+          EDHREC aggregate data. Specific staples you're missing.
         </p>
       </div>
     </div>
@@ -219,8 +219,8 @@
   <!-- ═══ COACHING MODES ═══ -->
   <MarketingSection
     eyebrow="HOW YOU USE IT"
-    title="Three coaching modes"
-    subtitle="Same grounded data, three ways to use it. Draft with you live, audit your Constructed build, or dial in your Commander deck."
+    title="Coaches the game you're playing"
+    subtitle="The right coaching for whichever Magic you're playing right now."
   >
     <div class="modes-grid">
       <ModeCard
@@ -274,27 +274,28 @@
   <!-- ═══ HOW IT WORKS ═══ -->
   <MarketingSection
     eyebrow="HOW IT WORKS"
-    title="Add Magic. It connects the right way."
-    subtitle="You add Magic; Savecraft connects it the way Magic works. There's no tier to upgrade into and nothing to install first."
+    title="Add Magic."
+    subtitle="Every Magic format answers expert questions immediately. Add Magic on the machine you play Arena on too, and your live game state comes along."
   >
     <div class="method-grid">
       <div class="method-item">
-        <span class="method-source">Reference, the second you add it</span>
+        <span class="method-source">Reference, immediately</span>
         <span class="method-desc">
-          Every format -- Commander, Standard, draft, Legacy -- answers the moment Magic is on your
-          list. EDHREC combos, 17Lands win rates, Karsten mana math, the full Comprehensive Rules.
-          No account, no install, no log. Ask away.
+          Every Magic format answers the moment you add the game -- EDHREC combos for Commander,
+          17Lands stats for limited, Karsten's math for mana bases, plus the full Comprehensive
+          Rules behind everything.
         </span>
       </div>
       <div class="method-item">
-        <span class="method-source">Your Arena game, once it's reading your Player.log</span>
+        <span class="method-source">Your live Arena game</span>
         <span class="method-desc">
-          Add Magic on the machine you play Arena on and Savecraft walks you through pairing it
-          once. It reads MTGA's Player.log in place -- the log never leaves your device, only parsed
-          state is sent -- so your AI can coach your live draft, health-check your deck against
-          winning archetypes, and price a wildcard swap. Honest limits: turn on Arena's Detailed
-          Logs first, the log resets each time Arena restarts, and Arena never writes your card
-          collection to it -- so ownership is the one thing Savecraft cannot see.
+          Add Magic on the machine you play Arena on, and Savecraft walks you through pairing it
+          once. It reads MTGA's Player.log in place -- the log stays on your device, only parsed
+          state goes up. From that, your AI can coach a live draft, audit your Constructed list
+          against winning archetypes, or quote the wildcard cost of a swap before you spend it.
+          Caveats: turn on Arena's Detailed Logs first, the log resets when Arena restarts, and
+          Arena never writes your card collection to it -- ownership is the one thing Savecraft
+          can't see.
         </span>
       </div>
     </div>
@@ -307,7 +308,7 @@
   <MarketingSection
     eyebrow="METHODOLOGY"
     title="We show our work"
-    subtitle="Every tool is built on published methodology and public data. No black boxes."
+    subtitle="Every tool is built on published methodology and public data -- sources named below."
   >
     <div class="method-grid">
       <div class="method-item">
