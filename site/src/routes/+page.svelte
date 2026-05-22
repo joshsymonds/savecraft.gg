@@ -134,9 +134,7 @@
   >
     <!-- Reference baseline: instant, every game, zero setup -->
     <div class="reference-callout">
-      <h3 class="reference-callout-title">
-        Expert answers, immediately.
-      </h3>
+      <h3 class="reference-callout-title">Expert answers, immediately.</h3>
       <p class="reference-callout-desc">
         Every supported game answers expert questions the moment you add it. Card prices, gem
         effects, drop tables, the whole ruleset.
@@ -152,24 +150,22 @@
       <div class="tier-divider-line"></div>
     </div>
 
-    <h3 class="unlock-label">
-      Live characters too, where available.
-    </h3>
+    <h3 class="unlock-label">Live characters too, where available.</h3>
     <div class="steps-grid">
       <div class="step-card">
         <h3 class="step-name">YOUR ACCOUNT</h3>
         <p class="step-desc">
           Path of Exile (we're GGG-approved) and World of Warcraft connect through their own
-          sign-in. Your AI reads your live characters from the game's servers, as fresh as your
-          last refresh.
+          sign-in. Your AI reads your live characters from the game's servers, as fresh as your last
+          refresh.
         </p>
       </div>
       <div class="step-card">
         <h3 class="step-name">YOUR SAVE FILES</h3>
         <p class="step-desc">
           Diablo II, Stardew Valley, RimWorld, Stellaris, and the rest store your progress in save
-          files on your machine. Add one of those games and Savecraft walks you through pairing
-          your computer once. The files stay on your device; only the parsed state goes to your AI.
+          files on your machine. Add one of those games and Savecraft walks you through pairing your
+          computer once. The files stay on your device; only the parsed state goes to your AI.
         </p>
       </div>
       <div class="step-card">

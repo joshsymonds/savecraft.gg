@@ -69,7 +69,9 @@ describe("Magic landing page reframe", () => {
     // The rejected two-tier plumbing menu is gone entirely.
     expect(container.querySelector(".tiers-grid")).toBeNull();
     expect(container.querySelector(".tier-card")).toBeNull();
-    const text = container.textContent ?? "";
+    // Normalize whitespace so assertions don't depend on Prettier's line wrapping
+    // of the source Svelte file (textContent preserves indentation newlines).
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
     expect(text).not.toContain("Two ways in");
     expect(text).not.toContain("GO DEEPER");
     expect(text).not.toContain("TRY IT NOW");

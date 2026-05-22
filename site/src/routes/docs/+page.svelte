@@ -30,10 +30,10 @@
       characters and the actual rules behind them.
     </p>
     <p>
-      Reference data works the second a game is on your list, current to the latest patch. Connect
-      a game's account (Path of Exile, World of Warcraft) or add it on the machine you play it on,
-      and your live characters and saves come along too. From there your AI knows your build, your
-      gear, and what you're working toward between sessions.
+      Reference data works the second a game is on your list, current to the latest patch. Connect a
+      game's account (Path of Exile, World of Warcraft) or add it on the machine you play it on, and
+      your live characters and saves come along too. From there your AI knows your build, your gear,
+      and what you're working toward between sessions.
     </p>
   </section>
 
@@ -244,23 +244,23 @@
   <section class="section">
     <h2 class="section-title">How a game connects</h2>
     <p class="section-intro">
-      How a game connects depends on the game itself. The three cards below show what adding a
-      game looks like in each case.
+      How a game connects depends on the game itself. The three cards below show what adding a game
+      looks like in each case.
     </p>
     <div class="source-cards">
       <div class="source-card">
         <h3 class="source-card-title">Reference, instantly</h3>
         <p>
-          Every supported game answers expert questions the moment you add it. This is the floor
-          for every game.
+          Every supported game answers expert questions the moment you add it. This is the floor for
+          every game.
         </p>
       </div>
       <div class="source-card">
         <h3 class="source-card-title">Your account</h3>
         <p>
-          Path of Exile (a GGG-approved connection) and World of Warcraft sign in through the
-          game's own provider -- read-only. Savecraft reads your live characters from the game's
-          servers, as fresh as your last refresh.
+          Path of Exile (a GGG-approved connection) and World of Warcraft sign in through the game's
+          own provider -- read-only. Savecraft reads your live characters from the game's servers,
+          as fresh as your last refresh.
         </p>
       </div>
       <div class="source-card">

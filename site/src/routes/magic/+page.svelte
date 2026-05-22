@@ -197,9 +197,7 @@
             </div>
           {/each}
         </div>
-        <p class="compare-caption compare-caption-bad">
-          Vague advice. Nothing specific.
-        </p>
+        <p class="compare-caption compare-caption-bad">Vague advice. Nothing specific.</p>
       </div>
 
       <div class="compare-card compare-with">
@@ -294,7 +292,8 @@
           state goes up. From that, your AI can coach a live draft, audit your Constructed list
           against winning archetypes, or quote the wildcard cost of a swap before you spend it.
           Caveats: turn on Arena's Detailed Logs first; the log resets when Arena restarts; and
-          Arena never writes your card collection to it, so ownership is the one thing Savecraft can't see.
+          Arena never writes your card collection to it, so ownership is the one thing Savecraft
+          can't see.
         </span>
       </div>
     </div>

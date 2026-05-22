@@ -130,8 +130,8 @@
       <div class="method-item">
         <span class="method-source">Or paste a link</span>
         <span class="method-desc">
-          Not your build, or not connected? Drop a pobb.in, pastebin, maxroll, poe.ninja, rentry,
-          or poedb URL and it runs through the same headless Path of Building. Compare your live
+          Not your build, or not connected? Drop a pobb.in, pastebin, maxroll, poe.ninja, rentry, or
+          poedb URL and it runs through the same headless Path of Building. Compare your live
           character against a guide's link in a single request.
         </span>
       </div>
@@ -342,9 +342,7 @@
   <section class="section cta-section">
     <div class="cta-inner">
       <h2 class="cta-title">Give your AI the real calc.</h2>
-      <p class="cta-sub">
-        Works with Claude and ChatGPT. Connect your account or paste a link.
-      </p>
+      <p class="cta-sub">Works with Claude and ChatGPT. Connect your account or paste a link.</p>
       <div class="cta-actions">
         <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">CONNECT YOUR ACCOUNT</a>
       </div>
