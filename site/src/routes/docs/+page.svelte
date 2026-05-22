@@ -10,15 +10,15 @@
   <title>Docs - Savecraft</title>
   <meta
     name="description"
-    content="How Savecraft works: add a game and your AI gets real data for it -- reference instantly, your live characters when you connect an account or your save files. Setup guides for Claude and ChatGPT."
+    content="How Savecraft works: add a game and your AI gets real, current data for it -- plus your live game state, where the game supports it. Setup guides for Claude and ChatGPT."
   />
 </svelte:head>
 
 <article class="docs">
   <h1 class="docs-title">Documentation</h1>
   <p class="docs-subtitle">
-    Add a game and your AI gets real data for it -- characters, gear, progress, goals -- instead of
-    confidently making things up.
+    Add a game. Your AI gets real, current data for it -- and your live game state, where the game
+    supports it.
   </p>
 
   <!-- WHAT IS SAVECRAFT -->
@@ -26,16 +26,14 @@
     <h2 class="section-title">What is Savecraft?</h2>
     <p>
       Savecraft is an MCP server that gives AI assistants real data for the games you add. You
-      connect your assistant once, then add a game -- and Savecraft connects it the right way for
-      that game. You never pick the plumbing and you never start with an install. Your assistant
-      sees real characters, gear, stats, and progress, not hallucinated guesses.
+      connect your assistant once, then add the games you play. Your assistant sees your actual
+      characters and the actual rules behind them.
     </p>
     <p>
-      Reference data -- rules, items, builds, drop rates, prices -- works the second a game is on
-      your list, with no account and no install. Connect a game's account (Path of Exile, World of
-      Warcraft) or add it on the machine you play it on, and your live characters come along too.
-      Your assistant can read that state, search across your saves and notes, run reference
-      computations, and track goals between sessions.
+      Reference data works the second a game is on your list, current to the latest patch. Connect
+      a game's account (Path of Exile, World of Warcraft) or add it on the machine you play it on,
+      and your live characters and saves come along too. From there your AI knows your build, your
+      gear, and what you're working toward between sessions.
     </p>
   </section>
 
@@ -166,10 +164,9 @@
     <div class="not-examples">
       <h3 class="not-examples-title">What Savecraft doesn't do</h3>
       <p>
-        Savecraft provides your game data -- it doesn't replace the AI's general knowledge.
-        Questions like &ldquo;What's the best build for a Paladin?&rdquo; or &ldquo;How do I beat
-        this boss?&rdquo; use the AI's own training data, not Savecraft. Savecraft kicks in when the
-        answer depends on <em>your</em> actual game state.
+        Savecraft provides your game data. Questions like &ldquo;What's the best build for a
+        Paladin?&rdquo; or &ldquo;How do I beat this boss?&rdquo; draw on the AI's own training
+        data. Savecraft kicks in when the answer depends on <em>your</em> actual game state.
       </p>
     </div>
   </section>
@@ -247,24 +244,23 @@
   <section class="section">
     <h2 class="section-title">How a game connects</h2>
     <p class="section-intro">
-      You only ever do one thing: add a game. What that does follows from the game itself -- it's
-      not a menu you navigate. Here's what "add a game" means for each kind.
+      How a game connects depends on the game itself. The three cards below show what adding a
+      game looks like in each case.
     </p>
     <div class="source-cards">
       <div class="source-card">
         <h3 class="source-card-title">Reference, instantly</h3>
         <p>
-          Every supported game answers expert questions the moment you add it -- rules, items,
-          builds, drop rates, prices. No account, no install, no save files touched. This is the
-          floor for every game.
+          Every supported game answers expert questions the moment you add it. This is the floor
+          for every game.
         </p>
       </div>
       <div class="source-card">
         <h3 class="source-card-title">Your account</h3>
         <p>
-          Path of Exile (a GGG-approved connection) and World of Warcraft sign in through the game's
-          own provider -- read-only, no install. Savecraft reads your live characters from the
-          game's servers, as fresh as your last refresh.
+          Path of Exile (a GGG-approved connection) and World of Warcraft sign in through the
+          game's own provider -- read-only. Savecraft reads your live characters from the game's
+          servers, as fresh as your last refresh.
         </p>
       </div>
       <div class="source-card">
@@ -272,8 +268,8 @@
         <p>
           Save-file games (Diablo II, Stardew Valley, RimWorld, Stellaris) read in place on the
           machine you play on -- the files never leave your device, only parsed state is sent.
-          Moddable games like Factorio push state from a Savecraft mod instead. Adding the game
-          walks you through whichever it needs.
+          Moddable games like Factorio use a Savecraft mod that pushes state from inside the game.
+          Adding the game walks you through whichever fits.
         </p>
       </div>
     </div>
