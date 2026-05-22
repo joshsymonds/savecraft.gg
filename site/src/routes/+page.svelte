@@ -101,9 +101,9 @@
       <HeroScreenshots
         variant="solo-peek"
         accent="gold"
-        eyebrow="YOUR GAME DATA, FINALLY ACCURATE"
+        eyebrow="FOR PLAYERS WHO NOTICE THE GUESSES"
         title="Real game data for your AI."
-        subtitle="Savecraft gives Claude and ChatGPT real game data on Magic, Path of Exile, Factorio, Stellaris, and more: rules, items, builds, economy, prices. For Diablo II, RimWorld, and other save-integration games, it also reads your live save state."
+        subtitle="Savecraft connects Claude and ChatGPT to real, current game data for Magic, Path of Exile, Factorio, Stellaris, and more. Where the game supports it, your live characters come along too."
         actions={heroActions}
         frames={heroFrames}
       />
@@ -129,17 +129,17 @@
   <MarketingSection
     id="how"
     eyebrow="HOW IT WORKS"
-    title="Add a game. It wires itself up."
-    subtitle="You add a game; Savecraft connects it the right way for that game. You never pick the plumbing, and you never start with an install."
+    title="Add a game."
+    subtitle="Every supported game answers expert questions immediately. Some games can also bring your live characters and saves into the conversation."
   >
     <!-- Reference baseline: instant, every game, zero setup -->
     <div class="reference-callout">
       <h3 class="reference-callout-title">
-        Rules, items, builds, drop tables, live prices. No setup.
+        Expert answers, immediately.
       </h3>
       <p class="reference-callout-desc">
-        Every supported game answers expert questions the second you add it -- no account, no
-        install, no save files touched. Ask away.
+        Every supported game answers expert questions the moment you add it. Card prices, gem
+        effects, drop tables, the whole ruleset.
       </p>
       <div class="reference-callout-cta">
         <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT CLAUDE OR CHATGPT</a>
@@ -153,32 +153,31 @@
     </div>
 
     <h3 class="unlock-label">
-      Want your live characters in the conversation? The game decides how.
+      Live characters too, where available.
     </h3>
     <div class="steps-grid">
       <div class="step-card">
         <h3 class="step-name">YOUR ACCOUNT</h3>
         <p class="step-desc">
-          Path of Exile -- we're a GGG-approved app -- and World of Warcraft connect through their
-          own sign-in. Read-only, no install: your AI reads your live characters straight from the
-          game's servers. As fresh as your last refresh, not live to the second.
+          Path of Exile (we're GGG-approved) and World of Warcraft connect through their own
+          sign-in. Your AI reads your live characters from the game's servers, as fresh as your
+          last refresh.
         </p>
       </div>
       <div class="step-card">
         <h3 class="step-name">YOUR SAVE FILES</h3>
         <p class="step-desc">
-          Diablo II, Stardew Valley, RimWorld, Stellaris and the rest live in save files on the
-          machine you play on. Add the game and Savecraft walks you through pairing that machine
-          once. The files are read in place and never leave your device -- only the parsed state is
-          sent.
+          Diablo II, Stardew Valley, RimWorld, Stellaris, and the rest store your progress in save
+          files on your machine. Add one of those games and Savecraft walks you through pairing
+          your computer once. The files stay on your device; only the parsed state goes to your AI.
         </p>
       </div>
       <div class="step-card">
         <h3 class="step-name">AN IN-GAME MOD</h3>
         <p class="step-desc">
           Moddable games like Factorio push their state from inside the game through a Savecraft
-          mod. Add the game, install the mod it hands you, and your factory shows up. A few games
-          offer more than one of these -- you still only ever add the game.
+          mod. Add the game, install the mod it hands you, and your factory shows up in the
+          conversation.
         </p>
       </div>
     </div>
@@ -219,7 +218,7 @@
           startDelay={800}
         />
         <p class="compare-caption compare-caption-good">
-          Your character. Your build notes. Your next upgrade.
+          Your real character. The upgrade you should pick next.
         </p>
       </div>
     </div>
@@ -229,7 +228,7 @@
   <MarketingSection
     eyebrow="HOW YOU USE IT"
     title="Sounding board or second opinion"
-    subtitle="Same data, different energy. Your AI adapts to how you play."
+    subtitle="Casual chat about your runs, or hard numbers on your next breakpoint. Your call."
   >
     <div class="modes-grid">
       <ModeCard
@@ -311,8 +310,8 @@
         <div>
           <span class="security-label">Fully Sandboxed</span>
           <span class="security-desc"
-            >Plugins are isolated in a sandbox. They can read your save file and nothing else -- no
-            filesystem access, no network access, no exceptions.</span
+            >Plugins are isolated in a sandbox. They can read your save file -- nothing else gets
+            through.</span
           >
         </div>
       </div>
@@ -339,7 +338,7 @@
       <div class="security-item">
         <span class="security-check">+</span>
         <div>
-          <span class="security-label">AI Sees Data, Not Files</span>
+          <span class="security-label">Just the Game State</span>
           <span class="security-desc"
             >Your AI gets game state -- items, skills, progress -- never your local files or folder
             paths.</span
@@ -353,7 +352,7 @@
   <MarketingSection
     eyebrow="COMMUNITY"
     title="Built in the open"
-    subtitle="Most feature decisions start in Discord. Request a game, report a bug, or share a build."
+    subtitle="Most feature decisions start in Discord. Drop in to request a game or share a build."
   >
     <div class="community-grid">
       <a href="https://discord.gg/YnC8stpEmF" class="community-card" target="_blank" rel="noopener">
