@@ -14,8 +14,7 @@
  * enabling iterative build design without the player exporting build codes.
  */
 
-import { URLS } from "@savecraft/content/facts";
-
+import { URLS } from "../../../shared/content/facts";
 import { connectAdapterGuidance } from "../../../worker/src/adapters/adapter";
 import type { Env } from "../../../worker/src/types";
 import type {
