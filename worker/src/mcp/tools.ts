@@ -4,6 +4,18 @@
  * Tested independently of the MCP protocol layer.
  */
 
+import { aboutTextForMcp } from "@savecraft/content/about";
+import { privacyTextForMcp } from "@savecraft/content/privacy";
+import {
+  ADAPTER_SETUP_TEXT_FOR_MCP,
+  PAIRING_TEXT_FOR_MCP,
+  allPlatformGuidesForMcp,
+  isPlatformId,
+  platformGuideForMcp,
+  sourceSetupBlurbForMcp,
+  type PlatformGuide,
+} from "@savecraft/content/setup";
+
 import {
   ADAPTER_REFRESH_COOLDOWN_SEC,
   AdapterError,
@@ -1396,11 +1408,6 @@ interface SourceLookupResult {
   link_code_expires_at?: string | null;
 }
 
-interface PlatformGuide {
-  install: string | null;
-  details: string;
-}
-
 interface ApiGamesGuide {
   setup: string;
   available_games: AdapterGameInfo[];
@@ -1467,28 +1474,6 @@ function buildLookupResult(row: SourceRow | null, viaCode: boolean): SourceLooku
   return result;
 }
 
-const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
-  linux: {
-    install: "curl -fsSL https://install.savecraft.gg | bash",
-    details:
-      "Downloads signed binaries, verifies Ed25519 signatures, installs to ~/.local/bin/, sets up a systemd user service, and auto-registers the source. The daemon starts immediately and prints a pairing link.",
-  },
-  windows: {
-    install:
-      "Visit https://install.savecraft.gg in a browser to download the Savecraft installer. Run the downloaded MSI to install.",
-    details: String.raw`Downloads a signed MSI installer. Installs the daemon and tray to %LOCALAPPDATA%\Savecraft\, registers autostart via the registry, and launches the tray for pairing. No admin required. The installer is Authenticode-signed — no SmartScreen warnings.`,
-  },
-  macos: {
-    install: null,
-    details: "macOS support is not yet available. It's on the roadmap.",
-  },
-};
-
-const PAIRING_GUIDE =
-  "After installing, the daemon self-registers and displays a pairing link (https://my.savecraft.gg/link/<code>). Click the link, use the tray app's 'Link Account' button, or enter the 6-digit code on the my.savecraft.gg homepage. Once paired, your game saves appear automatically. Codes expire after 20 minutes — restart the daemon to generate a new one.";
-
-const ADAPTER_SETUP_GUIDE = `Some games connect through their official API instead of local save files — for example, World of Warcraft connects through Battle.net and Path of Exile through your GGG account. These are called adapter sources. No local daemon install is needed. To set up an API-backed game: open ${SAVECRAFT_APP_URL}, sign in, and connect the game from the dashboard (add a game → choose your region if prompted → authorize with the game's provider, e.g. Battle.net for WoW or pathofexile.com for PoE). Once authorized, Savecraft discovers your characters automatically. Each adapter source includes an adapter_credentials array showing credential status per game: 'connected' means the OAuth token is valid, 'expired' means the token needs re-authorization (reconnect the game from the ${SAVECRAFT_APP_URL} dashboard), and 'missing' means the game is linked but OAuth hasn't been completed yet.`;
-
 const CATEGORIES_MENU: Record<string, CategoryDescription> = {
   games: {
     description:
@@ -1508,26 +1493,6 @@ const CATEGORIES_MENU: Record<string, CategoryDescription> = {
   },
 };
 
-const PRIVACY_INFO = `Savecraft collects the minimum data needed to connect your game saves to AI assistants. We store your email address, your game save data (which you push to us), notes you create, and — for API-connected games like World of Warcraft — OAuth tokens from game platform accounts solely to verify character ownership and refresh data on demand. We do not run analytics, do not track you, do not sell your data, and do not see your conversations with AI assistants. Our code is open source (https://github.com/joshsymonds/savecraft.gg) — you can verify all of this yourself.
-
-Where data is stored: Cloudflare (Workers, D1/SQLite, R2 for plugin binaries, KV for OAuth tokens). Encryption at rest and in transit. Device auth tokens are SHA-256 hashed. WASM plugins are sandboxed.
-
-What we do NOT collect: No analytics or telemetry. No IP addresses. No conversation history — we never see what you say to the AI. No device fingerprinting. No behavioral tracking.
-
-Data deletion: You can delete individual saves, notes, and devices through the web UI or MCP tools. Email privacy@savecraft.gg to delete your entire account and all associated data.
-
-Full privacy policy: https://savecraft.gg/privacy`;
-
-const ABOUT_INFO = `Savecraft is an open source project that connects video game data to AI assistants via the Model Context Protocol (MCP).
-
-Three layers. (1) Expert modules: rules engines, item databases, build planners, economy trackers. Available for every supported game; the user connects an MCP URL, no install. (2) Save-file integration: for games like Diablo II, RimWorld, Factorio, Stellaris, and Stardew Valley, an optional local daemon watches save files, parses them with sandboxed WASM plugins, and pushes the parsed state to the cloud so the AI can read your actual characters, gear, and run progress. (3) Account integration: for games like World of Warcraft, server-side adapters connect through OAuth (e.g. Battle.net); no local install. AI assistants access all of this through the same MCP tools.
-
-Open source: https://github.com/joshsymonds/savecraft.gg
-Author: Josh Symonds (https://joshsymonds.com)
-Contact: josh@savecraft.gg
-Discord: https://discord.gg/YnC8stpEmF
-License: Source-available on GitHub`;
-
 interface AdapterGameInfo {
   game_id: string;
   name: string;
@@ -1544,29 +1509,11 @@ interface SupportedGameInfo {
   setup: string;
 }
 
-const DEFAULT_SETUP_BLURB =
-  "Install the Savecraft daemon on your machine. It watches your save files, parses them with a sandboxed WASM plugin, and pushes structured game state to Savecraft automatically. Your save files never leave your device — only the parsed data is sent.";
-
-const SOURCE_SETUP_BLURBS: Record<string, string> = {
-  wasm: "Install the Savecraft daemon on your machine. It watches your save files, parses them with a sandboxed WASM plugin, and pushes structured game state to Savecraft automatically. Your save files never leave your device — only the parsed data is sent.",
-  api: "No local install needed. Visit savecraft.gg, select this game, choose your region if prompted, and complete OAuth authorization with the game's provider. Savecraft discovers your characters automatically.",
-  mod: "Subscribe to the Savecraft mod on Steam Workshop. The mod runs inside the game, connects to Savecraft directly, and pushes game state on every save. No external daemon needed.",
-};
-
-/** Build a setup blurb by joining blurbs for each source type. */
-function buildSetupBlurb(sources: string[]): string {
-  const blurbs = sources.map((s) => SOURCE_SETUP_BLURBS[s]).filter((b): b is string => !!b);
-  return blurbs.length > 0 ? blurbs.join(" Additionally: ") : DEFAULT_SETUP_BLURB;
-}
-
 function buildDaemonGuide(platform?: string): Record<string, PlatformGuide | string> {
-  if (platform) {
-    const guide = PLATFORM_GUIDES[platform];
-    if (guide) {
-      return { [platform]: guide, pairing: PAIRING_GUIDE };
-    }
+  if (isPlatformId(platform)) {
+    return { [platform]: platformGuideForMcp(platform), pairing: PAIRING_TEXT_FOR_MCP };
   }
-  return { ...PLATFORM_GUIDES, pairing: PAIRING_GUIDE };
+  return { ...allPlatformGuidesForMcp(), pairing: PAIRING_TEXT_FOR_MCP };
 }
 
 function buildGuide(sourceKinds: Set<string>, platform?: string): Record<string, GuideEntry> {
@@ -1583,7 +1530,7 @@ function buildGuide(sourceKinds: Set<string>, platform?: string): Record<string,
   if (hasAdapter || hasNone) {
     const apiGames = getApiGamesFromManifests();
     if (apiGames.length > 0) {
-      guide.api_games = { setup: ADAPTER_SETUP_GUIDE, available_games: apiGames };
+      guide.api_games = { setup: ADAPTER_SETUP_TEXT_FOR_MCP, available_games: apiGames };
     }
   }
 
@@ -1606,7 +1553,7 @@ function getAllGamesFromManifests(): SupportedGameInfo[] {
     channel: m.channel ?? "beta",
     coverage: m.coverage ?? "partial",
     limitations: m.limitations ?? [],
-    setup: buildSetupBlurb(m.sources ?? ["wasm"]),
+    setup: sourceSetupBlurbForMcp(m.sources ?? ["wasm"]),
   })).toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -1758,11 +1705,11 @@ export async function getInfo(
       break;
     }
     case "privacy": {
-      response.privacy = PRIVACY_INFO;
+      response.privacy = privacyTextForMcp();
       break;
     }
     case "about": {
-      response.about = ABOUT_INFO;
+      response.about = aboutTextForMcp();
       break;
     }
     // No default needed — unknown categories just return sources

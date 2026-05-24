@@ -105,7 +105,7 @@ export const SOURCE_KINDS: Record<SourceKindId, SourceKind> = {
     label: "Account integration",
     shortDescription:
       "Path of Exile (GGG-approved) and World of Warcraft sign in through the game's own provider — read-only.",
-    setupBlurb: `No local install needed. Visit ${URLS.app}, sign in, and connect the game from the dashboard (add a game → choose your region if prompted → authorize with the game's provider, e.g. Battle.net for WoW or pathofexile.com for PoE). Once authorized, Savecraft discovers your characters automatically.`,
+    setupBlurb: `No local install needed. Visit ${URLS.app}, sign in, and connect the game from the dashboard (add a game → choose your region if prompted → complete OAuth with the game's provider, e.g. Battle.net for WoW or pathofexile.com for PoE). Once authorized, Savecraft discovers your characters automatically.`,
     gamesToday: ["poe", "wow"],
     requiresDaemon: false,
   },
@@ -183,7 +183,7 @@ export const PLATFORM_INSTALL: Record<"linux" | "windows" | "macos", PlatformIns
     available: false,
     command: null,
     instructions:
-      "macOS support is on the roadmap; there is no installer yet. Linux and Windows are supported today.",
+      "macOS support is not yet available — it's on the roadmap. Linux and Windows are supported today.",
     installsTo: null,
     runtime: null,
     signing: null,

@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 
 // Each test file runs serially within its shard, but `npm run test:shard`
@@ -17,6 +19,14 @@ const shardIndex = process.env.SHARD_INDEX;
 
 export default defineWorkersConfig({
   cacheDir: shardIndex ? `node_modules/.vite-shard-${shardIndex}` : undefined,
+  // Vite (under Vitest) does not honor tsconfig paths by default; mirror the
+  // worker tsconfig's @savecraft/content/* alias here so test imports resolve.
+  // Production builds via Wrangler / esbuild DO honor tsconfig paths natively.
+  resolve: {
+    alias: {
+      "@savecraft/content": path.resolve(import.meta.dirname, "../shared/content"),
+    },
+  },
   test: {
     setupFiles: ["./test/setup.ts"],
     // Scope discovery to ./test/. Vitest's default `include` is **/*.test.ts
