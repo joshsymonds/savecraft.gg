@@ -263,6 +263,12 @@ export interface ThirdParty {
    */
   transferSafeguards?: string;
   /**
+   * Optional clickable link rendered next to {@link transferSafeguards}.
+   * Used for Clerk's DPA URL so it stays a clickable anchor rather than
+   * inline plaintext in the prose.
+   */
+  transferSafeguardsLink?: { label: string; url: string };
+  /**
    * Optional free-form extra paragraph rendered after the standard fields
    * (used for Stripe's "future" disclosure, Cloudflare's bucket detail,
    * etc.). Site-only.
@@ -294,7 +300,11 @@ export const THIRD_PARTIES: readonly ThirdParty[] = [
     dataLocation: "United States (Google Cloud Platform)",
     privacyUrl: "https://clerk.com/legal/privacy",
     transferSafeguards:
-      "Clerk is certified under the EU-U.S. Data Privacy Framework and offers a DPA with Standard Contractual Clauses at https://clerk.com/legal/dpa.",
+      "Clerk is certified under the EU-U.S. Data Privacy Framework and offers a DPA with Standard Contractual Clauses:",
+    transferSafeguardsLink: {
+      label: "clerk.com/legal/dpa",
+      url: "https://clerk.com/legal/dpa",
+    },
   },
   {
     name: "Blizzard Entertainment (Battle.net)",

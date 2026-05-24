@@ -285,7 +285,15 @@
         {/if}
         <p><strong>Data location:</strong> {tp.dataLocation}</p>
         {#if tp.transferSafeguards}
-          <p><strong>Transfer safeguards:</strong> {tp.transferSafeguards}</p>
+          <p>
+            <strong>Transfer safeguards:</strong>
+            {tp.transferSafeguards}
+            {#if tp.transferSafeguardsLink}
+              <a href={tp.transferSafeguardsLink.url} class="text-link"
+                >{tp.transferSafeguardsLink.label}</a
+              >
+            {/if}
+          </p>
         {/if}
         <p>
           <strong>Their privacy policy:</strong>
