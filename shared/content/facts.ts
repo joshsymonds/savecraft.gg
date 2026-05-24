@@ -95,33 +95,33 @@ export const SOURCE_KINDS: Record<SourceKindId, SourceKind> = {
   reference: {
     label: "Expert modules",
     shortDescription:
-      "Every supported game answers expert questions the moment it's on your list — rules, items, builds, prices.",
+      "Every supported game answers expert questions the moment it's on your list, all current to the latest patch.",
     setupBlurb:
-      "No install needed. Reference modules ship with every supported game and answer rules, item, build, and economy questions via MCP queries. Connect Savecraft to your AI assistant once, then ask anything about a supported game.",
+      "No install needed. Reference modules ship with every supported game and answer expert questions via MCP queries. Connect Savecraft to your AI assistant once, then ask anything about a supported game.",
     gamesToday: [],
     requiresDaemon: false,
   },
   api: {
     label: "Account integration",
     shortDescription:
-      "Path of Exile (GGG-approved) and World of Warcraft sign in through the game's own provider — read-only.",
-    setupBlurb: `No local install needed. Visit ${URLS.app}, sign in, and connect the game from the dashboard (add a game → choose your region if prompted → complete OAuth with the game's provider, e.g. Battle.net for WoW or pathofexile.com for PoE). Once authorized, Savecraft discovers your characters automatically.`,
+      "Path of Exile (GGG-approved) and World of Warcraft sign in through the game's own provider. Read-only character data.",
+    setupBlurb: `No local install needed. Visit ${URLS.app}, sign in, and connect the game from the dashboard (add a game, choose your region if prompted, complete OAuth with the game's provider, e.g. Battle.net for WoW or pathofexile.com for PoE). Once authorized, Savecraft discovers your characters automatically.`,
     gamesToday: ["poe", "wow"],
     requiresDaemon: false,
   },
   wasm: {
     label: "Save files",
     shortDescription:
-      "Diablo II, Stardew Valley, Stellaris, Magic, and more read in place on the machine you play on. Files stay local; only parsed state is sent.",
+      "Save-file games like Diablo II, Stardew Valley, and Stellaris read in place on the machine you play on. The daemon parses locally and sends the structured output.",
     setupBlurb:
-      "Install the Savecraft daemon on your machine. It watches your save files, parses them with a sandboxed WASM plugin, and pushes structured game state to Savecraft automatically. Your save files never leave your device — only the parsed data is sent.",
+      "Install the Savecraft daemon on your machine. It watches your save files, parses them with a sandboxed WASM plugin, and pushes structured game state to Savecraft. Save files stay on your device; the daemon sends only the parsed JSON output.",
     gamesToday: ["d2r", "sdv", "stellaris", "clair-obscur", "magic"],
     requiresDaemon: true,
   },
   mod_selfpush: {
     label: "In-game mod",
     shortDescription:
-      "A mod runs inside the game, connects to Savecraft directly, and pushes state on every save. No external daemon.",
+      "A mod runs inside the game, connects to Savecraft directly, and pushes state on every save. No external daemon required.",
     setupBlurb: `Subscribe to the Savecraft mod on Steam Workshop. The mod runs inside the game, opens a WebSocket to Savecraft, and pushes state on every save. No local daemon required.`,
     gamesToday: ["rimworld"],
     distributionUrl: URLS.rimworldSteamWorkshop,
@@ -183,7 +183,7 @@ export const PLATFORM_INSTALL: Record<"linux" | "windows" | "macos", PlatformIns
     available: false,
     command: null,
     instructions:
-      "macOS support is not yet available — it's on the roadmap. Linux and Windows are supported today.",
+      "macOS support is not yet available; it's on the roadmap. Linux and Windows are supported today.",
     installsTo: null,
     runtime: null,
     signing: null,
@@ -221,7 +221,7 @@ export const STORAGE_LAYERS = {
     "linked characters",
     "adapter OAuth tokens (game_credentials)",
     "MCP tool-call audit log (90-day retention)",
-    "reference data (rules, items, prices, etc.)",
+    "reference data",
   ],
   r2: ["WASM plugin binaries", "plugin manifests and signatures"],
   kv: ["short-lived OAuth handshake state (TTL-managed)"],
@@ -252,7 +252,7 @@ export const THIRD_PARTIES: readonly ThirdParty[] = [
     name: "Cloudflare",
     role: "Infrastructure (Workers, D1, R2, KV, Durable Objects, Workers AI, Vectorize)",
     dataReceived:
-      "All application data — save snapshots, account metadata, notes, authentication tokens, device events",
+      "All application data: save snapshots, account metadata, notes, authentication tokens, device events",
     dataLocation: "Global edge network, including the United States",
     privacyUrl: "https://www.cloudflare.com/privacypolicy/",
   },
@@ -293,14 +293,14 @@ export const THIRD_PARTIES: readonly ThirdParty[] = [
     name: "Google Fonts",
     role: "Web font delivery (CSS-loaded by the browser)",
     dataReceived:
-      "Your browser's IP address, User-Agent, and referer when it fetches font files — no Savecraft data is sent",
+      "Your browser's IP address, User-Agent, and referer when it fetches font files. Savecraft sends no data of its own.",
     dataLocation: "Google global edge network",
     privacyUrl: "https://policies.google.com/privacy",
   },
   {
     name: "Stripe",
     role: "Payments (planned)",
-    dataReceived: "Not yet — payments aren't enabled",
+    dataReceived: "Nothing yet; payments aren't enabled.",
     dataLocation: "United States",
     privacyUrl: "https://stripe.com/privacy",
     note: "Planned for paid subscriptions; will be added when payments launch.",
@@ -317,12 +317,12 @@ export const THIRD_PARTIES: readonly ThirdParty[] = [
  * and frame the genuine privacy wins here.
  */
 export const NOT_COLLECTED: readonly string[] = [
-  "No third-party analytics SDKs — no Google Analytics, Posthog, Mixpanel, Hotjar, Segment, or similar.",
-  "No behavioral tracking — no heatmaps, no session recording, no click tracking, no funnel analysis.",
-  "No conversation content — we never see what you say to the AI. We log which MCP tool it called on your behalf, not the AI's responses to you.",
-  "No device fingerprinting — beyond a short label identifying which AI client made the request (e.g. \"chatgpt\", \"claude-desktop\").",
-  "No game-save raw bytes — the daemon parses save files locally and sends only the structured JSON output.",
-  "No advertising, data brokers, marketing platforms, or social-media trackers.",
+  "Zero third-party analytics SDKs (no Google Analytics, Posthog, Mixpanel, Hotjar, Segment, or similar).",
+  "No behavioral tracking of any kind: no heatmaps, no session recordings, no funnel analytics.",
+  "We never see your conversations with the AI. The audit log captures which MCP tool the AI called on your behalf; the AI's responses to you stay between you and the AI provider.",
+  "No device fingerprinting. The only browser-side signal we keep is a short label identifying the AI client that made the request (e.g. \"chatgpt\", \"claude-desktop\").",
+  "Raw save-file bytes stay on your device. The daemon parses them locally and pushes only the structured JSON output.",
+  "No advertising networks, no data brokers, no marketing or social-media trackers.",
 ];
 
 // ── What we DO log ────────────────────────────────────────────────────────

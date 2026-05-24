@@ -64,7 +64,8 @@ export function isPlatformId(s: string | undefined): s is PlatformId {
 export const PAIRING_TEXT_FOR_MCP =
   `After installing, the daemon self-registers and displays a pairing link (${PAIRING.linkUrlPattern}). ` +
   `Click the link, use the tray app's '${PAIRING.trayButtonLabel}' button, or enter the ${PAIRING.codeFormat} code on the ${URLS.app} homepage. ` +
-  `Once paired, your game saves appear automatically. Codes expire after ${PAIRING.codeTtlMinutes} minutes — ${PAIRING.refreshNote.replace(/^./, (c) => c.toLowerCase())}`;
+  `Once paired, your game saves appear automatically. Codes expire after ${PAIRING.codeTtlMinutes} minutes; ` +
+  `${PAIRING.refreshNote.replace(/^./, (c) => c.toLowerCase())}`;
 
 /**
  * Adapter (API) setup explainer for the MCP. Combines the user-facing setup
@@ -73,10 +74,10 @@ export const PAIRING_TEXT_FOR_MCP =
  */
 export const ADAPTER_SETUP_TEXT_FOR_MCP =
   `${SOURCE_KINDS.api.setupBlurb} ` +
-  `Each adapter source includes an adapter_credentials array showing credential status per game: ` +
-  `'connected' means the OAuth token is valid, 'expired' means the token needs re-authorization ` +
-  `(reconnect the game from the ${URLS.app} dashboard), and 'missing' means the game is linked ` +
-  `but OAuth hasn't been completed yet.`;
+  `Each adapter source includes an adapter_credentials array showing credential status per game. ` +
+  `Status values: 'connected' (OAuth token is valid), 'expired' (token needs re-authorization; ` +
+  `reconnect the game from the ${URLS.app} dashboard), 'missing' (game is linked but OAuth hasn't ` +
+  `been completed yet).`;
 
 /**
  * Map a DB source_kind enum value to the canonical SOURCE_KINDS setup blurb.

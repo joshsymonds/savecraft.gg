@@ -2166,7 +2166,7 @@ describe("MCP Tools", () => {
       };
       expect(data.privacy).toContain("open source");
       expect(data.privacy).toContain("savecraft.gg/privacy");
-      expect(data.privacy).toContain("do not sell");
+      expect(data.privacy).toContain("sell your data");
       // Should NOT include categories menu or other sections
       expect(data).not.toHaveProperty("categories");
       expect(data).not.toHaveProperty("setup");

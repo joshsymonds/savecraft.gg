@@ -26,17 +26,24 @@ import {
 
 export const PRIVACY_TLDR =
   `Savecraft collects the minimum data needed to connect your game saves to AI assistants. ` +
-  `We store your email address, your game save data (which you push to us), notes you create, ` +
-  `and — for API-connected games like World of Warcraft and Path of Exile — OAuth tokens from ` +
-  `game platform accounts solely to verify character ownership and refresh data on demand. ` +
-  `We do not run analytics, do not track you, do not sell your data, and do not see your ` +
-  `conversations with AI assistants. Our code is open source (${URLS.github}) — you can verify ` +
-  `all of this yourself.`;
+  `We store your email address, the game save data you push to us, notes you create, and ` +
+  `(for account-connected games like World of Warcraft and Path of Exile) OAuth tokens used ` +
+  `solely to verify character ownership and refresh data on demand. We don't run analytics, ` +
+  `track you, sell your data, or read your AI conversations. Our code is open source ` +
+  `(${URLS.github}), so you can verify all of this yourself.`;
+
+const LAYER_NAMES: Record<keyof typeof STORAGE_LAYERS, string> = {
+  d1: "D1",
+  r2: "R2",
+  kv: "KV",
+  durableObjects: "Durable Objects",
+};
 
 function formatStorageLine(): string {
   const parts: string[] = [];
   for (const [layer, items] of Object.entries(STORAGE_LAYERS)) {
-    parts.push(`${layer.toUpperCase()} stores ${(items as readonly string[]).join("; ")}`);
+    const name = LAYER_NAMES[layer as keyof typeof STORAGE_LAYERS];
+    parts.push(`${name} stores ${(items as readonly string[]).join("; ")}`);
   }
   return parts.join(". ") + ".";
 }
@@ -45,9 +52,10 @@ function formatLoggingLine(): string {
   const tools = LOGGING.mcpToolCalls;
   const ip = LOGGING.sourceIp;
   return (
-    `MCP tool calls are logged for ${tools.retentionDays} days (${tools.purpose.toLowerCase()}). ` +
+    `MCP tool calls are logged for ${tools.retentionDays} days. Purpose: ${tools.purpose} ` +
     `Fields: ${tools.fields.join(", ")}. ${tools.notLogged} ` +
-    `Daemon source registrations are tagged with the source IP for rate-limiting — ${ip.purpose.toLowerCase()} (retention: ${ip.retention.toLowerCase()}).`
+    `Daemon source registrations also get tagged with the requesting IP. Purpose: ${ip.purpose} ` +
+    `Retention: ${ip.retention}`
   );
 }
 
