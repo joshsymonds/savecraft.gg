@@ -13,6 +13,10 @@ const config = {
     env: {
       dir: "..",
     },
+    alias: {
+      "@savecraft/content": "../shared/content",
+      "@savecraft/content/*": "../shared/content/*",
+    },
   },
 };
 

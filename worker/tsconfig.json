@@ -13,8 +13,14 @@
     "isolatedModules": true,
     "noEmit": true,
     "paths": {
-      "@proto/*": ["./src/proto/*"]
+      "@proto/*": ["./src/proto/*"],
+      "@savecraft/content/*": ["../shared/content/*"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "../plugins/*/adapter/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "../plugins/*/adapter/**/*.ts",
+    "../shared/content/**/*.ts"
+  ]
 }
