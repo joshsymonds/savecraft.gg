@@ -218,10 +218,8 @@
         AI providers.
       </p>
       <p>
-        We retain a per-call audit log for {LOGGING.mcpToolCalls.retentionDays} days
-        ({LOGGING.mcpToolCalls.purpose.toLowerCase()}). The log captures: {LOGGING.mcpToolCalls.fields.join(
-          ", ",
-        )}. {LOGGING.mcpToolCalls.notLogged}
+        We retain a per-call audit log for {LOGGING.mcpToolCalls.retentionDays} days ({LOGGING.mcpToolCalls.purpose.toLowerCase()}).
+        The log captures: {LOGGING.mcpToolCalls.fields.join(", ")}. {LOGGING.mcpToolCalls.notLogged}
       </p>
     </section>
 
@@ -258,8 +256,8 @@
       <h3>Cloudflare</h3>
       <p><strong>Role:</strong> Infrastructure provider (data processor under GDPR).</p>
       <p>
-        <strong>What they process:</strong> All application data. Cloudflare Workers execute your API
-        requests; concretely,
+        <strong>What they process:</strong> All application data. Cloudflare Workers execute your
+        API requests; concretely,
         {#each Object.entries(STORAGE_LAYERS) as [layer, items], i (layer)}
           {#if i > 0}
             ;
@@ -342,17 +340,15 @@
 
       <h3>Grinding Gear Games (pathofexile.com)</h3>
       <p>
-        <strong>Role:</strong> Path of Exile character data provider. Savecraft is a GGG-approved
-        application.
+        <strong>Role:</strong> Path of Exile character data provider. Savecraft is a GGG-approved application.
       </p>
       <p>
-        <strong>What they receive:</strong> API requests for your character profile, authenticated
-        with your GGG OAuth token (and Savecraft's application credentials).
+        <strong>What they receive:</strong> API requests for your character profile, authenticated with
+        your GGG OAuth token (and Savecraft's application credentials).
       </p>
       <p>
-        <strong>What we receive from them:</strong> Character profile data (name, league, class,
-        level, equipment, passive tree, items). This data becomes part of your game save state
-        within Savecraft.
+        <strong>What we receive from them:</strong> Character profile data (name, league, class, level,
+        equipment, passive tree, items). This data becomes part of your game save state within Savecraft.
       </p>
       <p>
         <strong>Their privacy policy:</strong>
@@ -485,8 +481,8 @@
       <p>
         Save data and notes are stored in Cloudflare's infrastructure, which provides encryption at
         rest and in transit. Device auth tokens and API keys are SHA-256 hashed; Clerk handles
-        password storage per its own security practices. MCP OAuth tokens are opaque and stored
-        with automatic expiration. Game-platform OAuth tokens (Battle.net, GGG) are stored in our
+        password storage per its own security practices. MCP OAuth tokens are opaque and stored with
+        automatic expiration. Game-platform OAuth tokens (Battle.net, GGG) are stored in our
         database and used by the worker on demand to fetch your character data; you can revoke
         access at any time from the game-platform's account settings. The daemon runs with minimal
         system permissions -- on Linux/Steam Deck, kernel-enforced sandboxing (via systemd)

@@ -258,7 +258,8 @@
           </tr>
           <tr>
             <td><code>show_games</code></td>
-            <td>Like list_games, but renders an interactive games browser in the assistant's UI.</td>
+            <td>Like list_games, but renders an interactive games browser in the assistant's UI.</td
+            >
           </tr>
           <tr>
             <td><code>show_save</code></td>
@@ -300,8 +301,8 @@
         <a href="/support" class="text-link">Support</a> -- Discord and email
       </li>
       <li>
-        <a href={URLS.github} class="text-link" target="_blank" rel="noopener">Source code</a> --
-        Savecraft is open source
+        <a href={URLS.github} class="text-link" target="_blank" rel="noopener">Source code</a> -- Savecraft
+        is open source
       </li>
     </ul>
   </section>

@@ -8,12 +8,12 @@ import { aboutTextForMcp } from "@savecraft/content/about";
 import { privacyTextForMcp } from "@savecraft/content/privacy";
 import {
   ADAPTER_SETUP_TEXT_FOR_MCP,
-  PAIRING_TEXT_FOR_MCP,
   allPlatformGuidesForMcp,
   isPlatformId,
+  PAIRING_TEXT_FOR_MCP,
+  type PlatformGuide,
   platformGuideForMcp,
   sourceSetupBlurbForMcp,
-  type PlatformGuide,
 } from "@savecraft/content/setup";
 
 import {
