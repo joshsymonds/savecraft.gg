@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import { PUBLIC_APP_URL } from "$env/static/public";
+  import { AI_CLIENTS, SOURCE_KINDS } from "@savecraft/content/facts";
   import type { GameInfo } from "$lib/server/plugins";
   import {
     ConversationDemo,
@@ -15,6 +16,25 @@
   import type { DemoMessage } from "$lib/components/marketing/types";
 
   let { data } = $props<{ data: { availableGames: GameInfo[] } }>();
+
+  // ── AI client labels ───────────────────────────────────────
+  const clientList = AI_CLIENTS.join(" and ");
+  const clientCta = `CONNECT ${AI_CLIENTS.join(" OR ").toUpperCase()}`;
+
+  // ── HOW IT WORKS card grouping ─────────────────────────────
+  // Card titles are a marketing presentation choice; descriptions come
+  // from the shared SOURCE_KINDS facts so the games list and architecture
+  // claims can't drift from what the worker reports.
+  const howItWorksCards = [
+    { title: "YOUR ACCOUNT", body: SOURCE_KINDS.api.shortDescription },
+    { title: "YOUR SAVE FILES", body: SOURCE_KINDS.wasm.shortDescription },
+    {
+      title: "AN IN-GAME MOD",
+      body:
+        SOURCE_KINDS.mod_selfpush.shortDescription +
+        " Some moddable games (like Factorio) pair the mod with the Savecraft daemon instead; the dashboard hands you the right setup.",
+    },
+  ];
 
   // ── Hero frames: draft review focal + two cross-game peeks ─
   const heroFrames = [
@@ -103,7 +123,7 @@
         accent="gold"
         eyebrow="FIX AI HALLUCINATIONS"
         title="Real game data for your AI."
-        subtitle="Savecraft connects Claude and ChatGPT to real, current game data for Magic, Path of Exile, Factorio, Stellaris, and more. Where the game supports it, your live characters come along too."
+        subtitle={`Savecraft connects ${clientList} to real, current game data for Magic, Path of Exile, Factorio, Stellaris, and more. Where the game supports it, your live characters come along too.`}
         actions={heroActions}
         frames={heroFrames}
       />
@@ -112,13 +132,13 @@
   <!-- /hero-bg -->
 
   {#snippet heroActions()}
-    <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT CLAUDE OR CHATGPT</a>
+    <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">{clientCta}</a>
     <a href="#how" class="btn-outline">SEE HOW IT WORKS</a>
   {/snippet}
 
   <!-- ═══ SOCIAL PROOF LINE (divider between hero and content) ═══ -->
   <div class="proof-bar">
-    <span class="proof-item">Connects to Claude and ChatGPT</span>
+    <span class="proof-item">Connects to {clientList}</span>
     <span class="proof-sep">*</span>
     <span class="proof-item">Updated every patch</span>
     <span class="proof-sep">*</span>
@@ -140,7 +160,7 @@
         effects, drop tables, the whole ruleset.
       </p>
       <div class="reference-callout-cta">
-        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT CLAUDE OR CHATGPT</a>
+        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">{clientCta}</a>
       </div>
     </div>
 
@@ -152,30 +172,12 @@
 
     <h3 class="unlock-label">Live characters too, where available.</h3>
     <div class="steps-grid">
-      <div class="step-card">
-        <h3 class="step-name">YOUR ACCOUNT</h3>
-        <p class="step-desc">
-          Path of Exile (we're GGG-approved) and World of Warcraft connect through their own
-          sign-in. Your AI reads your live characters from the game's servers, as fresh as your last
-          refresh.
-        </p>
-      </div>
-      <div class="step-card">
-        <h3 class="step-name">YOUR SAVE FILES</h3>
-        <p class="step-desc">
-          Diablo II, Stardew Valley, RimWorld, Stellaris, and the rest store your progress in save
-          files on your machine. Add one of those games and Savecraft walks you through pairing your
-          computer once. The files stay on your device; only the parsed state goes to your AI.
-        </p>
-      </div>
-      <div class="step-card">
-        <h3 class="step-name">AN IN-GAME MOD</h3>
-        <p class="step-desc">
-          Moddable games like Factorio push their state from inside the game through a Savecraft
-          mod. Add the game, install the mod it hands you, and your factory shows up in the
-          conversation.
-        </p>
-      </div>
+      {#each howItWorksCards as card (card.title)}
+        <div class="step-card">
+          <h3 class="step-name">{card.title}</h3>
+          <p class="step-desc">{card.body}</p>
+        </div>
+      {/each}
     </div>
   </MarketingSection>
 
