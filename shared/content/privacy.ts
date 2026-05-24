@@ -32,7 +32,12 @@ export const PRIVACY_TLDR =
   `track you, sell your data, or read your AI conversations. Our code is open source ` +
   `(${URLS.github}), so you can verify all of this yourself.`;
 
-const LAYER_NAMES: Record<keyof typeof STORAGE_LAYERS, string> = {
+/**
+ * Display names for storage-layer keys. Exported so the site can render
+ * `STORAGE_LAYERS` with the same labels the MCP composer uses (otherwise
+ * `key.toUpperCase()` produces "DURABLEOBJECTS").
+ */
+export const LAYER_NAMES: Record<keyof typeof STORAGE_LAYERS, string> = {
   d1: "D1",
   r2: "R2",
   kv: "KV",
@@ -71,15 +76,18 @@ function formatSecurityLine(): string {
   ].join(" ");
 }
 
+/** Memoized plain-text privacy blob. Inputs are all module-scope constants. */
+const PRIVACY_TEXT_FOR_MCP: string = [
+  PRIVACY_TLDR,
+  `Where data is stored: ${formatStorageLine()}`,
+  `Security: ${formatSecurityLine()}`,
+  `What we log: ${formatLoggingLine()}`,
+  `What we do NOT collect: ${NOT_COLLECTED.join(" ")}`,
+  `Data deletion: You can delete individual saves, notes, and devices through the web UI or MCP tools. Email ${CONTACTS.privacy} to delete your entire account and all associated data.`,
+  `Full privacy policy: ${URLS.privacy}`,
+].join("\n\n");
+
 /** Plain-text privacy blob returned by the MCP `setup_help(category="privacy")` tool. */
 export function privacyTextForMcp(): string {
-  return [
-    PRIVACY_TLDR,
-    `Where data is stored: ${formatStorageLine()}`,
-    `Security: ${formatSecurityLine()}`,
-    `What we log: ${formatLoggingLine()}`,
-    `What we do NOT collect: ${NOT_COLLECTED.join(" ")}`,
-    `Data deletion: You can delete individual saves, notes, and devices through the web UI or MCP tools. Email ${CONTACTS.privacy} to delete your entire account and all associated data.`,
-    `Full privacy policy: ${URLS.privacy}`,
-  ].join("\n\n");
+  return PRIVACY_TEXT_FOR_MCP;
 }

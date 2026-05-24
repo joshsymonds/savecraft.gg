@@ -6,6 +6,8 @@
  * (worker/src/adapters/registry.ts).
  */
 
+import { URLS } from "@savecraft/content/facts";
+
 import type { Env } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -43,22 +45,13 @@ export class AdapterError extends Error {
 export const ADAPTER_REFRESH_COOLDOWN_SEC = 300;
 
 /**
- * The Savecraft web app origin. The apex `savecraft.gg` is the
- * marketing/docs/privacy site; the live dashboard — sign-in plus the
- * add/connect-a-game picker that starts adapter OAuth — is here. There
- * is NO `/settings` route; never construct one. Single source of truth
- * for every user-facing connect/reconnect string the LLM may relay.
- */
-export const SAVECRAFT_APP_URL = "https://my.savecraft.gg";
-
-/**
  * userAction for an expired or unlinked OAuth adapter credential. `game`
  * is the display name (e.g. "Path of Exile", "World of Warcraft"). The
  * LLM relays this verbatim to walk the player back through authorization.
  */
 export function reconnectAdapterAction(game: string): string {
   return (
-    `Reconnect your ${game} account: open ${SAVECRAFT_APP_URL}, sign in, ` +
+    `Reconnect your ${game} account: open ${URLS.app}, sign in, ` +
     `and reconnect ${game} from the dashboard (add a game → authorize with the provider).`
   );
 }
@@ -71,7 +64,7 @@ export function reconnectAdapterAction(game: string): string {
  */
 export function connectAdapterGuidance(game: string): string {
   return (
-    `open ${SAVECRAFT_APP_URL}, sign in, connect ${game} from the dashboard ` +
+    `open ${URLS.app}, sign in, connect ${game} from the dashboard ` +
     `(add a game → authorize with the provider), then run refresh_save for the character`
   );
 }

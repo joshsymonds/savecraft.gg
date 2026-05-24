@@ -14,10 +14,9 @@
  * enabling iterative build design without the player exporting build codes.
  */
 
-import {
-  connectAdapterGuidance,
-  SAVECRAFT_APP_URL,
-} from "../../../worker/src/adapters/adapter";
+import { URLS } from "@savecraft/content/facts";
+
+import { connectAdapterGuidance } from "../../../worker/src/adapters/adapter";
 import type { Env } from "../../../worker/src/types";
 import type {
   NativeReferenceModule,
@@ -218,7 +217,7 @@ export const buildPlannerModule: NativeReferenceModule = {
     character: {
       type: "string",
       description:
-        `Analyze the player's own connected Path of Exile character — no URL needed. Pass "current" for their most-recently-played character, or the exact character name. Requires the player to have connected their PoE account at ${SAVECRAFT_APP_URL} and run refresh_save for that character. Preferred over \`build\` whenever the player asks about THEIR character/build. Mutually exclusive with \`build\`; ignored if \`build\` or \`build_id\` is also given.`,
+        `Analyze the player's own connected Path of Exile character — no URL needed. Pass "current" for their most-recently-played character, or the exact character name. Requires the player to have connected their PoE account at ${URLS.app} and run refresh_save for that character. Preferred over \`build\` whenever the player asks about THEIR character/build. Mutually exclusive with \`build\`; ignored if \`build\` or \`build_id\` is also given.`,
     },
     build: {
       type: "string",

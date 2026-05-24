@@ -5,6 +5,7 @@
  */
 
 import { aboutTextForMcp } from "@savecraft/content/about";
+import { URLS } from "@savecraft/content/facts";
 import { privacyTextForMcp } from "@savecraft/content/privacy";
 import {
   ADAPTER_SETUP_TEXT_FOR_MCP,
@@ -20,7 +21,6 @@ import {
   ADAPTER_REFRESH_COOLDOWN_SEC,
   AdapterError,
   reconnectAdapterAction,
-  SAVECRAFT_APP_URL,
 } from "../adapters/adapter";
 import { adapters } from "../adapters/registry";
 import { resolveAdapterCharacter } from "../adapters/resolve-character";
@@ -1026,7 +1026,7 @@ async function refreshAdapterSave(
   const resolved = resolveAdapterCharacter(linkedChar);
   if (!resolved) {
     return errorResult(
-      `Character is not linked — open ${SAVECRAFT_APP_URL}, sign in, and reconnect the account from the dashboard.`,
+      `Character is not linked — open ${URLS.app}, sign in, and reconnect the account from the dashboard.`,
     );
   }
 

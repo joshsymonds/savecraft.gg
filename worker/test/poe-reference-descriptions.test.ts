@@ -1,3 +1,4 @@
+import { URLS } from "@savecraft/content/facts";
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
@@ -13,7 +14,6 @@ import {
   AdapterError,
   connectAdapterGuidance,
   reconnectAdapterAction,
-  SAVECRAFT_APP_URL,
 } from "../src/adapters/adapter";
 import type { Env } from "../src/types";
 
@@ -26,9 +26,9 @@ function poeEnv(): Env {
 }
 
 describe("connect-guidance copy (epic Req 14)", () => {
-  it("SAVECRAFT_APP_URL is the real app origin, not a dead path", () => {
-    expect(SAVECRAFT_APP_URL).toBe("https://my.savecraft.gg");
-    expect(SAVECRAFT_APP_URL).not.toContain("/settings");
+  it("URLS.app is the real app origin, not a dead path", () => {
+    expect(URLS.app).toBe("https://my.savecraft.gg");
+    expect(URLS.app).not.toContain("/settings");
   });
 
   it("reconnectAdapterAction points at the real dashboard, never /settings", () => {

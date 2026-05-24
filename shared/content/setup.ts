@@ -47,12 +47,15 @@ export function platformGuideForMcp(platform: PlatformId): PlatformGuide {
   return { install: installFor(platform), details: detailsFor(platform) };
 }
 
+/** Memoized full-platforms guide. Inputs are all module-scope constants. */
+const ALL_PLATFORM_GUIDES: Record<PlatformId, PlatformGuide> = {
+  linux: platformGuideForMcp("linux"),
+  windows: platformGuideForMcp("windows"),
+  macos: platformGuideForMcp("macos"),
+};
+
 export function allPlatformGuidesForMcp(): Record<PlatformId, PlatformGuide> {
-  return {
-    linux: platformGuideForMcp("linux"),
-    windows: platformGuideForMcp("windows"),
-    macos: platformGuideForMcp("macos"),
-  };
+  return ALL_PLATFORM_GUIDES;
 }
 
 /** Returns true if the given string is a supported platform key. */
@@ -109,5 +112,7 @@ export function sourceSetupBlurbForMcp(sources: readonly string[]): string {
   const blurbs = sources
     .map((s) => blurbForDbSourceKind(s))
     .filter((b): b is string => b !== null);
-  return blurbs.length > 0 ? blurbs.join(" Additionally: ") : SOURCE_KINDS.wasm.setupBlurb;
+  return blurbs.length > 0
+    ? blurbs.join(" Additionally: ")
+    : SOURCE_KINDS.wasm.setupBlurb;
 }

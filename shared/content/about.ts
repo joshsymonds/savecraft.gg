@@ -39,8 +39,8 @@ function describeSourceKinds(): string {
   }).join(" ");
 }
 
-/** Plain-text about blob returned by the MCP `setup_help(category="about")` tool. */
-export function aboutTextForMcp(): string {
+/** Memoized about blob. Inputs are all module-scope constants. */
+const ABOUT_TEXT_FOR_MCP: string = (() => {
   const layerCount = SOURCE_KIND_ORDER.length;
   const clientList = AI_CLIENTS.join(" and ");
   return [
@@ -54,4 +54,9 @@ export function aboutTextForMcp(): string {
       `License: ${PROJECT.license.name}`,
     ].join("\n"),
   ].join("\n\n");
+})();
+
+/** Plain-text about blob returned by the MCP `setup_help(category="about")` tool. */
+export function aboutTextForMcp(): string {
+  return ABOUT_TEXT_FOR_MCP;
 }

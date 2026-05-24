@@ -157,13 +157,17 @@ export interface PlatformInstall {
   postInstall: string | null;
 }
 
-export const PLATFORM_INSTALL: Record<"linux" | "windows" | "macos", PlatformInstall> = {
+export const PLATFORM_INSTALL: Record<
+  "linux" | "windows" | "macos",
+  PlatformInstall
+> = {
   linux: {
     available: true,
     command: `curl -fsSL ${URLS.install} | bash`,
     instructions: null,
     installsTo: "~/.local/bin/savecraft-daemon",
-    runtime: "systemd user unit at ~/.config/systemd/user/savecraft-daemon.service",
+    runtime:
+      "systemd user unit at ~/.config/systemd/user/savecraft-daemon.service",
     signing: "Ed25519 (verified via openssl during install)",
     postInstall:
       "Self-registers with the Savecraft server and prints a pairing link.",
@@ -235,15 +239,36 @@ export const STORAGE_LAYERS = {
 
 export interface ThirdParty {
   name: string;
-  /** What role they play (infra, auth, game data, etc.). */
+  /** What role they play (infra, auth, game data, etc.). MCP-side concise label. */
   role: string;
+  /**
+   * Optional richer GDPR-style role description for the marketing site's
+   * legal page. When unset, the site falls back to `role`.
+   */
+  siteRole?: string;
   /** What data they receive from us or directly from the user's browser. */
   dataReceived: string;
+  /**
+   * For data providers (e.g. Blizzard, GGG, Raider.io): what character /
+   * profile data we receive BACK from them. Site-only; MCP omits this.
+   */
+  dataReceivedFromThem?: string;
   /** Where the processing happens. */
   dataLocation: string;
   /** Link to their privacy policy. */
   privacyUrl: string;
-  /** Optional note (e.g. "future" for not-yet-integrated processors). */
+  /**
+   * Optional legal-page disclosure about cross-border transfer mechanisms
+   * (e.g. EU-U.S. DPF, SCCs). Site-only.
+   */
+  transferSafeguards?: string;
+  /**
+   * Optional free-form extra paragraph rendered after the standard fields
+   * (used for Stripe's "future" disclosure, Cloudflare's bucket detail,
+   * etc.). Site-only.
+   */
+  extraDetail?: string;
+  /** Optional short note (e.g. "future" for not-yet-integrated processors). */
   note?: string;
 }
 
@@ -251,24 +276,35 @@ export const THIRD_PARTIES: readonly ThirdParty[] = [
   {
     name: "Cloudflare",
     role: "Infrastructure (Workers, D1, R2, KV, Durable Objects, Workers AI, Vectorize)",
+    siteRole: "Infrastructure provider (data processor under GDPR).",
     dataReceived:
-      "All application data: save snapshots, account metadata, notes, authentication tokens, device events",
+      "All application data: save snapshots, account metadata, notes, authentication tokens, device events. Cloudflare Workers execute your API requests; D1 stores save snapshots and metadata; R2 stores plugin binaries; KV stores OAuth handshake state.",
     dataLocation: "Global edge network, including the United States",
     privacyUrl: "https://www.cloudflare.com/privacypolicy/",
+    transferSafeguards:
+      "Cloudflare is certified under the EU-U.S. Data Privacy Framework and incorporates EU Standard Contractual Clauses in its Data Processing Addendum, which applies automatically to all customers.",
   },
   {
     name: "Clerk",
     role: "Authentication provider",
+    siteRole:
+      "Authentication provider (data processor for authentication services; independent data controller for its own account management).",
     dataReceived:
-      "Email address, display name, and session data; Clerk handles password storage and hashing per their security practices",
+      "Your email address, display name, and authentication credentials (hashed). Clerk also processes session data and device metadata as part of authentication.",
     dataLocation: "United States (Google Cloud Platform)",
     privacyUrl: "https://clerk.com/legal/privacy",
+    transferSafeguards:
+      "Clerk is certified under the EU-U.S. Data Privacy Framework and offers a DPA with Standard Contractual Clauses at https://clerk.com/legal/dpa.",
   },
   {
     name: "Blizzard Entertainment (Battle.net)",
     role: "World of Warcraft character data provider",
+    siteRole:
+      "Game data provider (when you connect a Battle.net account for World of Warcraft).",
     dataReceived:
-      "API requests for your character profile (gear, talents, raids, Mythic+), authenticated with your OAuth token",
+      "API requests for your character profile data (gear, stats, talents, raid progression). These requests are authenticated with your OAuth token and Savecraft's application credentials.",
+    dataReceivedFromThem:
+      "Character profile data (name, realm, class, level, equipped gear, talents, Mythic+ runs, raid progression, professions). This data becomes part of your game save state within Savecraft.",
     dataLocation: "United States",
     privacyUrl:
       "https://www.blizzard.com/en-us/legal/a4380ee5-5c8d-4e3b-83b7-ea4d874e7f22/blizzard-entertainment-online-privacy-policy",
@@ -276,34 +312,46 @@ export const THIRD_PARTIES: readonly ThirdParty[] = [
   {
     name: "Raider.io",
     role: "World of Warcraft Mythic+ and raid enrichment",
+    siteRole:
+      "Enrichment data provider for World of Warcraft (no authentication required).",
     dataReceived:
-      "Your character name, realm, and region in API requests (no OAuth tokens or personal data)",
+      "Your character name, realm, and region in API requests. No OAuth tokens or personal data are shared.",
+    dataReceivedFromThem:
+      "Mythic+ scores, rankings, and raid progression summaries. This enriches your character's game state but is not required; if Raider.io is unavailable, your save data is still complete from Blizzard's API alone.",
     dataLocation: "United States",
     privacyUrl: "https://raider.io/privacy",
   },
   {
     name: "Grinding Gear Games (pathofexile.com)",
     role: "Path of Exile character data provider (Savecraft is a GGG-approved application)",
+    siteRole:
+      "Path of Exile character data provider. Savecraft is a GGG-approved application.",
     dataReceived:
-      "API requests for your character profile, authenticated with your GGG OAuth token",
+      "API requests for your character profile, authenticated with your GGG OAuth token and Savecraft's application credentials.",
+    dataReceivedFromThem:
+      "Character profile data (name, league, class, level, equipment, passive tree, items). This becomes part of your game save state within Savecraft.",
     dataLocation: "International (GGG operates globally)",
     privacyUrl: "https://www.pathofexile.com/privacy-policy",
   },
   {
     name: "Google Fonts",
     role: "Web font delivery (CSS-loaded by the browser)",
+    siteRole: "Web font delivery, loaded by your browser via CSS.",
     dataReceived:
-      "Your browser's IP address, User-Agent, and referer when it fetches font files. Savecraft sends no data of its own.",
+      "Your browser's IP address, User-Agent, and referer when it fetches font files from fonts.googleapis.com. No Savecraft application data is sent to Google.",
     dataLocation: "Google global edge network",
     privacyUrl: "https://policies.google.com/privacy",
   },
   {
     name: "Stripe",
     role: "Payments (planned)",
+    siteRole: "Payments processor (planned; not yet integrated).",
     dataReceived: "Nothing yet; payments aren't enabled.",
     dataLocation: "United States",
     privacyUrl: "https://stripe.com/privacy",
     note: "Planned for paid subscriptions; will be added when payments launch.",
+    extraDetail:
+      "When we add paid subscriptions, Stripe will process payments. Stripe will receive your payment card details, billing address, and transaction data directly; we will not store payment information ourselves. Stripe acts as both a data processor (handling transactions on our behalf) and an independent data controller (for fraud prevention and regulatory compliance). We will update this policy before adding Stripe.",
   },
 ];
 
@@ -320,7 +368,7 @@ export const NOT_COLLECTED: readonly string[] = [
   "Zero third-party analytics SDKs (no Google Analytics, Posthog, Mixpanel, Hotjar, Segment, or similar).",
   "No behavioral tracking of any kind: no heatmaps, no session recordings, no funnel analytics.",
   "We never see your conversations with the AI. The audit log captures which MCP tool the AI called on your behalf; the AI's responses to you stay between you and the AI provider.",
-  "No device fingerprinting. The only browser-side signal we keep is a short label identifying the AI client that made the request (e.g. \"chatgpt\", \"claude-desktop\").",
+  'No device fingerprinting. The only browser-side signal we keep is a short label identifying the AI client that made the request (e.g. "chatgpt", "claude-desktop").',
   "Raw save-file bytes stay on your device. The daemon parses them locally and pushes only the structured JSON output.",
   "No advertising networks, no data brokers, no marketing or social-media trackers.",
 ];
@@ -329,7 +377,8 @@ export const NOT_COLLECTED: readonly string[] = [
 
 export const LOGGING = {
   mcpToolCalls: {
-    purpose: "Debugging, abuse prevention, and answering questions like \"why did this tool error?\"",
+    purpose:
+      'Debugging, abuse prevention, and answering questions like "why did this tool error?"',
     retentionDays: 90,
     fields: [
       "tool name",
@@ -341,12 +390,14 @@ export const LOGGING = {
       "user UUID",
       "timestamp",
     ],
-    notLogged: "The AI's response to you. The content returned by the tool (only its size).",
+    notLogged:
+      "The AI's response to you. The content returned by the tool (only its size).",
   },
   sourceIp: {
     purpose:
       "Rate-limiting unlinked daemon registrations to 10 per hour per IP. Helps prevent abuse of the registration endpoint before a daemon is paired to an account.",
-    retention: "Lifetime of the source row (deleted when the source is unlinked).",
+    retention:
+      "Lifetime of the source row (deleted when the source is unlinked).",
   },
 } as const;
 
@@ -363,7 +414,7 @@ export const SECURITY = {
   deviceAuthTokens:
     "SHA-256 hashed before storage; the plaintext token is never stored server-side.",
   apiKeys:
-    "SHA-256 hashed; a short prefix (e.g. \"sk_...abc\") is shown once at creation for identification.",
+    'SHA-256 hashed; a short prefix (e.g. "sav_a1b2") is shown once at creation for identification.',
   oauthMcpTokens:
     "Opaque random strings, stored in Cloudflare KV with automatic TTL-based expiration.",
   oauthAdapterTokens:

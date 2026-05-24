@@ -6,8 +6,15 @@
   so they cannot drift from what the MCP setup_help tool says.
 -->
 <script lang="ts">
-  import { LOGGING, NOT_COLLECTED, STORAGE_LAYERS, URLS } from "@savecraft/content/facts";
-  import { PRIVACY_TLDR } from "@savecraft/content/privacy";
+  import {
+    LOGGING,
+    NOT_COLLECTED,
+    SECURITY,
+    STORAGE_LAYERS,
+    THIRD_PARTIES,
+    URLS,
+  } from "@savecraft/content/facts";
+  import { LAYER_NAMES, PRIVACY_TLDR } from "@savecraft/content/privacy";
 </script>
 
 <svelte:head>
@@ -90,8 +97,8 @@
       <h3>API keys</h3>
       <p>
         You can generate API keys for programmatic access. We store a <strong>SHA-256 hash</strong> of
-        each key, a short prefix for identification (e.g., "sk_...abc"), and a label you provide. The
-        full key is shown to you once at creation and is never stored.
+        each key, a short prefix for identification (e.g., "sav_a1b2"), and a label you provide. The full
+        key is shown to you once at creation and is never stored.
       </p>
       <p class="legal-basis"><strong>Legal basis:</strong> Contract performance.</p>
       <p class="retention"><strong>Retention:</strong> Until you delete the key or your account.</p>
@@ -250,137 +257,44 @@
     </section>
 
     <section class="privacy-section">
+      <h2>Where your data lives, in detail</h2>
+      <p>
+        Cloudflare's infrastructure backs everything. Within it, data is distributed across four
+        layers:
+      </p>
+      <ul>
+        {#each Object.entries(STORAGE_LAYERS) as [layer, items] (layer)}
+          <li>
+            <strong>{LAYER_NAMES[layer as keyof typeof STORAGE_LAYERS]}:</strong>
+            {(items as readonly string[]).join("; ")}.
+          </li>
+        {/each}
+      </ul>
+    </section>
+
+    <section class="privacy-section">
       <h2>Who has access to your data</h2>
       <p>We name every third party, what they receive, and why.</p>
 
-      <h3>Cloudflare</h3>
-      <p><strong>Role:</strong> Infrastructure provider (data processor under GDPR).</p>
-      <p>
-        <strong>What they process:</strong> All application data. Cloudflare Workers execute your
-        API requests; concretely,
-        {#each Object.entries(STORAGE_LAYERS) as [layer, items], i (layer)}
-          {#if i > 0}
-            ;
-          {/if}
-          <strong>{layer.toUpperCase()}</strong> stores {(items as readonly string[]).join("; ")}
-        {/each}.
-      </p>
-      <p>
-        <strong>Data location:</strong> Your data is stored and processed on Cloudflare's global network,
-        including in the United States.
-      </p>
-      <p>
-        <strong>Transfer safeguards:</strong> Cloudflare is certified under the EU-U.S. Data Privacy Framework
-        and incorporates EU Standard Contractual Clauses in its Data Processing Addendum, which applies
-        automatically to all customers.
-      </p>
-      <p>
-        <strong>Their privacy policy:</strong>
-        <a href="https://www.cloudflare.com/privacypolicy/" class="text-link"
-          >cloudflare.com/privacypolicy</a
-        >
-      </p>
-
-      <h3>Clerk</h3>
-      <p>
-        <strong>Role:</strong> Authentication provider (data processor for authentication services; independent
-        data controller for its own account management).
-      </p>
-      <p>
-        <strong>What they receive:</strong> Your email address, display name, and authentication credentials
-        (hashed). Clerk also processes session data and device metadata as part of authentication.
-      </p>
-      <p><strong>Data location:</strong> United States (Google Cloud Platform).</p>
-      <p>
-        <strong>Transfer safeguards:</strong> Clerk is certified under the EU-U.S. Data Privacy
-        Framework and offers a DPA with Standard Contractual Clauses at
-        <a href="https://clerk.com/legal/dpa" class="text-link">clerk.com/legal/dpa</a>.
-      </p>
-      <p>
-        <strong>Their privacy policy:</strong>
-        <a href="https://clerk.com/legal/privacy" class="text-link">clerk.com/legal/privacy</a>
-      </p>
-
-      <h3>Blizzard Entertainment (Battle.net)</h3>
-      <p>
-        <strong>Role:</strong> Game data provider (when you connect a Battle.net account for World of
-        Warcraft).
-      </p>
-      <p>
-        <strong>What they receive:</strong> API requests for your character profile data (gear, stats,
-        talents, raid progression). These requests are authenticated with your OAuth token and Savecraft's
-        application credentials.
-      </p>
-      <p>
-        <strong>What we receive from them:</strong> Character profile data (name, realm, class, level,
-        equipped gear, talents, Mythic+ runs, raid progression, professions). This data becomes part of
-        your game save state within Savecraft.
-      </p>
-      <p>
-        <strong>Their privacy policy:</strong>
-        <a
-          href="https://www.blizzard.com/en-us/legal/a4380ee5-5c8d-4e3b-83b7-ea4d874e7f22/blizzard-entertainment-online-privacy-policy"
-          class="text-link">blizzard.com/legal/privacy</a
-        >
-      </p>
-
-      <h3>Raider.io</h3>
-      <p>
-        <strong>Role:</strong> Enrichment data provider for World of Warcraft (no authentication required).
-      </p>
-      <p>
-        <strong>What they receive:</strong> Your character name, realm, and region in API requests. No
-        OAuth tokens or personal data are shared.
-      </p>
-      <p>
-        <strong>What we receive from them:</strong> Mythic+ scores, rankings, and raid progression summaries.
-        This data enriches your character's game state but is not required -- if Raider.io is unavailable,
-        your save data is still complete from Blizzard's API alone.
-      </p>
-
-      <h3>Grinding Gear Games (pathofexile.com)</h3>
-      <p>
-        <strong>Role:</strong> Path of Exile character data provider. Savecraft is a GGG-approved application.
-      </p>
-      <p>
-        <strong>What they receive:</strong> API requests for your character profile, authenticated with
-        your GGG OAuth token (and Savecraft's application credentials).
-      </p>
-      <p>
-        <strong>What we receive from them:</strong> Character profile data (name, league, class, level,
-        equipment, passive tree, items). This data becomes part of your game save state within Savecraft.
-      </p>
-      <p>
-        <strong>Their privacy policy:</strong>
-        <a href="https://www.pathofexile.com/privacy-policy" class="text-link"
-          >pathofexile.com/privacy-policy</a
-        >
-      </p>
-
-      <h3>Google Fonts</h3>
-      <p>
-        <strong>Role:</strong> Web font delivery, loaded by your browser via CSS.
-      </p>
-      <p>
-        <strong>What they receive:</strong> Your browser's IP address, User-Agent, and referer when
-        it fetches font files from
-        <code>fonts.googleapis.com</code>. No Savecraft application data is sent to Google.
-      </p>
-      <p>
-        <strong>Their privacy policy:</strong>
-        <a href="https://policies.google.com/privacy" class="text-link"
-          >policies.google.com/privacy</a
-        >
-      </p>
-
-      <h3>Stripe (future)</h3>
-      <p>
-        When we add paid subscriptions, Stripe will process payments. Stripe will receive your
-        payment card details, billing address, and transaction data directly -- we will not store
-        payment information ourselves. Stripe acts as both a data processor (handling transactions
-        on our behalf) and an independent data controller (for fraud prevention and regulatory
-        compliance). We will update this policy before adding Stripe.
-      </p>
+      {#each THIRD_PARTIES as tp (tp.name)}
+        <h3>{tp.note ? `${tp.name} (future)` : tp.name}</h3>
+        <p><strong>Role:</strong> {tp.siteRole ?? tp.role}</p>
+        <p><strong>What they receive:</strong> {tp.dataReceived}</p>
+        {#if tp.dataReceivedFromThem}
+          <p><strong>What we receive from them:</strong> {tp.dataReceivedFromThem}</p>
+        {/if}
+        <p><strong>Data location:</strong> {tp.dataLocation}</p>
+        {#if tp.transferSafeguards}
+          <p><strong>Transfer safeguards:</strong> {tp.transferSafeguards}</p>
+        {/if}
+        <p>
+          <strong>Their privacy policy:</strong>
+          <a href={tp.privacyUrl} class="text-link">{tp.privacyUrl.replace(/^https?:\/\//, "")}</a>
+        </p>
+        {#if tp.extraDetail}
+          <p>{tp.extraDetail}</p>
+        {/if}
+      {/each}
 
       <p>
         <strong>No other third parties have access to your data.</strong> We do not use advertising networks,
@@ -480,16 +394,17 @@
       <h2>Data security</h2>
       <p>
         Save data and notes are stored in Cloudflare's infrastructure, which provides encryption at
-        rest and in transit. Device auth tokens and API keys are SHA-256 hashed; Clerk handles
-        password storage per its own security practices. MCP OAuth tokens are opaque and stored with
-        automatic expiration. Game-platform OAuth tokens (Battle.net, GGG) are stored in our
-        database and used by the worker on demand to fetch your character data; you can revoke
-        access at any time from the game-platform's account settings. The daemon runs with minimal
-        system permissions -- on Linux/Steam Deck, kernel-enforced sandboxing (via systemd)
-        restricts it to read-only access to save file directories and write access only to its own
-        configuration. WASM plugins that parse save files are sandboxed and cannot access the
-        filesystem, network, or environment variables.
+        rest and in transit. The specifics of how each credential type is protected:
       </p>
+      <ul>
+        <li><strong>Device auth tokens:</strong> {SECURITY.deviceAuthTokens}</li>
+        <li><strong>API keys:</strong> {SECURITY.apiKeys}</li>
+        <li><strong>MCP OAuth tokens:</strong> {SECURITY.oauthMcpTokens}</li>
+        <li><strong>Game-platform OAuth tokens:</strong> {SECURITY.oauthAdapterTokens}</li>
+        <li><strong>Passwords:</strong> {SECURITY.passwordHashing}</li>
+        <li><strong>Daemon filesystem access:</strong> {SECURITY.daemonFilesystemAccess}</li>
+        <li><strong>WASM plugin sandbox:</strong> {SECURITY.wasmSandbox}</li>
+      </ul>
       <p>
         Our source code is publicly available. You can inspect exactly what data the daemon
         collects, how plugins parse saves, and how the server handles requests.
