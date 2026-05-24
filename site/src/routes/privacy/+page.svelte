@@ -1,7 +1,15 @@
 <!--
   @component
-  Privacy policy page -- rendered from PRIVACY.md content at savecraft.gg/privacy
+  Privacy policy page -- legal boilerplate stays in this file; the TL;DR,
+  "what we don't collect" list, Cloudflare storage description, MCP tool-call
+  logging disclosure, and third-parties list all come from @savecraft/content
+  so they cannot drift from what the MCP setup_help tool says.
 -->
+<script lang="ts">
+  import { LOGGING, NOT_COLLECTED, STORAGE_LAYERS, URLS } from "@savecraft/content/facts";
+  import { PRIVACY_TLDR } from "@savecraft/content/privacy";
+</script>
+
 <svelte:head>
   <title>Privacy Policy - Savecraft</title>
   <meta
@@ -16,14 +24,8 @@
     <p class="privacy-updated">Last updated: March 6, 2026</p>
 
     <div class="privacy-tldr">
-      <strong>TL;DR:</strong> Savecraft collects the minimum data needed to connect your game saves
-      to AI assistants. We store your email address, your game save data (which you push to us),
-      notes you create, and -- for API-connected games like World of Warcraft -- OAuth tokens from
-      game platform accounts solely to verify character ownership and refresh data on demand. We do
-      not run analytics, do not track you, do not sell your data, and do not see your conversations
-      with AI assistants. Our code is
-      <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">open source</a> -- you can
-      verify all of this yourself.
+      <strong>TL;DR:</strong>
+      {PRIVACY_TLDR}
     </div>
 
     <section class="privacy-section">
@@ -189,27 +191,9 @@
       <h2>What we do NOT collect</h2>
       <p>This matters as much as what we do collect:</p>
       <ul>
-        <li>
-          <strong>No analytics or telemetry.</strong> No Google Analytics, no Posthog, no tracking pixels,
-          no third-party scripts.
-        </li>
-        <li>
-          <strong>No IP addresses.</strong> Cloudflare sees IP addresses at the network edge, but our
-          application code never reads, stores, or logs them.
-        </li>
-        <li>
-          <strong>No conversation history.</strong> We never see what you say to Claude or ChatGPT. The
-          AI assistant requests specific data from us (e.g., "get this character's equipped gear"), and
-          we return structured JSON. The conversation itself stays entirely between you and the AI provider.
-        </li>
-        <li>
-          <strong>No device fingerprinting.</strong> We do not collect User-Agent strings, screen dimensions,
-          installed fonts, or any browser fingerprint data.
-        </li>
-        <li>
-          <strong>No behavioral tracking.</strong> No click tracking, session recording, heatmaps, or
-          funnel analysis.
-        </li>
+        {#each NOT_COLLECTED as item (item)}
+          <li>{item}</li>
+        {/each}
       </ul>
     </section>
 
@@ -230,8 +214,14 @@
           >on your behalf and under your authorization.</strong
         >
         We do not control what the AI provider does with the data after receiving it -- that is governed
-        by your agreement with the AI provider (Anthropic, OpenAI, Google, etc.). We do not cache requests
-        from AI providers, and we do not retain logs of which tools are called or what data is returned.
+        by your agreement with the AI provider (Anthropic, OpenAI, etc.). We do not cache requests from
+        AI providers.
+      </p>
+      <p>
+        We retain a per-call audit log for {LOGGING.mcpToolCalls.retentionDays} days
+        ({LOGGING.mcpToolCalls.purpose.toLowerCase()}). The log captures: {LOGGING.mcpToolCalls.fields.join(
+          ", ",
+        )}. {LOGGING.mcpToolCalls.notLogged}
       </p>
     </section>
 
@@ -268,10 +258,14 @@
       <h3>Cloudflare</h3>
       <p><strong>Role:</strong> Infrastructure provider (data processor under GDPR).</p>
       <p>
-        <strong>What they process:</strong> All application data -- save snapshots, account metadata,
-        notes, authentication tokens, device events. Cloudflare Workers execute your API requests; R2
-        stores save snapshots; D1 (SQLite) stores account and device metadata, notes, and the search index;
-        KV stores OAuth tokens.
+        <strong>What they process:</strong> All application data. Cloudflare Workers execute your API
+        requests; concretely,
+        {#each Object.entries(STORAGE_LAYERS) as [layer, items], i (layer)}
+          {#if i > 0}
+            ;
+          {/if}
+          <strong>{layer.toUpperCase()}</strong> stores {(items as readonly string[]).join("; ")}
+        {/each}.
       </p>
       <p>
         <strong>Data location:</strong> Your data is stored and processed on Cloudflare's global network,
@@ -344,6 +338,43 @@
         <strong>What we receive from them:</strong> Mythic+ scores, rankings, and raid progression summaries.
         This data enriches your character's game state but is not required -- if Raider.io is unavailable,
         your save data is still complete from Blizzard's API alone.
+      </p>
+
+      <h3>Grinding Gear Games (pathofexile.com)</h3>
+      <p>
+        <strong>Role:</strong> Path of Exile character data provider. Savecraft is a GGG-approved
+        application.
+      </p>
+      <p>
+        <strong>What they receive:</strong> API requests for your character profile, authenticated
+        with your GGG OAuth token (and Savecraft's application credentials).
+      </p>
+      <p>
+        <strong>What we receive from them:</strong> Character profile data (name, league, class,
+        level, equipment, passive tree, items). This data becomes part of your game save state
+        within Savecraft.
+      </p>
+      <p>
+        <strong>Their privacy policy:</strong>
+        <a href="https://www.pathofexile.com/privacy-policy" class="text-link"
+          >pathofexile.com/privacy-policy</a
+        >
+      </p>
+
+      <h3>Google Fonts</h3>
+      <p>
+        <strong>Role:</strong> Web font delivery, loaded by your browser via CSS.
+      </p>
+      <p>
+        <strong>What they receive:</strong> Your browser's IP address, User-Agent, and referer when
+        it fetches font files from
+        <code>fonts.googleapis.com</code>. No Savecraft application data is sent to Google.
+      </p>
+      <p>
+        <strong>Their privacy policy:</strong>
+        <a href="https://policies.google.com/privacy" class="text-link"
+          >policies.google.com/privacy</a
+        >
       </p>
 
       <h3>Stripe (future)</h3>
@@ -453,14 +484,15 @@
       <h2>Data security</h2>
       <p>
         Save data and notes are stored in Cloudflare's infrastructure, which provides encryption at
-        rest and in transit. Authentication tokens are hashed (SHA-256 for device tokens; bcrypt for
-        Clerk credentials). MCP OAuth tokens are opaque and stored with automatic expiration. Game
-        platform OAuth tokens (e.g., Battle.net) are stored in our database and can be revoked by
-        disconnecting the account or revoking access from the game platform's settings. The daemon
-        runs with minimal system permissions -- on Linux/Steam Deck, kernel-enforced sandboxing (via
-        systemd) restricts it to read-only access to save file directories and write access only to
-        its own configuration. WASM plugins that parse save files are sandboxed and cannot access
-        the filesystem, network, or environment variables.
+        rest and in transit. Device auth tokens and API keys are SHA-256 hashed; Clerk handles
+        password storage per its own security practices. MCP OAuth tokens are opaque and stored
+        with automatic expiration. Game-platform OAuth tokens (Battle.net, GGG) are stored in our
+        database and used by the worker on demand to fetch your character data; you can revoke
+        access at any time from the game-platform's account settings. The daemon runs with minimal
+        system permissions -- on Linux/Steam Deck, kernel-enforced sandboxing (via systemd)
+        restricts it to read-only access to save file directories and write access only to its own
+        configuration. WASM plugins that parse save files are sandboxed and cannot access the
+        filesystem, network, or environment variables.
       </p>
       <p>
         Our source code is publicly available. You can inspect exactly what data the daemon
@@ -479,9 +511,7 @@
       </p>
       <p>
         Previous versions of this policy will be available in our
-        <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link"
-          >public Git repository</a
-        >.
+        <a href={URLS.github} class="text-link">public Git repository</a>.
       </p>
     </section>
 
