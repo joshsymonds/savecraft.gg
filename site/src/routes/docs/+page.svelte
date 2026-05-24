@@ -4,6 +4,20 @@
 -->
 <script lang="ts">
   import { PUBLIC_APP_URL } from "$env/static/public";
+  import { SOURCE_KINDS, URLS } from "@savecraft/content/facts";
+
+  const howGameConnectsCards = [
+    { title: "Reference, instantly", body: SOURCE_KINDS.reference.shortDescription },
+    { title: "Your account", body: SOURCE_KINDS.api.shortDescription },
+    {
+      title: "Your save files or a mod",
+      body:
+        SOURCE_KINDS.wasm.shortDescription +
+        " " +
+        SOURCE_KINDS.mod_selfpush.shortDescription +
+        " Some moddable games (like Factorio) pair the mod with the Savecraft daemon instead; adding the game walks you through whichever fits.",
+    },
+  ];
 </script>
 
 <svelte:head>
@@ -175,8 +189,8 @@
   <section class="section">
     <h2 class="section-title">Tools reference</h2>
     <p class="section-intro">
-      Savecraft exposes 11 MCP tools. Your AI assistant chooses the right tool automatically based
-      on your question -- you don't need to call these directly.
+      Savecraft's MCP server exposes the tools below. Your AI assistant picks the right one
+      automatically based on your question -- you don't need to call these directly.
     </p>
 
     <div class="tools-table-wrap">
@@ -235,6 +249,21 @@
             <td><code>setup_help</code></td>
             <td>Returns setup help, privacy info, or project details.</td>
           </tr>
+          <tr>
+            <td><code>show_reference</code></td>
+            <td
+              >Like query_reference, but also renders the result as an interactive view in the
+              assistant's UI (when the module supports it).</td
+            >
+          </tr>
+          <tr>
+            <td><code>show_games</code></td>
+            <td>Like list_games, but renders an interactive games browser in the assistant's UI.</td>
+          </tr>
+          <tr>
+            <td><code>show_save</code></td>
+            <td>Like get_save, but renders an interactive save dashboard in the assistant's UI.</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -248,30 +277,12 @@
       looks like in each case.
     </p>
     <div class="source-cards">
-      <div class="source-card">
-        <h3 class="source-card-title">Reference, instantly</h3>
-        <p>
-          Every supported game answers expert questions the moment you add it. This is the floor for
-          every game.
-        </p>
-      </div>
-      <div class="source-card">
-        <h3 class="source-card-title">Your account</h3>
-        <p>
-          Path of Exile (a GGG-approved connection) and World of Warcraft sign in through the game's
-          own provider -- read-only. Savecraft reads your live characters from the game's servers,
-          as fresh as your last refresh.
-        </p>
-      </div>
-      <div class="source-card">
-        <h3 class="source-card-title">Your save files or a mod</h3>
-        <p>
-          Save-file games (Diablo II, Stardew Valley, RimWorld, Stellaris) read in place on the
-          machine you play on -- the files never leave your device, only parsed state is sent.
-          Moddable games like Factorio use a Savecraft mod that pushes state from inside the game.
-          Adding the game walks you through whichever fits.
-        </p>
-      </div>
+      {#each howGameConnectsCards as card (card.title)}
+        <div class="source-card">
+          <h3 class="source-card-title">{card.title}</h3>
+          <p>{card.body}</p>
+        </div>
+      {/each}
     </div>
   </section>
 
@@ -289,12 +300,8 @@
         <a href="/support" class="text-link">Support</a> -- Discord and email
       </li>
       <li>
-        <a
-          href="https://github.com/joshsymonds/savecraft.gg"
-          class="text-link"
-          target="_blank"
-          rel="noopener">Source code</a
-        > -- Savecraft is open source
+        <a href={URLS.github} class="text-link" target="_blank" rel="noopener">Source code</a> --
+        Savecraft is open source
       </li>
     </ul>
   </section>
