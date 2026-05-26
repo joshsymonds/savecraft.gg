@@ -42,10 +42,15 @@
       --pob-dir=../../.reference/pob
   '';
 
+  # Production-only weekly refresh. Staging used to run as a canary first,
+  # but the duplicate work doubled wall-clock and pushed past the 6h systemd
+  # timeout. Staging refresh now lives in `refreshStagingScript` below and
+  # must be invoked on-demand (via the `savecraft-refresh-staging` binary)
+  # before risky deploys.
   innerScript = pkgs.writeShellScript "savecraft-data-refresh-inner" ''
     set -euo pipefail
 
-    echo "=== Savecraft data refresh started at $(date) ==="
+    echo "=== Savecraft data refresh (production) started at $(date) ==="
 
     # Load Cloudflare credentials.
     # Sourced here (inside nix develop) because nix develop resets the environment.
@@ -56,19 +61,42 @@
     # ── MTGA ──────────────────────────────────────────────
     cd plugins/magic
 
-    # Staging first (canary) — failure here prevents production run.
-    ${runMtgaFetchers "Staging" stagingD1 "-staging"}
-
-    # Production — only reached if staging succeeded.
     ${runMtgaFetchers "Production" productionD1 ""}
 
     # ── PoE ───────────────────────────────────────────────
     cd ../../plugins/poe
 
-    ${runPoeFetchers "Staging" stagingD1 "-staging"}
     ${runPoeFetchers "Production" productionD1 ""}
 
-    echo "=== Savecraft data refresh completed at $(date) ==="
+    echo "=== Savecraft data refresh (production) completed at $(date) ==="
+  '';
+
+  # On-demand staging refresh. Mirrors innerScript but targets staging D1
+  # and vectorize indexes. Intended use: invoke `savecraft-refresh-staging`
+  # manually before deploys that change schema or fetcher code. Not on a
+  # timer — staging only needs to be fresh when the user is about to ship.
+  stagingInnerScript = pkgs.writeShellScript "savecraft-data-refresh-staging-inner" ''
+    set -euo pipefail
+
+    echo "=== Savecraft data refresh (staging) started at $(date) ==="
+
+    # Load Cloudflare credentials.
+    # Sourced here (inside nix develop) because nix develop resets the environment.
+    set -a
+    source .env.local
+    set +a
+
+    # ── MTGA ──────────────────────────────────────────────
+    cd plugins/magic
+
+    ${runMtgaFetchers "Staging" stagingD1 "-staging"}
+
+    # ── PoE ───────────────────────────────────────────────
+    cd ../../plugins/poe
+
+    ${runPoeFetchers "Staging" stagingD1 "-staging"}
+
+    echo "=== Savecraft data refresh (staging) completed at $(date) ==="
   '';
 
   # Outer script: source secrets, then enter the flake devShell to run fetchers.
@@ -78,6 +106,22 @@
 
     exec ${pkgs.nix}/bin/nix develop --no-pure-eval \
       --command ${pkgs.bash}/bin/bash ${innerScript}
+  '';
+
+  # Outer wrapper for the on-demand staging refresh. Same nix-develop pattern
+  # as refreshScript above; exposed to the user as `savecraft-refresh-staging`.
+  refreshStagingScript = pkgs.writeShellScript "savecraft-refresh-staging" ''
+    set -euo pipefail
+    cd ${lib.escapeShellArg cfg.repoPath}
+
+    exec ${pkgs.nix}/bin/nix develop --no-pure-eval \
+      --command ${pkgs.bash}/bin/bash ${stagingInnerScript}
+  '';
+
+  # User-facing binary for the staging refresh. Wraps refreshStagingScript
+  # so it shows up on PATH as a normal command instead of a /nix/store path.
+  refreshStagingBin = pkgs.writeShellScriptBin "savecraft-refresh-staging" ''
+    exec ${pkgs.bash}/bin/bash ${refreshStagingScript} "$@"
   '';
 
   # Datagen (game-dependabot): regenerate committed version-pinned codegen
@@ -144,12 +188,12 @@ in {
           Type = "oneshot";
           User = cfg.user;
           ExecStart = "${pkgs.bash}/bin/bash ${refreshScript}";
-          # 6h budget. Cold cache cost per env: scryfall+rules+17lands ≈ 25min,
-          # edhrec commanders ≈ 100min, edhrec card prices ≈ 90min. Run twice
-          # (staging+prod) ≈ 7h worst-case; warm runs (after the first cold pass)
-          # are much shorter thanks to per-commander hash-skip and unchanged-card
-          # price skip. 6h is the sweet spot: covers any single warm-cache run
-          # comfortably and one cold-cache half (whichever side missed).
+          # 6h budget. Production-only since staging moved to on-demand
+          # (savecraft-refresh-staging). Cold cache cost: scryfall+rules+
+          # 17lands ≈ 25min, edhrec commanders ≈ 100min, edhrec card prices
+          # ≈ 90min ⇒ ~3.5h cold worst-case. Warm runs are much shorter
+          # thanks to per-commander hash-skip and unchanged-card price skip.
+          # 6h leaves headroom for D1 retry budget and card-pool growth.
           TimeoutStartSec = "6h";
           Environment = [
             "HOME=/home/${cfg.user}"
@@ -166,6 +210,11 @@ in {
           Persistent = true;
         };
       };
+
+      # Expose `savecraft-refresh-staging` on the user's PATH so staging
+      # canary runs can be triggered manually before risky deploys without
+      # needing to remember the /nix/store path.
+      environment.systemPackages = [refreshStagingBin];
     })
 
     (lib.mkIf cfg.enableDatagen {
