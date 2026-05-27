@@ -27,8 +27,8 @@ describe("PoE adapter skeleton", () => {
   });
 
   // NOTE: discoverSaves/fetchState error-typing (token_expired / 401 /
-  // 429 / api_unavailable) is covered with hand-mocked GGG (fetchMock,
-  // disableNetConnect) in poe-oauth.test.ts and poe-fetchstate.test.ts.
+  // 429 / api_unavailable) is covered with hand-mocked GGG (via the
+  // mockFetch helper) in poe-oauth.test.ts and poe-fetchstate.test.ts.
   // The old #5 "skeleton placeholder" cases here were deleted: they made
   // an UNMOCKED real fetch to api.pathofexile.com and only passed where
   // outbound network was blocked (transport error → api_unavailable),

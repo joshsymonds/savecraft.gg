@@ -65,6 +65,11 @@ export default defineConfig({
     // breaks miniflare's HeadersInit construction (undici ByteString rejects
     // any character > 255 in a Request header value).
     include: ["test/**/*.test.ts"],
+    // testTimeout intentionally unset — uses vitest's 5s default.
+    // test/adapter-refresh-job.test.ts "respects batch limit" depends on
+    // this default (see comment at line 233 in that file). Bumping
+    // testTimeout would mask the bound it relies on.
+    //
     // v0.13.0+ removed `singleWorker` and `isolatedStorage` options. The new
     // pool runs ONE Miniflare per vitest process; cross-test isolation comes
     // from per-test unique sourceUuid/userUuid plus the CLEANUP_TABLES

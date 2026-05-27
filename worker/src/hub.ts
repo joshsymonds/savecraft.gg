@@ -712,21 +712,34 @@ export class SourceHub extends DurableObject<Env> {
   }
 
   private async closeStaleConnections(staleSourceIds: string[]): Promise<void> {
-    for (const daemonWs of this.ctx.getWebSockets("daemon")) {
-      const wsTags = this.safeGetTags(daemonWs);
-      if (!wsTags) continue;
-      const connTag = getConnTag(wsTags);
+    // Two-phase fan-out: collect (ws, connTag) candidates synchronously, then
+    // resolve their stored sourceIds in one Promise.all, then run deletes +
+    // closes in parallel. Avoids the per-WS serial storage.get → storage.delete
+    // chain that scaled linearly with daemon-WS count under client reconnect
+    // storms.
+    const candidates: { ws: WebSocket; connTag: string }[] = [];
+    for (const ws of this.ctx.getWebSockets("daemon")) {
+      const tags = this.safeGetTags(ws);
+      if (!tags) continue;
+      const connTag = getConnTag(tags);
       if (!connTag) continue;
-      const wsSourceId = await this.ctx.storage.get<string>(connTag);
-      if (wsSourceId && staleSourceIds.includes(wsSourceId)) {
+      candidates.push({ ws, connTag });
+    }
+    const sourceIds = await Promise.all(
+      candidates.map((c) => this.ctx.storage.get<string>(c.connTag)),
+    );
+    await Promise.all(
+      candidates.map(async ({ ws, connTag }, index) => {
+        const wsSourceId = sourceIds[index];
+        if (!wsSourceId || !staleSourceIds.includes(wsSourceId)) return;
         await this.ctx.storage.delete(connTag);
         try {
-          daemonWs.close(1000, "stale connection");
+          ws.close(1000, "stale connection");
         } catch {
           // WebSocket may already be closed
         }
-      }
-    }
+      }),
+    );
   }
 
   // ── Internal helpers ──────────────────────────────────────────────

@@ -19,6 +19,14 @@ function stripAnsi(s) {
   return s.replace(/\x1b\[[0-9;]*m/g, "");
 }
 
+/**
+ * Per-shard wall-clock ceiling. The epic's hard SLA is 200s for the whole
+ * suite; a single shard going past 180s means it's wedged (DO leak, stuck
+ * matcher, infinite loop) rather than legitimately slow. SIGTERM at this
+ * mark prevents one wedged shard from hanging `npm test` indefinitely.
+ */
+const SHARD_TIMEOUT_MS = 180_000;
+
 /** @param {number} index @param {number} total */
 function runShard(index, total) {
   return new Promise((resolve) => {
@@ -33,7 +41,13 @@ function runShard(index, total) {
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
 
+    const killTimer = setTimeout(() => {
+      stderr += `\n[test-sharded] Shard ${index}/${total} exceeded ${String(SHARD_TIMEOUT_MS)}ms — sending SIGTERM\n`;
+      child.kill("SIGTERM");
+    }, SHARD_TIMEOUT_MS);
+
     child.on("close", (code) => {
+      clearTimeout(killTimer);
       resolve({ index, code, stdout, stderr });
     });
   });

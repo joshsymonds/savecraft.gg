@@ -216,8 +216,8 @@ describe("build_planner character param", () => {
     expect(result.type).toBe("text");
     if (result.type !== "text") throw new Error("unreachable");
     expect(result.content.toLowerCase()).toContain("refresh");
-    // No pob-server / GGG call happened — disableNetConnect would have
-    // thrown on any unintercepted request.
+    // No pob-server / GGG call happened — any unintercepted request
+    // would have thrown "Unmocked fetch:" via the mockFetch helper.
   });
 
   it("no GGG fetch and no /import call on the character path", async () => {
@@ -229,7 +229,7 @@ describe("build_planner character param", () => {
 
     mockFetch.activate();
     // Only the pob-server summary endpoint is registered. A GGG or
-    // /import call would hit disableNetConnect and throw, failing the test.
+    // /import call would throw "Unmocked fetch:" via mockFetch, failing the test.
     mockFetch
       .get(POB)
       .intercept({ path: "/build/deadbeef/summary", method: "GET" })

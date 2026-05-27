@@ -173,22 +173,36 @@ export function closeWs(ws: WebSocket): void {
 }
 
 /**
+ * Number of D1 round-trips flushWorkerd performs to pump workerd's event
+ * loop. Derived empirically from hub.test.ts: most tests close 2 WSes
+ * (1 UI + 1 daemon), some close 3 (1 UI + 2 daemons). Each WS close
+ * queues exactly one webSocketClose handler; one D1 round-trip drains
+ * one queued handler. 4 = the observed worst case + 1 headroom.
+ */
+const WORKERD_FLUSH_ROUNDS = 4;
+
+/**
  * Pump workerd's event loop so any fire-and-forget closeWs() callbacks
- * from this test (queued webSocketClose handlers on the SourceHub /
- * UserHub DOs) actually run before returning. Without this, late-firing
- * webSocketClose work contends with the next test's webSocketMessage
- * processing and causes the 5s testTimeout to be exceeded intermittently.
+ * have run before returning. Specifically: workerd queues webSocketClose
+ * handlers for client-side `ws.close()` calls; those handlers do async
+ * DO storage work (handleDaemonDisconnect → forward to UserHub → broadcast).
+ * Without a pump, the work runs concurrently with the next test and
+ * causes the 5s testTimeout to be exceeded.
+ *
+ * Currently mounted in `afterEach` only in hub.test.ts — that's the only
+ * file where the close-handler chain is heavy enough to contend with the
+ * next test's broadcasts. Other files use closeWs but their close paths
+ * don't trigger the same UserHub forwarding chain, so they don't need
+ * the pump. Add the afterEach if you see "Timed out waiting for ..."
+ * flakes after introducing a new heavy-disconnect-handler test.
  *
  * The mechanism: a real D1 round-trip forces workerd to context-switch
  * away from the JS thread, giving its internal event loop a chance to
- * dispatch queued WebSocket events. We round-trip a few times because a
- * test may have closed multiple WSes (UI + N daemons) and each one needs
- * its own webSocketClose handler to settle on its DO. One round-trip
- * typically drains one DO's pending handler; chaining several covers
- * the common case of 2–3 closes per test.
+ * dispatch queued WebSocket events. WORKERD_FLUSH_ROUNDS round-trips
+ * drain the worst-case observed close count.
  */
 export async function flushWorkerd(): Promise<void> {
-  for (let index = 0; index < 4; index++) {
+  for (let index = 0; index < WORKERD_FLUSH_ROUNDS; index++) {
     await env.DB.prepare("SELECT 1").first();
   }
 }
@@ -456,6 +470,8 @@ interface MockReply {
   baseUrl: string;
   path: string | RegExp;
   method: string;
+  /** Optional request-side header filter. Keys lower-cased; substring match on value. */
+  requestHeaders?: Record<string, string>;
   status: number;
   body: string;
   headers?: Record<string, string>;
@@ -473,6 +489,11 @@ class MockFetch {
   private originalFetch: typeof globalThis.fetch | undefined;
 
   activate(): void {
+    // Clear any leftover replies from a previous test that failed mid-body
+    // before its `afterEach(mockFetch.deactivate)` could run. Re-entrant
+    // activate would otherwise no-op (originalFetch set) and the next test
+    // would see stale interceptors queued.
+    this.replies = [];
     if (this.originalFetch) return;
     this.originalFetch = globalThis.fetch;
     globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -483,10 +504,21 @@ class MockFetch {
       const url = new URL(urlString);
       const base = `${url.protocol}//${url.host}`;
       const path = url.pathname + url.search;
+      // Normalize headers from the request for header-filter matching.
+      const requestHeaders = extractRequestHeaders(input, init);
       const matchIndex = this.replies.findIndex((r) => {
         if (r.baseUrl !== base) return false;
         if (r.method.toUpperCase() !== method) return false;
-        return typeof r.path === "string" ? r.path === path : r.path.test(path);
+        if (typeof r.path === "string" ? r.path !== path : !r.path.test(path)) return false;
+        if (r.requestHeaders) {
+          for (const [k, expected] of Object.entries(r.requestHeaders)) {
+            const actual = requestHeaders[k.toLowerCase()];
+            if (!actual?.toLowerCase().includes(expected.toLowerCase())) {
+              return false;
+            }
+          }
+        }
+        return true;
       });
       if (matchIndex === -1) {
         return Promise.reject(new Error(`Unmocked fetch: ${method} ${urlString}`));
@@ -513,18 +545,48 @@ class MockFetch {
   }
 
   get(baseUrl: string): {
-    intercept: (selector: { path: string | RegExp; method?: string }) => {
+    intercept: (selector: {
+      path: string | RegExp;
+      method?: string;
+      headers?: Record<string, string>;
+    }) => {
       reply: (status: number, body: string, options?: { headers?: Record<string, string> }) => void;
     };
   } {
     return {
-      intercept: ({ path, method = "GET" }) => ({
+      intercept: ({ path, method = "GET", headers: requestHeaders }) => ({
         reply: (status, body, options) => {
-          this.replies.push({ baseUrl, path, method, status, body, headers: options?.headers });
+          this.replies.push({
+            baseUrl,
+            path,
+            method,
+            requestHeaders,
+            status,
+            body,
+            headers: options?.headers,
+          });
         },
       }),
     };
   }
+}
+
+/** Pull a lower-cased header map off whatever shape Fetch input takes. */
+function extractRequestHeaders(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const source = init?.headers ?? (input instanceof Request ? input.headers : undefined);
+  if (!source) return out;
+  if (source instanceof Headers) {
+    for (const [key, value] of source.entries()) out[key.toLowerCase()] = value;
+  } else if (Array.isArray(source)) {
+    for (const [key, value] of source) out[key.toLowerCase()] = value;
+  } else {
+    for (const [key, value] of Object.entries(source)) out[key.toLowerCase()] = value;
+  }
+  return out;
 }
 
 export const mockFetch = new MockFetch();

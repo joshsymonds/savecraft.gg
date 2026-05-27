@@ -23,6 +23,7 @@ import {
   sendSourceOnlineAndDrainLinkState,
   waitForPayload,
   waitForProtoMessage,
+  waitForProtoMessageMatching,
   waitForRelayedMessage,
   waitForRelayedMessageMatching,
 } from "./helpers";
@@ -1075,26 +1076,10 @@ describe("SourceHub", () => {
     // which sends a configUpdate carrying d2r. Drain until we see d2r —
     // discards any leftover initial configUpdate (which has no games) so we
     // only assert after the gameDetected-triggered write committed.
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error("Timed out waiting for d2r configUpdate after 5000ms"));
-      }, 5000);
-      const handler = (event: MessageEvent): void => {
-        try {
-          const msg = MessageCodec.decode(new Uint8Array(event.data as ArrayBuffer));
-          if (msg.payload?.$case === "configUpdate" && "d2r" in msg.payload.configUpdate.games) {
-            clearTimeout(timer);
-            daemonWs.removeEventListener("message", handler);
-            resolve();
-          }
-        } catch (error) {
-          clearTimeout(timer);
-          daemonWs.removeEventListener("message", handler);
-          reject(error instanceof Error ? error : new Error(String(error)));
-        }
-      };
-      daemonWs.addEventListener("message", handler);
-    });
+    await waitForProtoMessageMatching(
+      daemonWs,
+      (msg) => msg.payload?.$case === "configUpdate" && "d2r" in msg.payload.configUpdate.games,
+    );
 
     const rows = await env.DB.prepare(
       "SELECT * FROM source_configs WHERE source_uuid = ? AND game_id = ?",
