@@ -2,7 +2,11 @@ import { env, runDurableObjectAlarm, SELF } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
-import { Message as MessageCodec, PushSaveError } from "../src/proto/savecraft/v1/protocol";
+import {
+  GameStatusEnum,
+  Message as MessageCodec,
+  PushSaveError,
+} from "../src/proto/savecraft/v1/protocol";
 
 import {
   ageLastSeenAndFireAlarm,
@@ -83,8 +87,8 @@ describe("SourceHub", () => {
     expect(pc.gameId).toBe("d2r");
     expect(pc.summary).toBe("Hammerdin, Level 89 Paladin");
 
-    await closeWs(daemonWs);
-    await closeWs(uiWs);
+    closeWs(daemonWs);
+    closeWs(uiWs);
   });
 
   // UI-daemon relay is temporarily removed -- UserHub's webSocketMessage
@@ -112,8 +116,8 @@ describe("SourceHub", () => {
     expect(row.source_uuid).toBe(sourceUuid);
     expect(row.event_type).toBe("sourceOnline");
 
-    await closeWs(daemonWs);
-    await closeWs(uiWs);
+    closeWs(daemonWs);
+    closeWs(uiWs);
   });
 
   it("requires auth for WebSocket connections", async () => {
@@ -139,7 +143,7 @@ describe("SourceHub", () => {
 
     const ws = resp.webSocket!;
     ws.accept();
-    await closeWs(ws);
+    closeWs(ws);
   });
 
   it("sends SourceState then activity feed on UI connect (cold start)", async () => {
@@ -210,7 +214,7 @@ describe("SourceHub", () => {
         (s) => s.sourceId === sourceUuid && s.online,
       );
     });
-    await closeWs(temporaryUi);
+    closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForRelayedMessageMatching(freshUi, (m) => {
@@ -223,8 +227,8 @@ describe("SourceHub", () => {
     expect(ds.sources[0]!.sourceId).toBe(sourceUuid);
     expect(ds.sources[0]!.online).toBe(true);
 
-    await closeWs(freshUi);
-    await closeWs(daemon);
+    closeWs(freshUi);
+    closeWs(daemon);
   });
 
   it("marks source offline on sourceOffline", async () => {
@@ -277,7 +281,9 @@ describe("SourceHub", () => {
     const msg = await waitForRelayedMessageMatching(ui, (m) => {
       if (m.message?.payload?.$case !== "sourceState") return false;
       const game = m.message.payload.sourceState.sources[0]?.games.find((g) => g.gameId === "d2r");
-      return game?.status !== undefined && game.status !== 0;
+      return (
+        game?.status !== undefined && game.status !== GameStatusEnum.GAME_STATUS_ENUM_UNSPECIFIED
+      );
     });
 
     const ds = requireInnerPayload(msg, "sourceState");
@@ -344,9 +350,9 @@ describe("SourceHub", () => {
         (s) => s.sourceId === sourceUuid && s.online,
       );
     });
-    await closeWs(temporaryUi);
+    closeWs(temporaryUi);
 
-    await closeWs(daemon);
+    closeWs(daemon);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     // Drain until we see this source visible but offline (post-WS-close).
@@ -361,7 +367,7 @@ describe("SourceHub", () => {
     expect(source).toBeDefined();
     expect(source?.online).toBeFalsy();
 
-    await closeWs(freshUi);
+    closeWs(freshUi);
   });
 
   it("tracks multiple sources independently via UserHub aggregation", async () => {
@@ -402,8 +408,10 @@ describe("SourceHub", () => {
       const a = sources.find((d) => d.sourceId === sourceA.sourceUuid);
       const b = sources.find((d) => d.sourceId === sourceB.sourceUuid);
       return Boolean(
-        a?.online && a.games.find((g) => g.gameId === "d2r") &&
-        b?.online && b.games.find((g) => g.gameId === "stardew"),
+        a?.online &&
+        a.games.some((g) => g.gameId === "d2r") &&
+        b?.online &&
+        b.games.some((g) => g.gameId === "stardew"),
       );
     });
 
@@ -421,9 +429,9 @@ describe("SourceHub", () => {
     expect(sourceBState!.online).toBe(true);
     expect(sourceBState!.games.find((g) => g.gameId === "stardew")).toBeDefined();
 
-    await closeWs(ui);
-    await closeWs(daemonA);
-    await closeWs(daemonB);
+    closeWs(ui);
+    closeWs(daemonA);
+    closeWs(daemonB);
   });
 
   it("marks only the disconnected source offline", async () => {
@@ -452,9 +460,9 @@ describe("SourceHub", () => {
         (s) => s.sourceId === sourceB.sourceUuid && s.online,
       );
     });
-    await closeWs(temporaryUi);
+    closeWs(temporaryUi);
 
-    await closeWs(daemonA);
+    closeWs(daemonA);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     // Drain until we see the expected outcome: A offline, B online. The
@@ -476,8 +484,8 @@ describe("SourceHub", () => {
     expect(sourceBState).toBeDefined();
     expect(sourceBState?.online).toBe(true);
 
-    await closeWs(freshUi);
-    await closeWs(daemonB);
+    closeWs(freshUi);
+    closeWs(daemonB);
   });
 
   it("stores identity from pushCompleted in SourceState", async () => {
@@ -545,8 +553,8 @@ describe("SourceHub", () => {
     expect(Object.keys(cuA.games)).toHaveLength(1);
     expect(Object.keys(cuB.games)).toHaveLength(0);
 
-    await closeWs(daemonA);
-    await closeWs(daemonB);
+    closeWs(daemonA);
+    closeWs(daemonB);
   });
 
   it("injects sourceId on live relay", async () => {
@@ -571,8 +579,8 @@ describe("SourceHub", () => {
     expect(received.message?.payload?.$case).toBe("watching");
     expect(received.sourceId).toBe(sourceUuid);
 
-    await closeWs(daemonWs);
-    await closeWs(uiWs);
+    closeWs(daemonWs);
+    closeWs(uiWs);
   });
 
   it("injects sourceId on replayed events", async () => {
@@ -600,7 +608,7 @@ describe("SourceHub", () => {
       },
     });
     await waitForRelayedMessage(temporaryUi);
-    await closeWs(temporaryUi);
+    closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     await waitForRelayedMessage(freshUi);
@@ -619,8 +627,8 @@ describe("SourceHub", () => {
     const withSourceId = replayed.filter((m) => m.sourceId === sourceUuid);
     expect(withSourceId.length).toBeGreaterThanOrEqual(1);
 
-    await closeWs(freshUi);
-    await closeWs(daemonWs);
+    closeWs(freshUi);
+    closeWs(daemonWs);
   });
 
   it("sends rescanGame to daemon via /rescan endpoint", async () => {
@@ -652,7 +660,7 @@ describe("SourceHub", () => {
     const rescan = requirePayload(received, "rescanGame");
     expect(rescan.gameId).toBe("d2r");
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("returns daemon_online: false from /rescan when no daemon connected", async () => {
@@ -694,15 +702,10 @@ describe("SourceHub", () => {
     const noMessage = await waitForRelayedMessage(uiB, 200).catch(() => null);
     expect(noMessage).toBeNull();
 
-    await closeWs(daemonA);
-    await closeWs(uiA);
-    await closeWs(uiB);
+    closeWs(daemonA);
+    closeWs(uiA);
+    closeWs(uiB);
   });
-
-  // TODO: vitest-pool-workers v0.16 removed `fetchMock` from cloudflare:test.
-  // Restore with MSW (recommended) or vi.spyOn(globalThis, 'fetch') in a
-  // setup file. Body cleared to keep the rest of the file type-checking.
-  it.skip("sends sourceUpdateAvailable when daemon version is stale", () => {});
 
   it("does not relay sourceHeartbeat to UI", async () => {
     const userUuid = "heartbeat-relay-user";
@@ -731,8 +734,8 @@ describe("SourceHub", () => {
     const heartbeatRelayed = messages.some((m) => m.message?.payload?.$case === "sourceHeartbeat");
     expect(heartbeatRelayed).toBe(false);
 
-    await closeWs(daemonWs);
-    await closeWs(uiWs);
+    closeWs(daemonWs);
+    closeWs(uiWs);
   });
 
   it("updates lastSeen on heartbeat", async () => {
@@ -750,7 +753,10 @@ describe("SourceHub", () => {
       if (m.message?.payload?.$case !== "sourceState") return false;
       return m.message.payload.sourceState.sources[0]?.lastSeen !== undefined;
     });
-    const initialLastSeen = requireInnerPayload(onlineMsg, "sourceState").sources[0]!.lastSeen!.getTime();
+    const initialLastSeen = requireInnerPayload(
+      onlineMsg,
+      "sourceState",
+    ).sources[0]!.lastSeen!.getTime();
 
     sendProto(daemon, {
       payload: { $case: "sourceHeartbeat", sourceHeartbeat: {} },
@@ -764,11 +770,14 @@ describe("SourceHub", () => {
       const ls = m.message.payload.sourceState.sources[0]?.lastSeen;
       return ls !== undefined && ls.getTime() > initialLastSeen;
     });
-    const updatedLastSeen = requireInnerPayload(heartbeatMsg, "sourceState").sources[0]!.lastSeen!.getTime();
+    const updatedLastSeen = requireInnerPayload(
+      heartbeatMsg,
+      "sourceState",
+    ).sources[0]!.lastSeen!.getTime();
 
     expect(updatedLastSeen).toBeGreaterThan(initialLastSeen);
-    await closeWs(ui);
-    await closeWs(daemon);
+    closeWs(ui);
+    closeWs(daemon);
   });
 
   it("evicts stale source via alarm", async () => {
@@ -808,8 +817,8 @@ describe("SourceHub", () => {
     expect(source).toBeDefined();
     expect(source?.online).toBeFalsy();
 
-    await closeWs(uiWs);
-    await closeWs(daemon);
+    closeWs(uiWs);
+    closeWs(daemon);
   });
 
   it("graceful offline deletes alarm -- lastSeen unchanged after wait", async () => {
@@ -857,7 +866,7 @@ describe("SourceHub", () => {
     const msg2 = await waitForRelayedMessageMatching(ui2, (m) => {
       if (m.message?.payload?.$case !== "sourceState") return false;
       const s = m.message.payload.sourceState.sources.find((d) => d.sourceId === sourceUuid);
-      return s !== undefined && s.lastSeen !== undefined;
+      return s?.lastSeen !== undefined;
     });
     const lastSeenAfter = requireInnerPayload(msg2, "sourceState").sources.find(
       (d) => d.sourceId === sourceUuid,
@@ -886,7 +895,7 @@ describe("SourceHub", () => {
     expect(body.sent).toBe(true);
     expect(body.daemon_count).toBe(1);
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("source linking mid-session starts forwarding to UserHub", async () => {
@@ -929,8 +938,8 @@ describe("SourceHub", () => {
     } while (relayed.message?.payload?.$case !== "watching");
     expect(relayed.message.payload.$case).toBe("watching");
 
-    await closeWs(uiWs);
-    await closeWs(daemonWs);
+    closeWs(uiWs);
+    closeWs(daemonWs);
   });
 
   it("rescan returns error when can_rescan is false", async () => {
@@ -960,7 +969,7 @@ describe("SourceHub", () => {
     expect(body.sent).toBe(false);
     expect(body.reason).toBe("rescan_not_supported");
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("skips config push when can_receive_config is false", async () => {
@@ -983,7 +992,7 @@ describe("SourceHub", () => {
     const noConfig = await waitForProtoMessage(daemonWs, 500).catch(() => null);
     expect(noConfig).toBeNull();
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("decorates SourceState with source_kind, hostname, and capabilities from D1", async () => {
@@ -1015,8 +1024,8 @@ describe("SourceHub", () => {
     expect(source.canReceiveConfig).toBe(false);
     expect(source.online).toBe(true);
 
-    await closeWs(daemonWs);
-    await closeWs(uiWs);
+    closeWs(daemonWs);
+    closeWs(uiWs);
   });
 
   it("returns live source status via /status endpoint", async () => {
@@ -1038,7 +1047,7 @@ describe("SourceHub", () => {
     const onlineBody = await onlineResp.json<{ daemon_online: boolean }>();
     expect(onlineBody.daemon_online).toBe(true);
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("auto-creates config when daemon sends gameDetected", async () => {
@@ -1067,10 +1076,9 @@ describe("SourceHub", () => {
     // discards any leftover initial configUpdate (which has no games) so we
     // only assert after the gameDetected-triggered write committed.
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error("Timed out waiting for d2r configUpdate after 5000ms")),
-        5000,
-      );
+      const timer = setTimeout(() => {
+        reject(new Error("Timed out waiting for d2r configUpdate after 5000ms"));
+      }, 5000);
       const handler = (event: MessageEvent): void => {
         try {
           const msg = MessageCodec.decode(new Uint8Array(event.data as ArrayBuffer));
@@ -1097,7 +1105,7 @@ describe("SourceHub", () => {
     expect(rows.results[0]!.save_path).toBe("/home/user/.d2r/saves");
     expect(rows.results[0]!.enabled).toBe(1);
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("pushes auto-created config to daemon on reconnect", async () => {
@@ -1116,7 +1124,7 @@ describe("SourceHub", () => {
     // maybeAutoEnableGame sends a configUpdate after writing source_configs.
     // Wait for that as the deterministic "gameDetected was processed" signal.
     await waitForPayload(daemon1, "configUpdate");
-    await closeWs(daemon1);
+    closeWs(daemon1);
 
     const daemon2 = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon2);
@@ -1128,7 +1136,7 @@ describe("SourceHub", () => {
     expect(d2rConfig!.savePath).toBe("/saves/d2r");
     expect(d2rConfig!.enabled).toBe(true);
 
-    await closeWs(daemon2);
+    closeWs(daemon2);
   });
 
   it("does not overwrite existing enabled config on gameDetected", async () => {
@@ -1164,7 +1172,7 @@ describe("SourceHub", () => {
       .first<{ save_path: string }>();
     expect(row!.save_path).toBe("/custom/path");
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("excludes disabled games from SourceState after push-config", async () => {
@@ -1198,11 +1206,13 @@ describe("SourceHub", () => {
     const ui1 = await connectWs("/ws/ui", userUuid);
     const msg1 = await waitForRelayedMessageMatching(ui1, (m) => {
       if (m.message?.payload?.$case !== "sourceState") return false;
-      return Boolean(m.message.payload.sourceState.sources[0]?.games.find((g) => g.gameId === "d2r"));
+      return Boolean(
+        m.message.payload.sourceState.sources[0]?.games.find((g) => g.gameId === "d2r"),
+      );
     });
     const ds1 = requireInnerPayload(msg1, "sourceState");
     expect(ds1.sources[0]?.games.find((g) => g.gameId === "d2r")).toBeDefined();
-    await closeWs(ui1);
+    closeWs(ui1);
 
     // Now disable the game (simulating what handleDeleteGame does)
     await env.DB.prepare(
@@ -1230,14 +1240,14 @@ describe("SourceHub", () => {
     const msg2 = await waitForRelayedMessageMatching(ui2, (m) => {
       if (m.message?.payload?.$case !== "sourceState") return false;
       const games = m.message.payload.sourceState.sources[0]?.games;
-      return games !== undefined && !games.find((g) => g.gameId === "d2r");
+      return games !== undefined && !games.some((g) => g.gameId === "d2r");
     });
     const ds2 = requireInnerPayload(msg2, "sourceState");
     const d2rGame = ds2.sources[0]?.games.find((g) => g.gameId === "d2r");
     expect(d2rGame).toBeUndefined();
 
-    await closeWs(ui2);
-    await closeWs(daemon);
+    closeWs(ui2);
+    closeWs(daemon);
   });
 
   it("does not re-enable disabled config on gameDetected", async () => {
@@ -1273,7 +1283,7 @@ describe("SourceHub", () => {
       .first<{ enabled: number }>();
     expect(row!.enabled).toBe(0);
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("auto-creates config from gamesDiscovered and pushes config to daemon", async () => {
@@ -1333,7 +1343,7 @@ describe("SourceHub", () => {
     expect(rows.results[0]!.game_id).toBe("d2r");
     expect(rows.results[1]!.game_id).toBe("sdv");
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("does not overwrite existing config on gamesDiscovered", async () => {
@@ -1387,7 +1397,7 @@ describe("SourceHub", () => {
     expect(cu.games.d2r!.savePath).toBe("/custom/path");
     expect(cu.games.sdv!.savePath).toBe("/home/user/.sdv/saves");
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("does not set ACTIVATING status during pushConfigToSource", async () => {
@@ -1428,12 +1438,9 @@ describe("SourceHub", () => {
       }
     }
 
-    await closeWs(daemonWs);
-    await closeWs(uiWs);
+    closeWs(daemonWs);
+    closeWs(uiWs);
   });
-
-  // TODO: as above — uses removed `fetchMock`. Body cleared.
-  it.skip("does not send sourceUpdateAvailable when daemon is current", () => {});
 
   it("persists ConfigResult to D1 source_configs", async () => {
     const userUuid = "config-result-user";
@@ -1509,7 +1516,7 @@ describe("SourceHub", () => {
     expect(sdvRow.last_error).toBe("path not found: /saves/sdv");
     expect(sdvRow.result_at).toBeTruthy();
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   // ── PushSave over WebSocket ─────────────────────────────────────
@@ -1577,7 +1584,7 @@ describe("SourceHub", () => {
     const charData = JSON.parse(sections.results[0]!.data) as { class: string };
     expect(charData.class).toBe("Paladin");
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("pushSave updates SourceState with pushCompleted", async () => {
@@ -1623,7 +1630,7 @@ describe("SourceHub", () => {
     expect(completed.summary).toBe("Test Character");
 
     // State update should include the save — reconnect UI to get fresh state
-    await closeWs(ui);
+    closeWs(ui);
     const freshUi = await connectWs("/ws/ui", userUuid);
     const stateMsg = await waitForRelayedMessage(freshUi);
     const state = requireInnerPayload(stateMsg, "sourceState");
@@ -1632,8 +1639,8 @@ describe("SourceHub", () => {
     const save = game!.saves.find((s) => s.saveUuid === result.saveUuid);
     expect(save?.summary).toBe("Test Character");
 
-    await closeWs(freshUi);
-    await closeWs(daemon);
+    closeWs(freshUi);
+    closeWs(daemon);
   });
 
   it("pushSave from unlinked source stores save with null user_uuid", async () => {
@@ -1668,7 +1675,7 @@ describe("SourceHub", () => {
     expect(save!.user_uuid).toBeNull();
     expect(save!.last_source_uuid).toBe(sourceUuid);
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("rejects pushSave with too many sections", async () => {
@@ -1711,7 +1718,7 @@ describe("SourceHub", () => {
     ).first();
     expect(save).toBeNull();
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("rejects pushSave exceeding total size limit", async () => {
@@ -1751,7 +1758,7 @@ describe("SourceHub", () => {
     const save = await env.DB.prepare("SELECT 1 FROM saves WHERE save_name = 'TooBig'").first();
     expect(save).toBeNull();
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("rejects pushSave with missing identity", async () => {
@@ -1783,7 +1790,7 @@ describe("SourceHub", () => {
       .first();
     expect(save).toBeNull();
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("rejects pushSave with empty gameId", async () => {
@@ -1815,7 +1822,7 @@ describe("SourceHub", () => {
     ).first();
     expect(save).toBeNull();
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("rejects pushSave for disabled game with GAME_REMOVED error", async () => {
@@ -1861,7 +1868,7 @@ describe("SourceHub", () => {
       .first();
     expect(save).toBeNull();
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("allows pushSave when no source_configs row exists", async () => {
@@ -1900,7 +1907,7 @@ describe("SourceHub", () => {
       .first();
     expect(save).not.toBeNull();
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("rejects pushSave for excluded save with SAVE_REMOVED error", async () => {
@@ -1951,7 +1958,7 @@ describe("SourceHub", () => {
       .first();
     expect(save).toBeNull();
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("allows pushSave for non-excluded save when exclude_saves is set", async () => {
@@ -1994,7 +2001,7 @@ describe("SourceHub", () => {
     expect(result.error).toBe(PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED);
     expect(result.saveUuid).not.toBe("");
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("removed save disappears from SourceState after config push", async () => {
@@ -2041,7 +2048,7 @@ describe("SourceHub", () => {
     const state1 = requireInnerPayload(msg1, "sourceState");
     const game1 = state1.sources[0]?.games.find((g) => g.gameId === "d2r");
     expect(game1?.saves.some((s) => s.saveUuid === saveUuid)).toBe(true);
-    await closeWs(ui1);
+    closeWs(ui1);
 
     // Remove the save via API
     const resp = await SELF.fetch(`https://test-host/api/v1/saves/${saveUuid}`, {
@@ -2061,7 +2068,7 @@ describe("SourceHub", () => {
     const game2 = state2.sources[0]?.games.find((g) => g.gameId === "d2r");
     const removedSave = game2?.saves.find((s) => s.saveUuid === saveUuid);
     expect(removedSave).toBeUndefined();
-    await closeWs(ui2);
+    closeWs(ui2);
 
     // Restore the save via API
     const restoreResp = await SELF.fetch(`https://test-host/api/v1/saves/${saveUuid}/restore`, {
@@ -2082,9 +2089,9 @@ describe("SourceHub", () => {
     const restoredSave = game3?.saves.find((s) => s.saveUuid === saveUuid);
     expect(restoredSave).toBeDefined();
     expect(restoredSave?.summary).toBe("Will be removed");
-    await closeWs(ui3);
+    closeWs(ui3);
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("idempotent push updates existing save instead of duplicating", async () => {
@@ -2138,7 +2145,7 @@ describe("SourceHub", () => {
     const parsed = JSON.parse(section!.data);
     expect(parsed.level).toBe(42);
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("partial push preserves existing sections in D1", async () => {
@@ -2201,7 +2208,7 @@ describe("SourceHub", () => {
     expect(byName.get("skills").points).toBe(100); // preserved
     expect(byName.get("inventory").gold).toBe(5000); // preserved
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("allSectionNames deletes stale sections from D1", async () => {
@@ -2260,7 +2267,7 @@ describe("SourceHub", () => {
     expect(names).toEqual(["overview", "skills"]);
     expect(names).not.toContain("draft");
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("accepts gzip-compressed pushSave messages", async () => {
@@ -2325,7 +2332,7 @@ describe("SourceHub", () => {
       .first<{ data: string }>();
     expect(JSON.parse(section!.data).level).toBe(50);
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("accepts uncompressed pushSave messages (backwards compat)", async () => {
@@ -2370,7 +2377,7 @@ describe("SourceHub", () => {
       .first<{ data: string }>();
     expect(JSON.parse(section!.data).level).toBe(30);
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("forwards sourceOffline event on daemon disconnect", async () => {
@@ -2395,14 +2402,14 @@ describe("SourceHub", () => {
       5000,
     );
 
-    await closeWs(daemon);
+    closeWs(daemon);
 
     // Verify we receive the explicit sourceOffline event (not just state)
     const offlineRelayed = await offlineEventPromise;
     expect(offlineRelayed.sourceId).toBe(sourceUuid);
     expect(offlineRelayed.message?.payload?.$case).toBe("sourceOffline");
 
-    await closeWs(uiWs);
+    closeWs(uiWs);
   });
 
   // Adapter no-evict test lives in adapter-state.test.ts (correct context,
@@ -2432,7 +2439,8 @@ describe("SourceHub", () => {
       return s !== undefined && !s.online;
     });
     await ageLastSeenAndFireAlarm(stub, sourceUuid);
-    await offline1;
+    const offline1Msg = await offline1;
+    expect(offline1Msg.message?.payload?.$case).toBe("sourceState");
     closeWs(ui1);
     closeWs(daemon1);
 
@@ -2452,7 +2460,8 @@ describe("SourceHub", () => {
       return s !== undefined && !s.online;
     });
     await ageLastSeenAndFireAlarm(stub, sourceUuid);
-    await offline2;
+    const offline2Msg = await offline2;
+    expect(offline2Msg.message?.payload?.$case).toBe("sourceState");
     closeWs(ui2);
     closeWs(daemon2);
   });

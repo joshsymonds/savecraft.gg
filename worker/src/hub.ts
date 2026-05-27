@@ -965,6 +965,28 @@ export class SourceHub extends DurableObject<Env> {
    * send PushSaveResult back to the daemon, then synthesize and forward
    * a pushCompleted event through the normal relay pipeline.
    */
+  /**
+   * Send a pushSaveResult acknowledgement for a rejected pushSave.
+   * Callers depend on this for deterministic sequencing — previously
+   * silent rejections forced tests into sleep-based waits.
+   */
+  private sendPushSaveRejection(ws: WebSocket, gameId: string, error: PushSaveError): void {
+    this.safeSend(
+      ws,
+      Message.encode({
+        payload: {
+          $case: "pushSaveResult",
+          pushSaveResult: {
+            saveUuid: "",
+            snapshotTimestamp: undefined,
+            error,
+            gameId,
+          },
+        },
+      }).finish(),
+    );
+  }
+
   private async handlePushSave(
     ws: WebSocket,
     push: PushSave,
@@ -980,21 +1002,7 @@ export class SourceHub extends DurableObject<Env> {
       const saveName = push.identity?.name ?? "";
       if (!saveName || !push.gameId) {
         this.debugLog.push("warn", "pushSave missing identity or gameId");
-        // Acknowledge so callers can sequence on the rejection deterministically.
-        this.safeSend(
-          ws,
-          Message.encode({
-            payload: {
-              $case: "pushSaveResult",
-              pushSaveResult: {
-                saveUuid: "",
-                snapshotTimestamp: undefined,
-                error: PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED,
-                gameId: push.gameId ?? "",
-              },
-            },
-          }).finish(),
-        );
+        this.sendPushSaveRejection(ws, push.gameId, PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED);
         return;
       }
 
@@ -1006,43 +1014,14 @@ export class SourceHub extends DurableObject<Env> {
       const rejection = await this.checkPushRejection(sourceId, gameId, saveName);
       if (rejection) {
         this.debugLog.push("warn", rejection.reason, { gameId, saveName, sourceId });
-        this.safeSend(
-          ws,
-          Message.encode({
-            payload: {
-              $case: "pushSaveResult",
-              pushSaveResult: {
-                saveUuid: "",
-                snapshotTimestamp: undefined,
-                error: rejection.error,
-                gameId,
-              },
-            },
-          }).finish(),
-        );
+        this.sendPushSaveRejection(ws, gameId, rejection.error);
         return;
       }
 
       const validated = this.validateAndConvertSections(push);
       if ("reason" in validated) {
         this.debugLog.push("warn", validated.reason, validated.detail);
-        // Send back a pushSaveResult so callers can sequence on the
-        // rejection deterministically (previously silent — required
-        // sleep-based "wait for processing" hacks in tests).
-        this.safeSend(
-          ws,
-          Message.encode({
-            payload: {
-              $case: "pushSaveResult",
-              pushSaveResult: {
-                saveUuid: "",
-                snapshotTimestamp: undefined,
-                error: PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED,
-                gameId,
-              },
-            },
-          }).finish(),
-        );
+        this.sendPushSaveRejection(ws, gameId, PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED);
         return;
       }
       const sections = validated.sections;

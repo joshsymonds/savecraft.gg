@@ -72,7 +72,7 @@ describe("Source Config API", () => {
     const sourceId = "desktop";
     await seedSourceWithId(sourceId, userUuid);
 
-    const putConfig = async (savePath: string): Promise<Response> =>
+    const putConfig = (savePath: string): Promise<Response> =>
       SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
         method: "PUT",
         headers: {
@@ -339,7 +339,7 @@ describe("Config push via SourceHub", () => {
     expect(cu.games.d2r!.enabled).toBe(true);
     expect(cu.games.d2r!.fileExtensions).toEqual([".d2s"]);
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("pushes empty config when no configs exist", async () => {
@@ -353,7 +353,7 @@ describe("Config push via SourceHub", () => {
     const cu = requirePayload(msg, "configUpdate");
     expect(Object.keys(cu.games)).toHaveLength(0);
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 
   it("does not set ACTIVATING status when pushing config", async () => {
@@ -381,8 +381,8 @@ describe("Config push via SourceHub", () => {
     );
     expect(activatingGames).toHaveLength(0);
 
-    await closeWs(uiWs);
-    await closeWs(daemonWs);
+    closeWs(uiWs);
+    closeWs(daemonWs);
   });
 
   it("does not set ACTIVATING for disabled games", async () => {
@@ -410,8 +410,8 @@ describe("Config push via SourceHub", () => {
     );
     expect(activatingGames).toHaveLength(0);
 
-    await closeWs(uiWs);
-    await closeWs(daemonWs);
+    closeWs(uiWs);
+    closeWs(daemonWs);
   });
 
   it("config push does not create game entries in SourceState", async () => {
@@ -429,7 +429,7 @@ describe("Config push via SourceHub", () => {
     await sendSourceOnlineAndDrainLinkState(daemonWs);
     await waitForPayload(daemonWs, "configUpdate");
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForRelayedMessage(freshUi);
@@ -441,7 +441,7 @@ describe("Config push via SourceHub", () => {
     );
     expect(activatingGames).toHaveLength(0);
 
-    await closeWs(freshUi);
+    closeWs(freshUi);
   });
 
   it("pushes config update when API writes new config", async () => {

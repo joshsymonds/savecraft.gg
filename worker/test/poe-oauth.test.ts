@@ -1,5 +1,4 @@
 import { env, SELF } from "cloudflare:test";
-import { mockFetch } from "./helpers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { poeAdapter } from "../../plugins/poe/adapter";
@@ -7,6 +6,7 @@ import characterListFixture from "../../plugins/poe/testdata/ggg-character-list.
 import { AdapterError } from "../src/adapters/adapter";
 import { sha256Hex } from "../src/auth";
 
+import { mockFetch } from "./helpers";
 import { cleanAll } from "./helpers";
 
 const USER_UUID = "poe-oauth-user";
@@ -34,7 +34,6 @@ describe("PoE GGG OAuth + discoverSaves", () => {
   describe("discoverSaves", () => {
     function mockCharacterList(): void {
       mockFetch.activate();
-      mockFetch.disableNetConnect();
       mockFetch
         .get("https://api.pathofexile.com")
         .intercept({ path: "/character", method: "GET" })
@@ -62,7 +61,6 @@ describe("PoE GGG OAuth + discoverSaves", () => {
 
     it("maps 401 to token_expired", async () => {
       mockFetch.activate();
-      mockFetch.disableNetConnect();
       mockFetch
         .get("https://api.pathofexile.com")
         .intercept({ path: "/character", method: "GET" })
@@ -75,7 +73,6 @@ describe("PoE GGG OAuth + discoverSaves", () => {
 
     it("maps 429 to rate_limited with Retry-After", async () => {
       mockFetch.activate();
-      mockFetch.disableNetConnect();
       mockFetch
         .get("https://api.pathofexile.com")
         .intercept({ path: "/character", method: "GET" })
@@ -115,7 +112,7 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       expect(stateKey).not.toContain(challenge);
 
       const stored = await env.OAUTH_KV.get(`ggg-oauth-state:${stateKey}`);
-      const parsed = JSON.parse(stored!) as { codeVerifier?: string };
+      const parsed = JSON.parse(stored) as { codeVerifier?: string };
       expect(parsed.codeVerifier).toBeTruthy();
       expect(url).not.toContain(parsed.codeVerifier!);
     });
@@ -157,7 +154,6 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       );
 
       mockFetch.activate();
-      mockFetch.disableNetConnect();
       mockFetch
         .get("https://www.pathofexile.com")
         .intercept({ path: "/oauth/token", method: "POST" })
@@ -185,7 +181,7 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       );
 
       expect(resp.status).toBe(302);
-      const location = new URL(resp.headers.get("Location")!);
+      const location = new URL(resp.headers.get("Location"));
       expect(location.searchParams.get("game_id")).toBe("poe");
       expect(location.searchParams.get("connected")).toBe("true");
       expect(location.searchParams.get("error")).toBeNull();
@@ -223,7 +219,6 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       );
 
       mockFetch.activate();
-      mockFetch.disableNetConnect();
       // Intercept ONLY requests carrying GGG's required User-Agent. A
       // UA-less token POST won't match → fetch fails → no poe cred.
       mockFetch
@@ -257,7 +252,7 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       );
 
       expect(resp.status).toBe(302);
-      expect(new URL(resp.headers.get("Location")!).searchParams.get("connected")).toBe("true");
+      expect(new URL(resp.headers.get("Location")).searchParams.get("connected")).toBe("true");
 
       const cred = await env.DB.prepare(
         "SELECT game_id FROM game_credentials WHERE user_uuid = ? AND game_id = 'poe'",
@@ -281,7 +276,6 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       );
 
       mockFetch.activate();
-      mockFetch.disableNetConnect();
       mockFetch
         .get("https://www.pathofexile.com")
         .intercept({ path: "/oauth/token", method: "POST" })
@@ -295,7 +289,7 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       );
 
       expect(resp.status).toBe(302);
-      expect(new URL(resp.headers.get("Location")!).searchParams.get("error")).toBe("token_failed");
+      expect(new URL(resp.headers.get("Location")).searchParams.get("error")).toBe("token_failed");
 
       const sourceCount = await env.DB.prepare("SELECT COUNT(*) c FROM sources WHERE user_uuid = ?")
         .bind(USER_UUID)

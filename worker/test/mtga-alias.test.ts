@@ -116,7 +116,7 @@ describe("mtga→magic alias on PushSave", () => {
     expect(save!.game_id).toBe("magic");
     expect(save!.save_name).toBe("DraftDodger");
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("echoes game_id='magic' in PushSaveResult when daemon sent 'mtga'", async () => {
@@ -135,7 +135,7 @@ describe("mtga→magic alias on PushSave", () => {
     );
     expect(echoedGameId).toBe("magic");
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("dedups 'mtga' push against existing 'magic' row (same user, same save_name)", async () => {
@@ -173,7 +173,7 @@ describe("mtga→magic alias on PushSave", () => {
     expect(rows.results).toHaveLength(1);
     expect(rows.results[0]!.game_id).toBe("magic");
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 
   it("leaves non-mtga game_ids untouched (pass-through)", async () => {
@@ -197,7 +197,7 @@ describe("mtga→magic alias on PushSave", () => {
       .first<{ game_id: string }>();
     expect(save!.game_id).toBe("d2r");
 
-    await closeWs(daemon);
+    closeWs(daemon);
   });
 });
 

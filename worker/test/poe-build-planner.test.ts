@@ -1,10 +1,10 @@
 import { env } from "cloudflare:test";
-import { mockFetch } from "./helpers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { buildPlannerModule } from "../../plugins/poe/reference/build-planner";
 import type { Env } from "../src/types";
 
+import { mockFetch } from "./helpers";
 import { cleanAll } from "./helpers";
 
 const POB = "https://pob.savecraft.gg";
@@ -81,7 +81,6 @@ describe("build_planner character param", () => {
     });
 
     mockFetch.activate();
-    mockFetch.disableNetConnect();
     mockFetch
       .get(POB)
       .intercept({ path: "/build/recent-build-id/summary", method: "GET" })
@@ -112,7 +111,6 @@ describe("build_planner character param", () => {
     });
 
     mockFetch.activate();
-    mockFetch.disableNetConnect();
     mockFetch
       .get(POB)
       .intercept({ path: "/build/recent-build-id/summary", method: "GET" })
@@ -138,7 +136,6 @@ describe("build_planner character param", () => {
     });
 
     mockFetch.activate();
-    mockFetch.disableNetConnect();
     // Build evicted from the store — summary 404s.
     mockFetch
       .get(POB)
@@ -172,7 +169,6 @@ describe("build_planner character param", () => {
     });
 
     mockFetch.activate();
-    mockFetch.disableNetConnect();
     mockFetch
       .get(POB)
       .intercept({ path: "/modify", method: "POST" })
@@ -211,7 +207,6 @@ describe("build_planner character param", () => {
     await seedPoeSave({ saveName: "FreshChar", lastUpdated: "2026-05-17T00:00:00Z" });
 
     mockFetch.activate();
-    mockFetch.disableNetConnect();
 
     const result = await buildPlannerModule.execute(
       { user_id: USER, character: "FreshChar" },
@@ -233,7 +228,6 @@ describe("build_planner character param", () => {
     });
 
     mockFetch.activate();
-    mockFetch.disableNetConnect();
     // Only the pob-server summary endpoint is registered. A GGG or
     // /import call would hit disableNetConnect and throw, failing the test.
     mockFetch
@@ -253,7 +247,6 @@ describe("build_planner character param", () => {
 
   it("regression: build_id flow unchanged when character is absent", async () => {
     mockFetch.activate();
-    mockFetch.disableNetConnect();
     mockFetch
       .get(POB)
       .intercept({ path: "/build/url-build-id/summary", method: "GET" })

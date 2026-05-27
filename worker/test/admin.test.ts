@@ -149,7 +149,7 @@ describe("Admin API", () => {
       const messages = body.entries.map((entry) => entry.msg);
       expect(messages.some((m) => m.includes("accepted") || m.includes("connected"))).toBe(true);
 
-      await closeWs(ws);
+      closeWs(ws);
     });
   });
 
@@ -225,7 +225,7 @@ describe("Admin API", () => {
       );
       expect(result.event_type).toBe("parseFailed");
 
-      await closeWs(ws);
+      closeWs(ws);
     });
   });
 

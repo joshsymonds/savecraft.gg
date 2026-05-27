@@ -1,10 +1,10 @@
 import { env, SELF } from "cloudflare:test";
-import { mockFetch } from "./helpers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { GameState } from "../src/adapters/adapter";
 import { seedCharacter, validateSeedInput } from "../src/admin/seed-character";
 
+import { mockFetch } from "./helpers";
 import { cleanAll } from "./helpers";
 
 const ADMIN_KEY = "test-admin-key-secret";
@@ -97,7 +97,6 @@ describe("POST /admin/seed-character", () => {
       await seedAdapterSource(VALID_INPUT.userUuid);
 
       mockFetch.activate();
-      mockFetch.disableNetConnect();
       try {
         mockFetch
           .get("https://oauth.battle.net")

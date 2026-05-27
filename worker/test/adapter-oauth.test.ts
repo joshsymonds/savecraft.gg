@@ -1,9 +1,9 @@
 import { env, SELF } from "cloudflare:test";
-import { mockFetch } from "./helpers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { sha256Hex } from "../src/auth";
 
+import { mockFetch } from "./helpers";
 import { cleanAll } from "./helpers";
 
 const USER_UUID = "adapter-oauth-user";
@@ -53,7 +53,7 @@ describe("Adapter OAuth", () => {
       const state = url.searchParams.get("state")!;
       const stored = await env.OAUTH_KV.get(`battlenet-oauth-state:${state}`);
       expect(stored).toBeTruthy();
-      const parsed = JSON.parse(stored!) as {
+      const parsed = JSON.parse(stored) as {
         userUuid: string;
         region: string;
         sourceUuid?: string;
@@ -104,7 +104,7 @@ describe("Adapter OAuth", () => {
       const authorizeUrl = new URL(body.url);
       const stateKey = authorizeUrl.searchParams.get("state")!;
       const stored = await env.OAUTH_KV.get(`battlenet-oauth-state:${stateKey}`);
-      const parsed = JSON.parse(stored!) as { returnUrl: string };
+      const parsed = JSON.parse(stored) as { returnUrl: string };
       expect(parsed.returnUrl).toBe("");
     });
 
@@ -172,7 +172,7 @@ describe("Adapter OAuth", () => {
       );
 
       expect(resp.status).toBe(302);
-      const location = new URL(resp.headers.get("Location")!);
+      const location = new URL(resp.headers.get("Location"));
       expect(location.searchParams.get("game_id")).toBe("wow");
       expect(location.searchParams.get("error")).toBe("token_failed");
       expect(location.searchParams.get("error_detail")).toBeTruthy();
@@ -194,7 +194,7 @@ describe("Adapter OAuth", () => {
       );
 
       expect(resp.status).toBe(302);
-      expect(new URL(resp.headers.get("Location")!).searchParams.get("error")).toBe("token_failed");
+      expect(new URL(resp.headers.get("Location")).searchParams.get("error")).toBe("token_failed");
 
       const sourceCount = await env.DB.prepare("SELECT COUNT(*) c FROM sources WHERE user_uuid = ?")
         .bind(USER_UUID)
@@ -218,7 +218,6 @@ describe("Adapter OAuth", () => {
   describe("GET /oauth/battlenet/callback (success path) [characterization]", () => {
     function mockBattlenetSuccess(): void {
       mockFetch.activate();
-      mockFetch.disableNetConnect();
       mockFetch
         .get("https://oauth.battle.net")
         .intercept({ path: "/token", method: "POST" })
@@ -277,7 +276,7 @@ describe("Adapter OAuth", () => {
         );
 
         expect(resp.status).toBe(302);
-        const location = new URL(resp.headers.get("Location")!);
+        const location = new URL(resp.headers.get("Location"));
         expect(location.searchParams.get("game_id")).toBe("wow");
         expect(location.searchParams.get("connected")).toBe("true");
         expect(location.searchParams.get("error")).toBeNull();

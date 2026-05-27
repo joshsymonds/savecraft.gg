@@ -230,13 +230,19 @@ describe("Adapter Refresh Job", () => {
 
   it("respects batch limit", async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
-    // Seed 51 saves — just enough to verify LIMIT 50 is enforced
-    // (assertion is that fetchState was called for at most 50). Fewer
-    // rows = fewer refreshOneSave iterations through D1 = headroom for
-    // the 5s testTimeout under sharded CPU contention. Chunked into
-    // max-sized multi-row INSERTs (14 rows × 7 params = 98 for saves,
-    // 16 rows × 6 params = 96 for linked_characters — both just under
-    // D1's 100-param ceiling) via one D1.batch().
+    // The assertion is "fetchState was called at most 50 times" — purely a
+    // SQL LIMIT 50 check on the source-selection query, NOT a test of the
+    // success-path side effects (storePush, refresh_status='ok', etc).
+    // Forcing fetchState to throw means refreshOneSave takes the error path
+    // and skips storePush entirely (the most expensive per-save D1 work).
+    // Under sharded CPU contention from `just check`'s 6 parallel test
+    // recipes, the success path's 5+ D1 ops per save × 50 saves overruns
+    // the 5s testTimeout; the error path is ~2 ops per save and fits.
+    fetchStateError = new AdapterError("api_unavailable", "batch-limit test");
+    // Seed 51 saves — just enough rows to verify LIMIT 50 enforces.
+    // Chunked into max-sized multi-row INSERTs (14 rows × 7 params = 98
+    // for saves, 16 rows × 6 params = 96 for linked_characters — both
+    // just under D1's 100-param ceiling) via one D1.batch().
     const ROW_COUNT = 51;
     const SAVES_CHUNK = 14;
     const LINKED_CHUNK = 16;

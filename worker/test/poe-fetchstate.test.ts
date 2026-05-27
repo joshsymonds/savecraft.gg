@@ -1,5 +1,4 @@
 import { env } from "cloudflare:test";
-import { mockFetch } from "./helpers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { poeAdapter } from "../../plugins/poe/adapter";
@@ -9,6 +8,7 @@ import { AdapterError, type FetchParams } from "../src/adapters/adapter";
 import { storePush } from "../src/store";
 import type { Env } from "../src/types";
 
+import { mockFetch } from "./helpers";
 import { cleanAll } from "./helpers";
 
 const POB = "https://pob.savecraft.gg";
@@ -43,7 +43,6 @@ describe("ensureGggAccessToken", () => {
 
   it("refreshes an expired token and returns the new tokens", async () => {
     mockFetch.activate();
-    mockFetch.disableNetConnect();
     mockFetch
       .get(GGG_OAUTH)
       .intercept({ path: "/oauth/token", method: "POST" })
@@ -77,7 +76,6 @@ describe("ensureGggAccessToken", () => {
 
   it("throws token_expired when the refresh request fails", async () => {
     mockFetch.activate();
-    mockFetch.disableNetConnect();
     mockFetch.get(GGG_OAUTH).intercept({ path: "/oauth/token", method: "POST" }).reply(400, "bad");
     await expect(
       ensureGggAccessToken(
@@ -98,7 +96,6 @@ describe("poeAdapter.fetchState", () => {
 
   function mockGgg(): void {
     mockFetch.activate();
-    mockFetch.disableNetConnect();
     mockFetch
       .get(GGG_API)
       .intercept({ path: "/profile", method: "GET" })

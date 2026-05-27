@@ -129,7 +129,9 @@ describe("Notes REST API", () => {
     );
     const { note_id } = await createResp.json<{ note_id: string }>();
 
-    const resp = await SELF.fetch(notesRequest("GET", `/api/v1/notes/${saveId}/${note_id}`));
+    const resp = await SELF.fetch(
+      notesRequest("GET", `/api/v1/notes/${saveId}/${String(note_id)}`),
+    );
     expect(resp.status).toBe(200);
 
     const body = await resp.json<{ note_id: string; title: string; content: string }>();
@@ -151,7 +153,7 @@ describe("Notes REST API", () => {
     const { note_id } = await createResp.json<{ note_id: string }>();
 
     const resp = await SELF.fetch(
-      notesRequest("PUT", `/api/v1/notes/${saveId}/${note_id}`, {
+      notesRequest("PUT", `/api/v1/notes/${saveId}/${String(note_id)}`, {
         content: "Found Ber! Now farming Jah",
         title: "Updated Goals",
       }),
@@ -159,7 +161,9 @@ describe("Notes REST API", () => {
     expect(resp.status).toBe(200);
 
     // Verify the update
-    const getResp = await SELF.fetch(notesRequest("GET", `/api/v1/notes/${saveId}/${note_id}`));
+    const getResp = await SELF.fetch(
+      notesRequest("GET", `/api/v1/notes/${saveId}/${String(note_id)}`),
+    );
     const body = await getResp.json<{ title: string; content: string }>();
     expect(body.title).toBe("Updated Goals");
     expect(body.content).toBe("Found Ber! Now farming Jah");
@@ -177,11 +181,15 @@ describe("Notes REST API", () => {
     );
     const { note_id } = await createResp.json<{ note_id: string }>();
 
-    const resp = await SELF.fetch(notesRequest("DELETE", `/api/v1/notes/${saveId}/${note_id}`));
+    const resp = await SELF.fetch(
+      notesRequest("DELETE", `/api/v1/notes/${saveId}/${String(note_id)}`),
+    );
     expect(resp.status).toBe(200);
 
     // Verify it's gone
-    const getResp = await SELF.fetch(notesRequest("GET", `/api/v1/notes/${saveId}/${note_id}`));
+    const getResp = await SELF.fetch(
+      notesRequest("GET", `/api/v1/notes/${saveId}/${String(note_id)}`),
+    );
     expect(getResp.status).toBe(404);
   });
 

@@ -27,7 +27,7 @@ async function seedAdapterSource(userUuid: string): Promise<string> {
 }
 
 /** Call /set-game-status on the SourceHub DO for a given source. */
-async function setGameStatus(
+function setGameStatus(
   sourceUuid: string,
   userUuid: string,
   body: Record<string, unknown>,
@@ -164,7 +164,7 @@ describe("SourceHub /set-game-status", () => {
     expect(source!.canRescan).toBe(false);
     expect(source!.canReceiveConfig).toBe(false);
 
-    await closeWs(uiWs);
+    closeWs(uiWs);
   });
 
   it("returns 400 for missing required fields", async () => {
@@ -273,7 +273,7 @@ describe("SourceHub /set-game-status", () => {
       .toSorted((a, b) => (a ?? "").localeCompare(b ?? ""));
     expect(saveNames).toEqual(["Jaina-proudmoore-US", "Thrall-thrall-US"]);
 
-    await closeWs(uiWs);
+    closeWs(uiWs);
   });
 
   it("marks the adapter source online without arming a (dead) alarm (#24)", async () => {
@@ -363,14 +363,14 @@ describe("SourceHub /set-game-status", () => {
     const game = source!.games.find((g) => g.gameId === "wow")!;
     expect(game.saves).toHaveLength(0);
 
-    await closeWs(uiWs);
+    closeWs(uiWs);
   });
 });
 
 describe("SourceHub /sync-discovered-saves (#23)", () => {
   beforeEach(cleanAll);
 
-  async function syncDiscoveredSaves(
+  function syncDiscoveredSaves(
     sourceUuid: string,
     userUuid: string,
     body: Record<string, unknown>,

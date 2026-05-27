@@ -114,8 +114,8 @@ describe("Source Removal", () => {
       // UI should receive updated state without the source
       await statePromise;
 
-      await closeWs(uiWs);
-      await closeWs(daemonWs);
+      closeWs(uiWs);
+      closeWs(daemonWs);
     });
 
     it("does not affect other users when cleaning up orphaned state", async () => {
@@ -276,8 +276,8 @@ describe("Source Removal", () => {
       // UI should receive updated state without the removed source
       await statePromise;
 
-      await closeWs(uiWs);
-      await closeWs(daemonWs);
+      closeWs(uiWs);
+      closeWs(daemonWs);
     });
   });
 });

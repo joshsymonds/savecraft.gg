@@ -1,6 +1,5 @@
 import { getOAuthApi } from "@cloudflare/workers-oauth-provider";
 import { env, runInDurableObject, SELF } from "cloudflare:test";
-import { vi } from "vitest";
 
 import { _resetWinConditionCache } from "../../plugins/magic/reference/deck-completion";
 import { OAUTH_ENDPOINTS } from "../src/oauth";
@@ -119,7 +118,7 @@ export async function connectWs(path: string, userUuid: string): Promise<WebSock
   const ws = resp.webSocket;
   if (!ws) {
     throw new Error(
-      `WebSocket upgrade failed for ${path}: ${String(resp.status)} ${resp.statusText}`,
+      `WebSocket upgrade failed for ${path}: ${String(resp.status)} ${String(resp.statusText)}`,
     );
   }
   ws.accept();
@@ -140,7 +139,9 @@ export async function connectDaemonWs(sourceToken: string): Promise<WebSocket> {
 
   const ws = resp.webSocket;
   if (!ws) {
-    throw new Error(`Daemon WebSocket upgrade failed: ${String(resp.status)} ${resp.statusText}`);
+    throw new Error(
+      `Daemon WebSocket upgrade failed: ${String(resp.status)} ${String(resp.statusText)}`,
+    );
   }
   ws.accept();
   return ws;
@@ -187,7 +188,7 @@ export function closeWs(ws: WebSocket): void {
  * the common case of 2–3 closes per test.
  */
 export async function flushWorkerd(): Promise<void> {
-  for (let i = 0; i < 4; i++) {
+  for (let index = 0; index < 4; index++) {
     await env.DB.prepare("SELECT 1").first();
   }
 }
@@ -254,7 +255,9 @@ export async function ageLastSeenAndFireAlarm(
     // synchronously and leaves no spurious alarms in storage for workerd's
     // alarm queue to chew on after the test exits (the source of the
     // post-suite hang).
-    type AlarmDO = { alarm(): Promise<void> };
+    interface AlarmDO {
+      alarm(): Promise<void>;
+    }
     await (instance as unknown as AlarmDO).alarm();
   });
 }
@@ -406,7 +409,9 @@ export function waitForProtoMessageMatching(
   return new Promise<Message>((resolve, reject) => {
     const timer = setTimeout(() => {
       ws.removeEventListener("message", handler);
-      reject(new Error(`Timed out waiting for matching proto Message after ${String(timeoutMs)}ms`));
+      reject(
+        new Error(`Timed out waiting for matching proto Message after ${String(timeoutMs)}ms`),
+      );
     }, timeoutMs);
 
     function handler(event: MessageEvent): void {
@@ -436,7 +441,6 @@ export function waitForProtoMessageMatching(
  * Provides the small chainable surface the tests used:
  *
  *   mockFetch.activate();
- *   mockFetch.disableNetConnect();
  *   mockFetch
  *     .get("https://api.example.com")
  *     .intercept({ path: "/x", method: "POST" })
@@ -457,50 +461,54 @@ interface MockReply {
   headers?: Record<string, string>;
 }
 
+/** Resolve a fetch input to its URL string without nested ternaries. */
+function resolveFetchInputUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
+}
+
 class MockFetch {
   private replies: MockReply[] = [];
-  private spy: ReturnType<typeof vi.spyOn> | undefined;
+  private originalFetch: typeof globalThis.fetch | undefined;
 
   activate(): void {
-    if (this.spy) return;
-    this.spy = vi.spyOn(globalThis, "fetch").mockImplementation(
-      async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-        const urlStr =
-          typeof input === "string"
-            ? input
-            : input instanceof URL
-              ? input.toString()
-              : input.url;
-        const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
-        const url = new URL(urlStr);
-        const base = `${url.protocol}//${url.host}`;
-        const path = url.pathname + url.search;
-        const matchIndex = this.replies.findIndex((r) => {
-          if (r.baseUrl !== base) return false;
-          if (r.method.toUpperCase() !== method) return false;
-          return typeof r.path === "string" ? r.path === path : r.path.test(path);
-        });
-        if (matchIndex < 0) {
-          throw new Error(`Unmocked fetch: ${method} ${urlStr}`);
-        }
-        // Consume the reply (one-shot) to mirror undici MockAgent's default
-        // behaviour. Tests that need multiple calls to the same endpoint
-        // queue multiple .intercept().reply() declarations.
-        const [match] = this.replies.splice(matchIndex, 1);
-        return new Response(match.body, {
+    if (this.originalFetch) return;
+    this.originalFetch = globalThis.fetch;
+    globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const urlString = resolveFetchInputUrl(input);
+      const method = (
+        init?.method ?? (input instanceof Request ? input.method : "GET")
+      ).toUpperCase();
+      const url = new URL(urlString);
+      const base = `${url.protocol}//${url.host}`;
+      const path = url.pathname + url.search;
+      const matchIndex = this.replies.findIndex((r) => {
+        if (r.baseUrl !== base) return false;
+        if (r.method.toUpperCase() !== method) return false;
+        return typeof r.path === "string" ? r.path === path : r.path.test(path);
+      });
+      if (matchIndex === -1) {
+        return Promise.reject(new Error(`Unmocked fetch: ${method} ${urlString}`));
+      }
+      // Consume the reply (one-shot) to mirror undici MockAgent's default
+      // behaviour. Tests that need multiple calls to the same endpoint
+      // queue multiple .intercept().reply() declarations.
+      const match = this.replies.splice(matchIndex, 1)[0]!;
+      return Promise.resolve(
+        new Response(match.body, {
           status: match.status,
           headers: match.headers,
-        });
-      },
-    );
+        }),
+      );
+    };
   }
 
-  /** No-op — activate() already disables real network. Kept for parity. */
-  disableNetConnect(): void {}
-
   deactivate(): void {
-    this.spy?.mockRestore();
-    this.spy = undefined;
+    if (this.originalFetch) {
+      globalThis.fetch = this.originalFetch;
+      this.originalFetch = undefined;
+    }
     this.replies = [];
   }
 
@@ -785,7 +793,7 @@ export async function getOAuthToken(userUuid: string): Promise<string> {
 
   if (!tokenResp.ok) {
     const text = await tokenResp.text();
-    throw new Error(`Token exchange failed: ${String(tokenResp.status)} ${text}`);
+    throw new Error(`Token exchange failed: ${String(tokenResp.status)} ${String(text)}`);
   }
 
   const tokenData = await tokenResp.json<{ access_token: string }>();
