@@ -223,7 +223,13 @@ export class UserHub extends DurableObject<Env> {
     }).finish();
 
     for (const ws of this.ctx.getWebSockets("ui")) {
-      ws.send(relayed);
+      try {
+        ws.send(relayed);
+      } catch (error) {
+        this.debugLog.push("warn", "UI broadcast send failed (likely closed)", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 

@@ -43,7 +43,9 @@ function runShard(index, total) {
 function parseCounts(stdout) {
   const plain = stripAnsi(stdout);
   const filesMatch = plain.match(/Test Files\s+(\d+) passed \((\d+)\)/);
-  const testsMatch = plain.match(/Tests\s+(?:\d+ failed \| )?(\d+) passed \((\d+)\)/);
+  const testsMatch = plain.match(
+    /Tests\s+(?:\d+ failed \| )?(\d+) passed(?: \| \d+ skipped)? \((\d+)\)/,
+  );
   return {
     files: filesMatch ? parseInt(filesMatch[2], 10) : 0,
     tests: testsMatch ? parseInt(testsMatch[2], 10) : 0,

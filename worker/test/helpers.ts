@@ -160,10 +160,36 @@ export function closeWs(ws: WebSocket): void {
   // same-process WebSocketPair the event firing semantics differ from a
   // real-network WS and can leave the caller waiting for an event that
   // already dispatched (or hold the test runner open past the run).
+  //
+  // Callers that close at the END of a test (no UI to observe the close
+  // broadcast) should pair their closeWs(...) calls with a single
+  // `await flushWorkerd()` in afterEach so workerd's queued
+  // webSocketClose handlers run before the next test starts.
   if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
     return;
   }
   ws.close();
+}
+
+/**
+ * Pump workerd's event loop so any fire-and-forget closeWs() callbacks
+ * from this test (queued webSocketClose handlers on the SourceHub /
+ * UserHub DOs) actually run before returning. Without this, late-firing
+ * webSocketClose work contends with the next test's webSocketMessage
+ * processing and causes the 5s testTimeout to be exceeded intermittently.
+ *
+ * The mechanism: a real D1 round-trip forces workerd to context-switch
+ * away from the JS thread, giving its internal event loop a chance to
+ * dispatch queued WebSocket events. We round-trip a few times because a
+ * test may have closed multiple WSes (UI + N daemons) and each one needs
+ * its own webSocketClose handler to settle on its DO. One round-trip
+ * typically drains one DO's pending handler; chaining several covers
+ * the common case of 2–3 closes per test.
+ */
+export async function flushWorkerd(): Promise<void> {
+  for (let i = 0; i < 4; i++) {
+    await env.DB.prepare("SELECT 1").first();
+  }
 }
 
 /**

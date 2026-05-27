@@ -281,7 +281,8 @@ export class SourceHub extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    const tags = this.ctx.getTags(ws);
+    const tags = this.safeGetTags(ws);
+    if (!tags) return;
     const msgBuf =
       typeof message === "string"
         ? (new TextEncoder().encode(message).buffer as ArrayBuffer)
@@ -387,23 +388,49 @@ export class SourceHub extends DurableObject<Env> {
     _wasClean: boolean,
   ): Promise<void> {
     this.debugLog.push("info", "WebSocket closed", { code, reason });
-    const tags = this.ctx.getTags(ws);
-    if (tags.includes("daemon")) {
+    const tags = this.safeGetTags(ws);
+    if (tags?.includes("daemon")) {
       await this.handleDaemonDisconnect(tags);
     }
     const safeCode = code === 1005 ? 1000 : code;
-    ws.close(safeCode, reason);
+    try {
+      ws.close(safeCode, reason);
+    } catch {
+      // WS may already be fully detached
+    }
   }
 
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
     this.debugLog.push("error", "WebSocket error", {
       error: error instanceof Error ? error.message : String(error),
     });
-    const tags = this.ctx.getTags(ws);
-    if (tags.includes("daemon")) {
+    const tags = this.safeGetTags(ws);
+    if (tags?.includes("daemon")) {
       await this.handleDaemonDisconnect(tags);
     }
-    ws.close(1011, "Unexpected error");
+    try {
+      ws.close(1011, "Unexpected error");
+    } catch {
+      // WS may already be fully detached
+    }
+  }
+
+  /**
+   * Read tags off a WebSocket, returning undefined if workerd has already
+   * lost the tag association (post-hibernation, post-eviction, mid-close).
+   * Empirically observed when a daemon disconnect's queued webSocketClose
+   * callback runs after the DO has been recycled across test boundaries.
+   * Callers must treat undefined as "WS gone — skip handler work".
+   */
+  private safeGetTags(ws: WebSocket): string[] | undefined {
+    try {
+      return this.ctx.getTags(ws);
+    } catch (error) {
+      this.debugLog.push("warn", "getTags failed (WS detached)", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
   }
 
   // ── HTTP endpoints (non-WebSocket) ──────────────────────────────
@@ -686,7 +713,8 @@ export class SourceHub extends DurableObject<Env> {
 
   private async closeStaleConnections(staleSourceIds: string[]): Promise<void> {
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
-      const wsTags = this.ctx.getTags(daemonWs);
+      const wsTags = this.safeGetTags(daemonWs);
+      if (!wsTags) continue;
       const connTag = getConnTag(wsTags);
       if (!connTag) continue;
       const wsSourceId = await this.ctx.storage.get<string>(connTag);

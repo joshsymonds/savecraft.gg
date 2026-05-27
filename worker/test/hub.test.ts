@@ -1,5 +1,5 @@
 import { env, runDurableObjectAlarm, SELF } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
 import { Message as MessageCodec, PushSaveError } from "../src/proto/savecraft/v1/protocol";
@@ -10,6 +10,7 @@ import {
   closeWs,
   connectDaemonWs,
   connectWs,
+  flushWorkerd,
   pollUntil,
   requireInnerPayload,
   requirePayload,
@@ -51,6 +52,7 @@ function sourceOnlineMsg(
 
 describe("SourceHub", () => {
   beforeEach(cleanAll);
+  afterEach(flushWorkerd);
 
   it("relays daemon messages to UI", async () => {
     const userUuid = "relay-test-user";
@@ -230,15 +232,17 @@ describe("SourceHub", () => {
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemon = await connectDaemonWs(sourceToken);
-    sendProto(daemon, sourceOnlineMsg());
+    const ui = await connectWs("/ws/ui", userUuid);
+    // Phase 1: drive source online and let the linkState reply confirm
+    // that SourceHub has fully processed sourceOnline before we send the
+    // next event. This split avoids a 5s budget spent on processing two
+    // queued messages back-to-back under sharded CPU contention.
+    await sendSourceOnlineAndDrainLinkState(daemon);
+
+    // Phase 2: send sourceOffline and wait for the broadcast.
     sendProto(daemon, {
       payload: { $case: "sourceOffline", sourceOffline: { timestamp: undefined } },
     });
-
-    // Open UI after sending the events and drain until the final expected
-    // state lands: source visible but offline. Matcher-based — no
-    // take-first race on intermediate state updates.
-    const ui = await connectWs("/ws/ui", userUuid);
     const msg = await waitForRelayedMessageMatching(ui, (m) => {
       if (m.message?.payload?.$case !== "sourceState") return false;
       const s = m.message.payload.sourceState.sources.find((d) => d.sourceId === sourceUuid);
@@ -370,14 +374,18 @@ describe("SourceHub", () => {
     const daemonB = await connectDaemonWs(sourceB.sourceToken);
     const ui = await connectWs("/ws/ui", userUuid);
 
-    sendProto(daemonA, sourceOnlineMsg());
+    // Phased: each daemon's sourceOnline is followed by its linkState reply
+    // (a sync barrier per daemon), then watching events. Sending 4 events
+    // back-to-back used to overflow the 5s testTimeout under sharded CPU
+    // contention; phasing keeps each await small.
+    await sendSourceOnlineAndDrainLinkState(daemonA);
+    await sendSourceOnlineAndDrainLinkState(daemonB);
     sendProto(daemonA, {
       payload: {
         $case: "watching",
         watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 3 },
       },
     });
-    sendProto(daemonB, sourceOnlineMsg());
     sendProto(daemonB, {
       payload: {
         $case: "watching",
@@ -386,8 +394,7 @@ describe("SourceHub", () => {
     });
 
     // Drain until the broadcast reflects the complete expected state: both
-    // sources online, each with their respective game. Avoids the previous
-    // race of consuming exactly N take-first messages.
+    // sources online, each with their respective game.
     const msg = await waitForRelayedMessageMatching(ui, (m) => {
       if (m.message?.payload?.$case !== "sourceState") return false;
       const sources = m.message.payload.sourceState.sources;
