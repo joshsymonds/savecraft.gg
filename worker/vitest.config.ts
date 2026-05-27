@@ -4,9 +4,10 @@ import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
 // Each test file runs serially within its shard (fileParallelism: false),
-// but `npm run test:shard` launches N vitest processes in parallel (each
-// with its own Miniflare). File-level parallelism within a single shard
-// process is unsafe under vitest-pool-workers: that pool spins up exactly
+// but `npm test` (which routes through scripts/test-sharded.mjs) launches
+// N vitest processes in parallel, each with its own Miniflare. File-level
+// parallelism within a single shard process is unsafe under
+// vitest-pool-workers: that pool spins up exactly
 // one Miniflare per pool worker, so concurrent files share a workerd
 // isolate. A DO I/O object created in one test bleeds across the file
 // boundary and crashes the next test with "Cannot perform I/O on behalf

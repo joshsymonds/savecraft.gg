@@ -300,8 +300,11 @@ export function waitForRelayedMessage(ws: WebSocket, timeoutMs = 2000): Promise<
 
 /**
  * Wait for a binary proto Message on a daemon WebSocket (for commands from server).
+ * 5s default matches vitest's testTimeout — under sharded CPU contention the
+ * older 2s default could miss in-flight server pushes (e.g. configUpdate)
+ * even when the test itself was still well under budget.
  */
-export function waitForProtoMessage(ws: WebSocket, timeoutMs = 2000): Promise<Message> {
+export function waitForProtoMessage(ws: WebSocket, timeoutMs = 5000): Promise<Message> {
   return new Promise<Message>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`Timed out waiting for proto Message after ${String(timeoutMs)}ms`));
@@ -327,7 +330,7 @@ export function waitForProtoMessage(ws: WebSocket, timeoutMs = 2000): Promise<Me
  * Drain messages from a daemon WebSocket until one with the specified payload
  * $case arrives, discarding any that don't match (e.g. sourceLinked).
  */
-export function waitForPayload(ws: WebSocket, $case: string, timeoutMs = 2000): Promise<Message> {
+export function waitForPayload(ws: WebSocket, $case: string, timeoutMs = 5000): Promise<Message> {
   return new Promise<Message>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`Timed out waiting for payload "${$case}" after ${String(timeoutMs)}ms`));

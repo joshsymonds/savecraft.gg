@@ -230,14 +230,14 @@ describe("Adapter Refresh Job", () => {
 
   it("respects batch limit", async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
-    // Seed 55 saves — only 50 should be processed (SQL LIMIT 50). Chunk into
-    // max-sized multi-row INSERTs (14 rows × 7 params = 98 for saves, 16 rows
-    // × 6 params = 96 for linked_characters — both just under D1's 100-param
-    // ceiling) and send all chunks via a single D1.batch(). That's 4 + 4 = 8
-    // INSERTs server-side instead of the original 110, one network round-trip
-    // total. Fits comfortably under the 5s default testTimeout even when 4
-    // sharded vitest processes are contending for CPU.
-    const ROW_COUNT = 55;
+    // Seed 51 saves — just enough to verify LIMIT 50 is enforced
+    // (assertion is that fetchState was called for at most 50). Fewer
+    // rows = fewer refreshOneSave iterations through D1 = headroom for
+    // the 5s testTimeout under sharded CPU contention. Chunked into
+    // max-sized multi-row INSERTs (14 rows × 7 params = 98 for saves,
+    // 16 rows × 6 params = 96 for linked_characters — both just under
+    // D1's 100-param ceiling) via one D1.batch().
+    const ROW_COUNT = 51;
     const SAVES_CHUNK = 14;
     const LINKED_CHUNK = 16;
     function buildSaveChunk(start: number, rows: number): D1PreparedStatement {
