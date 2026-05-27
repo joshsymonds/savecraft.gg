@@ -1,4 +1,5 @@
-import { env, fetchMock } from "cloudflare:test";
+import { env } from "cloudflare:test";
+import { mockFetch } from "./helpers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { buildPlannerModule } from "../../plugins/poe/reference/build-planner";
@@ -64,7 +65,7 @@ function calcJson(buildId: string): string {
 describe("build_planner character param", () => {
   beforeEach(cleanAll);
   afterEach(() => {
-    fetchMock.deactivate();
+    mockFetch.deactivate();
   });
 
   it('character:"current" resolves the most-recently-played save\'s buildId (no build/build_id arg)', async () => {
@@ -79,9 +80,9 @@ describe("build_planner character param", () => {
       snapshot: { buildId: "recent-build-id", xml: "<PathOfBuilding>recent</PathOfBuilding>" },
     });
 
-    fetchMock.activate();
-    fetchMock.disableNetConnect();
-    fetchMock
+    mockFetch.activate();
+    mockFetch.disableNetConnect();
+    mockFetch
       .get(POB)
       .intercept({ path: "/build/recent-build-id/summary", method: "GET" })
       .reply(200, calcJson("recent-build-id"), {
@@ -110,9 +111,9 @@ describe("build_planner character param", () => {
       snapshot: { buildId: "old-build-id", xml: "<PathOfBuilding>old</PathOfBuilding>" },
     });
 
-    fetchMock.activate();
-    fetchMock.disableNetConnect();
-    fetchMock
+    mockFetch.activate();
+    mockFetch.disableNetConnect();
+    mockFetch
       .get(POB)
       .intercept({ path: "/build/recent-build-id/summary", method: "GET" })
       .reply(200, calcJson("recent-build-id"), {
@@ -136,17 +137,17 @@ describe("build_planner character param", () => {
       snapshot: { buildId: "deadbeef", xml: "<PathOfBuilding>snapshot</PathOfBuilding>" },
     });
 
-    fetchMock.activate();
-    fetchMock.disableNetConnect();
+    mockFetch.activate();
+    mockFetch.disableNetConnect();
     // Build evicted from the store — summary 404s.
-    fetchMock
+    mockFetch
       .get(POB)
       .intercept({ path: "/build/deadbeef/summary", method: "GET" })
       .reply(404, JSON.stringify({ error: "build not found" }), {
         headers: { "content-type": "application/json" },
       });
     // Re-feed: stored XML → /calc yields the IDENTICAL content-addressed id.
-    fetchMock
+    mockFetch
       .get(POB)
       .intercept({ path: "/calc", method: "POST" })
       .reply(200, calcJson("deadbeef"), {
@@ -170,21 +171,21 @@ describe("build_planner character param", () => {
       snapshot: { buildId: "deadbeef", xml: "<PathOfBuilding>snapshot</PathOfBuilding>" },
     });
 
-    fetchMock.activate();
-    fetchMock.disableNetConnect();
-    fetchMock
+    mockFetch.activate();
+    mockFetch.disableNetConnect();
+    mockFetch
       .get(POB)
       .intercept({ path: "/modify", method: "POST" })
       .reply(404, JSON.stringify({ error: "build not found" }), {
         headers: { "content-type": "application/json" },
       });
-    fetchMock
+    mockFetch
       .get(POB)
       .intercept({ path: "/calc", method: "POST" })
       .reply(200, calcJson("deadbeef"), {
         headers: { "content-type": "application/json" },
       });
-    fetchMock
+    mockFetch
       .get(POB)
       .intercept({ path: "/modify", method: "POST" })
       .reply(200, JSON.stringify({ buildId: "deadbeef", data: { changes: {} } }), {
@@ -209,8 +210,8 @@ describe("build_planner character param", () => {
     // Save exists but no poe_build_snapshot row.
     await seedPoeSave({ saveName: "FreshChar", lastUpdated: "2026-05-17T00:00:00Z" });
 
-    fetchMock.activate();
-    fetchMock.disableNetConnect();
+    mockFetch.activate();
+    mockFetch.disableNetConnect();
 
     const result = await buildPlannerModule.execute(
       { user_id: USER, character: "FreshChar" },
@@ -231,11 +232,11 @@ describe("build_planner character param", () => {
       snapshot: { buildId: "deadbeef", xml: "<PathOfBuilding>x</PathOfBuilding>" },
     });
 
-    fetchMock.activate();
-    fetchMock.disableNetConnect();
+    mockFetch.activate();
+    mockFetch.disableNetConnect();
     // Only the pob-server summary endpoint is registered. A GGG or
     // /import call would hit disableNetConnect and throw, failing the test.
-    fetchMock
+    mockFetch
       .get(POB)
       .intercept({ path: "/build/deadbeef/summary", method: "GET" })
       .reply(200, calcJson("deadbeef"), {
@@ -251,9 +252,9 @@ describe("build_planner character param", () => {
   });
 
   it("regression: build_id flow unchanged when character is absent", async () => {
-    fetchMock.activate();
-    fetchMock.disableNetConnect();
-    fetchMock
+    mockFetch.activate();
+    mockFetch.disableNetConnect();
+    mockFetch
       .get(POB)
       .intercept({ path: "/build/url-build-id/summary", method: "GET" })
       .reply(200, calcJson("url-build-id"), {

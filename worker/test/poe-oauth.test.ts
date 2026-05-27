@@ -1,4 +1,5 @@
-import { env, fetchMock, SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
+import { mockFetch } from "./helpers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { poeAdapter } from "../../plugins/poe/adapter";
@@ -27,14 +28,14 @@ describe("PoE GGG OAuth + discoverSaves", () => {
     cleanAll();
   });
   afterEach(() => {
-    fetchMock.deactivate();
+    mockFetch.deactivate();
   });
 
   describe("discoverSaves", () => {
     function mockCharacterList(): void {
-      fetchMock.activate();
-      fetchMock.disableNetConnect();
-      fetchMock
+      mockFetch.activate();
+      mockFetch.disableNetConnect();
+      mockFetch
         .get("https://api.pathofexile.com")
         .intercept({ path: "/character", method: "GET" })
         .reply(200, JSON.stringify(characterListFixture), {
@@ -60,9 +61,9 @@ describe("PoE GGG OAuth + discoverSaves", () => {
     });
 
     it("maps 401 to token_expired", async () => {
-      fetchMock.activate();
-      fetchMock.disableNetConnect();
-      fetchMock
+      mockFetch.activate();
+      mockFetch.disableNetConnect();
+      mockFetch
         .get("https://api.pathofexile.com")
         .intercept({ path: "/character", method: "GET" })
         .reply(401, "Unauthorized");
@@ -73,9 +74,9 @@ describe("PoE GGG OAuth + discoverSaves", () => {
     });
 
     it("maps 429 to rate_limited with Retry-After", async () => {
-      fetchMock.activate();
-      fetchMock.disableNetConnect();
-      fetchMock
+      mockFetch.activate();
+      mockFetch.disableNetConnect();
+      mockFetch
         .get("https://api.pathofexile.com")
         .intercept({ path: "/character", method: "GET" })
         .reply(429, "Too Many Requests", { headers: { "Retry-After": "47" } });
@@ -155,9 +156,9 @@ describe("PoE GGG OAuth + discoverSaves", () => {
         { expirationTtl: 600 },
       );
 
-      fetchMock.activate();
-      fetchMock.disableNetConnect();
-      fetchMock
+      mockFetch.activate();
+      mockFetch.disableNetConnect();
+      mockFetch
         .get("https://www.pathofexile.com")
         .intercept({ path: "/oauth/token", method: "POST" })
         .reply(
@@ -169,7 +170,7 @@ describe("PoE GGG OAuth + discoverSaves", () => {
           }),
           { headers: { "content-type": "application/json" } },
         );
-      fetchMock
+      mockFetch
         .get("https://api.pathofexile.com")
         .intercept({ path: "/character", method: "GET" })
         .reply(200, JSON.stringify(characterListFixture), {
@@ -221,11 +222,11 @@ describe("PoE GGG OAuth + discoverSaves", () => {
         { expirationTtl: 600 },
       );
 
-      fetchMock.activate();
-      fetchMock.disableNetConnect();
+      mockFetch.activate();
+      mockFetch.disableNetConnect();
       // Intercept ONLY requests carrying GGG's required User-Agent. A
       // UA-less token POST won't match → fetch fails → no poe cred.
-      fetchMock
+      mockFetch
         .get("https://www.pathofexile.com")
         .intercept({
           path: "/oauth/token",
@@ -241,7 +242,7 @@ describe("PoE GGG OAuth + discoverSaves", () => {
           }),
           { headers: { "content-type": "application/json" } },
         );
-      fetchMock
+      mockFetch
         .get("https://api.pathofexile.com")
         .intercept({ path: "/character", method: "GET" })
         .reply(200, JSON.stringify(characterListFixture), {
@@ -279,9 +280,9 @@ describe("PoE GGG OAuth + discoverSaves", () => {
         { expirationTtl: 600 },
       );
 
-      fetchMock.activate();
-      fetchMock.disableNetConnect();
-      fetchMock
+      mockFetch.activate();
+      mockFetch.disableNetConnect();
+      mockFetch
         .get("https://www.pathofexile.com")
         .intercept({ path: "/oauth/token", method: "POST" })
         .reply(400, "invalid_grant");

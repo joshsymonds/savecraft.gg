@@ -1,4 +1,5 @@
-import { env, fetchMock, SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
+import { mockFetch } from "./helpers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { sha256Hex } from "../src/auth";
@@ -216,9 +217,9 @@ describe("Adapter OAuth", () => {
   // connected redirect. They must stay green verbatim post-refactor.
   describe("GET /oauth/battlenet/callback (success path) [characterization]", () => {
     function mockBattlenetSuccess(): void {
-      fetchMock.activate();
-      fetchMock.disableNetConnect();
-      fetchMock
+      mockFetch.activate();
+      mockFetch.disableNetConnect();
+      mockFetch
         .get("https://oauth.battle.net")
         .intercept({ path: "/token", method: "POST" })
         .reply(
@@ -230,7 +231,7 @@ describe("Adapter OAuth", () => {
           }),
           { headers: { "content-type": "application/json" } },
         );
-      fetchMock
+      mockFetch
         .get("https://us.api.blizzard.com")
         .intercept({ path: /\/profile\/user\/wow/, method: "GET" })
         .reply(
@@ -281,7 +282,7 @@ describe("Adapter OAuth", () => {
         expect(location.searchParams.get("connected")).toBe("true");
         expect(location.searchParams.get("error")).toBeNull();
       } finally {
-        fetchMock.deactivate();
+        mockFetch.deactivate();
       }
 
       // Credential row keyed by the adapter game_id (the literal being

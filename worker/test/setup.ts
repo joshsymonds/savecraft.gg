@@ -2,6 +2,16 @@ import { env } from "cloudflare:test";
 
 import { CLEANUP_TABLES } from "./helpers";
 
+// No per-test DurableObject teardown. abortAllDurableObjects() interacted
+// badly with workerd's WebSocket pool — it triggered cascading "Network
+// connection lost" / "WebSocket peer connection unexpectedly closed"
+// errors that bled into the next test and (after enough tests) destabilised
+// the workerd pool such that vitest's WS to the runner pool emitted an
+// UnexpectedExit. The natural isolation comes from each test using a
+// unique sourceUuid/userUuid (so each test exercises fresh DurableObject
+// IDs with empty storage); ALARM_INTERVAL_MS is set to 600_000ms in tests
+// so natural alarm activity doesn't fire either.
+
 // Apply D1 migrations before tests run.
 // Using individual prepare().run() calls because D1.exec() has metadata
 // aggregation bugs in certain workerd versions.

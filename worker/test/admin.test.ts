@@ -1,7 +1,15 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, closeWs, connectDaemonWs, seedSource, sendProto } from "./helpers";
+import {
+  cleanAll,
+  closeWs,
+  connectDaemonWs,
+  pollUntil,
+  seedSource,
+  sendProto,
+  sendSourceOnlineAndDrainLinkState,
+} from "./helpers";
 
 const ADMIN_KEY = "test-admin-key-secret";
 
@@ -125,24 +133,10 @@ describe("Admin API", () => {
 
       // Connect daemon and send sourceOnline
       const ws = await connectDaemonWs(sourceToken);
-      sendProto(ws, {
-        payload: {
-          $case: "sourceOnline",
-          sourceOnline: {
-            version: "0.1.0",
-            platform: "linux-amd64",
-            timestamp: undefined,
-            os: "",
-            arch: "",
-            hostname: "",
-            device: "",
-          },
-        },
-      });
-      // Wait for state broadcast to settle
-      await new Promise((resolve) => {
-        setTimeout(resolve, 100);
-      });
+      // sendSourceOnlineAndDrainLinkState awaits sourceLinked, which only
+      // arrives after the DO's webSocketMessage handler has fully processed
+      // the message and pushed its debug entries. No sleep needed.
+      await sendSourceOnlineAndDrainLinkState(ws, "0.1.0", "linux-amd64");
 
       const response = await adminFetch(`/admin/source/${sourceUuid}/debug/log`, ADMIN_KEY);
       expect(response.status).toBe(200);
@@ -199,25 +193,10 @@ describe("Admin API", () => {
       const userUuid = crypto.randomUUID();
       const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-      // Connect daemon and send a sourceOnline
+      // Connect daemon and send a sourceOnline — drain link-state response
+      // so we know the DO finished processing it before sending the next msg.
       const ws = await connectDaemonWs(sourceToken);
-      sendProto(ws, {
-        payload: {
-          $case: "sourceOnline",
-          sourceOnline: {
-            version: "0.1.0",
-            platform: "linux-amd64",
-            timestamp: undefined,
-            os: "",
-            arch: "",
-            hostname: "",
-            device: "",
-          },
-        },
-      });
-      await new Promise((resolve) => {
-        setTimeout(resolve, 100);
-      });
+      await sendSourceOnlineAndDrainLinkState(ws, "0.1.0", "linux-amd64");
 
       // Now send a parseFailed event — this is a real error that should be persisted
       sendProto(ws, {
@@ -231,18 +210,20 @@ describe("Admin API", () => {
           },
         },
       });
-      await new Promise((resolve) => {
-        setTimeout(resolve, 100);
-      });
 
-      // Check D1 for the persisted error event
-      const result = await env.DB.prepare(
-        "SELECT event_type FROM source_events WHERE source_uuid = ? AND event_type = 'parseFailed'",
-      )
-        .bind(sourceUuid)
-        .first<{ event_type: string }>();
-      expect(result).not.toBeNull();
-      expect(result!.event_type).toBe("parseFailed");
+      // Poll D1 until the persisted error event appears (the worker writes
+      // it asynchronously inside the webSocketMessage handler). Event-driven
+      // via the side effect we're testing — no sleep.
+      const result = await pollUntil(
+        () =>
+          env.DB.prepare(
+            "SELECT event_type FROM source_events WHERE source_uuid = ? AND event_type = 'parseFailed'",
+          )
+            .bind(sourceUuid)
+            .first<{ event_type: string }>(),
+        { label: "parseFailed event in source_events" },
+      );
+      expect(result.event_type).toBe("parseFailed");
 
       await closeWs(ws);
     });

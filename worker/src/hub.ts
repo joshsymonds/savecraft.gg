@@ -952,6 +952,21 @@ export class SourceHub extends DurableObject<Env> {
       const saveName = push.identity?.name ?? "";
       if (!saveName || !push.gameId) {
         this.debugLog.push("warn", "pushSave missing identity or gameId");
+        // Acknowledge so callers can sequence on the rejection deterministically.
+        this.safeSend(
+          ws,
+          Message.encode({
+            payload: {
+              $case: "pushSaveResult",
+              pushSaveResult: {
+                saveUuid: "",
+                snapshotTimestamp: undefined,
+                error: PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED,
+                gameId: push.gameId ?? "",
+              },
+            },
+          }).finish(),
+        );
         return;
       }
 
@@ -983,6 +998,23 @@ export class SourceHub extends DurableObject<Env> {
       const validated = this.validateAndConvertSections(push);
       if ("reason" in validated) {
         this.debugLog.push("warn", validated.reason, validated.detail);
+        // Send back a pushSaveResult so callers can sequence on the
+        // rejection deterministically (previously silent — required
+        // sleep-based "wait for processing" hacks in tests).
+        this.safeSend(
+          ws,
+          Message.encode({
+            payload: {
+              $case: "pushSaveResult",
+              pushSaveResult: {
+                saveUuid: "",
+                snapshotTimestamp: undefined,
+                error: PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED,
+                gameId,
+              },
+            },
+          }).finish(),
+        );
         return;
       }
       const sections = validated.sections;

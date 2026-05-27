@@ -13,7 +13,7 @@ import {
   seedSource,
   sendSourceOnlineAndDrainLinkState,
   waitForPayload,
-  waitForProtoMessage,
+  waitForProtoMessageMatching,
   waitForRelayedMessage,
 } from "./helpers";
 
@@ -449,11 +449,14 @@ describe("Config push via SourceHub", () => {
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemonWs = await connectDaemonWs(sourceToken);
-
     await sendSourceOnlineAndDrainLinkState(daemonWs);
-    await waitForPayload(daemonWs, "configUpdate");
 
-    const configPromise = waitForProtoMessage(daemonWs);
+    // Attach the d2r-configUpdate matcher BEFORE the PUT so the listener
+    // is in place when the broadcast lands.
+    const d2rConfigPromise = waitForProtoMessageMatching(daemonWs, (msg) => {
+      if (msg.payload?.$case !== "configUpdate") return false;
+      return "d2r" in msg.payload.configUpdate.games;
+    });
 
     const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}/config`, {
       method: "PUT",
@@ -469,11 +472,10 @@ describe("Config push via SourceHub", () => {
     });
     expect(resp.status).toBe(200);
 
-    const msg = await configPromise;
-    const cu = requirePayload(msg, "configUpdate");
+    const cu = requirePayload(await d2rConfigPromise, "configUpdate");
     expect(cu.games.d2r).toBeDefined();
     expect(cu.games.d2r!.savePath).toBe("/saves/d2r");
 
-    await closeWs(daemonWs);
+    closeWs(daemonWs);
   });
 });

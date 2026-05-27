@@ -1,0 +1,58 @@
+# Test-only wrangler config. Mirrors wrangler.toml minus bindings that
+# vitest-pool-workers v0.16+ can't resolve locally (dispatch_namespaces,
+# which require either a live cloud connection or a workers-platforms
+# emulation that isn't supported in test environments). Tests don't
+# exercise REFERENCE_PLUGINS — it's the runtime reference-plugin
+# invocation surface used only by the dispatch endpoint, which has no
+# test coverage.
+
+name = "savecraft-api-test"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Must be "development" to enable stub bearer-token auth in tests.
+# auth.ts:46 hard-denies stub auth in any other environment to prevent
+# bearer-token impersonation from leaking past a missing CLERK_ISSUER.
+ENVIRONMENT = "development"
+VERSION = "dev"
+ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg,https://my.savecraft.gg,http://localhost:5173"
+INSTALL_URL = "https://install.savecraft.gg"
+SERVER_URL = "http://localhost:8787"
+WEB_URL = "http://localhost:5173"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "savecraft"
+database_id = "local"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "PLUGINS"
+bucket_name = "savecraft-plugins"
+
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "local"
+
+# AI and Vectorize bindings removed for tests. They require remote
+# connections (Cloudflare's local emulation doesn't support them) and
+# vitest-pool-workers v0.16+ hangs on startup trying to "Establish
+# remote connection" without cloud auth. No worker tests exercise
+# either binding — the AI and vector search paths are exercised at
+# integration time only.
+
+[durable_objects]
+bindings = [
+  { name = "SOURCE_HUB", class_name = "SourceHub" },
+  { name = "USER_HUB", class_name = "UserHub" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SourceHub"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["UserHub"]

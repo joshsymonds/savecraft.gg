@@ -1,4 +1,5 @@
-import { env, fetchMock, SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
+import { mockFetch } from "./helpers";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { GameState } from "../src/adapters/adapter";
@@ -95,16 +96,16 @@ describe("POST /admin/seed-character", () => {
     it("returns 502 when fetchState fails", async () => {
       await seedAdapterSource(VALID_INPUT.userUuid);
 
-      fetchMock.activate();
-      fetchMock.disableNetConnect();
+      mockFetch.activate();
+      mockFetch.disableNetConnect();
       try {
-        fetchMock
+        mockFetch
           .get("https://oauth.battle.net")
           .intercept({ path: "/token", method: "POST" })
           .reply(200, JSON.stringify({ access_token: "mock-app-token", expires_in: 86_400 }), {
             headers: { "content-type": "application/json" },
           });
-        fetchMock
+        mockFetch
           .get("https://us.api.blizzard.com")
           .intercept({ path: /\/profile\/wow\/character\//, method: "GET" })
           .reply(404, JSON.stringify({ code: 404, type: "BLZWEBAPI00000004" }), {
@@ -116,7 +117,7 @@ describe("POST /admin/seed-character", () => {
         const body = await resp.json<{ error: string }>();
         expect(body.error).toMatch(/fetchState failed/);
       } finally {
-        fetchMock.deactivate();
+        mockFetch.deactivate();
       }
     });
   });

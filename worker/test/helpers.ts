@@ -1,5 +1,6 @@
 import { getOAuthApi } from "@cloudflare/workers-oauth-provider";
-import { env, SELF } from "cloudflare:test";
+import { env, runInDurableObject, SELF } from "cloudflare:test";
+import { vi } from "vitest";
 
 import { _resetWinConditionCache } from "../../plugins/magic/reference/deck-completion";
 import { OAUTH_ENDPOINTS } from "../src/oauth";
@@ -151,10 +152,84 @@ export async function connectDaemonWs(sourceToken: string): Promise<WebSocket> {
  * test files while webSocketClose is still running async storage ops,
  * causing workerd inputGateBroken errors.
  */
-export async function closeWs(ws: WebSocket): Promise<void> {
+export function closeWs(ws: WebSocket): void {
+  // Fire-and-forget close. Callers that need to observe a close consequence
+  // (e.g. the daemon-disconnect broadcast) attach a matcher on the UI side
+  // BEFORE invoking closeWs — that matcher is the deterministic sync point.
+  // We don't await the WS's own "close" event here because in workerd's
+  // same-process WebSocketPair the event firing semantics differ from a
+  // real-network WS and can leave the caller waiting for an event that
+  // already dispatched (or hold the test runner open past the run).
+  if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+    return;
+  }
   ws.close();
-  await new Promise((resolve) => {
-    setTimeout(resolve, 50);
+}
+
+/**
+ * Poll a predicate at short intervals until it returns truthy, or the
+ * timeout fires. Replaces setTimeout-based "wait for state to settle"
+ * sleeps with an event-driven check that resolves as soon as the
+ * observed state matches — no fixed delay, no flake from too-short
+ * sleeps, no bloat from too-long ones.
+ */
+export async function pollUntil<T>(
+  fn: () => Promise<T | null | undefined> | T | null | undefined,
+  options: { timeoutMs?: number; intervalMs?: number; label?: string } = {},
+): Promise<T> {
+  const timeoutMs = options.timeoutMs ?? 2000;
+  const intervalMs = options.intervalMs ?? 10;
+  const label = options.label ?? "predicate";
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const value = await fn();
+    if (value) return value;
+    if (Date.now() >= deadline) {
+      throw new Error(`pollUntil: ${label} did not become truthy within ${String(timeoutMs)}ms`);
+    }
+    // Schedule the next check via a microtask + queueMicrotask chain isn't
+    // available here cheaply; use a short setTimeout. This isn't a "wait
+    // for time to pass" sleep — it's the polling cadence between predicate
+    // evaluations, which is the canonical pattern when no event signal is
+    // available (e.g. waiting for a D1 commit to be visible). Production
+    // code and tests must not use raw setTimeout for synchronisation;
+    // they call this helper instead.
+    await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
+/**
+ * Backdate a source's `lastSeen` to 24 hours ago in SourceHub's persistent
+ * state, then fire the DO's alarm. Used by tests that exercise alarm-driven
+ * stale-source eviction without waiting on real wall-clock — STALE_THRESHOLD_MS
+ * is set very high in tests precisely so that the alarm doesn't fire naturally
+ * during unrelated tests; this helper synthesises staleness deterministically.
+ */
+export async function ageLastSeenAndFireAlarm(
+  stub: DurableObjectStub,
+  sourceUuid: string,
+): Promise<void> {
+  await runInDurableObject(stub, async (instance, state) => {
+    const stored = await state.storage.get<{
+      sources: { sourceId: string; lastSeen?: string }[];
+    }>("sourceState");
+    if (!stored) return;
+    for (const s of stored.sources) {
+      if (s.sourceId === sourceUuid) {
+        s.lastSeen = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
+    await state.storage.put("sourceState", stored);
+    // Call alarm() directly rather than going through runDurableObjectAlarm:
+    // ALARM_INTERVAL_MS is effectively-infinite in tests (to keep natural
+    // alarm activity from interfering), so no alarm is scheduled near now,
+    // and runDurableObjectAlarm() refuses to fire alarms scheduled far in
+    // the future. Calling the handler directly runs the same code path
+    // synchronously and leaves no spurious alarms in storage for workerd's
+    // alarm queue to chew on after the test exits (the source of the
+    // post-suite hang).
+    type AlarmDO = { alarm(): Promise<void> };
+    await (instance as unknown as AlarmDO).alarm();
   });
 }
 
@@ -288,6 +363,134 @@ export function waitForRelayedMessageMatching(
     ws.addEventListener("message", handler);
   });
 }
+
+/**
+ * Drain a proto-encoded WebSocket (daemon side) until a message arrives
+ * whose decoded payload satisfies `predicate`, discarding non-matches.
+ * Mirror of `waitForRelayedMessageMatching` for the daemon protocol.
+ */
+export function waitForProtoMessageMatching(
+  ws: WebSocket,
+  predicate: (msg: Message) => boolean,
+  timeoutMs = 5000,
+): Promise<Message> {
+  return new Promise<Message>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      ws.removeEventListener("message", handler);
+      reject(new Error(`Timed out waiting for matching proto Message after ${String(timeoutMs)}ms`));
+    }, timeoutMs);
+
+    function handler(event: MessageEvent): void {
+      try {
+        const data = event.data as ArrayBuffer;
+        const msg = Message.decode(new Uint8Array(data));
+        if (predicate(msg)) {
+          clearTimeout(timer);
+          ws.removeEventListener("message", handler);
+          resolve(msg);
+        }
+      } catch {
+        clearTimeout(timer);
+        ws.removeEventListener("message", handler);
+        reject(new Error(`Failed to decode proto Message: ${String(event.data)}`));
+      }
+    }
+
+    ws.addEventListener("message", handler);
+  });
+}
+
+// -- Outbound fetch mocking ---------------------------------------------------
+
+/**
+ * Drop-in replacement for vitest-pool-workers' removed `fetchMock` (v0.16+).
+ * Provides the small chainable surface the tests used:
+ *
+ *   mockFetch.activate();
+ *   mockFetch.disableNetConnect();
+ *   mockFetch
+ *     .get("https://api.example.com")
+ *     .intercept({ path: "/x", method: "POST" })
+ *     .reply(200, JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });
+ *   // ... test body ...
+ *   mockFetch.deactivate();
+ *
+ * Backed by vi.spyOn(globalThis, 'fetch'). The vitest-pool-workers worker
+ * runs in the same isolate as the test code, so the spy intercepts the
+ * worker's outbound fetch() calls.
+ */
+interface MockReply {
+  baseUrl: string;
+  path: string | RegExp;
+  method: string;
+  status: number;
+  body: string;
+  headers?: Record<string, string>;
+}
+
+class MockFetch {
+  private replies: MockReply[] = [];
+  private spy: ReturnType<typeof vi.spyOn> | undefined;
+
+  activate(): void {
+    if (this.spy) return;
+    this.spy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const urlStr =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+        const url = new URL(urlStr);
+        const base = `${url.protocol}//${url.host}`;
+        const path = url.pathname + url.search;
+        const matchIndex = this.replies.findIndex((r) => {
+          if (r.baseUrl !== base) return false;
+          if (r.method.toUpperCase() !== method) return false;
+          return typeof r.path === "string" ? r.path === path : r.path.test(path);
+        });
+        if (matchIndex < 0) {
+          throw new Error(`Unmocked fetch: ${method} ${urlStr}`);
+        }
+        // Consume the reply (one-shot) to mirror undici MockAgent's default
+        // behaviour. Tests that need multiple calls to the same endpoint
+        // queue multiple .intercept().reply() declarations.
+        const [match] = this.replies.splice(matchIndex, 1);
+        return new Response(match.body, {
+          status: match.status,
+          headers: match.headers,
+        });
+      },
+    );
+  }
+
+  /** No-op — activate() already disables real network. Kept for parity. */
+  disableNetConnect(): void {}
+
+  deactivate(): void {
+    this.spy?.mockRestore();
+    this.spy = undefined;
+    this.replies = [];
+  }
+
+  get(baseUrl: string): {
+    intercept: (selector: { path: string | RegExp; method?: string }) => {
+      reply: (status: number, body: string, options?: { headers?: Record<string, string> }) => void;
+    };
+  } {
+    return {
+      intercept: ({ path, method = "GET" }) => ({
+        reply: (status, body, options) => {
+          this.replies.push({ baseUrl, path, method, status, body, headers: options?.headers });
+        },
+      }),
+    };
+  }
+}
+
+export const mockFetch = new MockFetch();
 
 // -- Payload extraction helpers -----------------------------------------------
 

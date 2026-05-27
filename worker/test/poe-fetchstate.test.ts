@@ -1,4 +1,5 @@
-import { env, fetchMock } from "cloudflare:test";
+import { env } from "cloudflare:test";
+import { mockFetch } from "./helpers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { poeAdapter } from "../../plugins/poe/adapter";
@@ -27,7 +28,7 @@ function params(overrides: Partial<FetchParams> = {}): FetchParams {
 
 describe("ensureGggAccessToken", () => {
   afterEach(() => {
-    fetchMock.deactivate();
+    mockFetch.deactivate();
   });
 
   it("passes through a still-valid token without a refresh call", async () => {
@@ -41,9 +42,9 @@ describe("ensureGggAccessToken", () => {
   });
 
   it("refreshes an expired token and returns the new tokens", async () => {
-    fetchMock.activate();
-    fetchMock.disableNetConnect();
-    fetchMock
+    mockFetch.activate();
+    mockFetch.disableNetConnect();
+    mockFetch
       .get(GGG_OAUTH)
       .intercept({ path: "/oauth/token", method: "POST" })
       .reply(
@@ -75,9 +76,9 @@ describe("ensureGggAccessToken", () => {
   });
 
   it("throws token_expired when the refresh request fails", async () => {
-    fetchMock.activate();
-    fetchMock.disableNetConnect();
-    fetchMock.get(GGG_OAUTH).intercept({ path: "/oauth/token", method: "POST" }).reply(400, "bad");
+    mockFetch.activate();
+    mockFetch.disableNetConnect();
+    mockFetch.get(GGG_OAUTH).intercept({ path: "/oauth/token", method: "POST" }).reply(400, "bad");
     await expect(
       ensureGggAccessToken(
         { accessToken: "old", refreshToken: "rt", expiresAt: "2000-01-01T00:00:00Z" },
@@ -92,13 +93,13 @@ describe("ensureGggAccessToken", () => {
 describe("poeAdapter.fetchState", () => {
   beforeEach(cleanAll);
   afterEach(() => {
-    fetchMock.deactivate();
+    mockFetch.deactivate();
   });
 
   function mockGgg(): void {
-    fetchMock.activate();
-    fetchMock.disableNetConnect();
-    fetchMock
+    mockFetch.activate();
+    mockFetch.disableNetConnect();
+    mockFetch
       .get(GGG_API)
       .intercept({ path: "/profile", method: "GET" })
       .reply(200, JSON.stringify({ name: "AccountName" }), {
@@ -108,7 +109,7 @@ describe("poeAdapter.fetchState", () => {
     // { "character": {...} } envelope (verified live). The fixture file
     // is the bare inner character (shared with the section-mapper unit
     // tests); the HTTP mock must wrap it to mirror the real API.
-    fetchMock
+    mockFetch
       .get(GGG_API)
       .intercept({ path: "/character/BoneShatterJugg", method: "GET" })
       .reply(200, JSON.stringify({ character: characterFixture }), {
@@ -118,7 +119,7 @@ describe("poeAdapter.fetchState", () => {
 
   it("maps sections, attaches pob_build, and stashes snapshot data in identity.extra", async () => {
     mockGgg();
-    fetchMock
+    mockFetch
       .get(POB)
       .intercept({ path: "/import", method: "POST" })
       .reply(
@@ -153,7 +154,7 @@ describe("poeAdapter.fetchState", () => {
 
   it("partial_failure: pob-server down → raw sections kept, no pob_build, no throw", async () => {
     mockGgg();
-    fetchMock.get(POB).intercept({ path: "/import", method: "POST" }).reply(503, "unavailable");
+    mockFetch.get(POB).intercept({ path: "/import", method: "POST" }).reply(503, "unavailable");
 
     const state = await poeAdapter.fetchState(params(), { ...env, POB_URL: POB } as unknown as Env);
 

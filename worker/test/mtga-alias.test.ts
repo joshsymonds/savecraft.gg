@@ -10,6 +10,7 @@ import {
   requirePayload,
   seedSource,
   sendProto,
+  waitForPayload,
   waitForProtoMessage,
 } from "./helpers";
 
@@ -54,7 +55,12 @@ async function pushSaveWithGameId(
       },
     },
   });
-  const resultMsg = await waitForProtoMessage(daemon);
+  // Drain until pushSaveResult arrives. Use the matching variant rather than
+  // waitForProtoMessage's take-first: sourceOnline above can leave a queued
+  // configUpdate that miniflare delivers ahead of pushSaveResult under load,
+  // and the take-first listener would then mis-resolve with configUpdate and
+  // throw "Expected payload $case pushSaveResult but got configUpdate".
+  const resultMsg = await waitForPayload(daemon, "pushSaveResult");
   const result = requirePayload(resultMsg, "pushSaveResult");
   return { saveUuid: result.saveUuid, echoedGameId: result.gameId };
 }
@@ -93,7 +99,6 @@ describe("mtga→magic alias on PushSave", () => {
     const daemon = await connectDaemonWs(sourceToken);
     sendProto(daemon, sourceOnlineMsg());
     await waitForProtoMessage(daemon);
-    await new Promise((r) => setTimeout(r, 50));
 
     const { saveUuid } = await pushSaveWithGameId(
       daemon,
@@ -121,7 +126,6 @@ describe("mtga→magic alias on PushSave", () => {
     const daemon = await connectDaemonWs(sourceToken);
     sendProto(daemon, sourceOnlineMsg());
     await waitForProtoMessage(daemon);
-    await new Promise((r) => setTimeout(r, 50));
 
     const { echoedGameId } = await pushSaveWithGameId(
       daemon,
@@ -141,7 +145,6 @@ describe("mtga→magic alias on PushSave", () => {
     const daemon = await connectDaemonWs(sourceToken);
     sendProto(daemon, sourceOnlineMsg());
     await waitForProtoMessage(daemon);
-    await new Promise((r) => setTimeout(r, 50));
 
     // First push as 'magic'
     const first = await pushSaveWithGameId(
@@ -180,7 +183,6 @@ describe("mtga→magic alias on PushSave", () => {
     const daemon = await connectDaemonWs(sourceToken);
     sendProto(daemon, sourceOnlineMsg());
     await waitForProtoMessage(daemon);
-    await new Promise((r) => setTimeout(r, 50));
 
     const { saveUuid, echoedGameId } = await pushSaveWithGameId(
       daemon,

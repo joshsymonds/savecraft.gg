@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env, runDurableObjectAlarm } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ApiAdapter, DiscoveredSave } from "../src/adapters/adapter";
@@ -313,10 +313,11 @@ describe("SourceHub /set-game-status", () => {
     const debugBefore = await getDebugState(sourceUuid);
     expect(debugBefore.sourceState.sources[0]!.online).toBe(true);
 
-    // Wait well past the stale threshold (200ms in tests, alarm interval 100ms)
-    await new Promise((resolve) => {
-      setTimeout(resolve, 500);
-    });
+    // Fire the alarm deterministically instead of sleeping past the stale
+    // threshold. Adapter sources are exempt from eviction so this should
+    // either no-op (no alarm armed for adapter sources) or leave them online.
+    const doId = env.SOURCE_HUB.idFromName(sourceUuid);
+    await runDurableObjectAlarm(env.SOURCE_HUB.get(doId));
 
     // Adapter source should still be online — NOT evicted
     const debugAfter = await getDebugState(sourceUuid);

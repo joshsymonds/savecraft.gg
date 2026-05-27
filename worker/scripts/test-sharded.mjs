@@ -22,7 +22,7 @@ function stripAnsi(s) {
 /** @param {number} index @param {number} total */
 function runShard(index, total) {
   return new Promise((resolve) => {
-    const args = ["vitest", "run", `--shard=${index}/${total}`, "--reporter=basic"];
+    const args = ["vitest", "run", `--shard=${index}/${total}`, "--reporter=default"];
     const child = spawn("npx", args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, FORCE_COLOR: "0", SHARD_INDEX: String(index) },
