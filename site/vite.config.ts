@@ -7,7 +7,7 @@ export default defineConfig({
   server: { port: 5174 },
   resolve: process.env.VITEST ? { conditions: ["browser"] } : undefined,
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     environment: "jsdom",
     setupFiles: ["./vitest-setup.ts"],
   },

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "generate-og": "node scripts/generate-og.mjs",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
@@ -32,6 +33,7 @@
     "globals": "^16.0.0",
     "jiti": "^2.6.1",
     "jsdom": "^26.1.0",
+    "playwright-core": "^1.60.0",
     "prettier": "^3.5.3",
     "prettier-plugin-svelte": "^3.5.0",
     "storybook": "^10.3.3",
