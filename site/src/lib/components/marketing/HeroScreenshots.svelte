@@ -217,7 +217,7 @@
 
   .hero-title {
     font-family: var(--font-pixel);
-    font-size: clamp(18px, 2.8vw, 28px);
+    font-size: var(--text-hero);
     color: var(--color-text);
     line-height: 1.7;
     margin: 0;

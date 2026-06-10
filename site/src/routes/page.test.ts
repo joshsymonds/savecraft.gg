@@ -22,7 +22,11 @@ const mockData = {
       coverage: "partial",
       limitations: [],
       iconHtml: '<img src="data:image/png;base64,AA==" alt="" width="32" height="32" />',
-      referenceModules: [],
+      referenceModules: [
+        { name: "Drop Calculator", description: "Drop odds", requires_save: false },
+        { name: "Runeword Lookup", description: "Runewords", requires_save: false },
+        { name: "Breakpoint Tables", description: "FCR/FHR", requires_save: false },
+      ],
     },
     {
       gameId: "rimworld",
@@ -33,7 +37,10 @@ const mockData = {
       coverage: "full",
       limitations: [],
       iconHtml: '<img src="data:image/png;base64,AA==" alt="" width="32" height="32" />',
-      referenceModules: [],
+      referenceModules: [
+        { name: "Crops", description: "Crop data", requires_save: false },
+        { name: "Surgery", description: "Surgery odds", requires_save: false },
+      ],
     },
   ],
 };
@@ -69,5 +76,36 @@ describe("Marketing page", () => {
     const { container } = render(Page, { props: { data: mockData } });
     const communityCards = container.querySelectorAll(".community-card");
     expect(communityCards).toHaveLength(2);
+  });
+
+  it("derives proof bar counts from the plugin manifest data", () => {
+    const { container } = render(Page, { props: { data: mockData } });
+    const proofText = container.querySelector(".proof-bar")?.textContent ?? "";
+    // 2 games in fixture, 3 + 2 = 5 reference modules
+    expect(proofText).toContain("2 games");
+    expect(proofText).toContain("5 expert modules");
+  });
+
+  it("shows the Magic rotation demo, not the D2R Warlock demo", () => {
+    const { container, queryByText } = render(Page, { props: { data: mockData } });
+    expect(queryByText(/Echoing Strike Warlock/)).toBeNull();
+    expect(container.textContent).toContain("Sheoldred");
+  });
+
+  it("contains no source-kind taxonomy cards", () => {
+    const { queryByText } = render(Page, { props: { data: mockData } });
+    expect(queryByText("YOUR ACCOUNT")).toBeNull();
+    expect(queryByText("YOUR SAVE FILES")).toBeNull();
+    expect(queryByText("AN IN-GAME MOD")).toBeNull();
+  });
+
+  it("uses at least 3 distinct section treatments", () => {
+    const { container } = render(Page, { props: { data: mockData } });
+    const used = new Set(
+      ["plain", "tinted", "bleed"].filter(
+        (t) => container.querySelector(`.treatment-${t}`) !== null,
+      ),
+    );
+    expect(used.size).toBeGreaterThanOrEqual(3);
   });
 });

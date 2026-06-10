@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { PUBLIC_APP_URL } from "$env/static/public";
-  import { AI_CLIENTS, SOURCE_KINDS } from "@savecraft/content/facts";
+  import { AI_CLIENTS } from "@savecraft/content/facts";
   import type { GameInfo } from "$lib/server/plugins";
   import {
     ConversationDemo,
@@ -21,20 +21,13 @@
   const clientList = AI_CLIENTS.join(" and ");
   const clientCta = `CONNECT ${AI_CLIENTS.join(" OR ").toUpperCase()}`;
 
-  // ── HOW IT WORKS card grouping ─────────────────────────────
-  // Card titles are a marketing presentation choice; descriptions come
-  // from the shared SOURCE_KINDS facts so the games list and architecture
-  // claims can't drift from what the worker reports.
-  const howItWorksCards = [
-    { title: "YOUR ACCOUNT", body: SOURCE_KINDS.api.shortDescription },
-    { title: "YOUR SAVE FILES", body: SOURCE_KINDS.wasm.shortDescription },
-    {
-      title: "AN IN-GAME MOD",
-      body:
-        SOURCE_KINDS.mod_selfpush.shortDescription +
-        " Some moddable games (like Factorio) pair the mod with the Savecraft daemon instead; the dashboard hands you the right setup.",
-    },
-  ];
+  // ── Proof bar counts ───────────────────────────────────────
+  // Derived from the plugin manifest at build time via discoverPlugins,
+  // so the numbers can never drift from what's actually shipped.
+  const gameCount = $derived(data.availableGames.length);
+  const moduleCount = $derived(
+    data.availableGames.reduce((n: number, g: GameInfo) => n + g.referenceModules.length, 0),
+  );
 
   // ── Hero frames: draft review focal + two cross-game peeks ─
   const heroFrames = [
@@ -53,22 +46,28 @@
   ];
 
   // ── Before/After demo data ─────────────────────────────────
+  // Magic rotation demo: the wrong answer is self-evidently wrong even
+  // to visitors who don't play Magic -- the AI confidently recommends
+  // crafting a card that isn't legal in the format.
   const withoutMessages = [
     {
       role: "player" as const,
-      text: "How do I optimize my Echoing Strike Warlock?",
+      text: "Should I craft Sheoldred for my mono-black deck?",
     },
     {
       role: "ai" as const,
-      text: "There is no Warlock class in Diablo II: Resurrected. D2R has seven classes: Barbarian, Sorceress, Necromancer, Druid, Assassin, Paladin, and Amazon.",
+      text: "Sheoldred, the Apocalypse is a strong card in Standard. At 2BB, she punishes your opponent's draws and gains you life on yours. Definitely worth crafting for mono-black.",
     },
   ];
 
+  // Facts verified 2026-06-09 against Savecraft card_search: Sheoldred
+  // (DMU) rotated out of Standard July 2025; Sephiroth, Fabled SOLDIER
+  // (FIN) is Standard-legal mythic and plays in current mono-black lists.
   const withConversation: DemoMessage[] = [
-    { role: "player", text: "How do I optimize my Echoing Strike Warlock?" },
+    { role: "player", text: "Should I craft Sheoldred for my mono-black deck?" },
     {
       role: "ai",
-      text: "Atmus is at 75 -- time to push for the 125% FCR breakpoint. Fortitude Thunder Maul gets you there with massive Enhanced Damage and Deadly Strike. Next priority: bind Hephasto The Armorer with Cursed + Fanaticism from River of Flame. He shreds Physical Immunes.",
+      text: "Don't -- Sheoldred rotated out of Standard in 2025, so she's not legal in your format. The drain engine in current mono-black lists is Sephiroth, Fabled SOLDIER: he drains every time one of your creatures dies, and the fourth one flips him. You're missing 2 copies, that's 2 mythic wildcards. You have 4 in the bank.",
     },
   ];
 
@@ -136,11 +135,13 @@
     <a href="#how" class="btn-outline">SEE HOW IT WORKS</a>
   {/snippet}
 
-  <!-- ═══ SOCIAL PROOF LINE (divider between hero and content) ═══ -->
+  <!-- ═══ PROOF BAR (manifest-derived facts; counts can't drift) ═══ -->
   <div class="proof-bar">
-    <span class="proof-item">Connects to {clientList}</span>
+    <span class="proof-item">{gameCount} games</span>
     <span class="proof-sep">*</span>
-    <span class="proof-item">Updated every patch</span>
+    <span class="proof-item">{moduleCount} expert modules, updated every patch</span>
+    <span class="proof-sep">*</span>
+    <span class="proof-item">Open source</span>
     <span class="proof-sep">*</span>
     <span class="proof-item">Read-only -- can never modify your saves</span>
   </div>
@@ -149,40 +150,33 @@
   <MarketingSection
     id="how"
     eyebrow="HOW IT WORKS"
-    title="Add a game."
-    subtitle="Every supported game answers expert questions immediately. Some games can also bring your live characters and saves into the conversation."
+    title="Add a game. Ask anything."
+    subtitle="No setup gauntlet -- pick your games and start asking."
+    treatment="tinted"
   >
-    <!-- Reference baseline: instant, every game, zero setup -->
-    <div class="reference-callout">
-      <h3 class="reference-callout-title">Expert answers, immediately.</h3>
-      <p class="reference-callout-desc">
-        Every supported game answers expert questions the moment you add it. Card prices, gem
-        effects, drop tables, the whole ruleset.
-      </p>
-      <div class="reference-callout-cta">
-        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">{clientCta}</a>
+    <div class="benefit-grid">
+      <div class="benefit-card">
+        <h3 class="benefit-name">Expert answers, immediately</h3>
+        <p class="benefit-desc">
+          Card prices, gem effects, drop tables, the whole ruleset. If a serious player would look
+          it up, your AI can too.
+        </p>
+      </div>
+      <div class="benefit-card">
+        <h3 class="benefit-name">Your characters, where the game supports it</h3>
+        <p class="benefit-desc">
+          Your AI sees the character you're actually playing, read live from your saves -- level 89
+          Hammerdin, current gear and all. Connecting takes a couple of minutes.
+        </p>
       </div>
     </div>
-
-    <div class="tier-divider">
-      <div class="tier-divider-line"></div>
-      <span class="tier-divider-label">+</span>
-      <div class="tier-divider-line"></div>
-    </div>
-
-    <h3 class="unlock-label">Live characters too, where available.</h3>
-    <div class="steps-grid">
-      {#each howItWorksCards as card (card.title)}
-        <div class="step-card">
-          <h3 class="step-name">{card.title}</h3>
-          <p class="step-desc">{card.body}</p>
-        </div>
-      {/each}
+    <div class="cta-actions">
+      <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">{clientCta}</a>
     </div>
   </MarketingSection>
 
   <!-- ═══ BEFORE / AFTER ═══ -->
-  <MarketingSection eyebrow="THE DIFFERENCE" title="What changes">
+  <MarketingSection eyebrow="THE DIFFERENCE" title="What changes" treatment="bleed">
     <div class="compare-grid">
       <!-- WITHOUT -- distinct generic chat style -->
       <div class="compare-card compare-without">
@@ -203,7 +197,7 @@
           {/each}
         </div>
         <p class="compare-caption compare-caption-bad">
-          The Warlock class has been in D2R since the expansion. Stale training data.
+          Sheoldred rotated out of Standard in 2025. Stale training data.
         </p>
       </div>
 
@@ -211,12 +205,12 @@
       <div class="compare-card compare-with">
         <ConversationDemo
           conversation={withConversation}
-          headerLabel="DIABLO II -- ATMUS, LEVEL 75 WARLOCK"
+          headerLabel="STANDARD -- MONO-BLACK WILDCARDS"
           headerDotColor="var(--color-green)"
           startDelay={800}
         />
         <p class="compare-caption compare-caption-good">
-          Your real character. The upgrade you should pick next.
+          Current Standard legality. Your wildcards counted.
         </p>
       </div>
     </div>
@@ -227,6 +221,7 @@
     eyebrow="HOW YOU USE IT"
     title="Sounding board or second opinion"
     subtitle="Casual chat about your runs, or hard numbers on your next breakpoint. Your call."
+    treatment="plain"
   >
     <div class="modes-grid">
       <ModeCard
@@ -260,7 +255,7 @@
   </MarketingSection>
 
   <!-- ═══ GAMES ═══ -->
-  <MarketingSection id="games" eyebrow="GAMES" title="Growing library">
+  <MarketingSection id="games" eyebrow="GAMES" title="Growing library" treatment="tinted">
     <div class="games-grid">
       {#each games as game (game.name)}
         <div class="game-card">
@@ -301,6 +296,7 @@
     eyebrow="SECURITY"
     title="Your data stays yours"
     eyebrowColor="var(--color-green)"
+    treatment="plain"
   >
     <div class="security-grid">
       <div class="security-item">
@@ -351,6 +347,7 @@
     eyebrow="COMMUNITY"
     title="Built in the open"
     subtitle="Most feature decisions start in Discord. Drop in to request a game or share a build."
+    treatment="tinted"
   >
     <div class="community-grid">
       <a href="https://discord.gg/YnC8stpEmF" class="community-card" target="_blank" rel="noopener">
@@ -506,110 +503,44 @@
     opacity: 0.5;
   }
 
-  /* ── Reference callout ───────────────────────────────── */
-  .reference-callout {
-    margin-top: 40px;
-    padding: 32px 28px;
-    background: linear-gradient(135deg, #0a0e2e 0%, #111b47 50%, #0a0e2e 100%);
-    border: 1px solid rgba(90, 190, 138, 0.25);
-    border-radius: 4px;
-    text-align: center;
-  }
-
-  .reference-callout-title {
-    font-family: var(--font-pixel);
-    font-size: clamp(12px, 1.8vw, 16px);
-    color: var(--color-green);
-    line-height: 1.7;
-    margin-bottom: 12px;
-  }
-
-  .reference-callout-desc {
-    font-family: var(--font-heading);
-    font-size: 16px;
-    font-weight: 400;
-    color: var(--color-text-dim);
-    line-height: 1.6;
-    margin: 0 0 20px;
-  }
-
-  .reference-callout-cta {
-    display: flex;
-    justify-content: center;
-  }
-
-  .tier-divider {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin: 48px 0 8px;
-  }
-
-  .tier-divider-line {
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(90, 190, 138, 0.3) 30%,
-      rgba(200, 168, 78, 0.3) 70%,
-      transparent 100%
-    );
-  }
-
-  .tier-divider-label {
-    font-family: var(--font-pixel);
-    font-size: 14px;
-    color: var(--color-gold);
-    text-shadow: 0 0 12px rgba(200, 168, 78, 0.4);
-    flex-shrink: 0;
-  }
-
-  .unlock-label {
-    margin-top: 12px;
-    margin-bottom: 8px;
-    font-family: var(--font-pixel);
-    font-size: clamp(12px, 1.8vw, 16px);
-    color: var(--color-text-dim);
-    line-height: 1.7;
-  }
-
-  /* ── Steps ───────────────────────────────────────────── */
-  .steps-grid {
+  /* ── Benefit cards (How it works) ─────────────────────── */
+  .benefit-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 1fr;
     gap: 20px;
     margin-top: 40px;
   }
 
-  .step-card {
+  .benefit-card {
     padding: 28px 24px;
-    background: linear-gradient(135deg, #0a0e2e 0%, #111b47 50%, #0a0e2e 100%);
-    border: 1px solid var(--color-border);
+    background: var(--color-panel-bg);
+    border: 1px solid var(--color-border-soft);
     border-radius: 4px;
     transition: border-color 0.3s;
   }
 
-  .step-card:hover {
+  .benefit-card:hover {
     border-color: var(--color-border-light);
   }
 
-  .step-name {
+  .benefit-name {
     font-family: var(--font-heading);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     color: var(--color-text);
     margin-bottom: 12px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
   }
 
-  .step-desc {
+  .benefit-desc {
     font-family: var(--font-heading);
     font-size: 15px;
     font-weight: 400;
     color: var(--color-text-dim);
     line-height: 1.6;
+  }
+
+  .benefit-grid + .cta-actions {
+    margin-top: 32px;
   }
 
   /* ── Before / After ─────────────────────────────────── */
@@ -959,7 +890,7 @@
 
   .cta-title {
     font-family: var(--font-pixel);
-    font-size: clamp(16px, 2.5vw, 22px);
+    font-size: clamp(18px, 2.5vw, 26px);
     color: var(--color-text);
     margin-bottom: 16px;
     line-height: 1.7;
@@ -975,6 +906,8 @@
   }
 
   .cta-actions {
+    display: flex;
+    justify-content: center;
     margin-bottom: 28px;
   }
 
@@ -984,7 +917,7 @@
       padding: 100px 0 40px;
     }
 
-    .steps-grid {
+    .benefit-grid {
       grid-template-columns: 1fr;
     }
 
