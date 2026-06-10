@@ -24,10 +24,22 @@
   --color-text-dim: #d0d4e8;
   --color-text-muted: #a0a8cc;
 
+  /* Evolved surfaces & borders — calmer tints for section treatments */
+  --color-surface-tint: rgba(17, 27, 71, 0.38);
+  --color-border-soft: rgba(74, 90, 173, 0.35);
+  --color-gold-soft: rgba(200, 168, 78, 0.15);
+
   /* Fonts */
   --font-pixel: "Press Start 2P", monospace;
   --font-heading: "Chakra Petch", sans-serif;
   --font-body: "Rajdhani", sans-serif;
+
+  /* Type scale (evolved system) — display is for section titles and must
+     compute ≥32px at desktop widths; pixel hero stays modest because
+     Press Start 2P renders visually larger than its nominal size */
+  --text-hero: clamp(20px, 3vw, 32px);
+  --text-display: clamp(26px, 3.2vw, 40px);
+  --text-body: 16px;
 }
 
 html {
