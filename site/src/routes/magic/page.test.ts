@@ -6,8 +6,10 @@ vi.mock("$env/static/public", () => ({
   PUBLIC_APP_URL: "https://test-app.savecraft.gg",
 }));
 
+import { withStandard } from "$lib/demos/standard-rotation";
+
 import Page from "./+page.svelte";
-import { withCommander, withStandard } from "./demos";
+import { withCommander } from "./demos";
 
 afterEach(cleanup);
 

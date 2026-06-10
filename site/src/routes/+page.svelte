@@ -13,7 +13,13 @@
     ModeCard,
     ParticleField,
   } from "$lib/components/marketing";
-  import type { DemoMessage } from "$lib/components/marketing/types";
+  import SocialMeta from "$lib/components/SocialMeta.svelte";
+  import {
+    standardCaptions,
+    standardHeaderLabel,
+    withoutStandard,
+    withStandard,
+  } from "$lib/demos/standard-rotation";
   import { jsonLd } from "$lib/jsonld";
 
   let { data } = $props<{ data: { availableGames: GameInfo[] } }>();
@@ -43,32 +49,6 @@
     {
       src: "/images/stellaris/stellaris1.jpg",
       alt: "Stellaris tech path to Battleships -- prerequisite chain with 6,500 remaining research cost, Engineering tier",
-    },
-  ];
-
-  // ── Before/After demo data ─────────────────────────────────
-  // Magic rotation demo: the wrong answer is self-evidently wrong even
-  // to visitors who don't play Magic -- the AI confidently recommends
-  // crafting a card that isn't legal in the format.
-  const withoutMessages = [
-    {
-      role: "player" as const,
-      text: "Should I craft Sheoldred for my mono-black deck?",
-    },
-    {
-      role: "ai" as const,
-      text: "Sheoldred, the Apocalypse is a strong card in Standard. At 2BB, she punishes your opponent's draws and gains you life on yours. Definitely worth crafting for mono-black.",
-    },
-  ];
-
-  // Facts verified 2026-06-09 against Savecraft card_search: Sheoldred
-  // (DMU) rotated out of Standard July 2025; Sephiroth, Fabled SOLDIER
-  // (FIN) is Standard-legal mythic and plays in current mono-black lists.
-  const withConversation: DemoMessage[] = [
-    { role: "player", text: "Should I craft Sheoldred for my mono-black deck?" },
-    {
-      role: "ai",
-      text: "Don't -- Sheoldred rotated out of Standard in 2025, so she's not legal in your format. The drain engine in current mono-black lists is Sephiroth, Fabled SOLDIER: he drains every time one of your creatures dies, and the fourth one flips him. You're missing 2 copies, that's 2 mythic wildcards. You have 4 in the bank.",
     },
   ];
 
@@ -109,11 +89,6 @@
   />
   <meta property="og:url" content="https://savecraft.gg" />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="https://savecraft.gg/og/home.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:image" content="https://savecraft.gg/og/home.png" />
   <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of static data, escaped in jsonLd() -->
   {@html jsonLd({
     "@context": "https://schema.org",
@@ -135,6 +110,8 @@
     ],
   })}
 </svelte:head>
+
+<SocialMeta slug="home" />
 
 <div class="page">
   <!-- ═══ HERO AREA ═══ -->
@@ -211,7 +188,7 @@
           WITHOUT SAVECRAFT
         </div>
         <div class="compare-body">
-          {#each withoutMessages as msg (msg.role)}
+          {#each withoutStandard as msg (msg.role)}
             <div
               class="without-msg"
               class:without-player={msg.role === "player"}
@@ -222,22 +199,18 @@
             </div>
           {/each}
         </div>
-        <p class="compare-caption compare-caption-bad">
-          Sheoldred rotated out of Standard in 2025. Stale training data.
-        </p>
+        <p class="compare-caption compare-caption-bad">{standardCaptions.without}</p>
       </div>
 
       <!-- WITH -- uses ConversationDemo -->
       <div class="compare-card compare-with">
         <ConversationDemo
-          conversation={withConversation}
-          headerLabel="STANDARD -- MONO-BLACK WILDCARDS"
+          conversation={withStandard}
+          headerLabel={standardHeaderLabel}
           headerDotColor="var(--color-green)"
           startDelay={800}
         />
-        <p class="compare-caption compare-caption-good">
-          Current Standard legality. Your wildcards counted.
-        </p>
+        <p class="compare-caption compare-caption-good">{standardCaptions.with}</p>
       </div>
     </div>
   </MarketingSection>

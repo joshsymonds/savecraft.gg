@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import { ModuleBadge } from "$lib/components/marketing";
+  import SocialMeta from "$lib/components/SocialMeta.svelte";
   import { jsonLd } from "$lib/jsonld";
   import type { GameInfo } from "./+page.server.ts";
 
@@ -42,11 +43,6 @@
   />
   <meta property="og:url" content="https://savecraft.gg/games" />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="https://savecraft.gg/og/games.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:image" content="https://savecraft.gg/og/games.png" />
   <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of manifest data, escaped in jsonLd() -->
   {@html jsonLd({
     "@context": "https://schema.org",
@@ -63,6 +59,8 @@
     },
   })}
 </svelte:head>
+
+<SocialMeta slug="games" />
 
 <div class="page">
   <main class="content">

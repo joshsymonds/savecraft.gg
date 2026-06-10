@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { cards, OG_HEIGHT, OG_WIDTH } from "./cards.mjs";
@@ -24,5 +27,14 @@ describe("OG card definitions", () => {
   it("gives each page a distinct screenshot", () => {
     const shots = cards.map((c) => c.screenshot);
     expect(new Set(shots).size).toBe(shots.length);
+  });
+
+  it("references only screenshots that exist on disk", () => {
+    // A renamed/deleted image would otherwise ship a broken-image card:
+    // the generator's networkidle wait does not fail on a 404'd <img>.
+    const staticDir = join(import.meta.dirname, "../../static");
+    for (const card of cards) {
+      expect(existsSync(join(staticDir, card.screenshot)), card.screenshot).toBe(true);
+    }
   });
 });

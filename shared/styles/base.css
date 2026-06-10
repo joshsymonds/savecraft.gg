@@ -39,7 +39,6 @@
      Press Start 2P renders visually larger than its nominal size */
   --text-hero: clamp(20px, 3vw, 32px);
   --text-display: clamp(26px, 3.2vw, 40px);
-  --text-body: 16px;
 }
 
 html {

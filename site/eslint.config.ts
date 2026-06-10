@@ -35,7 +35,12 @@ export default tseslint.config(
       globals: globals.browser,
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["vitest-setup.ts", "scripts/*.mjs", "scripts/og/*"],
+          allowDefaultProject: [
+            "vitest-setup.ts",
+            "scripts/*.mjs",
+            "scripts/og/*.mjs",
+            "scripts/og/*.ts",
+          ],
         },
         tsconfigRootDir,
         extraFileExtensions: [".svelte"],

@@ -14,10 +14,17 @@
     ModuleBadge,
     ParticleField,
   } from "$lib/components/marketing";
+  import SocialMeta from "$lib/components/SocialMeta.svelte";
+  import {
+    standardCaptions,
+    standardHeaderLabel,
+    withoutStandard,
+    withStandard,
+  } from "$lib/demos/standard-rotation";
   import { jsonLd } from "$lib/jsonld";
   import type { GameInfo } from "$lib/server/plugins";
 
-  import { withCommander, withoutCommander, withoutStandard, withStandard } from "./demos";
+  import { withCommander, withoutCommander } from "./demos";
 
   let { data } = $props<{ data: { game: GameInfo } }>();
 
@@ -52,11 +59,6 @@
   />
   <meta property="og:url" content="https://savecraft.gg/magic" />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="https://savecraft.gg/og/magic.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:image" content="https://savecraft.gg/og/magic.png" />
   <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of static data, escaped in jsonLd() -->
   {@html jsonLd({
     "@context": "https://schema.org",
@@ -71,6 +73,8 @@
     },
   })}
 </svelte:head>
+
+<SocialMeta slug="magic" />
 
 <div class="page">
   <!-- ═══ HERO ═══ -->
@@ -148,21 +152,17 @@
             </div>
           {/each}
         </div>
-        <p class="compare-caption compare-caption-bad">
-          Sheoldred rotated out of Standard in 2025. Stale training data.
-        </p>
+        <p class="compare-caption compare-caption-bad">{standardCaptions.without}</p>
       </div>
 
       <div class="compare-card compare-with">
         <ConversationDemo
           conversation={withStandard}
-          headerLabel="STANDARD -- MONO-BLACK WILDCARDS"
+          headerLabel={standardHeaderLabel}
           headerDotColor="var(--color-green)"
           startDelay={800}
         />
-        <p class="compare-caption compare-caption-good">
-          Current Standard legality. Your wildcards counted.
-        </p>
+        <p class="compare-caption compare-caption-good">{standardCaptions.with}</p>
       </div>
     </div>
 

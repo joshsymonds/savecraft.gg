@@ -37,8 +37,8 @@ export const cards = [
   },
   {
     slug: "games",
-    eyebrow: "SUPPORTED GAMES",
-    title: "Growing library",
+    eyebrow: "EVERY GAME SAVECRAFT SUPPORTS",
+    title: "Supported Games",
     screenshot: "images/factorio/factorio3.jpg",
   },
 ];

@@ -45,6 +45,12 @@ try {
   });
 
   for (const card of cards) {
+    const shotPath = join(siteDir, "static", card.screenshot);
+    if (!existsSync(shotPath)) {
+      console.error(`generate-og: screenshot missing for "${card.slug}": ${shotPath}`);
+      process.exit(1);
+    }
+
     const url = new URL(templateUrl);
     url.searchParams.set("eyebrow", card.eyebrow);
     url.searchParams.set("title", card.title);
@@ -52,6 +58,12 @@ try {
 
     await page.goto(url.href, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
+
+    const shotLoaded = await page.evaluate(() => document.querySelector("img")?.naturalWidth ?? 0);
+    if (shotLoaded === 0) {
+      console.error(`generate-og: screenshot failed to render for "${card.slug}"`);
+      process.exit(1);
+    }
 
     const out = join(outDir, `${card.slug}.png`);
     await page.screenshot({ path: out });

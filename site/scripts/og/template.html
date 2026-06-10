@@ -8,13 +8,31 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Chakra+Petch:wght@400;500;600;700&display=swap"
-    />
     <link rel="stylesheet" href="../../../shared/styles/base.css" />
+    <style>
+      /* Fonts are vendored (fonts/, OFL-licensed Google Fonts woff2) so the
+         CI deploy job never renders remote third-party content, and so card
+         generation is deterministic and offline-safe. Only the weights the
+         card uses are included. */
+      @font-face {
+        font-family: "Press Start 2P";
+        font-style: normal;
+        font-weight: 400;
+        src: url("fonts/press-start-2p-400.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Chakra Petch";
+        font-style: normal;
+        font-weight: 600;
+        src: url("fonts/chakra-petch-600.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Chakra Petch";
+        font-style: normal;
+        font-weight: 700;
+        src: url("fonts/chakra-petch-700.woff2") format("woff2");
+      }
+    </style>
     <style>
       html,
       body {

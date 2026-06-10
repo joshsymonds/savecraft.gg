@@ -1,28 +1,11 @@
-// Before/after demo conversations for the /magic landing page.
+// Commander before/after demo conversation for the /magic landing page.
+// The Standard rotation demo is shared with the home page and lives in
+// $lib/demos/standard-rotation.
 //
-// Facts verified 2026-06-10 against Savecraft's own modules:
-// - card_search: Sheoldred (DMU) rotated out of Standard July 2025;
-//   Sephiroth, Fabled SOLDIER (FIN) is Standard-legal mythic.
-// - commander_lookup: Atraxa, Praetors' Voice has 41,638 EDHREC decks;
-//   inclusion rates — Doubling Season 32%, Brokers Ascendancy 33%,
-//   Tamiyo, Field Researcher 27%.
+// Facts verified 2026-06-10 against Savecraft's commander_lookup module:
+// Atraxa, Praetors' Voice has 41,638 EDHREC decks; inclusion rates —
+// Doubling Season 32%, Brokers Ascendancy 33%, Tamiyo, Field Researcher 27%.
 import type { DemoMessage } from "$lib/components/marketing/types";
-
-export const withoutStandard: DemoMessage[] = [
-  { role: "player", text: "Should I craft Sheoldred for my mono-black deck?" },
-  {
-    role: "ai",
-    text: "Sheoldred, the Apocalypse is a strong card in Standard. At 2BB, she punishes your opponent's draws and gains you life on yours. Definitely worth crafting for mono-black.",
-  },
-];
-
-export const withStandard: DemoMessage[] = [
-  { role: "player", text: "Should I craft Sheoldred for my mono-black deck?" },
-  {
-    role: "ai",
-    text: "Don't -- Sheoldred rotated out of Standard in 2025, so she's not legal in your format. The drain engine in current mono-black lists is Sephiroth, Fabled SOLDIER: he drains every time one of your creatures dies, and the fourth one flips him. You're missing 2 copies, that's 2 mythic wildcards. You have 4 in the bank.",
-  },
-];
 
 export const withoutCommander: DemoMessage[] = [
   { role: "player", text: "Is my Atraxa superfriends deck missing anything?" },
