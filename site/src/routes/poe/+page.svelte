@@ -14,8 +14,9 @@
     ModuleBadge,
     ParticleField,
   } from "$lib/components/marketing";
-  import type { DemoMessage } from "$lib/components/marketing/types";
   import type { GameInfo } from "$lib/server/plugins";
+
+  import { withoutPoB, withPoB } from "./demos";
 
   let { data } = $props<{ data: { game: GameInfo } }>();
 
@@ -35,29 +36,6 @@
   ];
 
   let referenceModules = $derived(data.game.referenceModules);
-
-  // ── Before/After demo: stale memory vs real PoB calc ─────────
-  const withoutPoB: DemoMessage[] = [
-    {
-      role: "player",
-      text: "Is Awakened Added Cold worth 40 divines over Added Cold L21 in my main link?",
-    },
-    {
-      role: "ai",
-      text: "Awakened Added Cold Support gives roughly +12% More Cold Damage over the regular version, plus it levels to 5. Probably worth it if you're min-maxing, though 40 divines is a lot.",
-    },
-  ];
-
-  const withPoB: DemoMessage[] = [
-    {
-      role: "player",
-      text: "Is Awakened Added Cold worth 40 divines over Added Cold L21 in my main link?",
-    },
-    {
-      role: "ai",
-      text: "Tested both on your pobb.in. Added Cold L21: 3.8M DPS. Awakened Added: 4.4M DPS (+15.8%). 15.8% more damage for 40 div. Worth it if you're min-maxing. Cheaper alternative: Heart of Ice cluster gives +8% for ~12 div.",
-    },
-  ];
 </script>
 
 <svelte:head>
@@ -116,6 +94,7 @@
     eyebrow="NEW -- GGG-APPROVED ACCOUNT CONNECT"
     title="Connect your account, or paste a link."
     subtitle="Savecraft is a GGG-approved connecting application. Every DPS number comes from Path of Building itself -- Savecraft ferries the build to the calc engine and the result back."
+    treatment="tinted"
   >
     <div class="method-grid">
       <div class="method-item">
@@ -143,7 +122,8 @@
     id="tools"
     eyebrow="EXPERT MODULES"
     title="Real data for every build."
-    subtitle="Every answer is grounded in PoB's actual calc engine, current RePoE data, and live poe.ninja prices."
+    subtitle="Every answer comes from PoB's calc engine, current RePoE data, and live poe.ninja prices."
+    treatment="plain"
   >
     <div class="modules-grid">
       {#each referenceModules as mod (mod.name)}
@@ -159,7 +139,7 @@
   </MarketingSection>
 
   <!-- ═══ BEFORE / AFTER ═══ -->
-  <MarketingSection eyebrow="THE DIFFERENCE" title="What changes">
+  <MarketingSection eyebrow="THE DIFFERENCE" title="What changes" treatment="bleed">
     <div class="compare-grid">
       <div class="compare-card compare-without">
         <div class="compare-header compare-header-without">
@@ -201,7 +181,8 @@
   <MarketingSection
     eyebrow="HOW YOU USE IT"
     title="Coaches your build at every stage"
-    subtitle="The right calc for whichever side of the build you're on."
+    subtitle="Gem swaps, tree audits, upgrade budgets -- each one runs the real calc."
+    treatment="plain"
   >
     <div class="modes-grid">
       <ModeCard
@@ -211,11 +192,11 @@
         examples={[
           {
             role: "player",
-            text: "I'm farming maps. Is Awakened Added Cold worth 40 divines over Added Cold L21?",
+            text: "I'm farming maps. Awakened Added Cold is 40 div on trade -- worth it over my L21 Added Cold?",
           },
           {
             role: "ai",
-            text: "Tested both on your pobb.in. Added Cold L21: 3.8M DPS. Awakened Added: 4.4M DPS (+15.8%). Worth it if you're min-maxing. Cheaper alternative: Heart of Ice cluster gives +8% for ~12 div.",
+            text: "Tested both on your pobb.in. Added Cold L21: 3.8M DPS. Awakened Added: 4.4M DPS (+15.8%). Worth it if you're min-maxing. Check the tree first though: Heart of Ice is three points away for +8% of that, no divines spent.",
           },
         ]}
       />
@@ -230,7 +211,7 @@
           },
           {
             role: "ai",
-            text: "Weakest branch: the 6-point Resolute Technique cluster. Cutting it loses 380k DPS but frees six points. Nearby high-impact nodes: Savagery (+820k DPS, 4 points) and Heart of Flame (+310k and +200 EHP, 3 points). Swap saves 1 point and gains ~750k DPS net.",
+            text: "Weakest branch: Resolute Technique, 6 points. Cutting it loses 380k DPS but frees all 6. Nearby high-impact nodes: Savagery (+820k DPS, 4 points) and Heart of Flame (+310k, 3 points). The swap costs one extra point and gains ~750k DPS net.",
           },
         ]}
       />
@@ -245,7 +226,7 @@
           },
           {
             role: "ai",
-            text: "Three options in budget. Taste of Hate (14 div) -- +12% DPS via freeze + chaos conversion. Headhunter jewel slot mods (22 div for T1) -- flex utility. A +1 to all gems amulet (28 div) -- +6% DPS, +4% max resists. Taste of Hate wins DPS/div.",
+            text: "Cheaper than you think. Taste of Hate is 14 chaos right now -- 10-15% of your phys as extra cold. Ashes of the Stars is 50c for +1 to all skill gems. The only real spend is Bottled Faith at 7 div, and it's up 15% this week -- if you want it, buy today.",
           },
         ]}
       />
@@ -257,6 +238,7 @@
     eyebrow="FROM URL TO DPS"
     title="Connect or paste. Get real answers."
     subtitle="Path of Exile is a server-side game. Connect your account and Savecraft reads your live characters straight from GGG -- or hand it a build link. Either way, the build runs through real Path of Building on our infrastructure."
+    treatment="tinted"
   >
     <div class="flow-grid">
       <div class="flow-step">
@@ -300,6 +282,7 @@
     eyebrow="METHODOLOGY"
     title="We show our work"
     subtitle="The same sources serious PoE players already trust."
+    treatment="plain"
   >
     <div class="method-grid">
       <div class="method-item">
@@ -614,8 +597,9 @@
   }
 
   .flow-num {
-    font-family: var(--font-pixel);
-    font-size: 24px;
+    font-family: var(--font-heading);
+    font-size: 32px;
+    font-weight: 700;
     color: var(--color-gold);
     min-width: 42px;
     text-align: center;
@@ -697,7 +681,7 @@
 
   .cta-title {
     font-family: var(--font-pixel);
-    font-size: clamp(18px, 2.4vw, 24px);
+    font-size: clamp(18px, 2.5vw, 26px);
     color: var(--color-text);
     line-height: 1.7;
     margin: 0 0 18px;
