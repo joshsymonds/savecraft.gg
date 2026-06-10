@@ -66,9 +66,9 @@ export default defineConfig({
     // any character > 255 in a Request header value).
     include: ["test/**/*.test.ts"],
     // testTimeout intentionally unset — uses vitest's 5s default.
-    // test/adapter-refresh-job.test.ts "respects batch limit" depends on
-    // this default (see comment at line 233 in that file). Bumping
-    // testTimeout would mask the bound it relies on.
+    // Slow tests get a PER-TEST timeout with a comment justifying it
+    // (see "respects batch limit" in test/adapter-refresh-job.test.ts);
+    // bumping the global would loosen the bound for every other test.
     //
     // v0.13.0+ removed `singleWorker` and `isolatedStorage` options. The new
     // pool runs ONE Miniflare per vitest process; cross-test isolation comes

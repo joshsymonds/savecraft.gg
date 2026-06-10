@@ -228,16 +228,19 @@ describe("Adapter Refresh Job", () => {
     expect(fetchStateCalls).toHaveLength(0);
   });
 
-  it("respects batch limit", async () => {
+  // 15s timeout: even the minimized error path (~2 D1 ops × 51 saves plus
+  // the seed batch) overruns vitest's 5s default intermittently — observed
+  // failing in ISOLATION 2026-06-10, so it's miniflare D1 latency, not
+  // shard contention. The timeout is not load-bearing for the assertion
+  // (fetchStateCalls.length counts LIMIT 50 directly); the global
+  // testTimeout stays unset so other tests keep the tight default.
+  it("respects batch limit", { timeout: 15_000 }, async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
     // The assertion is "fetchState was called at most 50 times" — purely a
     // SQL LIMIT 50 check on the source-selection query, NOT a test of the
     // success-path side effects (storePush, refresh_status='ok', etc).
     // Forcing fetchState to throw means refreshOneSave takes the error path
     // and skips storePush entirely (the most expensive per-save D1 work).
-    // Under sharded CPU contention from `just check`'s 6 parallel test
-    // recipes, the success path's 5+ D1 ops per save × 50 saves overruns
-    // the 5s testTimeout; the error path is ~2 ops per save and fits.
     fetchStateError = new AdapterError("api_unavailable", "batch-limit test");
     // Seed 51 saves — just enough rows to verify LIMIT 50 enforces.
     // Chunked into max-sized multi-row INSERTs (14 rows × 7 params = 98
