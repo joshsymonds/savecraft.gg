@@ -7,6 +7,7 @@ vi.mock("$env/static/public", () => ({
 }));
 
 import Page from "./+page.svelte";
+import { withCommander, withStandard } from "./demos";
 
 afterEach(cleanup);
 
@@ -88,5 +89,50 @@ describe("Magic landing page reframe", () => {
     const sources = container.querySelectorAll(".method-source");
     const texts = Array.from(sources).map((s) => s.textContent?.trim());
     expect(texts).toContain("EDHREC");
+  });
+
+  // ConversationDemo animates messages in after mount, so the "with Savecraft"
+  // answers never appear in jsdom — assert on the demo data directly.
+  it("recommends Standard-legal Sephiroth, not rotated Archfiend of the Dross", () => {
+    const answer = withStandard.map((m) => m.text).join(" ");
+    expect(answer).not.toContain("Archfiend of the Dross");
+    expect(answer).toContain("Sephiroth");
+  });
+
+  it("uses the evergreen rotation caption, not a dated one", () => {
+    const { container } = render(Page, { props: { data: { game: mockGame } } });
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("6 months ago");
+    expect(text).toContain("Stale training data");
+  });
+
+  it("makes no combo-database claims while combo ingest is broken", () => {
+    const { container } = render(Page, { props: { data: { game: mockGame } } });
+    const rendered = (container.textContent ?? "").replace(/\s+/g, " ");
+    const demoData = withCommander.map((m) => m.text).join(" ");
+    for (const text of [rendered, demoData]) {
+      expect(text).not.toContain("Chain Veil");
+      expect(text).not.toContain("combo lines");
+      expect(text).not.toContain("Dockside Extortionist");
+    }
+  });
+
+  it("contains no stale or fabricated 17Lands stats", () => {
+    const { container } = render(Page, { props: { data: { game: mockGame } } });
+    const text = container.textContent ?? "";
+    // Liliana/Elenda stale FDN numbers and Raphael's invented GIH WR
+    expect(text).not.toContain("63.6%");
+    expect(text).not.toContain("60.3%");
+    expect(text).not.toContain("52.3%");
+  });
+
+  it("uses at least 3 distinct section treatments", () => {
+    const { container } = render(Page, { props: { data: { game: mockGame } } });
+    const used = new Set(
+      ["plain", "tinted", "bleed"].filter(
+        (t) => container.querySelector(`.treatment-${t}`) !== null,
+      ),
+    );
+    expect(used.size).toBeGreaterThanOrEqual(3);
   });
 });

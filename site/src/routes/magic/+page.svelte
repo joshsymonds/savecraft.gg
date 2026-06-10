@@ -14,8 +14,9 @@
     ModuleBadge,
     ParticleField,
   } from "$lib/components/marketing";
-  import type { DemoMessage } from "$lib/components/marketing/types";
   import type { GameInfo } from "$lib/server/plugins";
+
+  import { withCommander, withoutCommander, withoutStandard, withStandard } from "./demos";
 
   let { data } = $props<{ data: { game: GameInfo } }>();
 
@@ -35,39 +36,6 @@
   ];
 
   let referenceModules = $derived(data.game.referenceModules);
-
-  // ── Before/After demo data ─────────────────────────────────
-  const withoutStandard = [
-    { role: "player" as const, text: "Should I craft Sheoldred for my mono-black deck?" },
-    {
-      role: "ai" as const,
-      text: "Sheoldred, the Apocalypse is a strong card in Standard. At 2BB, she provides card draw and life drain. Definitely worth crafting for mono-black.",
-    },
-  ];
-
-  const withStandard: DemoMessage[] = [
-    { role: "player", text: "Should I craft Sheoldred for my mono-black deck?" },
-    {
-      role: "ai",
-      text: "Can't -- Sheoldred rotated with Dominaria United, she's not Standard-legal. But Archfiend of the Dross does the same job in your list at 58.2% GIH WR. You're missing 2 copies, that's 2 rare wildcards. You have 4 in the bank.",
-    },
-  ];
-
-  const withoutCommander = [
-    { role: "player" as const, text: "Is my Atraxa superfriends deck missing anything?" },
-    {
-      role: "ai" as const,
-      text: "Your Atraxa deck looks solid -- lots of options for improvement depending on your playstyle. I'd suggest adding more planeswalkers and counters synergy.",
-    },
-  ];
-
-  const withCommander: DemoMessage[] = [
-    { role: "player", text: "Is my Atraxa superfriends deck missing anything?" },
-    {
-      role: "ai",
-      text: "58% overlap with EDHREC's Atraxa build. Missing 3 high-inclusion staples: Anointed Procession, Smothering Tithe, Doubling Season (all above 40% inclusion). Your 4 extras are off-meta but thematic. Combo search finds 2 infinite lines involving Atraxa + The Chain Veil -- neither in your list.",
-    },
-  ];
 </script>
 
 <svelte:head>
@@ -114,7 +82,7 @@
     <span class="proof-sep">*</span>
     <span class="proof-item">Frank Karsten mana base methodology</span>
     <span class="proof-sep">*</span>
-    <span class="proof-item">EDHREC Commander data + combos</span>
+    <span class="proof-item">EDHREC Commander data</span>
     <span class="proof-sep">*</span>
     <span class="proof-item">Scryfall + MTG Comprehensive Rules</span>
   </div>
@@ -124,7 +92,8 @@
     id="tools"
     eyebrow="EXPERT MODULES"
     title="Real data for every format."
-    subtitle="Every answer is grounded in real card data and published methodology."
+    subtitle="Every answer comes from real card data and published methodology."
+    treatment="tinted"
   >
     <div class="modules-grid">
       {#each referenceModules as mod (mod.name)}
@@ -140,7 +109,7 @@
   </MarketingSection>
 
   <!-- ═══ BEFORE / AFTER ═══ -->
-  <MarketingSection eyebrow="THE DIFFERENCE" title="What changes">
+  <MarketingSection eyebrow="THE DIFFERENCE" title="What changes" treatment="bleed">
     <!-- Standard / Arena pair -->
     <div class="compare-grid">
       <div class="compare-card compare-without">
@@ -161,7 +130,7 @@
           {/each}
         </div>
         <p class="compare-caption compare-caption-bad">
-          Sheoldred rotated out of Standard 6 months ago.
+          Sheoldred rotated out of Standard in 2025. Stale training data.
         </p>
       </div>
 
@@ -173,7 +142,7 @@
           startDelay={800}
         />
         <p class="compare-caption compare-caption-good">
-          Current Standard, your wildcards counted.
+          Current Standard legality. Your wildcards counted.
         </p>
       </div>
     </div>
@@ -218,9 +187,16 @@
   <MarketingSection
     eyebrow="HOW YOU USE IT"
     title="Coaches the game you're playing"
-    subtitle="The right coaching for whichever Magic you're playing right now."
+    subtitle="Draft, Constructed, or Commander -- the coaching follows your format."
+    treatment="plain"
   >
     <div class="modes-grid">
+      <!-- Facts verified 2026-06-10 against Savecraft's own modules: card_stats
+        (FDN: Liliana, Dreadhorde General 64.1% GIH WR, Elenda, Saint of Dusk
+        61.5%; TMT: Raphael, Tough Turtle 55.2% vs 56.6% set avg, WR IWD -2.4pp;
+        Everything Pizza 63.4%, IWD +10.7pp), card_search (Liliana costs 4BB),
+        commander_lookup (Korvold 19,882 decks; Dark Ritual synergy +25pp,
+        Ignoble Hierarch 64%, Sakura-Tribe Elder 48% inclusion). -->
       <ModeCard
         icon="*"
         label="DRAFT COACH"
@@ -232,7 +208,7 @@
           },
           {
             role: "ai",
-            text: "Liliana. 63.6% GIH WR vs Elenda's 60.3% -- that gap is too large to leave on the table at pick 15. Your archetype confidence is only 0.16, so pivoting to UB or Esper is wide open. The pivot model estimates ~5.4 acquirable black sources over 28 remaining picks. Prioritize black fixing next 3-4 picks.",
+            text: "Liliana. She beats Elenda 64.1% to 61.5% GIH WR and usually goes first pick. Double black on one source is fixable at pick 15: take the bomb, then grab black fixing over your next few picks.",
           },
         ]}
       />
@@ -247,7 +223,7 @@
           },
           {
             role: "ai",
-            text: "Cut Raphael, Tough Turtle. I know, he looks cool -- but 52.3% GIH WR and your pool only has 5 red sources for his RR cost. Karsten says you need 8 for on-curve. You're also short on removal (2 pieces vs the 4.6 winning decks average). Everything Pizza does more for this deck.",
+            text: "Cut Raphael, Tough Turtle. I know, he looks cool -- but he wins 55.2% of games in hand against a 56.6% set average, and in WR decks drawing him costs you 2.4 points of win rate. Everything Pizza is in your pool at 63.4% GIH WR, +10.7 points when you draw it. Run the pizza.",
           },
         ]}
       />
@@ -258,11 +234,11 @@
         examples={[
           {
             role: "player",
-            text: "Building Korvold -- what combos should I include?",
+            text: "Building Korvold -- what does everyone else run that I'm not?",
           },
           {
             role: "ai",
-            text: "Korvold has 12 popular combo lines on EDHREC, 4 with bracket score 4 (fast). Top-ranked: Dockside Extortionist + Temur Sabertooth (infinite mana, 3 pieces, 34% of Korvold decks run it). Food Chain + Squee combos out 2 separate lines. Your RBG identity supports all of them.",
+            text: "Out of 19,882 Korvold decks on EDHREC, the most-played card you're missing is Ignoble Hierarch (64%). The highest-synergy one is Dark Ritual -- it shows up 25 points more often in Korvold lists than in other Jund decks. And Sakura-Tribe Elder, sac fodder that replaces itself, is in nearly half of all lists.",
           },
         ]}
       />
@@ -273,15 +249,16 @@
   <MarketingSection
     eyebrow="HOW IT WORKS"
     title="Add Magic."
-    subtitle="Every Magic format answers expert questions immediately. Add Magic on the machine you play Arena on too, and your live game state comes along."
+    subtitle="Reference data answers immediately. Arena players get their live game state too."
+    treatment="tinted"
   >
     <div class="method-grid">
       <div class="method-item">
         <span class="method-source">Reference, immediately</span>
         <span class="method-desc">
-          Every Magic format answers the moment you add the game -- EDHREC combos for Commander,
-          17Lands stats for limited, Karsten's math for mana bases, plus the full Comprehensive
-          Rules behind everything.
+          Add the game and every format comes online -- EDHREC staples for Commander, 17Lands stats
+          for Limited, Karsten's math for mana bases, plus the full Comprehensive Rules behind
+          everything.
         </span>
       </div>
       <div class="method-item">
@@ -307,6 +284,7 @@
     eyebrow="METHODOLOGY"
     title="We show our work"
     subtitle="The same sources serious Magic players already trust."
+    treatment="plain"
   >
     <div class="method-grid">
       <div class="method-item">
@@ -328,9 +306,9 @@
       <div class="method-item">
         <span class="method-source">EDHREC</span>
         <span class="method-desc">
-          Aggregate Commander deck data: per-commander recommendation categories (staples, themes,
-          high-synergy cards), combo lines with bracket scores, average decklists, and
-          color-identity-subset filtering across thousands of unique commanders.
+          Aggregate Commander deck data from thousands of commanders: per-commander recommendations
+          (staples, themes, High Synergy cards) and average decklists, filterable by color-identity
+          subset.
         </span>
       </div>
       <div class="method-item">
@@ -685,7 +663,7 @@
 
   .cta-title {
     font-family: var(--font-pixel);
-    font-size: clamp(16px, 2.5vw, 22px);
+    font-size: clamp(18px, 2.5vw, 26px);
     color: var(--color-text);
     margin-bottom: 16px;
     line-height: 1.7;
