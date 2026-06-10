@@ -14,6 +14,7 @@
     ParticleField,
   } from "$lib/components/marketing";
   import type { DemoMessage } from "$lib/components/marketing/types";
+  import { jsonLd } from "$lib/jsonld";
 
   let { data } = $props<{ data: { availableGames: GameInfo[] } }>();
 
@@ -108,6 +109,31 @@
   />
   <meta property="og:url" content="https://savecraft.gg" />
   <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://savecraft.gg/og/home.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://savecraft.gg/og/home.png" />
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of static data, escaped in jsonLd() -->
+  {@html jsonLd({
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        name: "Savecraft",
+        url: "https://savecraft.gg",
+      },
+      {
+        "@type": "SoftwareApplication",
+        name: "Savecraft",
+        url: "https://savecraft.gg",
+        applicationCategory: "UtilitiesApplication",
+        operatingSystem: "Windows, macOS, Linux, Web",
+        description:
+          "Savecraft gives Claude and ChatGPT real game data on Magic, Path of Exile, Factorio, and more: rules, items, builds, economy. Plus live save state for supported games.",
+      },
+    ],
+  })}
 </svelte:head>
 
 <div class="page">

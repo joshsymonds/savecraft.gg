@@ -62,4 +62,21 @@ describe("Games listing structure", () => {
     const { getByText } = render(Page, { props: { data: { games: [limited] } } });
     expect(getByText("Collection not in log")).toBeInTheDocument();
   });
+
+  it("ships full social meta and an ItemList of games", () => {
+    render(Page, { props: { data: { games: [mockGame] } } });
+    expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe(
+      "https://savecraft.gg/og/games.png",
+    );
+    expect(document.head.querySelector('meta[property="og:url"]')?.getAttribute("content")).toBe(
+      "https://savecraft.gg/games",
+    );
+    expect(document.head.querySelector('meta[name="twitter:card"]')?.getAttribute("content")).toBe(
+      "summary_large_image",
+    );
+    const script = document.head.querySelector('script[type="application/ld+json"]');
+    const data = JSON.parse(script?.textContent ?? "{}");
+    expect(data["@type"]).toBe("CollectionPage");
+    expect(data.mainEntity.itemListElement[0].name).toBe("Magic: The Gathering");
+  });
 });

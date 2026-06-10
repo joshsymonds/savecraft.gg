@@ -14,6 +14,7 @@
     ModuleBadge,
     ParticleField,
   } from "$lib/components/marketing";
+  import { jsonLd } from "$lib/jsonld";
   import type { GameInfo } from "$lib/server/plugins";
 
   import { withoutPoB, withPoB } from "./demos";
@@ -51,6 +52,24 @@
   />
   <meta property="og:url" content="https://savecraft.gg/poe" />
   <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://savecraft.gg/og/poe.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://savecraft.gg/og/poe.png" />
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of static data, escaped in jsonLd() -->
+  {@html jsonLd({
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: "Path of Exile -- Build Planner for Claude & ChatGPT | Savecraft",
+    url: "https://savecraft.gg/poe",
+    description:
+      "GGG-approved account connect: your AI runs your live characters through the real Path of Building calc engine.",
+    about: {
+      "@type": "VideoGame",
+      name: "Path of Exile",
+    },
+  })}
 </svelte:head>
 
 <div class="page">

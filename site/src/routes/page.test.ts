@@ -99,6 +99,35 @@ describe("Marketing page", () => {
     expect(queryByText("AN IN-GAME MOD")).toBeNull();
   });
 
+  it("ships social meta pointing at the generated OG card", () => {
+    render(Page, { props: { data: mockData } });
+    expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe(
+      "https://savecraft.gg/og/home.png",
+    );
+    expect(
+      document.head.querySelector('meta[property="og:image:width"]')?.getAttribute("content"),
+    ).toBe("1200");
+    expect(
+      document.head.querySelector('meta[property="og:image:height"]')?.getAttribute("content"),
+    ).toBe("630");
+    expect(document.head.querySelector('meta[name="twitter:card"]')?.getAttribute("content")).toBe(
+      "summary_large_image",
+    );
+    expect(document.head.querySelector('meta[name="twitter:image"]')?.getAttribute("content")).toBe(
+      "https://savecraft.gg/og/home.png",
+    );
+  });
+
+  it("ships WebSite + SoftwareApplication JSON-LD", () => {
+    render(Page, { props: { data: mockData } });
+    const script = document.head.querySelector('script[type="application/ld+json"]');
+    expect(script).not.toBeNull();
+    const data = JSON.parse(script?.textContent ?? "{}");
+    const types = data["@graph"].map((n: { "@type": string }) => n["@type"]);
+    expect(types).toContain("WebSite");
+    expect(types).toContain("SoftwareApplication");
+  });
+
   it("uses at least 3 distinct section treatments", () => {
     const { container } = render(Page, { props: { data: mockData } });
     const used = new Set(

@@ -126,6 +126,17 @@ describe("Magic landing page reframe", () => {
     expect(text).not.toContain("52.3%");
   });
 
+  it("ships social meta and JSON-LD pointing at the magic OG card", () => {
+    render(Page, { props: { data: { game: mockGame } } });
+    expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe(
+      "https://savecraft.gg/og/magic.png",
+    );
+    expect(document.head.querySelector('meta[name="twitter:card"]')?.getAttribute("content")).toBe(
+      "summary_large_image",
+    );
+    expect(document.head.querySelector('script[type="application/ld+json"]')).not.toBeNull();
+  });
+
   it("uses at least 3 distinct section treatments", () => {
     const { container } = render(Page, { props: { data: { game: mockGame } } });
     const used = new Set(

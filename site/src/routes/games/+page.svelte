@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import { ModuleBadge } from "$lib/components/marketing";
+  import { jsonLd } from "$lib/jsonld";
   import type { GameInfo } from "./+page.server.ts";
 
   let { data } = $props<{ data: { games: GameInfo[] } }>();
@@ -34,6 +35,33 @@
     name="description"
     content="Every game Savecraft supports for Claude and ChatGPT, with each card showing how the game connects."
   />
+  <meta property="og:title" content="Supported Games - Savecraft" />
+  <meta
+    property="og:description"
+    content="Every game Savecraft supports for Claude and ChatGPT, with each card showing how the game connects."
+  />
+  <meta property="og:url" content="https://savecraft.gg/games" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://savecraft.gg/og/games.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://savecraft.gg/og/games.png" />
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of manifest data, escaped in jsonLd() -->
+  {@html jsonLd({
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Supported Games - Savecraft",
+    url: "https://savecraft.gg/games",
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: data.games.map((g: GameInfo, i: number) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: g.name,
+      })),
+    },
+  })}
 </svelte:head>
 
 <div class="page">

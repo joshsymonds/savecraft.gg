@@ -315,6 +315,13 @@ jobs:
         run: npm ci
         working-directory: site
 
+      # OG cards are generated fresh on every build (output is gitignored,
+      # same rule as views.gen.ts). ubuntu-latest ships google-chrome, which
+      # generate-og.mjs finds via its executable-path fallbacks.
+      - name: Generate OG cards
+        run: npm run generate-og
+        working-directory: site
+
       - name: Build
         run: npm run build
         working-directory: site

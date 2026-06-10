@@ -80,6 +80,17 @@ describe("PoE landing page", () => {
     expect(text).toContain("Ashes of the Stars");
   });
 
+  it("ships social meta and JSON-LD pointing at the poe OG card", () => {
+    render(Page, { props: { data: { game: mockGame } } });
+    expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe(
+      "https://savecraft.gg/og/poe.png",
+    );
+    expect(document.head.querySelector('meta[name="twitter:card"]')?.getAttribute("content")).toBe(
+      "summary_large_image",
+    );
+    expect(document.head.querySelector('script[type="application/ld+json"]')).not.toBeNull();
+  });
+
   it("tree audit swap arithmetic is stated correctly", () => {
     const { container } = render(Page, { props: { data: { game: mockGame } } });
     const text = container.textContent ?? "";
