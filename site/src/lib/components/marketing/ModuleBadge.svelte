@@ -13,8 +13,9 @@
 <style>
   .badge {
     display: inline-block;
-    font-family: var(--font-pixel);
-    font-size: 8px;
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 600;
     letter-spacing: 1.5px;
     padding: 3px 8px;
     border-radius: 2px;

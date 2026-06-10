@@ -16,10 +16,9 @@
     /** Optional HTML id for anchor links (e.g. id="how" for #how). */
     id?: string;
     /**
-     * Evolved visual system. Omitted = legacy rendering (pixel title,
-     * transparent background) so unmigrated pages are untouched.
-     * - plain: evolved type on the page background
-     * - tinted: evolved type on a soft navy band
+     * Section background treatment.
+     * - plain: type on the page background (default)
+     * - tinted: soft navy band
      * - bleed: full-width spotlight with gold-tinged glow, for the one
      *   section per page that deserves emphasis
      */
@@ -27,7 +26,15 @@
     children?: Snippet;
   }
 
-  let { eyebrow, title, subtitle, eyebrowColor, id, treatment, children }: Props = $props();
+  let {
+    eyebrow,
+    title,
+    subtitle,
+    eyebrowColor,
+    id,
+    treatment = "plain",
+    children,
+  }: Props = $props();
 
   let sectionEl: HTMLElement | undefined = $state();
   let visible = $state(false);
@@ -49,7 +56,6 @@
 
 <section
   class="section"
-  class:evolved={treatment !== undefined}
   class:treatment-plain={treatment === "plain"}
   class:treatment-tinted={treatment === "tinted"}
   class:treatment-bleed={treatment === "bleed"}
@@ -96,38 +102,26 @@
     text-transform: uppercase;
   }
 
-  .section-title {
-    font-family: var(--font-pixel);
-    font-size: clamp(14px, 2vw, 20px);
-    color: var(--color-text);
-    line-height: 1.7;
-    margin-bottom: 16px;
-  }
-
-  .section-sub {
-    font-family: var(--font-heading);
-    font-size: 15px;
-    font-weight: 400;
-    color: var(--color-text-dim);
-    max-width: 720px;
-    margin-bottom: 40px;
-    line-height: 1.6;
-  }
-
-  /* ── Evolved system ──────────────────────────────────────
-     Display-scale Chakra Petch titles; pixel font stays reserved
+  /* Display-scale Chakra Petch titles; pixel font stays reserved
      for hero h1 and the final CTA at the page level. */
-  .evolved .section-title {
+  .section-title {
     font-family: var(--font-heading);
     font-size: var(--text-display);
     font-weight: 700;
+    color: var(--color-text);
     letter-spacing: 0.5px;
     line-height: 1.15;
     margin-bottom: 18px;
   }
 
-  .evolved .section-sub {
+  .section-sub {
+    font-family: var(--font-heading);
     font-size: 17px;
+    font-weight: 400;
+    color: var(--color-text-dim);
+    max-width: 720px;
+    margin-bottom: 40px;
+    line-height: 1.6;
   }
 
   .treatment-tinted {

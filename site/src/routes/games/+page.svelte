@@ -139,10 +139,10 @@
 
   .page-title {
     font-family: var(--font-pixel);
-    font-size: clamp(14px, 2vw, 20px);
+    font-size: clamp(18px, 2.5vw, 26px);
     color: var(--color-text);
     line-height: 1.7;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
   }
 
   .page-subtitle {
@@ -279,8 +279,9 @@
   }
 
   .badge {
-    font-family: var(--font-pixel);
-    font-size: 8px;
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 600;
     letter-spacing: 1.5px;
     padding: 3px 8px;
     border-radius: 2px;
@@ -336,10 +337,11 @@
 
   .modules-label {
     display: block;
-    font-family: var(--font-pixel);
-    font-size: 8px;
+    font-family: var(--font-heading);
+    font-size: 12px;
+    font-weight: 600;
     color: var(--color-gold);
-    letter-spacing: 2px;
+    letter-spacing: 2.5px;
     margin-bottom: 10px;
   }
 
@@ -386,10 +388,11 @@
 
   .limitations-label {
     display: block;
-    font-family: var(--font-pixel);
-    font-size: 8px;
+    font-family: var(--font-heading);
+    font-size: 12px;
+    font-weight: 600;
     color: var(--color-text-muted);
-    letter-spacing: 2px;
+    letter-spacing: 2.5px;
     margin-bottom: 8px;
   }
 

@@ -47,3 +47,19 @@ describe("Games listing module badges", () => {
     expect(row?.textContent).toContain("INSTANT");
   });
 });
+
+describe("Games listing structure", () => {
+  it("renders a card per game and links migrated game pages", () => {
+    const second = { ...mockGame, gameId: "poe", name: "Path of Exile" };
+    const { container } = render(Page, { props: { data: { games: [mockGame, second] } } });
+    expect(container.querySelectorAll(".game-card")).toHaveLength(2);
+    expect(container.querySelector('a[href="/magic"]')).not.toBeNull();
+    expect(container.querySelector('a[href="/poe"]')).not.toBeNull();
+  });
+
+  it("renders limitations when the manifest lists them", () => {
+    const limited = { ...mockGame, limitations: ["Collection not in log"] };
+    const { getByText } = render(Page, { props: { data: { games: [limited] } } });
+    expect(getByText("Collection not in log")).toBeInTheDocument();
+  });
+});

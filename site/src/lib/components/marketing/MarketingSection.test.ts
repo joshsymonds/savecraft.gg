@@ -20,22 +20,20 @@ describe("MarketingSection", () => {
     expect(getByText("Test subtitle text")).toBeInTheDocument();
   });
 
-  it("renders legacy styling when no treatment is given", () => {
+  it("defaults to the plain treatment when none is given", () => {
     const { container } = render(MarketingSection, {
       props: { eyebrow: "E", title: "T" },
     });
-    expect(container.querySelector(".evolved")).toBeNull();
-    expect(container.querySelector("[class*='treatment-']")).toBeNull();
+    expect(container.querySelector(".treatment-plain")).not.toBeNull();
   });
 
   it.each(["plain", "tinted", "bleed"] as const)(
-    "treatment=%s applies its treatment class and the evolved class",
+    "treatment=%s applies its treatment class",
     (treatment) => {
       const { container } = render(MarketingSection, {
         props: { eyebrow: "E", title: "T", treatment },
       });
       expect(container.querySelector(`.treatment-${treatment}`)).not.toBeNull();
-      expect(container.querySelector(".evolved")).not.toBeNull();
     },
   );
 

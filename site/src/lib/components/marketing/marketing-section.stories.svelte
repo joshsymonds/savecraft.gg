@@ -11,24 +11,7 @@
 
 <Story name="Default">
   <MarketingSection eyebrow="HOW IT WORKS" title="Three steps. Zero config.">
-    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 40px;">
-      {#each ["Install", "Parse", "Ask"] as step, i (step)}
-        <div
-          style="padding: 28px 24px; background: linear-gradient(135deg, #0a0e2e 0%, #111b47 50%, #0a0e2e 100%); border: 1px solid var(--color-border); border-radius: 4px;"
-        >
-          <div
-            style="font-family: var(--font-heading); font-size: 36px; font-weight: 700; color: var(--color-border); opacity: 0.2; margin-bottom: 16px;"
-          >
-            0{i + 1}
-          </div>
-          <div
-            style="font-family: var(--font-heading); font-size: 16px; font-weight: 600; color: var(--color-text); letter-spacing: 2px;"
-          >
-            {step.toUpperCase()}
-          </div>
-        </div>
-      {/each}
-    </div>
+    {@render demoCards()}
   </MarketingSection>
 </Story>
 
@@ -38,26 +21,11 @@
     title="Companion and optimizer"
     subtitle="Your AI reads the same game state either way. You decide where it goes."
   >
-    <div
-      style="padding: 24px; background: linear-gradient(135deg, #0a0e2e 0%, #111b47 50%, #0a0e2e 100%); border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-dim); font-family: var(--font-heading);"
-    >
-      Slotted content goes here
-    </div>
-  </MarketingSection>
-</Story>
-
-<Story name="EvolvedPlain">
-  <MarketingSection
-    eyebrow="THE DIFFERENCE"
-    title="What changes"
-    subtitle="Evolved type scale on the page background. Section title is Chakra Petch at display size — the pixel font stays reserved for the hero and final CTA."
-    treatment="plain"
-  >
     {@render demoCards()}
   </MarketingSection>
 </Story>
 
-<Story name="EvolvedTinted">
+<Story name="Tinted">
   <MarketingSection
     eyebrow="EXPERT MODULES"
     title="Real data for every format"
@@ -68,7 +36,7 @@
   </MarketingSection>
 </Story>
 
-<Story name="EvolvedBleed">
+<Story name="Bleed">
   <MarketingSection
     eyebrow="THE DIFFERENCE"
     title="Full-bleed spotlight"
@@ -79,32 +47,14 @@
   </MarketingSection>
 </Story>
 
-<Story name="CurrentVsEvolved">
-  <div style="border-bottom: 2px dashed var(--color-border);">
-    <p
-      style="text-align:center; padding-top: 24px; font-family: var(--font-heading); color: var(--color-text-muted); letter-spacing: 2px;"
-    >
-      CURRENT (LEGACY)
-    </p>
-    <MarketingSection
-      eyebrow="HOW IT WORKS"
-      title="Add a game."
-      subtitle="Every supported game answers expert questions immediately. Some games can also bring your live characters and saves into the conversation."
-    >
-      {@render demoCards()}
-    </MarketingSection>
-  </div>
-  <p
-    style="text-align:center; padding-top: 24px; font-family: var(--font-heading); color: var(--color-text-muted); letter-spacing: 2px;"
-  >
-    EVOLVED
-  </p>
-  <MarketingSection
-    eyebrow="HOW IT WORKS"
-    title="Add a game."
-    subtitle="Every supported game answers expert questions immediately. Some games can also bring your live characters and saves into the conversation."
-    treatment="tinted"
-  >
+<Story name="AllTreatments">
+  <MarketingSection eyebrow="PLAIN" title="Plain section">
+    {@render demoCards()}
+  </MarketingSection>
+  <MarketingSection eyebrow="TINTED" title="Tinted section" treatment="tinted">
+    {@render demoCards()}
+  </MarketingSection>
+  <MarketingSection eyebrow="BLEED" title="Bleed section" treatment="bleed">
     {@render demoCards()}
   </MarketingSection>
 </Story>
@@ -123,7 +73,7 @@
         <p
           style="font-family: var(--font-heading); font-size: 15px; color: var(--color-text-dim); line-height: 1.6; margin-top: 12px;"
         >
-          Every answer is grounded in real game data, updated every patch.
+          Every answer comes from real game data, updated every patch.
         </p>
       </div>
     {/each}
