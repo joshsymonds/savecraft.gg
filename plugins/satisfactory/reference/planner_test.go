@@ -27,6 +27,16 @@ func machineEntry(t *testing.T, plan map[string]any, recipeFragment string) map[
 
 func near(a, b float64) bool { return math.Abs(a-b) < 0.01 }
 
+// num extracts a float64 field, failing the test on type mismatch.
+func num(t *testing.T, m map[string]any, key string) float64 {
+	t.Helper()
+	f, ok := m[key].(float64)
+	if !ok {
+		t.Fatalf("%s = %v (%T), want float64", key, m[key], m[key])
+	}
+	return f
+}
+
 // Hand-verified: 10/min Iron Plate = 0.5 constructors (20/min each),
 // 15/min iron ingots = 0.5 smelters (30/min each), 15/min iron ore raw.
 // Power: 0.5*4MW + 0.5*4MW = 4MW.
@@ -34,23 +44,23 @@ func TestPlanIronPlate(t *testing.T) {
 	plan := planQuery(t, map[string]any{"item": "Iron Plate", "rate": 10.0})
 
 	plates := machineEntry(t, plan, "Recipe_IronPlate_C")
-	if !near(plates["machines"].(float64), 0.5) {
+	if !near(num(t, plates, "machines"), 0.5) {
 		t.Errorf("plate machines = %v, want 0.5", plates["machines"])
 	}
 	if plates["building"] != "Constructor" {
 		t.Errorf("building = %v", plates["building"])
 	}
 	ingots := machineEntry(t, plan, "Recipe_IngotIron_C")
-	if !near(ingots["machines"].(float64), 0.5) {
+	if !near(num(t, ingots, "machines"), 0.5) {
 		t.Errorf("ingot machines = %v, want 0.5", ingots["machines"])
 	}
 
 	raws, _ := plan["rawResources"].([]map[string]any)
 	ore := findEntry(raws, "name", "Iron Ore")
-	if ore == nil || !near(ore["perMinute"].(float64), 15) {
+	if ore == nil || !near(num(t, ore, "perMinute"), 15) {
 		t.Errorf("raw ore = %v, want 15/min", raws)
 	}
-	if !near(plan["totalPowerMW"].(float64), 4) {
+	if !near(num(t, plan, "totalPowerMW"), 4) {
 		t.Errorf("totalPowerMW = %v, want 4", plan["totalPowerMW"])
 	}
 }
@@ -63,12 +73,12 @@ func TestPlanReinforcedIronPlateAggregatesSharedDemand(t *testing.T) {
 	plan := planQuery(t, map[string]any{"item": "Reinforced Iron Plate", "rate": 5.0})
 
 	ingots := machineEntry(t, plan, "Recipe_IngotIron_C")
-	if !near(ingots["machines"].(float64), 2.0) {
+	if !near(num(t, ingots, "machines"), 2.0) {
 		t.Errorf("ingot machines = %v, want 2.0 (aggregated across plate+rod branches)", ingots["machines"])
 	}
 	raws, _ := plan["rawResources"].([]map[string]any)
 	ore := findEntry(raws, "name", "Iron Ore")
-	if ore == nil || !near(ore["perMinute"].(float64), 60) {
+	if ore == nil || !near(num(t, ore, "perMinute"), 60) {
 		t.Errorf("ore = %v, want 60/min", raws)
 	}
 }
@@ -77,7 +87,8 @@ func TestPlanReinforcedIronPlateAggregatesSharedDemand(t *testing.T) {
 // explicit recipes override forces a specific recipe.
 func TestPlanAlternateSelection(t *testing.T) {
 	base := planQuery(t, map[string]any{"item": "Iron Plate", "rate": 10.0})
-	for _, m := range base["machinesByRecipe"].([]map[string]any) {
+	machines, _ := base["machinesByRecipe"].([]map[string]any)
+	for _, m := range machines {
 		if m["alternate"] == true {
 			t.Errorf("default plan used alternate %v", m["recipeClassName"])
 		}
@@ -144,7 +155,7 @@ func TestPlanFluidChain(t *testing.T) {
 	plan := planQuery(t, map[string]any{"item": "Desc_Plastic_C", "rate": 30.0})
 	raws, _ := plan["rawResources"].([]map[string]any)
 	oil := findEntry(raws, "name", "Crude Oil")
-	if oil == nil || !near(oil["perMinute"].(float64), 45) {
+	if oil == nil || !near(num(t, oil, "perMinute"), 45) {
 		t.Errorf("crude oil = %v, want 45 m3/min", raws)
 	}
 	byproducts, _ := plan["byproducts"].([]map[string]any)
