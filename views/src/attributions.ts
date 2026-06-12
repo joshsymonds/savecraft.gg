@@ -28,6 +28,12 @@ export const SOURCES: Record<string, Attribution> = {
       "Not produced by, endorsed by, supported by, or affiliated with 17Lands, LLC. \u00a9 17Lands, LLC.",
     url: "https://www.17lands.com",
   },
+  coffeestain: {
+    name: "Coffee Stain Studios",
+    disclaimer:
+      "Satisfactory® and related trademarks are trademarks or registered trademarks of Coffee Stain Studios AB. Game data from the official community resources. Not produced by, endorsed by, supported by, or affiliated with Coffee Stain Studios AB.",
+    url: "https://www.coffeestainstudios.com",
+  },
   blizzard: {
     name: "Blizzard Entertainment",
     disclaimer:
