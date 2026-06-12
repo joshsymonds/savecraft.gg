@@ -29,7 +29,7 @@
   onMount(() => {
     if (reducedMotion) return;
     const start = performance.now();
-    const duration = 500;
+    const duration = 650;
     let raf;
     const tick = (now) => {
       const t = Math.min((now - start) / duration, 1);
@@ -164,7 +164,7 @@
 
       <div class="mock-table">
         {#each staggerRows as row, i}
-          <div class="mock-row" style="animation-delay: {i * 55}ms">
+          <div class="mock-row" style="animation-delay: {i * 75}ms">
             <span class="row-name">{row.name}</span>
             <span class="row-source">{row.source}</span>
             <span class="row-odds">{row.odds}</span>
@@ -178,6 +178,23 @@
 
 <style>
   /* ════ Story-scoped treatments — Layer 1/2/3 candidates ════ */
+
+  /* ── Unified enter: the view animates as ONE unit ──
+     Panel and Section each ship their own enter animation today, so the
+     interior visibly slides into an already-landed frame. Suppress the
+     children's animations and let the outer panel carry the whole card. */
+  .flair-mock :global(.section) {
+    animation: none;
+  }
+
+  .flair-mock :global(.panel:not(.nested):not(.compact)) {
+    animation: panel-enter-unified 550ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  @keyframes panel-enter-unified {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 
   /* ── Scanline overlay on panels (CRT texture) ── */
   .flair-mock :global(.panel)::after {
@@ -321,7 +338,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-xl);
-    animation: verdict-land 450ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+    animation: verdict-land 550ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
   }
 
   .verdict-spacer { height: var(--space-lg); }
@@ -344,7 +361,7 @@
     box-shadow:
       0 0 16px color-mix(in srgb, var(--color-gold) 40%, transparent),
       inset 0 0 12px color-mix(in srgb, var(--color-gold) 25%, transparent);
-    animation: stamp-land 350ms cubic-bezier(0.2, 0.9, 0.3, 1.4) 150ms both;
+    animation: stamp-land 450ms cubic-bezier(0.2, 0.9, 0.3, 1.4) 200ms both;
   }
 
   .verdict-stamp.grade-b {
@@ -421,7 +438,7 @@
     gap: var(--space-md);
     padding: var(--space-sm) var(--space-sm);
     border-bottom: 1px solid color-mix(in srgb, var(--color-border) 30%, transparent);
-    animation: row-in 320ms ease-out both;
+    animation: row-in 420ms ease-out both;
     transition: background 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
     cursor: pointer;
   }
