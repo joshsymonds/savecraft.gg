@@ -374,15 +374,21 @@ func creditExisting(plan map[string]any, query map[string]any) {
 		if !ok {
 			continue
 		}
-		path, _ := entry["recipeClassPath"].(string)
-		count, _ := entry["machines"].(float64)
-		if path != "" {
+		path, pathOK := entry["recipeClassPath"].(string)
+		count, countOK := entry["machines"].(float64)
+		if pathOK && countOK && path != "" {
 			existing[shortClass(path)] = count
 		}
 	}
-	machines, _ := plan["machinesByRecipe"].([]map[string]any)
+	machines, machinesOK := plan["machinesByRecipe"].([]map[string]any)
+	if !machinesOK {
+		return
+	}
 	for _, m := range machines {
-		class, _ := m["recipeClassName"].(string)
+		class, classOK := m["recipeClassName"].(string)
+		if !classOK {
+			continue
+		}
 		if have, ok := existing[class]; ok {
 			m["existingMachines"] = have
 		}
