@@ -33,6 +33,30 @@
     "darwin": ""
   },
   "version": "dev",
-  "sha256": "8eb6a19fad8d991876ba2935b6de6bcd2ba74eeda40c68a1cffc1afcd5862078",
-  "url": "plugins/satisfactory/parser.wasm"
+  "sha256": "c89ea216cb2ac43e17a8b11a3b05db5b7829760d8e5b9095139eccb9ab8cc07e",
+  "url": "plugins/satisfactory/parser.wasm",
+  "reference": {
+    "sha256": "8200d3414e276c71055aadfdcd61af683956540e69fd0ad4a9cf645b2242b526",
+    "url": "plugins/satisfactory/reference.wasm",
+    "modules": {
+      "recipe_lookup": {
+        "name": "Recipe \u0026 Item Lookup",
+        "description": "Look up any Satisfactory item, recipe, or production building by name. Returns exact ingredients, products, per-minute rates at 100% clock, craft duration, which buildings run it, alternate-recipe flags, and milestone unlock tiers. Use proactively for ANY question about what makes what, ratios, or building stats — prevents hallucinated recipe data.",
+        "parameters": {
+          "building": {
+            "description": "Production building name — returns power, fuels, extraction rate, and runnable recipes (e.g. 'Constructor')",
+            "type": "string"
+          },
+          "item": {
+            "description": "Item name or class — returns the item plus recipes producing and consuming it (e.g. 'Iron Plate')",
+            "type": "string"
+          },
+          "recipe": {
+            "description": "Recipe name or class — returns ingredients, products, rates, buildings (e.g. 'Pure Aluminum Ingot')",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
 }
