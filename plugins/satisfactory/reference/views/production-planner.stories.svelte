@@ -547,6 +547,48 @@
     }} />
 </Story>
 
+<Story name="GameModePlan">
+  <ProductionPlanner data={{
+      icon_url,
+      "byproducts": [],
+      "gameMode": {
+        "energyCostMultiplier": 0.5,
+        "partsCostMultiplier": 1.5
+      },
+      "machinesByRecipe": [
+        {
+          "alternate": false,
+          "building": "Smelter",
+          "machines": 1.67,
+          "machinesCeil": 2,
+          "powerMW": 3.33,
+          "recipe": "Iron Ingot",
+          "recipeClassName": "Recipe_IngotIron_C"
+        },
+        {
+          "alternate": false,
+          "building": "Constructor",
+          "machines": 1,
+          "machinesCeil": 1,
+          "powerMW": 2,
+          "recipe": "Iron Plate",
+          "recipeClassName": "Recipe_IronPlate_C"
+        }
+      ],
+      "ratePerMinute": 20,
+      "rawResources": [
+        {
+          "className": "Desc_OreIron_C",
+          "name": "Iron Ore",
+          "perMinute": 100
+        }
+      ],
+      "target": "Iron Plate",
+      "targetClassName": "Desc_IronPlate_C",
+      "totalPowerMW": 5.33
+    }} />
+</Story>
+
 <Story name="EmptyPlan">
   <ProductionPlanner data={{
     icon_url,

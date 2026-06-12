@@ -37,6 +37,10 @@
       rawResources: AmountEntry[];
       byproducts: AmountEntry[];
       totalPowerMW: number;
+      gameMode?: {
+        partsCostMultiplier?: number;
+        energyCostMultiplier?: number;
+      };
       icon_url?: string;
     };
   }
@@ -90,6 +94,16 @@
       <Stat label="Power" value={`${data.totalPowerMW} MW`} />
       <Stat label="Raw inputs" value={String(data.rawResources.length)} />
     </div>
+    {#if data.gameMode}
+      <div class="chips game-mode">
+        {#if data.gameMode.partsCostMultiplier !== undefined}
+          <Tag label={`Game Mode: parts cost ×${data.gameMode.partsCostMultiplier}`} variant="warning" />
+        {/if}
+        {#if data.gameMode.energyCostMultiplier !== undefined}
+          <Tag label={`Game Mode: power use ×${data.gameMode.energyCostMultiplier}`} variant="warning" />
+        {/if}
+      </div>
+    {/if}
   </Section>
 
   <Section title="Machines by recipe">
@@ -133,7 +147,9 @@
     New machine counts assume 100% clock and no somersloops; Build rounds up
     to whole machines. {#if hasExisting}Have is your current capacity for that
     recipe in 100%-clock machine equivalents, from your actual clocks and
-    somersloops — it may already be feeding other consumers.{/if}
+    somersloops — it may already be feeding other consumers.
+    {/if}{#if data.gameMode}Your session's Game Mode multipliers are already
+    applied to all rates and power above.{/if}
   </p>
   </div>
 </Panel>
@@ -155,6 +171,10 @@
     display: flex;
     gap: var(--space-2, 0.5rem);
     flex-wrap: wrap;
+  }
+
+  .game-mode {
+    margin-top: var(--space-3, 0.75rem);
   }
 
   .empty {

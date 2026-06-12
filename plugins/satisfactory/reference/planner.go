@@ -17,11 +17,46 @@ const (
 	demandEpsilon     = 1e-9
 )
 
-// planContext carries recipe-selection policy through the expansion.
+// planContext carries recipe-selection policy and the session's Game Mode
+// economy multipliers (1.2+) through the expansion.
 type planContext struct {
 	useAlternates string            // "none" (default), "unlocked", "all"
 	unlocked      map[string]bool   // recipe class -> unlocked alternate
 	overrides     map[string]string // item class -> forced recipe class
+	partsMult     float64           // Recipe Parts Cost Multiplier, 1.0 = vanilla
+	energyMult    float64           // Power Consumption Multiplier, 1.0 = vanilla
+}
+
+// scaledIngredient applies the parts cost multiplier the way the game does:
+// per ingredient, rounded half-up (FMath::RoundToInt — observed in-game:
+// 1.5x turns 3 into 5 and 1 into 2; 1.25x leaves 1 at 1). Fluid amounts are
+// stored in liters, where the rounding is a no-op, so one rule covers both.
+func (ctx planContext) scaledIngredient(amount int) float64 {
+	if ctx.partsMult == 1 {
+		return float64(amount)
+	}
+	return math.Round(float64(amount) * ctx.partsMult)
+}
+
+// gameModeMultipliers reads the injected game_overview section's gameMode.
+// Absent section, key, or value means vanilla (1.0).
+func gameModeMultipliers(query map[string]any) (parts, energy float64) {
+	parts, energy = 1, 1
+	overview, ok := query["game_overview"].(map[string]any)
+	if !ok {
+		return parts, energy
+	}
+	gm, ok := overview["gameMode"].(map[string]any)
+	if !ok {
+		return parts, energy
+	}
+	if v, ok := gm["partsCostMultiplier"].(float64); ok && v > 0 {
+		parts = v
+	}
+	if v, ok := gm["energyCostMultiplier"].(float64); ok && v > 0 {
+		energy = v
+	}
+	return parts, energy
 }
 
 // productionPlanner expands a target item + rate into the full production
@@ -46,6 +81,7 @@ func productionPlanner(query map[string]any) (map[string]any, error) {
 		unlocked:      unlockedAlternates(query),
 		overrides:     recipeOverrides(query),
 	}
+	ctx.partsMult, ctx.energyMult = gameModeMultipliers(query)
 	if ctx.useAlternates == "" {
 		ctx.useAlternates = "none"
 	}
@@ -261,7 +297,7 @@ func expand(target string, rate float64, ctx planContext) (map[string]any, error
 		node.machines += machines
 
 		for _, ing := range recipe.Ingredients {
-			demand[ing.ItemClass] += float64(ing.Amount) * 60 / recipe.DurationSec * machines
+			demand[ing.ItemClass] += ctx.scaledIngredient(ing.Amount) * 60 / recipe.DurationSec * machines
 		}
 		for _, p := range recipe.Products {
 			if p.ItemClass != itemClass {
@@ -270,12 +306,13 @@ func expand(target string, rate float64, ctx planContext) (map[string]any, error
 		}
 	}
 
-	return renderPlan(target, rate, planned, raw, byproducts), nil
+	return renderPlan(target, rate, planned, raw, byproducts, ctx), nil
 }
 
 func renderPlan(
 	target string, rate float64,
 	planned map[string]*recipeNode, raw, byproducts map[string]float64,
+	ctx planContext,
 ) map[string]any {
 	classes := make([]string, 0, len(planned))
 	for c := range planned {
@@ -296,7 +333,7 @@ func renderPlan(
 		}
 		if building := primaryBuilding(node.recipe); building != nil {
 			entry["building"] = building.DisplayName
-			power := building.PowerMW * node.machines
+			power := building.PowerMW * node.machines * ctx.energyMult
 			entry["powerMW"] = round2(power)
 			totalPower += power
 		}
@@ -306,7 +343,13 @@ func renderPlan(
 		machines = append(machines, entry)
 	}
 
-	return map[string]any{
+	notes := "New-machine counts assume 100% clock and no somersloops; machinesCeil " +
+		"rounds up. existingCapacity is the player's current throughput for that " +
+		"recipe in 100%-clock machine equivalents (actual clocks × somersloops), " +
+		"though it is likely already feeding other consumers. Re-plan with the " +
+		"recipes parameter ({itemClass: recipeClass}) to use an alternate."
+
+	plan := map[string]any{
 		"target":           itemName(target),
 		"targetClassName":  target,
 		"ratePerMinute":    rate,
@@ -314,12 +357,21 @@ func renderPlan(
 		"rawResources":     amountList(raw),
 		"byproducts":       amountList(byproducts),
 		"totalPowerMW":     round2(totalPower),
-		"notes": "New-machine counts assume 100% clock and no somersloops; machinesCeil " +
-			"rounds up. existingCapacity is the player's current throughput for that " +
-			"recipe in 100%-clock machine equivalents (actual clocks × somersloops), " +
-			"though it is likely already feeding other consumers. Re-plan with the " +
-			"recipes parameter ({itemClass: recipeClass}) to use an alternate.",
 	}
+	if ctx.partsMult != 1 || ctx.energyMult != 1 {
+		gm := map[string]any{}
+		if ctx.partsMult != 1 {
+			gm["partsCostMultiplier"] = ctx.partsMult
+		}
+		if ctx.energyMult != 1 {
+			gm["energyCostMultiplier"] = ctx.energyMult
+		}
+		plan["gameMode"] = gm
+		notes += " This session uses 1.2 Game Mode multipliers (see gameMode); ingredient " +
+			"amounts and power above already reflect them — vanilla ratios do not apply."
+	}
+	plan["notes"] = notes
+	return plan
 }
 
 func primaryBuilding(r data.Recipe) *data.Building {

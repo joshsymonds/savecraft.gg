@@ -128,6 +128,85 @@ func TestPlanUnlockedAlternatesListed(t *testing.T) {
 	}
 }
 
+// The 1.2 "Recipe Parts Cost Multiplier" scales ingredient amounts only,
+// rounded half-up per ingredient (in-game observed: 1.5x Iron Plate needs
+// 5 ingots for 4.5; 1.5x Iron Ingot needs 2 ore for 1.5). Products and
+// durations are untouched. For 20 plates/min at 1.5x:
+//
+//	1 plate constructor consumes 5*60/6 = 50 ingots/min (vanilla 30)
+//	ingot smelters consume 2*60/2 = 60 ore/min each (vanilla 30)
+//	-> ore = 50/30 machines * 60 = 100/min (vanilla 30)
+func TestPlanPartsCostMultiplier(t *testing.T) {
+	plan := planQuery(t, map[string]any{
+		"item": "Desc_IronPlate_C", "rate": 20.0,
+		"game_overview": map[string]any{
+			"gameMode": map[string]any{"partsCostMultiplier": 1.5},
+		},
+	})
+	raws, _ := plan["rawResources"].([]map[string]any)
+	ore := findEntry(raws, "className", "Desc_OreIron_C")
+	if ore == nil || !near(num(t, ore, "perMinute"), 100) {
+		t.Errorf("iron ore = %v, want 100/min", raws)
+	}
+	// Products are not scaled: 20 plates/min is still exactly one machine.
+	plates := machineEntry(t, plan, "Recipe_IronPlate_C")
+	if !near(num(t, plates, "machines"), 1) {
+		t.Errorf("plate machines = %v, want 1", plates["machines"])
+	}
+	gm, _ := plan["gameMode"].(map[string]any)
+	if gm == nil || gm["partsCostMultiplier"] != 1.5 {
+		t.Errorf("plan should echo applied multipliers, got %v", plan["gameMode"])
+	}
+}
+
+// Fluid ingredients scale too (1.2.3.0 patch note); amounts are liters so
+// integer rounding is a no-op. Plastic at 1.5x: 4500 L oil per cycle ->
+// 45 m3/min per refinery, 30 plastic/min = 1.5 refineries = 67.5 m3/min.
+func TestPlanPartsCostMultiplierFluids(t *testing.T) {
+	plan := planQuery(t, map[string]any{
+		"item": "Desc_Plastic_C", "rate": 30.0,
+		"game_overview": map[string]any{
+			"gameMode": map[string]any{"partsCostMultiplier": 1.5},
+		},
+	})
+	raws, _ := plan["rawResources"].([]map[string]any)
+	oil := findEntry(raws, "name", "Crude Oil")
+	if oil == nil || !near(num(t, oil, "perMinute"), 67.5) {
+		t.Errorf("crude oil = %v, want 67.5 m3/min", raws)
+	}
+}
+
+// The "Power Consumption Multiplier" scales building draw only. Iron Plate
+// 20/min vanilla: 1 constructor (4MW) + 1 smelter (4MW) = 8MW; at 0.5x -> 4.
+func TestPlanEnergyCostMultiplier(t *testing.T) {
+	plan := planQuery(t, map[string]any{
+		"item": "Desc_IronPlate_C", "rate": 20.0,
+		"game_overview": map[string]any{
+			"gameMode": map[string]any{"energyCostMultiplier": 0.5},
+		},
+	})
+	if !near(num(t, plan, "totalPowerMW"), 4) {
+		t.Errorf("totalPowerMW = %v, want 4", plan["totalPowerMW"])
+	}
+	plates := machineEntry(t, plan, "Recipe_IronPlate_C")
+	if !near(num(t, plates, "powerMW"), 2) {
+		t.Errorf("plate powerMW = %v, want 2", plates["powerMW"])
+	}
+}
+
+// Without an injected save the plan assumes vanilla and echoes nothing.
+func TestPlanNoGameModeEcho(t *testing.T) {
+	plan := planQuery(t, map[string]any{"item": "Desc_IronPlate_C", "rate": 20.0})
+	if _, ok := plan["gameMode"]; ok {
+		t.Errorf("vanilla plan should not echo gameMode: %v", plan["gameMode"])
+	}
+	raws, _ := plan["rawResources"].([]map[string]any)
+	ore := findEntry(raws, "className", "Desc_OreIron_C")
+	if ore == nil || !near(num(t, ore, "perMinute"), 30) {
+		t.Errorf("vanilla iron ore = %v, want 30/min", raws)
+	}
+}
+
 // Existing capacity from the production_summary section is credited in
 // 100%-clock machine equivalents (clock × somersloop boost), not raw
 // machine count: 3 machines at 150% clock = 4.5.
