@@ -83,6 +83,7 @@
 </script>
 
 <Panel>
+  <div class="plan-layout">
   <Section title={`${data.target} — ${data.ratePerMinute}/min`}>
     <div class="stats">
       <Stat label="Machines" value={String(totalMachines)} />
@@ -131,9 +132,16 @@
   {#if data.notes}
     <p class="notes">{data.notes}</p>
   {/if}
+  </div>
 </Panel>
 
 <style>
+  .plan-layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl);
+  }
+
   .stats {
     display: flex;
     gap: var(--space-6, 1.5rem);
