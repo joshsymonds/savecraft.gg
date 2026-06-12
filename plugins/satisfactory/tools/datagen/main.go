@@ -225,11 +225,16 @@ func (g *generator) items() {
 	b.WriteString("var Items = map[string]Item{\n")
 	for _, c := range sortedByClassName(all) {
 		className := field(c, "ClassName")
+		extra := ""
+		if waste := shortClassName(field(c, "mSpentFuelClass")); waste != "" {
+			extra = fmt.Sprintf(", WasteClass: %q, WasteAmount: %d",
+				waste, intField(c, "mAmountOfWaste"))
+		}
 		fmt.Fprintf(&b,
-			"\t%q: {ClassName: %q, DisplayName: %q, Form: %q, StackSize: %q, EnergyMJ: %v, SinkPoints: %d, Raw: %v},\n",
+			"\t%q: {ClassName: %q, DisplayName: %q, Form: %q, StackSize: %q, EnergyMJ: %v, SinkPoints: %d, Raw: %v%s},\n",
 			className, className, field(c, "mDisplayName"), field(c, "mForm"),
 			field(c, "mStackSize"), floatField(c, "mEnergyValue"),
-			intField(c, "mResourceSinkPoints"), raws[className])
+			intField(c, "mResourceSinkPoints"), raws[className], extra)
 		g.itemCount++
 	}
 	b.WriteString("}\n")
@@ -281,9 +286,10 @@ func (g *generator) buildings() {
 			}
 			line := fmt.Sprintf(
 				"\t%q: {ClassName: %q, DisplayName: %q, Kind: %q, PowerMW: %v, PowerProductionMW: %v, "+
-					"FuelClasses: %s, ItemsPerCycle: %d, ExtractCycleSec: %v},\n",
+					"FuelClasses: %s, SupplementalRatio: %v, ItemsPerCycle: %d, ExtractCycleSec: %v},\n",
 				className, className, field(c, "mDisplayName"), n.kind, power,
 				floatField(c, "mPowerProduction"), stringsGo(fuels),
+				floatField(c, "mSupplementalToPowerRatio"),
 				intField(c, "mItemsPerCycle"), floatField(c, "mExtractCycleTime"))
 			rows = append(rows, row{className, line})
 			g.buildingCount++

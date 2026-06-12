@@ -33,6 +33,9 @@ type Item struct {
 	// Raw marks world-extracted resources (FGResourceDescriptor): ores,
 	// water, oil, gases. Production planning stops at these.
 	Raw bool
+	// Nuclear fuels: the waste item and amount left after burning one unit.
+	WasteClass  string
+	WasteAmount int
 }
 
 // Building covers production machines, extractors, and generators.
@@ -48,6 +51,10 @@ type Building struct {
 	PowerProductionMW float64
 	// FuelClasses lists burnable fuel item classes (generators).
 	FuelClasses []string
+	// SupplementalRatio drives supplemental (water) consumption:
+	// m3/min = PowerProductionMW * SupplementalRatio * 60 / 1000.
+	// Verified: coal 75MW*10 -> 45 m3/min; nuclear 2500MW*1.6 -> 240 m3/min.
+	SupplementalRatio float64
 	// Extractors: items per cycle and cycle seconds; rate/min at 100% clock
 	// = ItemsPerCycle * 60 / ExtractCycleSec.
 	ItemsPerCycle   int

@@ -50,6 +50,20 @@ func main() {
 			os.Exit(1)
 		}
 		writeResult(enc, result)
+	case "milestone_navigator":
+		result, err := milestoneNavigator(query)
+		if err != nil {
+			writeError(enc, "invalid_query", err.Error())
+			os.Exit(1)
+		}
+		writeResult(enc, result)
+	case "power_calculator":
+		result, err := powerCalculator(query)
+		if err != nil {
+			writeError(enc, "invalid_query", err.Error())
+			os.Exit(1)
+		}
+		writeResult(enc, result)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -104,6 +118,41 @@ func schema() map[string]any {
 					"building": map[string]any{
 						"type":        "string",
 						"description": "Production building name — returns power, fuels, extraction rate, and runnable recipes (e.g. 'Constructor')",
+					},
+				},
+			},
+			"milestone_navigator": map[string]any{
+				"name": "Milestone Navigator",
+				"description": "Tier and milestone progression: list a tier's milestones with exact costs and " +
+					"recipe unlocks, look up a milestone by name, or (with save_id) compute every remaining " +
+					"milestone to a target tier with cumulative item costs.",
+				"parameters": map[string]any{
+					"tier": map[string]any{
+						"type": "number", "description": "List this tier's milestones with costs and unlocks",
+					},
+					"milestone": map[string]any{
+						"type": "number", "description": "Milestone name or class to look up (e.g. 'Oil Processing')",
+					},
+					"to_tier": map[string]any{
+						"type": "number",
+						"description": "Compute remaining milestones and cumulative costs up to this " +
+							"tier (pass save_id to exclude already-purchased ones)",
+					},
+					"progression": map[string]any{
+						"type": "object", "description": "Player progression (injected when save_id is present)",
+					},
+				},
+			},
+			"power_calculator": map[string]any{
+				"name": "Power Calculator",
+				"description": "Size a generator farm for a target megawatt figure: generator counts, fuel burn " +
+					"per minute for every accepted fuel, supplemental water, and nuclear waste output.",
+				"parameters": map[string]any{
+					"target_mw": map[string]any{
+						"type": "number", "required": true, "description": "Target power output in MW",
+					},
+					"generator": map[string]any{
+						"type": "string", "description": "Restrict to one generator type (e.g. 'Coal', 'Nuclear')",
 					},
 				},
 			},
