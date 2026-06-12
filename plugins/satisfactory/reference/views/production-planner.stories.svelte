@@ -10,10 +10,12 @@
 
   // All story data is REAL production_planner output captured from the
   // module against the generated game data tables.
+  const icon_url = "/plugins/satisfactory/icon.png";
 </script>
 
 <Story name="SmallPlan">
   <ProductionPlanner data={{
+      icon_url,
       "byproducts": [],
       "machinesByRecipe": [
         {
@@ -52,6 +54,7 @@
 
 <Story name="SaveAwarePlan">
   <ProductionPlanner data={{
+      icon_url,
       "byproducts": [],
       "machinesByRecipe": [
         {
@@ -95,6 +98,7 @@
 
 <Story name="DeepEndgamePlan">
   <ProductionPlanner data={{
+      icon_url,
       "byproducts": [
         {
           "className": "Desc_LiquidFuel_C",
@@ -548,6 +552,7 @@
 
 <Story name="EmptyPlan">
   <ProductionPlanner data={{
+    icon_url,
     target: "Iron Plate",
     ratePerMinute: 0,
     machinesByRecipe: [],

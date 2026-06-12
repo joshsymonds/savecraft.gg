@@ -38,6 +38,7 @@
       byproducts: AmountEntry[];
       totalPowerMW: number;
       notes?: string;
+      icon_url?: string;
     };
   }
 
@@ -82,7 +83,7 @@
   }
 </script>
 
-<Panel>
+<Panel watermark={data.icon_url}>
   <div class="plan-layout">
   <Section title={`${data.target} — ${data.ratePerMinute}/min`}>
     <div class="stats">
