@@ -231,7 +231,8 @@ func (g *generator) items() {
 				waste, intField(c, "mAmountOfWaste"))
 		}
 		fmt.Fprintf(&b,
-			"\t%q: {ClassName: %q, DisplayName: %q, Form: %q, StackSize: %q, EnergyMJ: %v, SinkPoints: %d, Raw: %v%s},\n",
+			"\t%q: {ClassName: %q, DisplayName: %q, Form: %q, StackSize: %q, "+
+				"EnergyMJ: %v, SinkPoints: %d, Raw: %v%s},\n",
 			className, className, field(c, "mDisplayName"), field(c, "mForm"),
 			field(c, "mStackSize"), floatField(c, "mEnergyValue"),
 			intField(c, "mResourceSinkPoints"), raws[className], extra)
