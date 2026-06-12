@@ -59,7 +59,7 @@
         {
           "alternate": false,
           "building": "Smelter",
-          "existingMachines": 2,
+          "existingCapacity": 4.5,
           "machines": 5,
           "machinesCeil": 5,
           "powerMW": 20,
@@ -69,7 +69,7 @@
         {
           "alternate": false,
           "building": "Constructor",
-          "existingMachines": 3,
+          "existingCapacity": 3,
           "machines": 5,
           "machinesCeil": 5,
           "powerMW": 20,

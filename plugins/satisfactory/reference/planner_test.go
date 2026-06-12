@@ -128,23 +128,28 @@ func TestPlanUnlockedAlternatesListed(t *testing.T) {
 	}
 }
 
-// Existing machines from the production_summary section are credited.
-func TestPlanExistingMachinesCredit(t *testing.T) {
+// Existing capacity from the production_summary section is credited in
+// 100%-clock machine equivalents (clock × somersloop boost), not raw
+// machine count: 3 machines at 150% clock = 4.5.
+func TestPlanExistingCapacityCredit(t *testing.T) {
 	plan := planQuery(t, map[string]any{
 		"item": "Iron Plate", "rate": 100.0,
 		"production_summary": map[string]any{
 			"byRecipe": []any{
 				map[string]any{
-					"recipeClassPath": "/Game/X/Recipe_IronPlate.Recipe_IronPlate_C",
-					"machines":        float64(3),
-					"totalClock":      float64(3),
+					"recipeClassPath":   "/Game/X/Recipe_IronPlate.Recipe_IronPlate_C",
+					"machines":          float64(3),
+					"effectiveCapacity": float64(4.5),
 				},
 			},
 		},
 	})
 	plates := machineEntry(t, plan, "Recipe_IronPlate_C")
-	if plates["existingMachines"] != 3.0 {
-		t.Errorf("existingMachines = %v, want 3", plates["existingMachines"])
+	if plates["existingCapacity"] != 4.5 {
+		t.Errorf("existingCapacity = %v, want 4.5", plates["existingCapacity"])
+	}
+	if _, ok := plates["existingMachines"]; ok {
+		t.Errorf("existingMachines should be replaced by existingCapacity: %v", plates)
 	}
 }
 

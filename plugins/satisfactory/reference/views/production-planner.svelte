@@ -25,7 +25,7 @@
     machines: number;
     machinesCeil: number;
     powerMW?: number;
-    existingMachines?: number;
+    existingCapacity?: number;
     unlockedAlternates?: string[];
   }
 
@@ -46,7 +46,7 @@
   const totalMachines = $derived(
     data.machinesByRecipe.reduce((sum, m) => sum + m.machinesCeil, 0),
   );
-  const hasExisting = $derived(data.machinesByRecipe.some((m) => m.existingMachines !== undefined));
+  const hasExisting = $derived(data.machinesByRecipe.some((m) => m.existingCapacity !== undefined));
   const alternateHints = $derived(
     data.machinesByRecipe.filter((m) => (m.unlockedAlternates ?? []).length > 0),
   );
@@ -69,8 +69,8 @@
       machines: { value: m.machines.toFixed(2), sortValue: m.machines },
       ceil: m.machinesCeil,
       existing:
-        m.existingMachines !== undefined
-          ? { value: m.existingMachines, variant: "positive" as const }
+        m.existingCapacity !== undefined
+          ? { value: m.existingCapacity, variant: "positive" as const }
           : { value: "—", sortValue: 0 },
       power: m.powerMW !== undefined ? { value: m.powerMW.toFixed(1), sortValue: m.powerMW } : "—",
     })),
@@ -130,8 +130,10 @@
   {/if}
 
   <p class="notes">
-    Assumes 100% clock speed and no somersloops. Build counts round the exact
-    machine requirement up to whole machines.
+    New machine counts assume 100% clock and no somersloops; Build rounds up
+    to whole machines. {#if hasExisting}Have is your current capacity for that
+    recipe in 100%-clock machine equivalents, from your actual clocks and
+    somersloops — it may already be feeding other consumers.{/if}
   </p>
   </div>
 </Panel>

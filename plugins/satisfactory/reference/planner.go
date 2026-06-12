@@ -314,9 +314,11 @@ func renderPlan(
 		"rawResources":     amountList(raw),
 		"byproducts":       amountList(byproducts),
 		"totalPowerMW":     round2(totalPower),
-		"notes": "Rates assume 100% clock and no somersloops. Machine counts are exact; " +
-			"machinesCeil rounds up. Re-plan with the recipes parameter " +
-			"({itemClass: recipeClass}) to use an alternate.",
+		"notes": "New-machine counts assume 100% clock and no somersloops; machinesCeil " +
+			"rounds up. existingCapacity is the player's current throughput for that " +
+			"recipe in 100%-clock machine equivalents (actual clocks × somersloops), " +
+			"though it is likely already feeding other consumers. Re-plan with the " +
+			"recipes parameter ({itemClass: recipeClass}) to use an alternate.",
 	}
 }
 
@@ -357,8 +359,10 @@ func amountList(m map[string]float64) []map[string]any {
 	return out
 }
 
-// creditExisting annotates plan entries with machines the player already
-// has, from the injected production_summary section.
+// creditExisting annotates plan entries with the capacity the player
+// already has, from the injected production_summary section. Capacity is
+// in 100%-clock machine equivalents (Σ clock × somersloop boost), so it
+// compares directly against the plan's machine counts.
 func creditExisting(plan map[string]any, query map[string]any) {
 	summary, ok := query["production_summary"].(map[string]any)
 	if !ok {
@@ -375,9 +379,9 @@ func creditExisting(plan map[string]any, query map[string]any) {
 			continue
 		}
 		path, pathOK := entry["recipeClassPath"].(string)
-		count, countOK := entry["machines"].(float64)
-		if pathOK && countOK && path != "" {
-			existing[shortClass(path)] = count
+		capacity, capacityOK := entry["effectiveCapacity"].(float64)
+		if pathOK && capacityOK && path != "" {
+			existing[shortClass(path)] = capacity
 		}
 	}
 	machines, machinesOK := plan["machinesByRecipe"].([]map[string]any)
@@ -390,7 +394,7 @@ func creditExisting(plan map[string]any, query map[string]any) {
 			continue
 		}
 		if have, ok := existing[class]; ok {
-			m["existingMachines"] = have
+			m["existingCapacity"] = have
 		}
 	}
 }
