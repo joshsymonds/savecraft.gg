@@ -36,9 +36,45 @@
   "sha256": "c89ea216cb2ac43e17a8b11a3b05db5b7829760d8e5b9095139eccb9ab8cc07e",
   "url": "plugins/satisfactory/parser.wasm",
   "reference": {
-    "sha256": "8200d3414e276c71055aadfdcd61af683956540e69fd0ad4a9cf645b2242b526",
+    "sha256": "19df3c6b91124e9a67093c29b6aa78a37555fe93944d482ff6820d8aafe0d37e",
     "url": "plugins/satisfactory/reference.wasm",
     "modules": {
+      "production_planner": {
+        "name": "Production Planner",
+        "description": "Plan a full Satisfactory production chain: target item and rate per minute returns machine counts per recipe, raw ore/fluid requirements, byproducts, and total power draw. Pass save_id to plan with the player's actual unlocked alternate recipes and see which machines they already have. Use for any 'how do I make N per minute of X' or factory scaling question.",
+        "parameters": {
+          "item": {
+            "description": "Target item name or class (e.g. 'Reinforced Iron Plate')",
+            "required": true,
+            "type": "string"
+          },
+          "production_summary": {
+            "description": "Player's machines per recipe (injected from save data when save_id is present)",
+            "type": "object"
+          },
+          "progression": {
+            "description": "Player progression (injected from save data when save_id is present) — unlocked alternate schematics",
+            "type": "object"
+          },
+          "rate": {
+            "description": "Target output in items per minute (m3 per minute for fluids)",
+            "required": true,
+            "type": "number"
+          },
+          "recipes": {
+            "description": "Force specific recipes: map of item class to recipe class (e.g. {\"Desc_IronPlate_C\": \"Recipe_Alternate_CoatedIronPlate_C\"})",
+            "type": "object"
+          },
+          "use_alternates": {
+            "description": "'none' (default, base recipes only), 'unlocked' (use save data), or 'all'",
+            "type": "string"
+          }
+        },
+        "section_mappings": {
+          "production_summary": "production_summary",
+          "progression": "progression"
+        }
+      },
       "recipe_lookup": {
         "name": "Recipe \u0026 Item Lookup",
         "description": "Look up any Satisfactory item, recipe, or production building by name. Returns exact ingredients, products, per-minute rates at 100% clock, craft duration, which buildings run it, alternate-recipe flags, and milestone unlock tiers. Use proactively for ANY question about what makes what, ratios, or building stats — prevents hallucinated recipe data.",

@@ -43,6 +43,13 @@ func main() {
 			os.Exit(1)
 		}
 		writeResult(enc, result)
+	case "production_planner":
+		result, err := productionPlanner(query)
+		if err != nil {
+			writeError(enc, "invalid_query", err.Error())
+			os.Exit(1)
+		}
+		writeResult(enc, result)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -97,6 +104,39 @@ func schema() map[string]any {
 					"building": map[string]any{
 						"type":        "string",
 						"description": "Production building name — returns power, fuels, extraction rate, and runnable recipes (e.g. 'Constructor')",
+					},
+				},
+			},
+			"production_planner": map[string]any{
+				"name": "Production Planner",
+				"description": "Plan a full production chain: target item + rate per minute returns machines per " +
+					"recipe (exact and rounded up), raw resource totals, byproducts, and total power draw. " +
+					"Pass save_id to list YOUR unlocked alternate recipes per step and credit machines you " +
+					"already have. Use the recipes parameter to re-plan with a specific (alternate) recipe.",
+				"parameters": map[string]any{
+					"item": map[string]any{
+						"type": "string", "required": true,
+						"description": "Target item name or class (e.g. 'Reinforced Iron Plate')",
+					},
+					"rate": map[string]any{
+						"type": "number", "required": true,
+						"description": "Target output in items per minute (m3 per minute for fluids)",
+					},
+					"use_alternates": map[string]any{
+						"type":        "string",
+						"description": "'none' (default, base recipes only), 'unlocked' (use save data), or 'all'",
+					},
+					"recipes": map[string]any{
+						"type":        "object",
+						"description": "Force specific recipes: map of item class to recipe class (e.g. {\"Desc_IronPlate_C\": \"Recipe_Alternate_CoatedIronPlate_C\"})",
+					},
+					"progression": map[string]any{
+						"type":        "object",
+						"description": "Player progression (injected from save data when save_id is present) — unlocked alternate schematics",
+					},
+					"production_summary": map[string]any{
+						"type":        "object",
+						"description": "Player's machines per recipe (injected from save data when save_id is present)",
 					},
 				},
 			},

@@ -30,6 +30,9 @@ type Item struct {
 	StackSize   string // SS_ONE/SMALL/MEDIUM/BIG/HUGE/FLUID
 	EnergyMJ    float64
 	SinkPoints  int
+	// Raw marks world-extracted resources (FGResourceDescriptor): ores,
+	// water, oil, gases. Production planning stops at these.
+	Raw bool
 }
 
 // Building covers production machines, extractors, and generators.

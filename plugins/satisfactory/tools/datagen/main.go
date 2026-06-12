@@ -213,6 +213,10 @@ func (g *generator) items() {
 		"FGVehicleDescriptor", "FGConsumableEquipment", "FGEquipmentStunSpear",
 		"FGEquipmentZipline",
 	}
+	raws := map[string]bool{}
+	for _, c := range g.byNative["FGResourceDescriptor"] {
+		raws[field(c, "ClassName")] = true
+	}
 	var all []map[string]json.RawMessage
 	for _, native := range itemNatives {
 		all = append(all, g.byNative[native]...)
@@ -222,10 +226,10 @@ func (g *generator) items() {
 	for _, c := range sortedByClassName(all) {
 		className := field(c, "ClassName")
 		fmt.Fprintf(&b,
-			"\t%q: {ClassName: %q, DisplayName: %q, Form: %q, StackSize: %q, EnergyMJ: %v, SinkPoints: %d},\n",
+			"\t%q: {ClassName: %q, DisplayName: %q, Form: %q, StackSize: %q, EnergyMJ: %v, SinkPoints: %d, Raw: %v},\n",
 			className, className, field(c, "mDisplayName"), field(c, "mForm"),
 			field(c, "mStackSize"), floatField(c, "mEnergyValue"),
-			intField(c, "mResourceSinkPoints"))
+			intField(c, "mResourceSinkPoints"), raws[className])
 		g.itemCount++
 	}
 	b.WriteString("}\n")
