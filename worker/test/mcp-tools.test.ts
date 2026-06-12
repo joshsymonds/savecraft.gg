@@ -2092,8 +2092,8 @@ describe("MCP Tools", () => {
           setup: string;
         }[];
       };
-      // All 8 embedded manifests returned, sorted alphabetically by name
-      expect(data.games).toHaveLength(9);
+      // All embedded manifests returned, sorted alphabetically by name
+      expect(data.games).toHaveLength(10);
       const names = data.games.map((g) => g.name);
       expect(names).toContain("Diablo II: Resurrected");
       expect(names).toContain("RimWorld");
@@ -2124,8 +2124,8 @@ describe("MCP Tools", () => {
     it("games category returns all embedded manifests", async () => {
       const result = await getInfo(env, USER_A, "games");
       const data = parseResult(result) as { games: { game_id: string }[] };
-      // All 8 embedded manifests are always present
-      expect(data.games).toHaveLength(9);
+      // All embedded manifests are always present
+      expect(data.games).toHaveLength(10);
       const gameIds = data.games.map((g) => g.game_id).toSorted((a, b) => a.localeCompare(b));
       expect(gameIds).toEqual([
         "clair-obscur",
@@ -2134,6 +2134,7 @@ describe("MCP Tools", () => {
         "magic",
         "poe",
         "rimworld",
+        "satisfactory",
         "sdv",
         "stellaris",
         "wow",

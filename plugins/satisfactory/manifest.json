@@ -1,0 +1,38 @@
+{
+  "game_id": "satisfactory",
+  "sources": [
+    "wasm"
+  ],
+  "icon": "",
+  "name": "Satisfactory",
+  "description": "Parses .sav save files: factory machines, production, power, storage, trains, progression",
+  "channel": "alpha",
+  "coverage": "partial",
+  "file_extensions": [
+    ".sav"
+  ],
+  "exclude_dirs": [
+    "SaveGames_backup",
+    "ServerLocalCache"
+  ],
+  "homepage": "https://savecraft.gg/plugins/satisfactory",
+  "limitations": [
+    "Saves from game version 1.0 onward only (save version 46+)",
+    "Per-minute production rates are theoretical pending recipe reference data; the save stores measured productivity percentages, not item rates",
+    "Resource node types and purities require static map reference data",
+    "Modded buildings and machines added after game 1.2 are not extracted",
+    "Blueprint designer contents are not parsed"
+  ],
+  "author": {
+    "name": "Josh Symonds",
+    "github": "joshsymonds"
+  },
+  "default_paths": {
+    "windows": "%LOCALAPPDATA%/FactoryGame/Saved/SaveGames/*",
+    "linux": "~/.steam/steam/steamapps/compatdata/526870/pfx/drive_c/users/steamuser/AppData/Local/FactoryGame/Saved/SaveGames/*",
+    "darwin": ""
+  },
+  "version": "dev",
+  "sha256": "8eb6a19fad8d991876ba2935b6de6bcd2ba74eeda40c68a1cffc1afcd5862078",
+  "url": "plugins/satisfactory/parser.wasm"
+}

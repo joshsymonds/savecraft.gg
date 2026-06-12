@@ -179,6 +179,15 @@ The Clair Obscur plugin uses a shared GVAS parser (`plugins/gvas/`) that handles
 
 Clair Obscur has no reference modules yet. Damage formulas and item categorization are planned.
 
+## Satisfactory
+
+**Source:** WASM plugin — parses `.sav` files (Unreal Engine save: header + zlib-chunked object graph)
+**Status:** Alpha
+
+The Satisfactory plugin streams the save's compressed object graph — late-game saves decompress to 500MB+, so the parser never materializes the body, holding peak heap under a few MB even for megafactories with 400k objects. It class-filters the actor/component table of contents and decodes UE tagged properties in both serialization formats (legacy tags and UE5 1012+ complete-type-name trees), then emits nine sections: `game_overview` (session, playtime, build, space elevator status), `progression` (current tier, milestones per tier, active milestone, MAM research, AWESOME shop, alternate recipes, space elevator phase), `player` (inventory, equipment, position), `machines` (manufacturers grouped by building + recipe + clock speed with measured productivity from the save's rolling window, extractors by type), `production_summary` (per-recipe machine counts and total clock multipliers — per-minute rates await recipe reference data), `power` (circuits, generators by type and fuel, battery charge), `storage` (per-item totals across containers, dimensional depot contents), `logistics` (trains with player-named stations, timetables, drones with port tags, road vehicles), and `resource_nodes` (occupied sources by extractor type).
+
+Identity is keyed by session name, so the game's rotating autosaves map onto one logical save. Saves from game version 1.0 through 1.2 parse; older saves produce a clear unsupported-version error.
+
 ## Stellaris
 
 **Source:** Rust WASM plugin — parses `.sav` files (ZIP containing Clausewitz-format `meta` + `gamestate`)
