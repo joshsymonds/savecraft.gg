@@ -8,6 +8,7 @@
 <script lang="ts">
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import Stat from "../../../../views/src/components/data/Stat.svelte";
+  import Verdict from "../../../../views/src/components/data/Verdict.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
   import RankedList from "../../../../views/src/components/data/RankedList.svelte";
   import BarChart from "../../../../views/src/components/charts/BarChart.svelte";
@@ -162,6 +163,21 @@
 
   let totalProblems = $derived(data.summary.critical + data.summary.severe + data.summary.moderate);
 
+  // Hero verdict: endgame crisis trumps everything, then worst severity tier
+  let verdict = $derived.by(() => {
+    const s = data.summary;
+    const sub = totalProblems > 0
+      ? `${totalProblems} problem${totalProblems === 1 ? "" : "s"} across ${5 - s.healthy_dimensions} dimension${5 - s.healthy_dimensions === 1 ? "" : "s"}`
+      : "All five dimensions clear";
+    if (data.threats.crisis_active) {
+      return { value: "Crisis Active", sub: data.threats.crisis_type ?? sub, stamp: "!", variant: "negative" as const };
+    }
+    if (s.critical > 0) return { value: "Empire Critical", sub, stamp: "!", variant: "negative" as const };
+    if (s.severe > 0) return { value: "Needs Attention", sub, stamp: undefined, variant: "warning" as const };
+    if (s.moderate > 0) return { value: "Minor Issues", sub, stamp: undefined, variant: "info" as const };
+    return { value: "Empire Healthy", sub, stamp: undefined, variant: "positive" as const };
+  });
+
   let economyProblems = $derived(data.economy.problems.filter((p) => p.severity !== "healthy"));
 
   let resourceOverview = $derived(
@@ -208,6 +224,13 @@
       title="Empire Health"
       accent={totalProblems === 0 ? "var(--color-positive)" : data.summary.critical > 0 ? "var(--color-negative)" : "var(--color-warning)"}
     >
+      <Verdict
+        value={verdict.value}
+        caption="Empire Status"
+        sub={verdict.sub}
+        stamp={verdict.stamp}
+        variant={verdict.variant}
+      />
       <div class="hero-row">
         <Stat value={data.summary.critical} label="Critical" variant={data.summary.critical > 0 ? "negative" : "muted"} />
         <Stat value={data.summary.severe} label="Severe" variant={data.summary.severe > 0 ? "warning" : "muted"} />

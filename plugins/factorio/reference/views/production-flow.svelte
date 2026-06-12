@@ -9,8 +9,8 @@
 -->
 <script lang="ts">
   import Badge from "../../../../views/src/components/data/Badge.svelte";
-  import Stat from "../../../../views/src/components/data/Stat.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
+  import Verdict from "../../../../views/src/components/data/Verdict.svelte";
   import ProgressRing from "../../../../views/src/components/charts/ProgressRing.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
@@ -130,11 +130,29 @@
       title="Factory Diagnosis"
       accent={data.summary.bottleneck_count > 0 ? data.summary.critical_count > 0 ? "var(--color-negative)" : "var(--color-warning)" : "var(--color-positive)"}
     >
-      <div class="hero-row">
-        <Stat value={data.summary.bottleneck_count} label="Bottlenecks" variant={data.summary.bottleneck_count > 0 ? "negative" : "positive"} />
-        <Stat value={data.summary.active_count} label="Active Items" variant="muted" />
-        <Stat value={data.summary.critical_count} label="Critical" variant={data.summary.critical_count > 0 ? "negative" : "muted"} />
-      </div>
+      {#if data.summary.critical_count > 0}
+        <Verdict
+          value="Factory Stalled"
+          caption="Factory Status"
+          sub="{data.summary.critical_count} critical bottleneck{data.summary.critical_count === 1 ? '' : 's'} · {data.summary.active_count} active items"
+          stamp="!"
+          variant="negative"
+        />
+      {:else if data.summary.bottleneck_count > 0}
+        <Verdict
+          value="{data.summary.bottleneck_count} Bottleneck{data.summary.bottleneck_count === 1 ? '' : 's'}"
+          caption="Factory Status"
+          sub="{data.summary.active_count} active items"
+          variant="warning"
+        />
+      {:else}
+        <Verdict
+          value="Factory Healthy"
+          caption="Factory Status"
+          sub="{data.summary.active_count} active items, no deficits"
+          variant="positive"
+        />
+      {/if}
     </Section>
 
     {#if data.bottlenecks.length > 0}
@@ -292,7 +310,6 @@
 
 <style>
   .flow-layout { display: flex; flex-direction: column; gap: 24px; }
-  .hero-row { display: flex; gap: var(--space-xl); justify-content: center; padding: var(--space-sm) 0; }
   .card-list { display: flex; flex-direction: column; gap: var(--space-sm); }
 
   /* ── Card title ── */

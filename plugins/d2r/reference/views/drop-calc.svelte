@@ -9,6 +9,7 @@
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
+  import Verdict from "../../../../views/src/components/data/Verdict.svelte";
   import CardGrid from "../../../../views/src/components/layout/CardGrid.svelte";
   import CollapseToggle from "../../../../views/src/components/layout/CollapseToggle.svelte";
 
@@ -173,6 +174,17 @@
     })),
   );
 
+  // Best source for the hero verdict — highest drop chance in the data
+  let bestSource = $derived.by(() => {
+    if (!data.sources?.length) return undefined;
+    return data.sources.reduce((best, s) => (s.chance > best.chance ? s : best));
+  });
+
+  let verdictVariant = $derived.by(() => {
+    const v = qualityVariant(data.quality ?? "unique");
+    return (v === "muted" ? "common" : v) as "legendary" | "positive" | "rare" | "info" | "common";
+  });
+
   let sourceContext = $derived.by(() => {
     const parts: { key: string; value: string }[] = [];
     if (data.item_base) parts.push({ key: "Base item", value: data.item_base });
@@ -285,6 +297,14 @@
       {/snippet}
 
       <div class="mode-layout">
+        {#if bestSource}
+          <Verdict
+            value={fmtChance(bestSource.chance)}
+            caption="Best Source"
+            sub="{bestSource.monster} ({bestSource.difficulty}) — {bestSource.area}"
+            variant={verdictVariant}
+          />
+        {/if}
         <KeyValue items={sourceContext} columns={2} />
         <DataTable columns={sourceColumns} rows={sourceRows} sortKey="chance" sortDir="desc" />
         {#if showingRange}

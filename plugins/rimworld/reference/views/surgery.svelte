@@ -4,9 +4,9 @@
   Shows success probability as a prominent ring with factor chain breakdown.
 -->
 <script lang="ts">
-  import ProgressRing from "../../../../views/src/components/charts/ProgressRing.svelte";
   import FactorChain from "../../../../views/src/components/data/FactorChain.svelte";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
+  import Verdict from "../../../../views/src/components/data/Verdict.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
 
@@ -51,7 +51,7 @@
   <Section title="Surgery Success" accent="var(--color-positive)">
     <div class="surgery-layout">
       <div class="hero">
-        <ProgressRing value={pct} label="{pct}%" {variant} size={120} />
+        <Verdict value="{pct}%" caption="Surgery Success Chance" {variant} />
         <div class="badges">
           {#if data.capped}
             <Badge label="CAPPED AT 98%" variant="warning" />
