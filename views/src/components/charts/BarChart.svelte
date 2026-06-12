@@ -41,13 +41,14 @@
 
 <div class="bar-chart">
   {#each items as item, i}
-    <div class="bar-row" style:animation-delay="{i * 50}ms">
+    <div class="bar-row" style:animation-delay="{Math.min(i, 3) * 75}ms">
       <span class="bar-label">{#if icon}{@render icon(item)}{/if}{item.label}</span>
       <div class="bar-track">
         <div
           class="bar-fill"
           style:width="{(item.value / max) * 100}%"
           style:background={item.variant ? variantColors[item.variant] : "var(--color-info)"}
+          style:animation-delay="{Math.min(i, 3) * 75}ms"
         ></div>
       </div>
       <span class="bar-value">{item.value}</span>
@@ -67,7 +68,7 @@
     gap: var(--space-sm);
     padding: var(--space-sm) var(--space-xs);
     border-bottom: 1px solid color-mix(in srgb, var(--color-border) 30%, transparent);
-    animation: bar-enter 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation: bar-enter 420ms ease-out both;
   }
 
   .bar-row:last-child {
@@ -102,11 +103,25 @@
     overflow: hidden;
   }
 
+  /* Grows from 0 on mount (scaleX — no layout thrash); the width
+     transition still covers live value changes after that. `backwards`
+     fill so the post-animation transform returns to the cascade. */
   .bar-fill {
     height: 100%;
     border-radius: 99px;
     transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     min-width: 2px;
+    transform-origin: left;
+    animation: bar-fill-grow 550ms ease-out backwards;
+  }
+
+  @keyframes bar-fill-grow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
   }
 
   .bar-value {
@@ -121,7 +136,7 @@
   @keyframes bar-enter {
     from {
       opacity: 0;
-      transform: translateX(-8px);
+      transform: translateX(-6px);
     }
     to {
       opacity: 1;

@@ -798,12 +798,13 @@
       {/each}
     </defs>
 
-    {#each layoutBands as band}
+    {#each layoutBands as band, i}
       {#if band.path}
         <path
           d={band.path}
           fill="url(#{band.gradId})"
           class="flow-band {hoverState.bandClass.get(band.origKey) ?? ''}"
+          style:animation-delay="{Math.min(i, 3) * 75}ms"
           onmouseenter={(ev) => handleBandEnter(ev, band)}
           onmousemove={(ev) => handleBandMove(ev, band)}
           onmouseleave={handleBandLeave}
@@ -923,10 +924,23 @@
     pointer-events: none;
   }
 
+  /* Staggered fade-in on mount. `backwards` (not `both`) fill: once the
+     animation ends it stops applying, so the hover dim/highlight classes
+     keep control of opacity. */
   .flow-band {
     pointer-events: auto;
     cursor: default;
     transition: filter 0.15s, opacity 0.15s;
+    animation: band-in 420ms ease-out backwards;
+  }
+
+  @keyframes band-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   .flow-band:hover {

@@ -57,6 +57,7 @@
       stroke-linecap="round"
       stroke-dasharray={circumference}
       stroke-dashoffset={offset}
+      style:--ring-circumference={circumference}
       transform="rotate(-90 {center} {center})"
     />
   </svg>
@@ -73,8 +74,18 @@
     justify-content: center;
   }
 
+  /* Sweep from empty on mount: the keyframe's missing `to` resolves to
+     the inline stroke-dashoffset, so the ring lands on its target value.
+     The transition still covers live value changes afterwards. */
   .ring-fill {
     transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: ring-sweep 550ms ease-out backwards;
+  }
+
+  @keyframes ring-sweep {
+    from {
+      stroke-dashoffset: calc(var(--ring-circumference) * 1px);
+    }
   }
 
   .label {
