@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { formatStatValue, parseStatValue } from "./count-up.js";
+import { countUp, formatStatValue, parseStatValue } from "./count-up.js";
 
 describe("parseStatValue", () => {
   it("parses a plain integer", () => {
@@ -114,5 +114,53 @@ describe("formatStatValue", () => {
   it("keeps the sign on negative intermediates", () => {
     const parts = parseStatValue("-2/min");
     expect(formatStatValue(parts!, -0.8)).toBe("-1/min");
+  });
+});
+
+describe("countUp", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("sets non-tweenable values to their final form synchronously", () => {
+    const calls: string[] = [];
+    countUp("A+", (s) => calls.push(s));
+    expect(calls).toEqual(["A+"]);
+  });
+
+  it("sets the final value synchronously under reduced motion", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const calls: string[] = [];
+    countUp("~134 runs", (s) => calls.push(s));
+    expect(calls).toEqual(["~134 runs"]);
+  });
+
+  /** happy-dom doesn't expose rAF as a test global — shim it over setTimeout. */
+  function stubRaf() {
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) =>
+      setTimeout(() => cb(performance.now()), 16),
+    );
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
+  }
+
+  it("starts tweenable values at their zero state synchronously — no final-value flash", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    stubRaf();
+    const calls: string[] = [];
+    const cancel = countUp("~134 runs", (s) => calls.push(s));
+    expect(calls[0]).toBe("~0 runs");
+    cancel();
+  });
+
+  it("lands exactly on the source string when the tween completes", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    stubRaf();
+    const calls: string[] = [];
+    countUp("85.5%", (s) => calls.push(s));
+    vi.advanceTimersByTime(1000);
+    expect(calls[0]).toBe("0.0%");
+    expect(calls[calls.length - 1]).toBe("85.5%");
   });
 });

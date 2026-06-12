@@ -67,10 +67,17 @@ export function countUp(
   durationMs = 650,
 ): () => void {
   const parts = parseStatValue(value);
-  if (!parts || prefersReducedMotion()) {
+  // No rAF (e.g. happy-dom tests) means no way to animate — final state,
+  // same as reduced motion.
+  const canAnimate = typeof requestAnimationFrame !== "undefined" && !prefersReducedMotion();
+  if (!parts || !canAnimate) {
     set(String(value));
     return () => {};
   }
+
+  // Paint the zero state synchronously — without this, the first frame
+  // shows the final value before the tween resets it to 0.
+  set(formatStatValue(parts, 0));
 
   const start = performance.now();
   let raf = 0;
