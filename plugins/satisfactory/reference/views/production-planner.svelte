@@ -37,7 +37,6 @@
       rawResources: AmountEntry[];
       byproducts: AmountEntry[];
       totalPowerMW: number;
-      notes?: string;
       icon_url?: string;
     };
   }
@@ -130,9 +129,10 @@
     </Section>
   {/if}
 
-  {#if data.notes}
-    <p class="notes">{data.notes}</p>
-  {/if}
+  <p class="notes">
+    Assumes 100% clock speed and no somersloops. Build counts round the exact
+    machine requirement up to whole machines.
+  </p>
   </div>
 </Panel>
 

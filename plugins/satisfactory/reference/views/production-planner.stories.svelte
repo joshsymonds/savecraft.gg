@@ -37,7 +37,6 @@
           "recipeClassName": "Recipe_IronPlate_C"
         }
       ],
-      "notes": "Rates assume 100% clock and no somersloops. Machine counts are exact; machinesCeil rounds up. Re-plan with the recipes parameter ({itemClass: recipeClass}) to use an alternate.",
       "ratePerMinute": 30,
       "rawResources": [
         {
@@ -81,7 +80,6 @@
           ]
         }
       ],
-      "notes": "Rates assume 100% clock and no somersloops. Machine counts are exact; machinesCeil rounds up. Re-plan with the recipes parameter ({itemClass: recipeClass}) to use an alternate.",
       "ratePerMinute": 100,
       "rawResources": [
         {
@@ -486,7 +484,6 @@
           "recipeClassName": "Recipe_Wire_C"
         }
       ],
-      "notes": "Rates assume 100% clock and no somersloops. Machine counts are exact; machinesCeil rounds up. Re-plan with the recipes parameter ({itemClass: recipeClass}) to use an alternate.",
       "ratePerMinute": 1,
       "rawResources": [
         {
