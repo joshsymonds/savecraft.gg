@@ -12,37 +12,9 @@
 
 <script>
   // THROWAWAY direction mock for the views flair pass (epic task #1).
-  // All treatments live in story-scoped CSS below — no shared component
-  // is modified. Delete this file once Layer 1 lands in view.css/Panel.
-  import { onMount } from "svelte";
-
-  const reducedMotion =
-    typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  // Count-up tween for the Motion story. Final values render immediately
-  // under prefers-reduced-motion — the guard pattern Layer 2 will adopt.
-  const finals = { runs: 134, rate: 41.3, picks: 45 };
-  let runs = $state(reducedMotion ? finals.runs : 0);
-  let rate = $state(reducedMotion ? finals.rate : 0);
-  let picks = $state(reducedMotion ? finals.picks : 0);
-
-  onMount(() => {
-    if (reducedMotion) return;
-    const start = performance.now();
-    const duration = 650;
-    let raf;
-    const tick = (now) => {
-      const t = Math.min((now - start) / duration, 1);
-      const ease = 1 - Math.pow(1 - t, 3);
-      runs = Math.round(finals.runs * ease);
-      rate = Math.round(finals.rate * ease * 10) / 10;
-      picks = Math.round(finals.picks * ease);
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  });
-
+  // Layer 1 (texture) and Layer 2a (count-up, stagger) now live in the
+  // shared components — Stat tweens its own numeric values. Only the
+  // Verdict treatment (Layer 3) remains mocked here.
   const staggerRows = [
     { name: "Skin of the Vipermagi", source: "Mephisto (Hell)", odds: "1:312" },
     { name: "Skin of the Vipermagi", source: "Andariel (Hell)", odds: "1:489" },
@@ -156,9 +128,9 @@
     <Panel>
       <Section title="Farming Plan" accent="var(--color-gold)">
         <div class="stat-row">
-          <Stat value={`~${runs}`} label="Expected Runs" variant="highlight" />
-          <Stat value={`${rate}%`} label="MF Efficiency" variant="positive" />
-          <Stat value={picks} label="Sources Ranked" variant="info" />
+          <Stat value="~134" label="Expected Runs" variant="highlight" />
+          <Stat value="41.3%" label="MF Efficiency" variant="positive" />
+          <Stat value={45} label="Sources Ranked" variant="info" />
         </div>
       </Section>
 

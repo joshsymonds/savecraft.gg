@@ -112,8 +112,8 @@
       </tr>
     </thead>
     <tbody>
-      {#each sortedRows as row}
-        <tr>
+      {#each sortedRows as row, i}
+        <tr style:animation-delay="{Math.min(i, 3) * 75}ms">
           {#each columns as col}
             {@const cell = row[col.key] as CellValue}
             {@const variant = cellVariant(cell)}
@@ -176,6 +176,22 @@
     font-size: 8px;
     margin-left: 4px;
     vertical-align: middle;
+  }
+
+  /* Staggered reveal — delay capped so long tables land within ~645ms */
+  tbody tr {
+    animation: row-in 420ms ease-out both;
+  }
+
+  @keyframes row-in {
+    from {
+      opacity: 0;
+      transform: translateX(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 
   tbody td {

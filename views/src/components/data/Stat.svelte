@@ -4,6 +4,8 @@
   Used for hero stats: success percentages, total counts, win rates, grades.
 -->
 <script lang="ts">
+  import { countUp } from "./count-up.js";
+
   type Variant = "positive" | "negative" | "highlight" | "info" | "warning" | "muted";
 
   interface Props {
@@ -16,6 +18,10 @@
   }
 
   let { value, label, variant = "highlight" }: Props = $props();
+
+  // Numeric values count up from 0 on render; grades/ratios render as-is.
+  let display = $state(String(value));
+  $effect(() => countUp(value, (s) => (display = s)));
 
   const variantColors: Record<Variant, string> = {
     positive: "var(--color-positive)",
@@ -30,7 +36,7 @@
 </script>
 
 <div class="stat">
-  <span class="value" style:color={color}>{value}</span>
+  <span class="value" style:color={color}>{display}</span>
   <span class="label">{label}</span>
 </div>
 
