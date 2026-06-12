@@ -155,8 +155,11 @@ func (g *generator) schematics() {
 		var unlockRecipes []string
 		var unlocks []unlockEntry
 		if raw, ok := c["mUnlocks"]; ok {
-			// mUnlocks is a real JSON array of objects.
-			_ = json.Unmarshal(raw, &unlocks)
+			// mUnlocks is a real JSON array of objects; entries that fail to
+			// decode (mixed unlock kinds) simply contribute no recipes.
+			if err := json.Unmarshal(raw, &unlocks); err != nil {
+				unlocks = nil
+			}
 		}
 		for _, u := range unlocks {
 			if u.Class == "BP_UnlockRecipe_C" {
@@ -263,7 +266,9 @@ func (g *generator) buildings() {
 			var fuels []string
 			var entries []fuelEntry
 			if raw, ok := c["mFuel"]; ok {
-				_ = json.Unmarshal(raw, &entries)
+				if err := json.Unmarshal(raw, &entries); err != nil {
+					entries = nil
+				}
 			}
 			for _, f := range entries {
 				if f.MFuelClass != "" {
