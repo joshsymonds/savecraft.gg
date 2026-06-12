@@ -87,7 +87,7 @@ func main() {
 	gen.recipes()
 	gen.items()
 	gen.buildings()
-	fmt.Printf("generated %d recipes, %d items, %d buildings, %d schematics → %s\n",
+	log.Printf("generated %d recipes, %d items, %d buildings, %d schematics → %s",
 		gen.recipeCount, gen.itemCount, gen.buildingCount, gen.schematicCount, *outDir)
 }
 
