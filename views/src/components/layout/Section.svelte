@@ -75,16 +75,18 @@
 </section>
 
 <style>
+  /* No enter animation of its own — the root Panel carries the view's
+     single enter motion so frame and interior land together. */
   .section {
     display: flex;
     flex-direction: column;
     --section-accent: var(--color-gold);
     --section-tint: var(--section-accent);
     --section-title-color: var(--section-accent);
-    animation: section-enter 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
   }
 
   .header {
+    position: relative;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -101,6 +103,17 @@
     padding: var(--space-sm) var(--space-md);
     margin: calc(-1 * var(--space-lg)) calc(-1 * var(--space-lg)) 0;
     border-radius: var(--radius-md) var(--radius-md) 0 0;
+  }
+
+  /* Phosphor shine — top-edge light catch on the window bar */
+  .header::after {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 45%;
+    border-radius: inherit;
+    background: linear-gradient(180deg, var(--shine-color), transparent);
+    pointer-events: none;
   }
 
   .header-left {
@@ -186,16 +199,5 @@
     flex-direction: column;
     gap: var(--space-sm);
     padding-top: var(--space-md);
-  }
-
-  @keyframes section-enter {
-    from {
-      opacity: 0;
-      transform: translateY(12px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 </style>

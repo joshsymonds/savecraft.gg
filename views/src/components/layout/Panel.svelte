@@ -57,17 +57,48 @@
     padding: var(--panel-padding);
     box-shadow:
       inset 0 0 20px rgba(30, 40, 100, 0.2),
-      0 0 12px color-mix(in srgb, var(--panel-border) 10%, transparent);
+      0 0 14px color-mix(in srgb, var(--panel-border) 30%, transparent),
+      0 0 36px color-mix(in srgb, var(--panel-border) 12%, transparent);
     overflow: visible;
-    animation: panel-enter 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation: panel-enter 550ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  /* CRT scanline overlay — texture rides above content, never blocks it */
+  .panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.22) 0px,
+      rgba(0, 0, 0, 0.22) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    opacity: var(--scanline-opacity);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  :global([data-theme="light"]) .panel:not(.nested):not(.compact) {
+    box-shadow:
+      0 0 10px color-mix(in srgb, var(--panel-border) 18%, transparent),
+      0 0 24px color-mix(in srgb, var(--panel-border) 7%, transparent);
   }
 
   .panel.nested {
     background: var(--color-surface);
     border-width: 1px;
     border-color: color-mix(in srgb, var(--panel-border) 50%, transparent);
-    box-shadow: inset 0 0 12px rgba(10, 14, 46, 0.3);
+    box-shadow:
+      inset 0 0 12px rgba(10, 14, 46, 0.3),
+      0 0 10px color-mix(in srgb, var(--panel-border) 25%, transparent);
     animation: none;
+  }
+
+  :global([data-theme="light"]) .panel.nested {
+    box-shadow: 0 0 10px color-mix(in srgb, var(--panel-border) 25%, transparent);
   }
 
   .panel.compact {
@@ -88,8 +119,9 @@
 
   .corner {
     position: absolute;
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
+    filter: drop-shadow(0 0 3px var(--panel-corner));
   }
 
   .top-left {
