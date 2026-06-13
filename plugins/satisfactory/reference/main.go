@@ -141,7 +141,7 @@ func schema() map[string]any {
 						"type": "number", "description": "List this tier's milestones with costs and unlocks",
 					},
 					"milestone": map[string]any{
-						"type": "number", "description": "Milestone name or class to look up (e.g. 'Oil Processing')",
+						"type": "string", "description": "Milestone name or class to look up (e.g. 'Oil Processing')",
 					},
 					"to_tier": map[string]any{
 						"type": "number",

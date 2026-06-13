@@ -120,3 +120,16 @@ func TestPowerCalculatorInvalid(t *testing.T) {
 		t.Error("unknown generator should error")
 	}
 }
+
+// The milestone parameter must be schema-typed string: the handler reads it
+// with stringParam, so a schema-following client passing a number would get
+// a silently dropped lookup.
+func TestSchemaMilestoneParamIsString(t *testing.T) {
+	modules, _ := schema()["modules"].(map[string]any)
+	nav, _ := modules["milestone_navigator"].(map[string]any)
+	params, _ := nav["parameters"].(map[string]any)
+	milestone, _ := params["milestone"].(map[string]any)
+	if milestone["type"] != "string" {
+		t.Errorf("milestone parameter type = %v, want string", milestone["type"])
+	}
+}
