@@ -171,7 +171,7 @@ func chooseRecipe(itemClass string, ctx planContext) (data.Recipe, []string, boo
 	}
 
 	var base, alternate []data.Recipe
-	for _, r := range sortedRecipes() {
+	for _, r := range allRecipes {
 		if isBuildGun(r.ProducedIn) || !isAutomated(r.ProducedIn) {
 			continue
 		}
@@ -184,8 +184,9 @@ func chooseRecipe(itemClass string, ctx planContext) (data.Recipe, []string, boo
 		if !producesItem {
 			continue
 		}
-		// Skip unpackaging loops: recipes whose primary product is not this
-		// item only count when nothing else produces it.
+		// Unpackage recipes are excluded from base selection below (they
+		// would create container loops); items only producible by
+		// unpackaging degrade to raw-equivalent inputs.
 		if r.Alternate {
 			alternate = append(alternate, r)
 		} else {

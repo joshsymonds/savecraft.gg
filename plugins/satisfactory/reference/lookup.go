@@ -176,20 +176,27 @@ func recipeLookup(query map[string]any) (map[string]any, error) {
 }
 
 func lookupItems(q string) []map[string]any {
-	var matches []scored[map[string]any]
+	// Rank on (score, name) first; describing an item scans every recipe,
+	// so it only runs for the matches that survive the cut.
+	var matches []scored[data.Item]
 	for _, item := range data.Items {
 		score := matchScore(q, item.ClassName, item.DisplayName)
 		if score == 0 {
 			continue
 		}
-		matches = append(matches, scored[map[string]any]{score, item.DisplayName, describeItem(item)})
+		matches = append(matches, scored[data.Item]{score, item.DisplayName, item})
 	}
-	return rank(matches)
+	ranked := rank(matches)
+	out := make([]map[string]any, 0, len(ranked))
+	for _, item := range ranked {
+		out = append(out, describeItem(item))
+	}
+	return out
 }
 
 func describeItem(item data.Item) map[string]any {
 	var producedBy, consumedBy []map[string]any
-	for _, r := range sortedRecipes() {
+	for _, r := range allRecipes {
 		if isBuildGun(r.ProducedIn) {
 			continue
 		}
@@ -234,15 +241,22 @@ func lookupRecipes(q string) []map[string]any {
 }
 
 func lookupBuildings(q string) []map[string]any {
-	var matches []scored[map[string]any]
+	// Same rank-then-describe order as lookupItems: describeBuilding scans
+	// every recipe for runnability.
+	var matches []scored[data.Building]
 	for _, b := range data.Buildings {
 		score := matchScore(q, b.ClassName, b.DisplayName)
 		if score == 0 {
 			continue
 		}
-		matches = append(matches, scored[map[string]any]{score, b.DisplayName, describeBuilding(b)})
+		matches = append(matches, scored[data.Building]{score, b.DisplayName, b})
 	}
-	return rank(matches)
+	ranked := rank(matches)
+	out := make([]map[string]any, 0, len(ranked))
+	for _, b := range ranked {
+		out = append(out, describeBuilding(b))
+	}
+	return out
 }
 
 func describeBuilding(b data.Building) map[string]any {
@@ -273,7 +287,7 @@ func describeBuilding(b data.Building) map[string]any {
 	}
 
 	var recipes []string
-	for _, r := range sortedRecipes() {
+	for _, r := range allRecipes {
 		if slices.Contains(r.ProducedIn, b.ClassName) {
 			recipes = append(recipes, r.DisplayName)
 		}
@@ -283,6 +297,10 @@ func describeBuilding(b data.Building) map[string]any {
 	}
 	return out
 }
+
+// allRecipes is the recipe table in deterministic class-name order,
+// computed once — chooseRecipe iterates it per planner worklist step.
+var allRecipes = sortedRecipes()
 
 // sortedRecipes returns recipes in deterministic class-name order.
 func sortedRecipes() []data.Recipe {

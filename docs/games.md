@@ -188,6 +188,22 @@ The Satisfactory plugin streams the save's compressed object graph — late-game
 
 Identity is keyed by session name, so the game's rotating autosaves map onto one logical save. Saves from game version 1.0 through 1.2 parse; older saves produce a clear unsupported-version error.
 
+### Reference: Recipe & Item Lookup
+
+Forward and reverse lookup for any item, recipe, or production building, generated from the game-shipped Docs.json. Given an item, returns exact ingredients, products, per-minute rates at 100% clock, craft duration, buildings, alternate-recipe flags, and unlock tiers. Reverse queries find every recipe producing or consuming an item, or every recipe a building can run. Grounds recipe answers in the actual game tables instead of model memory.
+
+### Reference: Production Planner
+
+Expands a target item and rate per minute into the full production chain: machine counts per recipe (exact and rounded up), raw ore and fluid totals, byproducts, and total power draw. With a save attached it plans with the player's actual state — unlocked alternate recipes listed per step, existing capacity credited in 100%-clock machine equivalents from real clocks and somersloops, and the session's Game Mode economy multipliers applied with the game's per-ingredient rounding. Ships with the production plan view.
+
+### Reference: Milestone Navigator
+
+Tier and milestone progression: a tier's milestones with exact costs and recipe unlocks, milestone lookup by name, and — with a save — every remaining milestone to a target tier with cumulative item costs based on what the player already purchased.
+
+### Reference: Power Calculator
+
+Sizes generator farms for a target megawatt figure: generator counts per type, fuel burn per minute for every accepted fuel (with verified burn-rate formulas), supplemental water rates, and nuclear waste output.
+
 ## Stellaris
 
 **Source:** Rust WASM plugin — parses `.sav` files (ZIP containing Clausewitz-format `meta` + `gamestate`)

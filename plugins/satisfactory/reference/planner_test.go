@@ -105,7 +105,10 @@ func TestPlanAlternateSelection(t *testing.T) {
 }
 
 // With save data injected, unlocked alternates are listed as options on
-// matching nodes but the base recipe still plans by default.
+// matching nodes but the base recipe still plans by default. Iron Plate has
+// two alternates in the data (Coated Iron Plate, Steel Cast Plate); only
+// the one whose schematic the save unlocked may appear — locked ones are
+// excluded.
 func TestPlanUnlockedAlternatesListed(t *testing.T) {
 	plan := planQuery(t, map[string]any{
 		"item": "Iron Plate", "rate": 10.0,
@@ -122,9 +125,24 @@ func TestPlanUnlockedAlternatesListed(t *testing.T) {
 		if strings.Contains(a, "Coated Iron Plate") {
 			found = true
 		}
+		if strings.Contains(a, "Steel Cast") {
+			t.Errorf("locked alternate %q listed; only Coated Iron Plate is unlocked", a)
+		}
 	}
 	if !found {
 		t.Errorf("unlockedAlternates = %v, want Coated Iron Plate listed", alts)
+	}
+}
+
+// use_alternates=all surfaces every alternate regardless of save data.
+func TestPlanUseAlternatesAll(t *testing.T) {
+	plan := planQuery(t, map[string]any{
+		"item": "Iron Plate", "rate": 10.0, "use_alternates": "all",
+	})
+	plates := machineEntry(t, plan, "Recipe_IronPlate_C")
+	alts, _ := plates["unlockedAlternates"].([]string)
+	if len(alts) != 2 {
+		t.Errorf("unlockedAlternates = %v, want both iron plate alternates (Coated, Steel Cast)", alts)
 	}
 }
 

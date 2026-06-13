@@ -10,12 +10,22 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 )
 
 func main() {
 	enc := json.NewEncoder(os.Stdout)
+
+	// Defense in depth: module handlers must answer with an ndjson error
+	// instead of crashing, even on panics from unexpected query shapes.
+	defer func() {
+		if r := recover(); r != nil {
+			writeError(enc, "internal_error", fmt.Sprintf("module panic: %v", r))
+			os.Exit(1)
+		}
+	}()
 
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
@@ -186,6 +196,11 @@ func schema() map[string]any {
 					"production_summary": map[string]any{
 						"type":        "object",
 						"description": "Player's machines per recipe (injected from save data when save_id is present)",
+					},
+					"game_overview": map[string]any{
+						"type": "object",
+						"description": "Session metadata (injected from save data when save_id is present) — " +
+							"gameMode economy multipliers are applied to the plan automatically",
 					},
 				},
 			},
