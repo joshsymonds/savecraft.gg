@@ -182,19 +182,17 @@ export function closeWs(ws: WebSocket): void {
 const WORKERD_FLUSH_ROUNDS = 4;
 
 /**
- * Pump workerd's event loop so any fire-and-forget closeWs() callbacks
- * have run before returning. Specifically: workerd queues webSocketClose
- * handlers for client-side `ws.close()` calls; those handlers do async
- * DO storage work (handleDaemonDisconnect → forward to UserHub → broadcast).
- * Without a pump, the work runs concurrently with the next test and
- * causes the 5s testTimeout to be exceeded.
+ * Pump workerd's event loop so any fire-and-forget callbacks have run before
+ * returning. Two sources of such work: webSocketClose handlers queued by
+ * client-side `ws.close()` calls, and webSocketMessage/alarm handlers that
+ * spawn async DO work — both do `handleDaemonDisconnect`/`processEvent →
+ * forward to UserHub → broadcast`. Without a pump, that work runs concurrently
+ * with the next test (causing 5s testTimeout overruns) or is still in flight at
+ * environment teardown (causing "EnvironmentTeardownError: Closing rpc while
+ * ... pending" unhandled errors that fail whole shards under load).
  *
- * Currently mounted in `afterEach` only in hub.test.ts — that's the only
- * file where the close-handler chain is heavy enough to contend with the
- * next test's broadcasts. Other files use closeWs but their close paths
- * don't trigger the same UserHub forwarding chain, so they don't need
- * the pump. Add the afterEach if you see "Timed out waiting for ..."
- * flakes after introducing a new heavy-disconnect-handler test.
+ * Mounted globally in `test/setup.ts`'s `afterEach`, so every test drains its
+ * queued forwards before teardown regardless of which suite triggered them.
  *
  * The mechanism: a real D1 round-trip forces workerd to context-switch
  * away from the JS thread, giving its internal event loop a chance to
