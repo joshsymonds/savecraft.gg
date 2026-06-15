@@ -17,7 +17,7 @@
   ],
   "homepage": "https://savecraft.gg/plugins/satisfactory",
   "limitations": [
-    "Saves from game versions 1.0 through 1.2 only (save versions 46-58); newer game versions are rejected until their format is verified",
+    "Saves from game versions 1.0 through 1.2 only (save versions 46-60); newer game versions are rejected until their format is verified",
     "Per-minute production rates are theoretical pending recipe reference data; the save stores measured productivity percentages, not item rates",
     "Resource node types and purities require static map reference data",
     "Modded buildings and machines added after game 1.2 are not extracted",
@@ -33,10 +33,10 @@
     "darwin": ""
   },
   "version": "dev",
-  "sha256": "c89ea216cb2ac43e17a8b11a3b05db5b7829760d8e5b9095139eccb9ab8cc07e",
+  "sha256": "41b46a7f4c993397eb46c96e1daf40fb3add59f1e7d3c978133f7871fd344ae4",
   "url": "plugins/satisfactory/parser.wasm",
   "reference": {
-    "sha256": "80fefe6bf4f9ce5b2aa471f1906a6b35d172d8772e555b1e2630bee506af2670",
+    "sha256": "94984ed9d8eb822c06c8ab499ff16993e488cbca2847b9dde7233dedb5320d63",
     "url": "plugins/satisfactory/reference.wasm",
     "modules": {
       "milestone_navigator": {
