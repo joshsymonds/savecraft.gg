@@ -145,7 +145,9 @@ func describePhase(ep elevatorPhase, mult float64) map[string]any {
 func describeProgress(current int, query map[string]any, mult float64) map[string]any {
 	built := false
 	if prog, ok := query["progression"].(map[string]any); ok {
-		built, _ = prog["spaceElevatorBuilt"].(bool)
+		if b, ok := prog["spaceElevatorBuilt"].(bool); ok {
+			built = b
+		}
 	}
 	if overview, ok := query["game_overview"].(map[string]any); ok {
 		if b, ok := overview["spaceElevatorBuilt"].(bool); ok {

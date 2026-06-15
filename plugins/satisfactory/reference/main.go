@@ -173,6 +173,29 @@ func schema() map[string]any {
 					},
 				},
 			},
+			"space_elevator": map[string]any{
+				"name": "Space Elevator",
+				"description": "Project Assembly phase requirements: the exact parts and quantities each " +
+					"of the 5 phases needs, the recipe that makes each part, and the tiers each phase " +
+					"unlocks. Pass save_id to see the player's current phase, what remains, and to apply " +
+					"the session's Space Parts Cost Multiplier. Use for 'what does the space elevator need' " +
+					"and endgame-goal questions.",
+				"parameters": map[string]any{
+					"phase": map[string]any{
+						"type":        "number",
+						"description": "Describe one phase (1-5); omit to list all phases",
+					},
+					"progression": map[string]any{
+						"type":        "object",
+						"description": "Player progression (injected when save_id is present) — current space elevator phase",
+					},
+					"game_overview": map[string]any{
+						"type": "object",
+						"description": "Session metadata (injected when save_id is present) — " +
+							"gameMode spacePartsCostMultiplier is applied to phase amounts automatically",
+					},
+				},
+			},
 			"production_planner": map[string]any{
 				"name": "Production Planner",
 				"description": "Plan a full production chain: target item + rate per minute returns machines per " +
