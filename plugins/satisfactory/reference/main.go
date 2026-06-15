@@ -74,6 +74,13 @@ func main() {
 			os.Exit(1)
 		}
 		writeResult(enc, result)
+	case "space_elevator":
+		result, err := spaceElevator(query)
+		if err != nil {
+			writeError(enc, "invalid_query", err.Error())
+			os.Exit(1)
+		}
+		writeResult(enc, result)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
