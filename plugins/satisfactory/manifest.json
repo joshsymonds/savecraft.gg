@@ -1,0 +1,143 @@
+{
+  "game_id": "satisfactory",
+  "sources": [
+    "wasm"
+  ],
+  "icon": "icon.png",
+  "name": "Satisfactory",
+  "description": "Parses .sav save files: factory machines, production, power, storage, trains, progression",
+  "channel": "alpha",
+  "coverage": "partial",
+  "file_extensions": [
+    ".sav"
+  ],
+  "exclude_dirs": [
+    "SaveGames_backup",
+    "ServerLocalCache"
+  ],
+  "homepage": "https://savecraft.gg/plugins/satisfactory",
+  "limitations": [
+    "Saves from game versions 1.0 through 1.2 only (save versions 46-58); newer game versions are rejected until their format is verified",
+    "Per-minute production rates are theoretical pending recipe reference data; the save stores measured productivity percentages, not item rates",
+    "Resource node types and purities require static map reference data",
+    "Modded buildings and machines added after game 1.2 are not extracted",
+    "Blueprint designer contents are not parsed"
+  ],
+  "author": {
+    "name": "Josh Symonds",
+    "github": "joshsymonds"
+  },
+  "default_paths": {
+    "windows": "%LOCALAPPDATA%/FactoryGame/Saved/SaveGames/*",
+    "linux": "~/.local/share/Steam/steamapps/compatdata/526870/pfx/drive_c/users/steamuser/AppData/Local/FactoryGame/Saved/SaveGames/*",
+    "darwin": ""
+  },
+  "version": "dev",
+  "sha256": "c89ea216cb2ac43e17a8b11a3b05db5b7829760d8e5b9095139eccb9ab8cc07e",
+  "url": "plugins/satisfactory/parser.wasm",
+  "reference": {
+    "sha256": "80fefe6bf4f9ce5b2aa471f1906a6b35d172d8772e555b1e2630bee506af2670",
+    "url": "plugins/satisfactory/reference.wasm",
+    "modules": {
+      "milestone_navigator": {
+        "name": "Milestone Navigator",
+        "description": "Navigate Satisfactory tiers and milestones: exact costs and recipe unlocks per milestone, full tier listings, and — with save_id — every remaining milestone to a target tier with cumulative item costs based on what the player already purchased. Use for 'what do I need for Tier N' and unlock-path questions.",
+        "parameters": {
+          "milestone": {
+            "description": "Milestone name or class to look up (e.g. 'Oil Processing')",
+            "type": "string"
+          },
+          "progression": {
+            "description": "Player progression (injected when save_id is present)",
+            "type": "object"
+          },
+          "tier": {
+            "description": "List this tier's milestones with costs and unlocks",
+            "type": "number"
+          },
+          "to_tier": {
+            "description": "Compute remaining milestones and cumulative costs up to this tier (pass save_id to exclude already-purchased ones)",
+            "type": "number"
+          }
+        },
+        "section_mappings": {
+          "progression": "progression"
+        }
+      },
+      "power_calculator": {
+        "name": "Power Calculator",
+        "description": "Size Satisfactory generator farms: target megawatts returns generator counts per type, fuel consumption per minute for every accepted fuel, supplemental water rates, and nuclear waste output. Use for any power planning or 'how many generators / how much fuel' question.",
+        "parameters": {
+          "generator": {
+            "description": "Restrict to one generator type (e.g. 'Coal', 'Nuclear')",
+            "type": "string"
+          },
+          "target_mw": {
+            "description": "Target power output in MW",
+            "required": true,
+            "type": "number"
+          }
+        }
+      },
+      "production_planner": {
+        "name": "Production Planner",
+        "description": "Plan a full Satisfactory production chain: target item and rate per minute returns machine counts per recipe, raw ore/fluid requirements, byproducts, and total power draw. Pass save_id to plan with the player's actual unlocked alternate recipes, existing machine capacity, and the session's Game Mode economy multipliers (1.2 parts cost / power consumption) applied automatically. Use for any 'how do I make N per minute of X' or factory scaling question.",
+        "parameters": {
+          "game_overview": {
+            "description": "Session metadata (injected from save data when save_id is present) — gameMode economy multipliers are applied to the plan automatically",
+            "type": "object"
+          },
+          "item": {
+            "description": "Target item name or class (e.g. 'Reinforced Iron Plate')",
+            "required": true,
+            "type": "string"
+          },
+          "production_summary": {
+            "description": "Player's machines per recipe (injected from save data when save_id is present)",
+            "type": "object"
+          },
+          "progression": {
+            "description": "Player progression (injected from save data when save_id is present) — unlocked alternate schematics",
+            "type": "object"
+          },
+          "rate": {
+            "description": "Target output in items per minute (m3 per minute for fluids)",
+            "required": true,
+            "type": "number"
+          },
+          "recipes": {
+            "description": "Force specific recipes: map of item class to recipe class (e.g. {\"Desc_IronPlate_C\": \"Recipe_Alternate_CoatedIronPlate_C\"})",
+            "type": "object"
+          },
+          "use_alternates": {
+            "description": "'none' (default, base recipes only), 'unlocked' (use save data), or 'all'",
+            "type": "string"
+          }
+        },
+        "section_mappings": {
+          "game_overview": "game_overview",
+          "production_summary": "production_summary",
+          "progression": "progression"
+        }
+      },
+      "recipe_lookup": {
+        "name": "Recipe \u0026 Item Lookup",
+        "description": "Look up any Satisfactory item, recipe, or production building by name. Returns exact ingredients, products, per-minute rates at 100% clock, craft duration, which buildings run it, alternate-recipe flags, and milestone unlock tiers. Use proactively for ANY question about what makes what, ratios, or building stats — prevents hallucinated recipe data.",
+        "parameters": {
+          "building": {
+            "description": "Production building name — returns power, fuels, extraction rate, and runnable recipes (e.g. 'Constructor')",
+            "type": "string"
+          },
+          "item": {
+            "description": "Item name or class — returns the item plus recipes producing and consuming it (e.g. 'Iron Plate')",
+            "type": "string"
+          },
+          "recipe": {
+            "description": "Recipe name or class — returns ingredients, products, rates, buildings (e.g. 'Pure Aluminum Ingot')",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

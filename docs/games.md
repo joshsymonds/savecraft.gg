@@ -179,6 +179,31 @@ The Clair Obscur plugin uses a shared GVAS parser (`plugins/gvas/`) that handles
 
 Clair Obscur has no reference modules yet. Damage formulas and item categorization are planned.
 
+## Satisfactory
+
+**Source:** WASM plugin — parses `.sav` files (Unreal Engine save: header + zlib-chunked object graph)
+**Status:** Alpha
+
+The Satisfactory plugin streams the save's compressed object graph — late-game saves decompress to 500MB+, so the parser never materializes the body, holding peak heap under a few MB even for megafactories with 400k objects. It class-filters the actor/component table of contents and decodes UE tagged properties in both serialization formats (legacy tags and UE5 1012+ complete-type-name trees), then emits nine sections: `game_overview` (session, playtime, build, space elevator status, and the session's 1.2 Game Mode settings — economy multipliers, node randomization, AGS cheats), `progression` (current tier, milestones per tier, active milestone, MAM research, AWESOME shop, alternate recipes, space elevator phase), `player` (inventory, equipment, position), `machines` (manufacturers grouped by building + recipe + clock speed with somersloop counts and measured productivity from the save's rolling window, extractors by type), `production_summary` (per-recipe machine counts and effective capacity in 100%-clock machine equivalents from actual clocks × somersloops), `power` (circuits, generators by type and fuel, battery charge), `storage` (per-item totals across containers, dimensional depot contents), `logistics` (trains with player-named stations, timetables, drones with port tags, road vehicles), and `resource_nodes` (occupied sources by extractor type). The production planner module consumes the Game Mode multipliers, scaling recipe ingredients with the game's per-ingredient half-up rounding and power draw accordingly.
+
+Identity is keyed by session name, so the game's rotating autosaves map onto one logical save. Saves from game version 1.0 through 1.2 parse; older saves produce a clear unsupported-version error.
+
+### Reference: Recipe & Item Lookup
+
+Forward and reverse lookup for any item, recipe, or production building, generated from the game-shipped Docs.json. Given an item, returns exact ingredients, products, per-minute rates at 100% clock, craft duration, buildings, alternate-recipe flags, and unlock tiers. Reverse queries find every recipe producing or consuming an item, or every recipe a building can run. Grounds recipe answers in the actual game tables instead of model memory.
+
+### Reference: Production Planner
+
+Expands a target item and rate per minute into the full production chain: machine counts per recipe (exact and rounded up), raw ore and fluid totals, byproducts, and total power draw. With a save attached it plans with the player's actual state — unlocked alternate recipes listed per step, existing capacity credited in 100%-clock machine equivalents from real clocks and somersloops, and the session's Game Mode economy multipliers applied with the game's per-ingredient rounding. Ships with the production plan view.
+
+### Reference: Milestone Navigator
+
+Tier and milestone progression: a tier's milestones with exact costs and recipe unlocks, milestone lookup by name, and — with a save — every remaining milestone to a target tier with cumulative item costs based on what the player already purchased.
+
+### Reference: Power Calculator
+
+Sizes generator farms for a target megawatt figure: generator counts per type, fuel burn per minute for every accepted fuel (with verified burn-rate formulas), supplemental water rates, and nuclear waste output.
+
 ## Stellaris
 
 **Source:** Rust WASM plugin — parses `.sav` files (ZIP containing Clausewitz-format `meta` + `gamestate`)
