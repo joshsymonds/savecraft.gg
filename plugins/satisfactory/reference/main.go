@@ -74,6 +74,20 @@ func main() {
 			os.Exit(1)
 		}
 		writeResult(enc, result)
+	case "space_elevator":
+		result, err := spaceElevator(query)
+		if err != nil {
+			writeError(enc, "invalid_query", err.Error())
+			os.Exit(1)
+		}
+		writeResult(enc, result)
+	case "hard_drive_tiers":
+		result, err := hardDriveTiers(query)
+		if err != nil {
+			writeError(enc, "invalid_query", err.Error())
+			os.Exit(1)
+		}
+		writeResult(enc, result)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -163,6 +177,59 @@ func schema() map[string]any {
 					},
 					"generator": map[string]any{
 						"type": "string", "description": "Restrict to one generator type (e.g. 'Coal', 'Nuclear')",
+					},
+				},
+			},
+			"space_elevator": map[string]any{
+				"name": "Space Elevator",
+				"description": "Project Assembly phase requirements: the exact parts and quantities each " +
+					"of the 5 phases needs, the recipe that makes each part, and the tiers each phase " +
+					"unlocks. Pass save_id to see the player's current phase, what remains, and to apply " +
+					"the session's Space Parts Cost Multiplier. Use for 'what does the space elevator need' " +
+					"and endgame-goal questions.",
+				"parameters": map[string]any{
+					"phase": map[string]any{
+						"type":        "number",
+						"description": "Describe one phase (1-5); omit to list all phases",
+					},
+					"progression": map[string]any{
+						"type":        "object",
+						"description": "Player progression (injected when save_id is present) — current space elevator phase",
+					},
+					"game_overview": map[string]any{
+						"type": "object",
+						"description": "Session metadata (injected when save_id is present) — " +
+							"gameMode spacePartsCostMultiplier is applied to phase amounts automatically",
+					},
+				},
+			},
+			"hard_drive_tiers": map[string]any{
+				"name": "Hard Drive Tiers",
+				"description": "Which alternate recipes (the random unlocks from hard drives at the MAM) " +
+					"are worth taking, ranked by linear optimization for the current patch. Every recipe " +
+					"carries two tiers — effort (fewer/simpler buildings) and resources (less raw extraction) " +
+					"— with the modeled whole-factory improvement and per-metric deltas. Pass save_id to flag " +
+					"which the player has unlocked and recommend the best ones they haven't.",
+				"parameters": map[string]any{
+					"recipe": map[string]any{
+						"type":        "string",
+						"description": "Alternate recipe name or class — returns both tiers, deltas, and ingredients",
+					},
+					"item": map[string]any{
+						"type":        "string",
+						"description": "Item name — lists its alternate recipes ranked best-first (e.g. 'Iron Ingot')",
+					},
+					"tier": map[string]any{
+						"type":        "string",
+						"description": "List recipes in a tier letter (S, A, B, C, D, F)",
+					},
+					"ranking": map[string]any{
+						"type":        "string",
+						"description": "'effort' (default) or 'resources' — which ranking the tier filter uses",
+					},
+					"progression": map[string]any{
+						"type":        "object",
+						"description": "Player progression (injected when save_id is present) — unlocked alternate schematics",
 					},
 				},
 			},

@@ -100,6 +100,29 @@ func TestSchematicTier(t *testing.T) {
 	}
 }
 
+func TestAltRankings(t *testing.T) {
+	// Most of the ~110 alternates get ranked (a handful are infeasible to
+	// force in isolation and are skipped).
+	if len(AltRankings) < 90 {
+		t.Errorf("alt rankings = %d, want 90+", len(AltRankings))
+	}
+	// Pure Copper Ingot is the canonical split: excellent for raw resources,
+	// poor for power/buildings — it must rank well on resources and worse on
+	// effort (matches wrigh516's published 1.0 finding).
+	r, ok := AltRankings["Recipe_Alternate_PureCopperIngot_C"]
+	if !ok {
+		t.Fatal("Recipe_Alternate_PureCopperIngot_C missing")
+	}
+	if r.Resources.Tier == "" || r.Effort.Tier == "" {
+		t.Errorf("both tiers must be set: %+v", r)
+	}
+	rank := map[string]int{"S": 6, "A": 5, "B": 4, "C": 3, "D": 2, "F": 1, "?": 0}
+	if rank[r.Resources.Tier] <= rank[r.Effort.Tier] {
+		t.Errorf("Pure Copper Ingot: resources (%s) should outrank effort (%s)",
+			r.Resources.Tier, r.Effort.Tier)
+	}
+}
+
 func TestTableSizes(t *testing.T) {
 	// Pinned to the generating Docs build; update on regeneration.
 	if len(Recipes) != 872 {
