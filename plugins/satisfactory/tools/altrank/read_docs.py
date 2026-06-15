@@ -17,8 +17,10 @@ import json
 import re
 import sys
 
-# Descriptor families that can appear in recipes or as fuel. Mirrors the Go
-# datagen's itemNatives so the two stay in sync.
+# Descriptor families that can appear as recipe ingredients/products or as
+# generator fuel. A subset of the Go datagen's itemNatives — the equipment/
+# ammo/vehicle families it also lists are never produced by automated recipes,
+# so the LP doesn't need them.
 ITEM_NATIVES = [
     "FGItemDescriptor", "FGItemDescriptorBiomass", "FGItemDescriptorNuclearFuel",
     "FGItemDescriptorPowerBoosterFuel", "FGConsumableDescriptor",

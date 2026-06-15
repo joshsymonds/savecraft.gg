@@ -36,7 +36,7 @@
   "sha256": "7cce63a89cdfab0ba5538746ebc1ec418c9117a21a056fb5ac021a5acdc01a82",
   "url": "plugins/satisfactory/parser.wasm",
   "reference": {
-    "sha256": "47d9cfcd36629de77a43ed48caa031395640c54205a79ee2e916cd4b62881610",
+    "sha256": "ff31200dd7ed1b6e3282373d95a708ac83ce91121a235aee880b7b7d15b9d56b",
     "url": "plugins/satisfactory/reference.wasm",
     "modules": {
       "hard_drive_tiers": {

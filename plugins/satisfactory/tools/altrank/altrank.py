@@ -173,6 +173,11 @@ GO_HEADER = (
 )
 
 
+def _nz(v):
+    """Normalize -0.0 to 0.0 so the generated Go table reads cleanly."""
+    return 0.0 if v == 0 else v
+
+
 def _score_go(s):
     if s is None:
         return 'AltRankScore{Tier: "?"}'
@@ -180,8 +185,8 @@ def _score_go(s):
     return (
         'AltRankScore{Tier: "%s", ImprovementPct: %s, PowerPct: %s, ItemsPct: %s, '
         'BuildingsPct: %s, ResourcesPct: %s, BuildingsScaledPct: %s, ResourcesScaledPct: %s}'
-        % (s["tier"], s["improvement"], d["power"], d["items"], d["buildings"],
-           d["resources"], d["buildingsScaled"], d["resourcesScaled"])
+        % (s["tier"], _nz(s["improvement"]), _nz(d["power"]), _nz(d["items"]), _nz(d["buildings"]),
+           _nz(d["resources"]), _nz(d["buildingsScaled"]), _nz(d["resourcesScaled"]))
     )
 
 

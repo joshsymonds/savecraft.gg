@@ -54,7 +54,8 @@ nix-shell -p python3 glpk --run '
   python3 -m venv .venv
   .venv/bin/pip install -r requirements.txt
   .venv/bin/python read_docs.py /path/to/Satisfactory/CommunityResources/Docs/en-US.json data.json
-  .venv/bin/python altrank.py --baseline   # sanity solve; full ranking + Go emit added in follow-up
+  .venv/bin/python altrank.py --baseline                                  # optional sanity solve
+  .venv/bin/python altrank.py --rank --emit ../../reference/data/altrank_gen.go
 '
 ```
 
@@ -69,4 +70,7 @@ generated Go table the module serves.
   generators). Clean-room; mirrors the Go datagen's field extraction.
 - `model.py` — the production LP (Pyomo).
 - `altrank.py` — driver: resource caps, weightings, output basket. `--baseline`
-  runs one solve per weighting and prints metrics.
+  runs one solve per weighting and prints metrics; `--rank` scores every
+  alternate under both weightings; `--emit <path>` writes the Go table.
+- `compare_1_0.py` — validation: compares the emitted tiers to wrigh516's 1.0
+  tables (see `VALIDATION.md`).
