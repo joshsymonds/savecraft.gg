@@ -1,0 +1,4 @@
+# Offline-only. The LP solver (glpsol) comes from nix (`nix-shell -p glpk`);
+# only the Python modeling layer is pinned here. PySimpleGUI/pyinstaller from
+# the reference repo are GUI/packaging only and are intentionally NOT used.
+Pyomo==6.10.1
