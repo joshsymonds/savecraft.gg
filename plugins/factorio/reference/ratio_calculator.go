@@ -492,15 +492,29 @@ func (b *dagBuilder) findMachine(category string) *data.CraftingMachine {
 			}
 		}
 	}
+	// Fallback: the chosen tier can't run this category (e.g. an assembler
+	// tier with a smelting recipe). Pick the fastest matching machine, name
+	// as a tiebreak — ranging the map directly would return a random match
+	// and make machine counts non-deterministic across runs.
+	var candidates []data.CraftingMachine
 	for _, m := range data.Machines {
 		for _, cat := range m.CraftingCategories {
 			if cat == category {
-				m := m
-				return &m
+				candidates = append(candidates, m)
+				break
 			}
 		}
 	}
-	return nil
+	if len(candidates) == 0 {
+		return nil
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].CraftingSpeed != candidates[j].CraftingSpeed {
+			return candidates[i].CraftingSpeed > candidates[j].CraftingSpeed
+		}
+		return candidates[i].Name < candidates[j].Name
+	})
+	return &candidates[0]
 }
 
 // resolveRecipe finds the recipe for an item. If recipeName is specified, uses that directly.
