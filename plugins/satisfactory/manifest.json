@@ -33,12 +33,41 @@
     "darwin": ""
   },
   "version": "dev",
-  "sha256": "41b46a7f4c993397eb46c96e1daf40fb3add59f1e7d3c978133f7871fd344ae4",
+  "sha256": "7cce63a89cdfab0ba5538746ebc1ec418c9117a21a056fb5ac021a5acdc01a82",
   "url": "plugins/satisfactory/parser.wasm",
   "reference": {
-    "sha256": "94984ed9d8eb822c06c8ab499ff16993e488cbca2847b9dde7233dedb5320d63",
+    "sha256": "47d9cfcd36629de77a43ed48caa031395640c54205a79ee2e916cd4b62881610",
     "url": "plugins/satisfactory/reference.wasm",
     "modules": {
+      "hard_drive_tiers": {
+        "name": "Hard Drive Tiers",
+        "description": "Which Satisfactory alternate recipes (the random unlocks from hard drives at the MAM) are worth taking, re-derived by linear optimization for the current patch. Every recipe carries two tiers — effort (fewer/simpler buildings) and resources (less raw extraction) — with the modeled whole-factory improvement and per-metric deltas as evidence. Pass save_id to flag which alternates the player has unlocked and recommend the highest-value ones they haven't. Use for 'is this alternate worth it', 'which hard drive recipes should I prioritize', and 'best alternate for X'.",
+        "parameters": {
+          "item": {
+            "description": "Item name — lists its alternate recipes ranked best-first (e.g. 'Iron Ingot')",
+            "type": "string"
+          },
+          "progression": {
+            "description": "Player progression (injected when save_id is present) — unlocked alternate schematics",
+            "type": "object"
+          },
+          "ranking": {
+            "description": "'effort' (default) or 'resources' — which ranking the tier filter uses",
+            "type": "string"
+          },
+          "recipe": {
+            "description": "Alternate recipe name or class — returns both tiers, deltas, and ingredients",
+            "type": "string"
+          },
+          "tier": {
+            "description": "List recipes in a tier letter (S, A, B, C, D, F)",
+            "type": "string"
+          }
+        },
+        "section_mappings": {
+          "progression": "progression"
+        }
+      },
       "milestone_navigator": {
         "name": "Milestone Navigator",
         "description": "Navigate Satisfactory tiers and milestones: exact costs and recipe unlocks per milestone, full tier listings, and — with save_id — every remaining milestone to a target tier with cumulative item costs based on what the player already purchased. Use for 'what do I need for Tier N' and unlock-path questions.",
@@ -136,6 +165,28 @@
             "description": "Recipe name or class — returns ingredients, products, rates, buildings (e.g. 'Pure Aluminum Ingot')",
             "type": "string"
           }
+        }
+      },
+      "space_elevator": {
+        "name": "Space Elevator",
+        "description": "Satisfactory Project Assembly phase requirements: the exact parts and quantities each of the 5 phases needs, the recipe that makes each part, and the tiers each phase unlocks. Pass save_id to see the player's current phase, every remaining phase with cumulative parts, and the session's Space Parts Cost Multiplier applied automatically. Use for 'what does the space elevator need', endgame planning, and 'what's left to finish the game'.",
+        "parameters": {
+          "game_overview": {
+            "description": "Session metadata (injected when save_id is present) — gameMode spacePartsCostMultiplier is applied to phase amounts automatically",
+            "type": "object"
+          },
+          "phase": {
+            "description": "Describe one phase (1-5); omit to list all phases",
+            "type": "number"
+          },
+          "progression": {
+            "description": "Player progression (injected when save_id is present) — current space elevator phase",
+            "type": "object"
+          }
+        },
+        "section_mappings": {
+          "game_overview": "game_overview",
+          "progression": "progression"
         }
       }
     }
