@@ -81,6 +81,13 @@ func main() {
 			os.Exit(1)
 		}
 		writeResult(enc, result)
+	case "hard_drive_tiers":
+		result, err := hardDriveTiers(query)
+		if err != nil {
+			writeError(enc, "invalid_query", err.Error())
+			os.Exit(1)
+		}
+		writeResult(enc, result)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -193,6 +200,36 @@ func schema() map[string]any {
 						"type": "object",
 						"description": "Session metadata (injected when save_id is present) — " +
 							"gameMode spacePartsCostMultiplier is applied to phase amounts automatically",
+					},
+				},
+			},
+			"hard_drive_tiers": map[string]any{
+				"name": "Hard Drive Tiers",
+				"description": "Which alternate recipes (the random unlocks from hard drives at the MAM) " +
+					"are worth taking, ranked by linear optimization for the current patch. Every recipe " +
+					"carries two tiers — effort (fewer/simpler buildings) and resources (less raw extraction) " +
+					"— with the modeled whole-factory improvement and per-metric deltas. Pass save_id to flag " +
+					"which the player has unlocked and recommend the best ones they haven't.",
+				"parameters": map[string]any{
+					"recipe": map[string]any{
+						"type":        "string",
+						"description": "Alternate recipe name or class — returns both tiers, deltas, and ingredients",
+					},
+					"item": map[string]any{
+						"type":        "string",
+						"description": "Item name — lists its alternate recipes ranked best-first (e.g. 'Iron Ingot')",
+					},
+					"tier": map[string]any{
+						"type":        "string",
+						"description": "List recipes in a tier letter (S, A, B, C, D, F)",
+					},
+					"ranking": map[string]any{
+						"type":        "string",
+						"description": "'effort' (default) or 'resources' — which ranking the tier filter uses",
+					},
+					"progression": map[string]any{
+						"type":        "object",
+						"description": "Player progression (injected when save_id is present) — unlocked alternate schematics",
 					},
 				},
 			},
