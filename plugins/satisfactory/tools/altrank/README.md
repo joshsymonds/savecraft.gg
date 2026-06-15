@@ -25,6 +25,25 @@ to per-type caps and weighted by inverse map availability ("Resources\*").
 Buildings are scaled by recipe complexity ("Buildings\*"). The resource caps and
 weightings in `altrank.py` are wrigh516's published constants.
 
+### Scoring & tiers
+
+wrigh516's exact 0–100 score formula is unpublished, so we score by the
+**weighted percent improvement** of the re-optimized factory when a recipe is
+forced, versus forcing the item's standard recipe (or the average over its
+recipes when there is no standard). Higher is better; ~0 is neutral.
+
+- **resources** ranking improvement = −Δ(Resources\*) %.
+- **effort** ranking improvement = −mean(ΔItems, ΔBuildings\*, ΔResources\*) %
+  (wrigh516 sets the weights so those three carry equal impact).
+
+Improvements are bucketed into S–F by the documented `TIER_BANDS` thresholds in
+`altrank.py`, tuned so the distribution is non-degenerate and tracks his
+ordering (our resources S-tier size matches his exactly at 10). The emitted Go
+table carries each recipe's tier, overall improvement %, and the six per-metric
+deltas (power/items/buildings/resources/buildings\*/resources\*) as evidence,
+for both weightings. A few alternates are infeasible to force in isolation and
+are skipped (no entry), mirroring wrigh516's "recipe not used / missing" note.
+
 ## Running (offline only)
 
 The solver (`glpsol`) and Python come from nix; the WASM build never touches

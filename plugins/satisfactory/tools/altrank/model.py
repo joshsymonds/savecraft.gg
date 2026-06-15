@@ -67,11 +67,25 @@ def complexity(recipe):
     return max(n, 1) ** 1.584963 / 3.0
 
 
-def build_model(data, basket, limits, weights, recipes_off=()):
+def recipes_producing(data, item):
+    """Manufacturing recipe classes that list `item` among their products."""
+    out = []
+    for cls, r in data["recipes"].items():
+        if any(p["item"] == item for p in r["products"]):
+            out.append(cls)
+    return out
+
+
+def build_model(data, basket, limits, weights, recipes_off=(), force=None):
     """basket: {item_class: items_per_min}. limits: {resource: cap_per_min}.
-    weights: {power, items, buildings, buildings_scaled, resources}."""
+    weights: {power, items, buildings, buildings_scaled, resources}.
+    force: optional (item, recipe) — make `recipe` the sole producer of `item`
+    by zeroing every other manufacturing recipe that produces it."""
     rates = _rates(data)
     off = set(recipes_off)
+    if force is not None:
+        item, keep = force
+        off.update(j for j in recipes_producing(data, item) if j != keep)
     recipe_ids = [r for r in rates if r not in off]
     resources = set(limits)
     wres = resource_weights(limits)
@@ -121,8 +135,11 @@ def _balance(m, item, net, basket, resources):
 
 
 def metrics(m, data):
-    """Read the solved objective components for scoring/inspection."""
+    """Read the solved objective components for scoring/inspection. The six
+    headline figures mirror wrigh516's columns: power, items (conveyor load),
+    buildings (raw count), resources (raw mined), buildings*, resources*."""
     meta = m._meta
+    rates, recipe_ids = meta["rates"], meta["recipe_ids"]
     mined = {res: value(m.mined[res]) for res in meta["resources"]}
     mined = {k: v for k, v in mined.items() if v and v > 1e-6}
     machines = sum(value(m.r[j]) for j in meta["machine_recipes"])
@@ -131,14 +148,23 @@ def metrics(m, data):
         complexity(data["recipes"][j]) * value(m.r[j]) for j in meta["machine_recipes"]
     )
     resources_scaled = sum(meta["wres"][res] * v for res, v in mined.items())
-    used = {data["recipes"][j]["name"]: round(value(m.r[j]), 2)
-            for j in meta["machine_recipes"] if value(m.r[j]) > 1e-6}
+    # Item use: total non-power item throughput moving around the factory.
+    item_use = 0.0
+    for j in recipe_ids:
+        rv = value(m.r[j])
+        if rv <= 1e-9:
+            continue
+        for it, rate in rates[j][0].items():
+            if it != POWER:
+                item_use += rate * rv
+    resources_raw = sum(mined.values())
     return {
-        "powerMW": round(power, 1),
-        "machines": round(machines, 1),
+        "power": round(power, 1),
+        "items": round(item_use, 1),
+        "buildings": round(machines, 1),
+        "resources": round(resources_raw, 1),
         "buildingsScaled": round(buildings_scaled, 1),
-        "resources": {data["resources"].get(k, {"name": k})["name"]: round(v, 1)
-                      for k, v in sorted(mined.items(), key=lambda kv: -kv[1])},
         "resourcesScaled": round(resources_scaled, 1),
-        "recipesUsed": len(used),
+        "minedByResource": {data["resources"].get(k, {"name": k})["name"]: round(v, 1)
+                            for k, v in sorted(mined.items(), key=lambda kv: -kv[1])},
     }
