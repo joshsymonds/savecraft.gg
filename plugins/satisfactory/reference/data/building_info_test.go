@@ -142,6 +142,65 @@ func TestBuildingInfoDescriptionsNormalized(t *testing.T) {
 	}
 }
 
+func TestBuildingInfoManufacturerCost(t *testing.T) {
+	b := BuildingInfos["Build_ManufacturerMk1_C"]
+	want := []ItemAmount{
+		{"Desc_Motor_C", 10}, {"Desc_ModularFrame_C", 20},
+		{"Desc_Plastic_C", 50}, {"Desc_Cable_C", 50},
+	}
+	if len(b.BuildCost) != len(want) {
+		t.Fatalf("build cost = %v, want %v", b.BuildCost, want)
+	}
+	for i := range want {
+		if b.BuildCost[i] != want[i] {
+			t.Errorf("build cost[%d] = %v, want %v", i, b.BuildCost[i], want[i])
+		}
+	}
+	// Recipe_ManufacturerMk1_C is unlocked by Schematic_5-2_C, whose authoritative
+	// mTechTier is 6 (the class-number/tier desync).
+	if b.UnlockSchematic != "Industrial Manufacturing" || b.UnlockTier != 6 {
+		t.Errorf("unlock = %q tier %d, want Industrial Manufacturing tier 6", b.UnlockSchematic, b.UnlockTier)
+	}
+}
+
+func TestBuildingInfoUnlockTier0(t *testing.T) {
+	b := BuildingInfos["Build_ConstructorMk1_C"]
+	if b.UnlockSchematic != "HUB Upgrade 3" || b.UnlockTier != 0 {
+		t.Errorf("constructor unlock = %q tier %d, want HUB Upgrade 3 tier 0", b.UnlockSchematic, b.UnlockTier)
+	}
+	if len(b.BuildCost) == 0 {
+		t.Error("constructor should have a resolved build cost")
+	}
+}
+
+func TestBuildingInfoUnresolved(t *testing.T) {
+	// A shape variant with no individual build recipe: cost and unlock unresolved.
+	b, ok := BuildingInfos["Build_PowerPoleWall_Mk2_C"]
+	if !ok {
+		t.Fatal("Build_PowerPoleWall_Mk2_C missing")
+	}
+	if b.BuildCost != nil {
+		t.Errorf("expected nil build cost (no recipe), got %v", b.BuildCost)
+	}
+	if b.UnlockTier != -1 || b.UnlockSchematic != "" {
+		t.Errorf("expected no unlock (tier -1, empty), got tier %d %q", b.UnlockTier, b.UnlockSchematic)
+	}
+}
+
+func TestBuildingInfoCostCoverage(t *testing.T) {
+	n := 0
+	for _, b := range BuildingInfos {
+		if len(b.BuildCost) > 0 {
+			n++
+		}
+	}
+	// 534 resolve via the Recipe_<stem> / descriptor join; the rest are shape
+	// variants with no individual recipe. Comfortably above the epic's 400 floor.
+	if n < 500 {
+		t.Errorf("buildings with resolved cost = %d, want >= 500", n)
+	}
+}
+
 func TestBuildingInfoCount(t *testing.T) {
 	// Every Build_* class with a display name. Pinned to the generating Docs
 	// build; update on regeneration.

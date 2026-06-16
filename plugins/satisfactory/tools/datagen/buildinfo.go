@@ -21,9 +21,11 @@ import (
 // Build cost (via the build recipe producing each Desc_ class) and unlock tier
 // are joined in a later pass.
 func (g *generator) buildingInfos() {
+	recipeByClass, descToRecipe := g.buildRecipeIndexes()
+
 	type row struct{ className, line string }
 	var rows []row
-	skipped := 0
+	skipped, resolvedCost := 0, 0
 	for native, classes := range g.byNative {
 		category := nativeClassCategory(native)
 		for _, c := range classes {
@@ -39,14 +41,40 @@ func (g *generator) buildingInfos() {
 			desc := normalizeDesc(field(c, "mDescription"))
 			footprint := footprintLiteral(field(c, "mClearanceData"))
 			stats := statsLiteral(c, native)
+
+			// Resolve the build recipe: prefer Recipe_<stem>, else the recipe
+			// that produces the building descriptor Desc_<stem>. (Variant walls
+			// reorder the descriptor name and some build recipes ship an empty
+			// mProducedIn, so neither rule alone is complete.)
+			stem := strings.TrimPrefix(className, "Build_")
+			recipeClass := ""
+			if _, ok := recipeByClass["Recipe_"+stem]; ok {
+				recipeClass = "Recipe_" + stem
+			} else if rc, ok := descToRecipe["Desc_"+stem]; ok {
+				recipeClass = rc
+			}
+			cost := "nil"
+			if rc, ok := recipeByClass[recipeClass]; ok {
+				cost = itemAmountsGo(parseItemAmounts(field(rc, "mIngredients")))
+				if cost != "nil" {
+					resolvedCost++
+				}
+			}
+			unlockName, unlockTier := "", -1
+			if sch, ok := g.recipeSchematic[recipeClass]; ok && recipeClass != "" {
+				unlockName, unlockTier = sch.Display, sch.Tier
+			}
+
 			line := fmt.Sprintf(
-				"\t%q: {ClassName: %q, DisplayName: %q, Description: %q, Category: %q, Footprint: %s, Stats: %s},\n",
-				className, className, display, desc, category, footprint, stats)
+				"\t%q: {ClassName: %q, DisplayName: %q, Description: %q, Category: %q, Footprint: %s, "+
+					"Stats: %s, BuildCost: %s, UnlockSchematic: %q, UnlockTier: %d},\n",
+				className, className, display, desc, category, footprint, stats, cost, unlockName, unlockTier)
 			rows = append(rows, row{className, line})
 			g.buildingInfoCount++
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].className < rows[j].className })
+	fmt.Printf("buildingInfos: %d of %d buildings resolved a build cost\n", resolvedCost, g.buildingInfoCount)
 
 	var b strings.Builder
 	b.WriteString("var BuildingInfos = map[string]BuildingInfo{\n")
@@ -58,6 +86,32 @@ func (g *generator) buildingInfos() {
 	if skipped > 0 {
 		fmt.Printf("buildingInfos: skipped %d Build_ classes with no display name\n", skipped)
 	}
+}
+
+// buildRecipeIndexes returns (recipes keyed by class) and (building-descriptor
+// class -> the class of a recipe that produces it). The descriptor index is
+// restricted to FGBuildingDescriptor products so only actual buildings resolve.
+func (g *generator) buildRecipeIndexes() (map[string]map[string]json.RawMessage, map[string]string) {
+	buildingDescriptors := map[string]bool{}
+	for _, c := range g.byNative["FGBuildingDescriptor"] {
+		if cn := field(c, "ClassName"); cn != "" {
+			buildingDescriptors[cn] = true
+		}
+	}
+	recipeByClass := map[string]map[string]json.RawMessage{}
+	descToRecipe := map[string]string{}
+	for _, c := range g.byNative["FGRecipe"] {
+		rc := field(c, "ClassName")
+		recipeByClass[rc] = c
+		for _, p := range parseItemAmounts(field(c, "mProduct")) {
+			if buildingDescriptors[p.class] {
+				if _, seen := descToRecipe[p.class]; !seen {
+					descToRecipe[p.class] = rc
+				}
+			}
+		}
+	}
+	return recipeByClass, descToRecipe
 }
 
 // normalizeDesc turns the game's CRLF description into clean \n-delimited text.

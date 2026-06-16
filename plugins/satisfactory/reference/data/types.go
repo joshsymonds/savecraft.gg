@@ -82,6 +82,15 @@ type BuildingInfo struct {
 	Footprint *Footprint
 	// Stats are the type-specific key numbers the game exposes, in display order.
 	Stats []BuildingStat
+	// BuildCost is the build-gun ingredient cost, joined from the recipe that
+	// produces the building (ItemAmount convention: fluids in /1000 units).
+	// nil when no individual build recipe resolves (shape variants of a parent).
+	BuildCost []ItemAmount
+	// UnlockSchematic/UnlockTier identify the schematic (milestone/MAM/tutorial)
+	// that unlocks the build recipe, and its authoritative in-game tier. Tier is
+	// -1 and the name empty when no schematic unlocks it (or the cost is unresolved).
+	UnlockSchematic string
+	UnlockTier      int
 }
 
 // Footprint is a building's axis-aligned clearance extent in meters, taken from
