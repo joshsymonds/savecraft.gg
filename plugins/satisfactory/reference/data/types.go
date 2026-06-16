@@ -61,6 +61,48 @@ type Building struct {
 	ExtractCycleSec float64
 }
 
+// BuildingInfo is the game's own reference card for a placeable building (any
+// Build_* class): its in-game description verbatim, footprint, and the key
+// stats the game exposes. Powers the building_reference module. Unlike Building
+// (which is restricted to production/extraction/power machines for the planner),
+// this covers every buildable — foundations, belts, the Dimensional Depot,
+// blueprint designers, and so on.
+type BuildingInfo struct {
+	ClassName   string
+	DisplayName string
+	// Description is the game's mDescription, CRLF-normalized to \n and trimmed.
+	// Surfaced verbatim — facts embedded in it (e.g. "Dimensions: 48 m x 48 m")
+	// are NOT parsed back out into structured fields.
+	Description string
+	// Category: production, extraction, power, logistics, structure, special, other.
+	Category string
+	// Footprint is the clearance-box extent in meters; nil when the game ships
+	// no clearance (spline buildings like belts, pipes, wires, and the
+	// blueprint designers).
+	Footprint *Footprint
+	// Stats are the type-specific key numbers the game exposes, in display order.
+	Stats []BuildingStat
+}
+
+// Footprint is a building's axis-aligned clearance extent in meters, taken from
+// the first ClearanceBox the game ships for the building.
+type Footprint struct {
+	WidthM  float64 // X extent (Max.X - Min.X)
+	DepthM  float64 // Y extent (Max.Y - Min.Y)
+	HeightM float64 // Z height (Max.Z)
+	// Foundation counts when the horizontal extent is 8 m-aligned; 0 otherwise.
+	WidthFoundations int
+	DepthFoundations int
+}
+
+// BuildingStat is one labeled number drawn from the game data (e.g. power draw,
+// conveyor throughput). Value is preformatted for display; Unit may be empty.
+type BuildingStat struct {
+	Label string
+	Value string
+	Unit  string
+}
+
 // AltRankScore is one alternate recipe's standing under a single ranking
 // weighting: a letter tier, the overall percent improvement over the standard
 // recipe (higher is better; ~0 is neutral), and the per-metric percent deltas

@@ -89,11 +89,12 @@ func main() {
 	gen.recipes()
 	gen.items()
 	gen.buildings()
+	gen.buildingInfos()
 	gen.parserNames(*parserOut)
 	gen.parserMilestoneTiers(*parserOut)
-	log.Printf("generated %d recipes, %d items, %d buildings, %d schematics → %s; "+
+	log.Printf("generated %d recipes, %d items, %d buildings, %d building infos, %d schematics → %s; "+
 		"%d canonical names, %d milestone tiers → %s",
-		gen.recipeCount, gen.itemCount, gen.buildingCount, gen.schematicCount, *outDir,
+		gen.recipeCount, gen.itemCount, gen.buildingCount, gen.buildingInfoCount, gen.schematicCount, *outDir,
 		gen.nameCount, gen.milestoneTierCount, *parserOut)
 }
 
@@ -104,6 +105,7 @@ type generator struct {
 	recipeCount        int
 	itemCount          int
 	buildingCount      int
+	buildingInfoCount  int
 	schematicCount     int
 	nameCount          int
 	milestoneTierCount int
