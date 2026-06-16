@@ -204,6 +204,10 @@ Tier and milestone progression: a tier's milestones with exact costs and recipe 
 
 Sizes generator farms for a target megawatt figure: generator counts per type, fuel burn per minute for every accepted fuel (with verified burn-rate formulas), supplemental water rates, and nuclear waste output.
 
+### Reference: Building Reference
+
+The game's own reference card for any placeable building, extracted verbatim from the shipped Docs.json — the in-game description plus the structured stats the game exposes: clearance-box footprint (in meters, with foundation counts where aligned), build-gun cost, power draw or production, conveyor/pipe throughput, storage capacity, overclock power exponent, and the milestone/MAM tier that unlocks it. Covers every buildable (529 of 546 resolve a build cost; the rest are shape variants with no individual recipe), discovered by the `Build_` class prefix so non-`FGBuildable` placeables like the Dimensional Depot are included. Look up one building by name (fuzzy) or list a category (production, extraction, power, logistics, structure, special). Because the descriptions are the game's own words, it answers "how does the Dimensional Depot work" and "what are the Blueprint Designer dimensions" without the model guessing from stale memory.
+
 ## Stellaris
 
 **Source:** Rust WASM plugin — parses `.sav` files (ZIP containing Clausewitz-format `meta` + `gamestate`)
