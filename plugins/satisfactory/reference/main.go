@@ -88,6 +88,13 @@ func main() {
 			os.Exit(1)
 		}
 		writeResult(enc, result)
+	case "building_reference":
+		result, err := buildingReference(query)
+		if err != nil {
+			writeError(enc, "invalid_query", err.Error())
+			os.Exit(1)
+		}
+		writeResult(enc, result)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -230,6 +237,27 @@ func schema() map[string]any {
 					"progression": map[string]any{
 						"type":        "object",
 						"description": "Player progression (injected when save_id is present) — unlocked alternate schematics",
+					},
+				},
+			},
+			"building_reference": map[string]any{
+				"name": "Building Reference",
+				"description": "The game's own reference card for any placeable building, straight from the " +
+					"shipped game data — use PROACTIVELY whenever the player asks how a building works, what it " +
+					"does, its footprint/dimensions, build cost, power draw, throughput, or unlock tier. Covers " +
+					"every buildable: machines, generators, belts, pipes, foundations, blueprint designers, and " +
+					"the Dimensional Depot. Returns the in-game description verbatim plus structured stats. Works " +
+					"with no save connected. Prefer this over recalling building facts from memory — they drift " +
+					"between patches.",
+				"parameters": map[string]any{
+					"building": map[string]any{
+						"type": "string",
+						"description": "Building name or class (fuzzy) — returns its description, dimensions, " +
+							"build cost, key stats, and unlock tier (e.g. 'Dimensional Depot', 'Blueprint Designer Mk.3', 'Manufacturer')",
+					},
+					"category": map[string]any{
+						"type":        "string",
+						"description": "List buildings in a category: production, extraction, power, logistics, structure, special, or other",
 					},
 				},
 			},

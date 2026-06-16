@@ -89,21 +89,30 @@ func main() {
 	gen.recipes()
 	gen.items()
 	gen.buildings()
+	gen.buildingInfos()
 	gen.parserNames(*parserOut)
 	gen.parserMilestoneTiers(*parserOut)
-	log.Printf("generated %d recipes, %d items, %d buildings, %d schematics → %s; "+
+	log.Printf("generated %d recipes, %d items, %d buildings, %d building infos, %d schematics → %s; "+
 		"%d canonical names, %d milestone tiers → %s",
-		gen.recipeCount, gen.itemCount, gen.buildingCount, gen.schematicCount, *outDir,
+		gen.recipeCount, gen.itemCount, gen.buildingCount, gen.buildingInfoCount, gen.schematicCount, *outDir,
 		gen.nameCount, gen.milestoneTierCount, *parserOut)
+}
+
+// schematicRef is the schematic that unlocks a recipe and its in-game tier.
+type schematicRef struct {
+	Display string
+	Tier    int
 }
 
 type generator struct {
 	byNative           map[string][]map[string]json.RawMessage
 	outDir             string
-	alternates         map[string]bool // recipe class -> unlocked by EST_Alternate schematic
+	alternates         map[string]bool         // recipe class -> unlocked by EST_Alternate schematic
+	recipeSchematic    map[string]schematicRef // recipe class -> earliest-tier unlocking schematic
 	recipeCount        int
 	itemCount          int
 	buildingCount      int
+	buildingInfoCount  int
 	schematicCount     int
 	nameCount          int
 	milestoneTierCount int
@@ -178,11 +187,13 @@ type unlockEntry struct {
 
 func (g *generator) schematics() {
 	g.alternates = map[string]bool{}
+	g.recipeSchematic = map[string]schematicRef{}
 	var b strings.Builder
 	b.WriteString("var Schematics = map[string]Schematic{\n")
 	for _, c := range sortedByClassName(g.byNative["FGSchematic"]) {
 		className := field(c, "ClassName")
 		schematicType := field(c, "mType")
+		tier := intField(c, "mTechTier")
 
 		var unlockRecipes []string
 		var unlocks []unlockEntry
@@ -203,10 +214,16 @@ func (g *generator) schematics() {
 				g.alternates[r] = true
 			}
 		}
+		display := field(c, "mDisplayName")
+		for _, r := range unlockRecipes {
+			if ex, ok := g.recipeSchematic[r]; !ok || tier < ex.Tier {
+				g.recipeSchematic[r] = schematicRef{Display: display, Tier: tier}
+			}
+		}
 
 		fmt.Fprintf(&b, "\t%q: {ClassName: %q, DisplayName: %q, Type: %q, Tier: %d, Cost: %s, UnlockRecipes: %s},\n",
-			className, className, field(c, "mDisplayName"), schematicType,
-			intField(c, "mTechTier"), itemAmountsGo(parseItemAmounts(field(c, "mCost"))),
+			className, className, display, schematicType,
+			tier, itemAmountsGo(parseItemAmounts(field(c, "mCost"))),
 			stringsGo(unlockRecipes))
 		g.schematicCount++
 	}
