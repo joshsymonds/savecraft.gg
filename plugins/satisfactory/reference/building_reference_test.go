@@ -18,6 +18,9 @@ func TestBuildingReferenceSchema(t *testing.T) {
 	if _, ok := params["building"]; !ok {
 		t.Error("building_reference schema missing 'building' parameter")
 	}
+	if _, ok := params["category"]; !ok {
+		t.Error("building_reference schema missing 'category' parameter")
+	}
 }
 
 func TestBuildingReferenceDepot(t *testing.T) {

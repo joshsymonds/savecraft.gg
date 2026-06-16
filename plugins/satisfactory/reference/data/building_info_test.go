@@ -194,7 +194,7 @@ func TestBuildingInfoCostCoverage(t *testing.T) {
 			n++
 		}
 	}
-	// 534 resolve via the Recipe_<stem> / descriptor join; the rest are shape
+	// 529 resolve via the Recipe_<stem> / descriptor join; the rest are shape
 	// variants with no individual recipe. Comfortably above the epic's 400 floor.
 	if n < 500 {
 		t.Errorf("buildings with resolved cost = %d, want >= 500", n)
