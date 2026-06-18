@@ -136,7 +136,9 @@ func schema() map[string]any {
 				"name": "Recipe & Item Lookup",
 				"description": "Look up any item, recipe, or production building by name (fuzzy) or class. " +
 					"Returns exact ingredients, products, per-minute rates at 100% clock, craft duration, " +
-					"buildings, alternate-recipe flags, and unlock tiers.",
+					"buildings, alternate-recipe flags, and unlock tiers. Covers the build/craft cost of " +
+					"everything that has a recipe — equipment, vehicles, trains, and ammunition, not just " +
+					"factory machines.",
 				"parameters": map[string]any{
 					"item": map[string]any{
 						"type":        "string",
@@ -246,7 +248,9 @@ func schema() map[string]any {
 					"shipped game data — use PROACTIVELY whenever the player asks how a building works, what it " +
 					"does, its footprint/dimensions, build cost, power draw, throughput, or unlock tier. Covers " +
 					"every buildable: machines, generators, belts, pipes, foundations, blueprint designers, and " +
-					"the Dimensional Depot. Returns the in-game description verbatim plus structured stats. Works " +
+					"the Dimensional Depot. Returns the in-game description verbatim plus structured stats. Covers " +
+					"only placeable buildings — for the cost of vehicles, trains, equipment, or ammunition use " +
+					"recipe_lookup instead. Works " +
 					"with no save connected. Prefer this over recalling building facts from memory — they drift " +
 					"between patches.",
 				"parameters": map[string]any{
