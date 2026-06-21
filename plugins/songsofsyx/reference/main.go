@@ -1,0 +1,122 @@
+// Songs of Syx reference module: serves game reference data from tables
+// generated out of the game-shipped data files. Runs server-side in a
+// Cloudflare Worker via the WASI shim.
+//
+// Contract: JSON query on stdin, ndjson result on stdout.
+// Empty query {} returns the module schema (self-describing).
+//
+// Build: GOOS=wasip1 GOARCH=wasm go build -o reference.wasm ./reference
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+)
+
+func main() { os.Exit(run()) }
+
+// run reads one JSON query from stdin and writes one ndjson line to stdout,
+// returning the process exit code. A recovered panic still answers with an
+// ndjson error rather than crashing.
+func run() (code int) {
+	enc := json.NewEncoder(os.Stdout)
+
+	defer func() {
+		if r := recover(); r != nil {
+			writeError(enc, "internal_error", fmt.Sprintf("module panic: %v", r))
+			code = 1
+		}
+	}()
+
+	input, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		writeError(enc, "read_error", "failed to read stdin: "+err.Error())
+		return 1
+	}
+
+	var query map[string]any
+	if err = json.Unmarshal(input, &query); err != nil {
+		writeError(enc, "parse_error", "invalid JSON query: "+err.Error())
+		return 1
+	}
+
+	if len(query) == 0 {
+		writeResult(enc, schema())
+		return 0
+	}
+
+	module := stringParam(query, "module")
+	switch module {
+	case "guide":
+		result, gerr := guideModule(query)
+		if gerr != nil {
+			writeError(enc, "invalid_query", gerr.Error())
+			return 1
+		}
+		writeResult(enc, result)
+	default:
+		writeError(enc, "unknown_module", "unknown module: "+module)
+		return 1
+	}
+	return 0
+}
+
+// stringParam reads an optional string parameter from a query.
+func stringParam(query map[string]any, key string) string {
+	v, ok := query[key].(string)
+	if !ok {
+		return ""
+	}
+	return v
+}
+
+func writeResult(enc *json.Encoder, data any) {
+	if err := enc.Encode(map[string]any{
+		"type": "result",
+		"data": data,
+	}); err != nil {
+		os.Exit(1)
+	}
+}
+
+func writeError(enc *json.Encoder, errType, message string) {
+	if err := enc.Encode(map[string]any{
+		"type":      "error",
+		"errorType": errType,
+		"message":   message,
+	}); err != nil {
+		os.Exit(1)
+	}
+}
+
+// schema is the self-describing reference surface returned for an empty query.
+// cmd/plugin-manifest reads data.modules.<id>.parameters from this to populate
+// the manifest.
+func schema() map[string]any {
+	return map[string]any{
+		"modules": map[string]any{
+			"guide": map[string]any{
+				"name": "Mechanics Guide",
+				"description": "The game's own in-game mechanics guide (GUIDE.txt + ROOMS.txt), " +
+					"verbatim and version-matched. Retrieve and cite this before answering how a " +
+					"system works.",
+				"parameters": map[string]any{
+					"op": map[string]any{
+						"type":        "string",
+						"description": "'index' (default) returns the table of contents; 'article' returns one article's full text; 'search' returns matching articles.",
+					},
+					"key": map[string]any{
+						"type":        "string",
+						"description": "For op 'article': the article's LINK_KEY from the index (case-insensitive), e.g. 'STANDINGS'.",
+					},
+					"q": map[string]any{
+						"type":        "string",
+						"description": "For op 'search': a keyword matched against article titles and bodies, e.g. 'happiness'.",
+					},
+				},
+			},
+		},
+	}
+}

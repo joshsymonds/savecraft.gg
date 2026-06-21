@@ -5,7 +5,7 @@
   ],
   "icon": "icon.png",
   "name": "Songs of Syx",
-  "description": "Reference + guide for the colony-sim/4X Songs of Syx, generated from the game's own shipped data and in-game guide: room/resource/race stats, the knowledge tree, and dev-written mechanics articles. Live colony state via an in-game mod is forthcoming.",
+  "description": "Reference for the colony-sim/4X Songs of Syx: the game's own in-game mechanics guide, searchable and citable, generated verbatim from the shipped data. Room/resource/race/tech stat lookups and live colony state via an in-game mod are forthcoming.",
   "channel": "alpha",
   "coverage": "partial",
   "file_extensions": null,
@@ -23,5 +23,29 @@
     "linux": "",
     "darwin": ""
   },
-  "version": "dev"
+  "version": "dev",
+  "reference": {
+    "sha256": "1b8b661f5c91da80f3241b784527abd4d0e8e7428b3469444ada4e6f7d7d8a1d",
+    "url": "plugins/songsofsyx/reference.wasm",
+    "modules": {
+      "guide": {
+        "name": "Mechanics Guide",
+        "description": "Look up Songs of Syx gameplay mechanics from the game's own shipped in-game guide and room notes. Returns a table of contents, full article text by key, or keyword matches — all dev-written, version-matched prose. Use PROACTIVELY before answering ANY question about how a system works (happiness, services, immigration, farming, military, trade, world map, law): this game is niche and easily mis-remembered, so ground and cite the article instead of guessing.",
+        "parameters": {
+          "key": {
+            "description": "For op 'article': the article's LINK_KEY from the index (case-insensitive), e.g. 'STANDINGS'.",
+            "type": "string"
+          },
+          "op": {
+            "description": "'index' (default) returns the table of contents; 'article' returns one article's full text; 'search' returns matching articles.",
+            "type": "string"
+          },
+          "q": {
+            "description": "For op 'search': a keyword matched against article titles and bodies, e.g. 'happiness'.",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
 }
