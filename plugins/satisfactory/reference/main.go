@@ -15,7 +15,11 @@ import (
 	"os"
 )
 
-func main() {
+func main() { os.Exit(run()) }
+
+// run serves one query and returns the process exit code. Keeping os.Exit out
+// of the deferred-recover scope (it lives in main) ensures the recover runs.
+func run() (code int) {
 	enc := json.NewEncoder(os.Stdout)
 
 	// Defense in depth: module handlers must answer with an ndjson error
@@ -23,82 +27,49 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			writeError(enc, "internal_error", fmt.Sprintf("module panic: %v", r))
-			os.Exit(1)
+			code = 1
 		}
 	}()
 
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		writeError(enc, "read_error", "failed to read stdin: "+err.Error())
-		os.Exit(1)
+		return 1
 	}
 
 	var query map[string]any
 	if err := json.Unmarshal(input, &query); err != nil {
 		writeError(enc, "parse_error", "invalid JSON query: "+err.Error())
-		os.Exit(1)
+		return 1
 	}
 
 	if len(query) == 0 {
 		writeResult(enc, schema())
-		return
+		return 0
 	}
 
 	module := stringParam(query, "module")
-	switch module {
-	case "recipe_lookup":
-		result, err := recipeLookup(query)
-		if err != nil {
-			writeError(enc, "invalid_query", err.Error())
-			os.Exit(1)
-		}
-		writeResult(enc, result)
-	case "production_planner":
-		result, err := productionPlanner(query)
-		if err != nil {
-			writeError(enc, "invalid_query", err.Error())
-			os.Exit(1)
-		}
-		writeResult(enc, result)
-	case "milestone_navigator":
-		result, err := milestoneNavigator(query)
-		if err != nil {
-			writeError(enc, "invalid_query", err.Error())
-			os.Exit(1)
-		}
-		writeResult(enc, result)
-	case "power_calculator":
-		result, err := powerCalculator(query)
-		if err != nil {
-			writeError(enc, "invalid_query", err.Error())
-			os.Exit(1)
-		}
-		writeResult(enc, result)
-	case "space_elevator":
-		result, err := spaceElevator(query)
-		if err != nil {
-			writeError(enc, "invalid_query", err.Error())
-			os.Exit(1)
-		}
-		writeResult(enc, result)
-	case "hard_drive_tiers":
-		result, err := hardDriveTiers(query)
-		if err != nil {
-			writeError(enc, "invalid_query", err.Error())
-			os.Exit(1)
-		}
-		writeResult(enc, result)
-	case "building_reference":
-		result, err := buildingReference(query)
-		if err != nil {
-			writeError(enc, "invalid_query", err.Error())
-			os.Exit(1)
-		}
-		writeResult(enc, result)
-	default:
-		writeError(enc, "unknown_module", "unknown module: "+module)
-		os.Exit(1)
+	dispatch := map[string]func(map[string]any) (map[string]any, error){
+		"recipe_lookup":       recipeLookup,
+		"production_planner":  productionPlanner,
+		"milestone_navigator": milestoneNavigator,
+		"power_calculator":    powerCalculator,
+		"space_elevator":      spaceElevator,
+		"hard_drive_tiers":    hardDriveTiers,
+		"building_reference":  buildingReference,
 	}
+	handler, ok := dispatch[module]
+	if !ok {
+		writeError(enc, "unknown_module", "unknown module: "+module)
+		return 1
+	}
+	result, err := handler(query)
+	if err != nil {
+		writeError(enc, "invalid_query", err.Error())
+		return 1
+	}
+	writeResult(enc, result)
+	return 0
 }
 
 // stringParam reads an optional string parameter from a query.

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -68,13 +69,28 @@ func (g *generator) buildingInfos() {
 			line := fmt.Sprintf(
 				"\t%q: {ClassName: %q, DisplayName: %q, Description: %q, Category: %q, Footprint: %s, "+
 					"Stats: %s, BuildCost: %s, UnlockSchematic: %q, UnlockTier: %d},\n",
-				className, className, display, desc, category, footprint, stats, cost, unlockName, unlockTier)
+				className,
+				className,
+				display,
+				desc,
+				category,
+				footprint,
+				stats,
+				cost,
+				unlockName,
+				unlockTier,
+			)
 			rows = append(rows, row{className, line})
 			g.buildingInfoCount++
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].className < rows[j].className })
-	fmt.Printf("buildingInfos: %d of %d buildings resolved a build cost\n", resolvedCost, g.buildingInfoCount)
+	fmt.Fprintf(
+		os.Stderr,
+		"buildingInfos: %d of %d buildings resolved a build cost\n",
+		resolvedCost,
+		g.buildingInfoCount,
+	)
 
 	var b strings.Builder
 	b.WriteString("var BuildingInfos = map[string]BuildingInfo{\n")
@@ -84,7 +100,11 @@ func (g *generator) buildingInfos() {
 	b.WriteString("}\n")
 	g.write("building_info_gen.go", b.String())
 	if skipped > 0 {
-		fmt.Printf("buildingInfos: skipped %d Build_ classes with no display name\n", skipped)
+		fmt.Fprintf(
+			os.Stderr,
+			"buildingInfos: skipped %d Build_ classes with no display name\n",
+			skipped,
+		)
 	}
 }
 
@@ -187,7 +207,8 @@ func nativeClassCategory(native string) string {
 }
 
 var clearanceBoxPattern = regexp.MustCompile(
-	`Min=\(X=(-?[0-9.]+),Y=(-?[0-9.]+),Z=(-?[0-9.]+)\),Max=\(X=(-?[0-9.]+),Y=(-?[0-9.]+),Z=(-?[0-9.]+)\)`)
+	`Min=\(X=(-?[0-9.]+),Y=(-?[0-9.]+),Z=(-?[0-9.]+)\),Max=\(X=(-?[0-9.]+),Y=(-?[0-9.]+),Z=(-?[0-9.]+)\)`,
+)
 
 // footprintLiteral parses the first ClearanceBox of a building's mClearanceData
 // and returns a Go literal for its footprint in meters, or "nil" when the game
@@ -197,13 +218,25 @@ func footprintLiteral(clearance string) string {
 	if m == nil {
 		return "nil"
 	}
-	cm := func(s string) float64 { v, _ := strconv.ParseFloat(s, 64); return v }
+	cm := func(s string) float64 {
+		v, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return 0
+		}
+		return v
+	}
 	round2 := func(v float64) float64 { return math.Round(v*100) / 100 }
 	width := round2((cm(m[4]) - cm(m[1])) / 100)
 	depth := round2((cm(m[5]) - cm(m[2])) / 100)
 	height := round2(cm(m[6]) / 100)
-	return fmt.Sprintf("&Footprint{WidthM: %s, DepthM: %s, HeightM: %s, WidthFoundations: %d, DepthFoundations: %d}",
-		fnum(width), fnum(depth), fnum(height), foundationCount(width), foundationCount(depth))
+	return fmt.Sprintf(
+		"&Footprint{WidthM: %s, DepthM: %s, HeightM: %s, WidthFoundations: %d, DepthFoundations: %d}",
+		fnum(width),
+		fnum(depth),
+		fnum(height),
+		foundationCount(width),
+		foundationCount(depth),
+	)
 }
 
 // foundationCount returns the 8 m-foundation count for an extent, or 0 when the
@@ -254,8 +287,8 @@ func statsLiteral(c map[string]json.RawMessage, native string) string {
 			add("Storage slots", strconv.Itoa(x*y), "")
 		}
 	}
-	if cap := floatField(c, "mPowerStoreCapacity"); cap > 0 {
-		add("Power storage capacity", fnum(cap), "MWh")
+	if capMWh := floatField(c, "mPowerStoreCapacity"); capMWh > 0 {
+		add("Power storage capacity", fnum(capMWh), "MWh")
 	}
 	if ratio := floatField(c, "mSupplementalToPowerRatio"); ratio > 0 && production > 0 {
 		// Supplemental (water) m³/min = production * ratio * 60 / 1000.
