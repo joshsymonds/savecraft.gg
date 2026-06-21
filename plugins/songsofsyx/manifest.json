@@ -25,7 +25,7 @@
   },
   "version": "dev",
   "reference": {
-    "sha256": "0525852e69ed5c77ad5dfe753e89677d9de18b018ccadd5e273404ffe6d099d6",
+    "sha256": "c2b8a62da84c55bf6a2c20b6afd61a99e63fa0864c1db437d7237451a58af6b0",
     "url": "plugins/songsofsyx/reference.wasm",
     "modules": {
       "guide": {
@@ -42,6 +42,16 @@
           },
           "q": {
             "description": "For op 'search': a keyword matched against article titles and bodies, e.g. 'happiness'.",
+            "type": "string"
+          }
+        }
+      },
+      "races": {
+        "name": "Race \u0026 Species Lookup",
+        "description": "Look up any Songs of Syx species: whether it's playable, its preferred foods, slave price, baby/child maturation days, and the game's own description. Pass 'race' (an ID or fuzzy name) for one species, or omit it to list all. Use for population, happiness-by-food-preference, and species questions.",
+        "parameters": {
+          "race": {
+            "description": "A species ID or name (case-insensitive, fuzzy), e.g. 'HUMAN' or 'cretonian'. Omit to list all species.",
             "type": "string"
           }
         }

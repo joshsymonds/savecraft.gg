@@ -56,6 +56,29 @@ type Resource struct {
 	DegradeRate float64 `json:"degradeRate,omitempty"`
 }
 
+// Race is a species: its top-level stats from init/race/<ID>.txt joined with
+// its name/description from text/race/<ID>.txt.
+type Race struct {
+	// ID is the definition key (init/race filename without .txt), e.g. "HUMAN".
+	ID string `json:"id"`
+	// Name is the display name (text NAME), e.g. "Human". May be empty.
+	Name string `json:"name"`
+	// Description is the dev-written blurb (text DESC).
+	Description string `json:"description,omitempty"`
+	// Playable is whether the race can be chosen as the player's species
+	// (PLAYABLE).
+	Playable bool `json:"playable"`
+	// SlavePrice is the base purchase price as a slave (PROPERTIES.SLAVE_PRICE).
+	SlavePrice int `json:"slavePrice,omitempty"`
+	// BabyDays / ChildDays are the days spent as a baby / child before
+	// becoming a working adult (PROPERTIES.BABY_DAYS / CHILD_DAYS).
+	BabyDays  int `json:"babyDays,omitempty"`
+	ChildDays int `json:"childDays,omitempty"`
+	// PreferredFoods are the foods this race prefers (PREFERRED.FOOD), with the
+	// "*" wildcard dropped.
+	PreferredFoods []string `json:"preferredFoods,omitempty"`
+}
+
 // GuideArticle is one entry of the in-game mechanics guide, extracted verbatim
 // from data/assets/text/wiki/GUIDE.txt and ROOMS.txt. The prose is the
 // developer's own, version-matched with the game.

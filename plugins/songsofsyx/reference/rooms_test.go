@@ -91,7 +91,7 @@ func TestRoomsFuzzyByName(t *testing.T) {
 		if len(v.Produces) == 0 {
 			t.Errorf("REFINER_SMELTER has no Produces")
 		}
-	case roomsCandidates:
+	case candidatesResult:
 		var found bool
 		for _, c := range v.Candidates {
 			if c.ID == "REFINER_SMELTER" {
@@ -112,9 +112,9 @@ func TestRoomsAmbiguousReturnsCandidates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("roomsModule ambiguous: %v", err)
 	}
-	c, ok := res.(roomsCandidates)
+	c, ok := res.(candidatesResult)
 	if !ok {
-		t.Fatalf("result type = %T, want roomsCandidates", res)
+		t.Fatalf("result type = %T, want candidatesResult", res)
 	}
 	if len(c.Candidates) < 2 {
 		t.Errorf("'farm' returned %d candidates, want several", len(c.Candidates))

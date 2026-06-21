@@ -1,22 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/songsofsyx/reference/data"
 )
 
-type resourceRef struct {
-	ID    string   `json:"id"`
-	Name  string   `json:"name"`
-	Roles []string `json:"roles,omitempty"`
-}
-
 type resourcesIndexResult struct {
-	Count     int           `json:"count"`
-	Resources []resourceRef `json:"resources"`
+	Count     int         `json:"count"`
+	Resources []entityRef `json:"resources"`
 }
 
 // roomRate is a room and the rate at which it produces/consumes a resource.
@@ -32,11 +24,6 @@ type resourceResult struct {
 	ConsumedBy []roomRate    `json:"consumedBy,omitempty"`
 }
 
-type resourcesCandidates struct {
-	Query      string        `json:"query"`
-	Candidates []resourceRef `json:"candidates"`
-}
-
 // resourcesModule looks up resources/goods. With no "resource" param it returns
 // the index (optionally filtered by "role"). With "resource" it resolves one
 // good by exact ID or fuzzy id/name, returning the Resource plus the rooms that
@@ -48,13 +35,17 @@ func resourcesModule(query map[string]any) (any, error) {
 	return resourcesIndex(stringParam(query, "role")), nil
 }
 
+func resourceRef(res data.Resource) entityRef {
+	return entityRef{ID: res.ID, Name: res.Name, Roles: res.Roles}
+}
+
 func resourcesIndex(role string) resourcesIndexResult {
-	refs := make([]resourceRef, 0, len(data.Resources))
+	refs := make([]entityRef, 0, len(data.Resources))
 	for _, res := range data.Resources {
 		if role != "" && !hasRole(res.Roles, role) {
 			continue
 		}
-		refs = append(refs, resourceRef{ID: res.ID, Name: res.Name, Roles: res.Roles})
+		refs = append(refs, resourceRef(res))
 	}
 	sort.Slice(refs, func(i, j int) bool { return refs[i].ID < refs[j].ID })
 	return resourcesIndexResult{Count: len(refs), Resources: refs}
@@ -62,7 +53,7 @@ func resourcesIndex(role string) resourcesIndexResult {
 
 func hasRole(roles []string, want string) bool {
 	for _, r := range roles {
-		if strings.EqualFold(r, want) {
+		if r == want {
 			return true
 		}
 	}
@@ -70,35 +61,12 @@ func hasRole(roles []string, want string) bool {
 }
 
 func resolveResource(want string) (any, error) {
-	// Exact ID (case-insensitive) wins.
-	for id, res := range data.Resources {
-		if strings.EqualFold(id, want) {
-			return withFlows(res), nil
-		}
-	}
-
-	needle := strings.ToLower(want)
-	var matches []data.Resource
-	for _, res := range data.Resources {
-		if strings.Contains(strings.ToLower(res.ID), needle) ||
-			strings.Contains(strings.ToLower(res.Name), needle) {
-			matches = append(matches, res)
-		}
-	}
-
-	switch len(matches) {
-	case 0:
-		return nil, fmt.Errorf("resources: no good matching %q — call resources with no 'resource' for the index", want)
-	case 1:
-		return withFlows(matches[0]), nil
-	default:
-		refs := make([]resourceRef, len(matches))
-		for i, res := range matches {
-			refs[i] = resourceRef{ID: res.ID, Name: res.Name, Roles: res.Roles}
-		}
-		sort.Slice(refs, func(i, j int) bool { return refs[i].ID < refs[j].ID })
-		return resourcesCandidates{Query: want, Candidates: refs}, nil
-	}
+	return resolveEntity(want, "resources", data.Resources,
+		func(res data.Resource) string { return res.ID },
+		func(res data.Resource) string { return res.Name },
+		resourceRef,
+		func(res data.Resource) any { return withFlows(res) },
+	)
 }
 
 // withFlows attaches the rooms that produce and consume the resource, sorted by

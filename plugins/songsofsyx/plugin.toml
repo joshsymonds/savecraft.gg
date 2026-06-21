@@ -20,7 +20,7 @@ name = "Josh Symonds"
 github = "joshsymonds"
 
 # --- Reference modules (save-independent). Only implemented modules are
-# declared; races/tech are added as their datagen + handler land. ---
+# declared; tech is added as its datagen + handler land. ---
 
 [reference.modules.guide]
 name = "Mechanics Guide"
@@ -35,4 +35,9 @@ requires_save = false
 [reference.modules.resources]
 name = "Resource Lookup"
 description = "Look up any Songs of Syx resource/good: its roles (edible, drinkable, growable, minable, supply, work), spoilage rate, the game's own description, and — cross-referenced from the buildings — which rooms produce and consume it. Pass 'resource' (an ID or fuzzy name) for one good, or omit it (with optional 'role') to list all. Use for resource and production-chain questions."
+requires_save = false
+
+[reference.modules.races]
+name = "Race & Species Lookup"
+description = "Look up any Songs of Syx species: whether it's playable, its preferred foods, slave price, baby/child maturation days, and the game's own description. Pass 'race' (an ID or fuzzy name) for one species, or omit it to list all. Use for population, happiness-by-food-preference, and species questions."
 requires_save = false

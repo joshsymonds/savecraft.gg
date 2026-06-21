@@ -70,6 +70,13 @@ func run() (code int) {
 			return 1
 		}
 		writeResult(enc, result)
+	case "races":
+		result, raerr := racesModule(query)
+		if raerr != nil {
+			writeError(enc, "invalid_query", raerr.Error())
+			return 1
+		}
+		writeResult(enc, result)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		return 1
@@ -160,6 +167,18 @@ func schema() map[string]any {
 					"role": map[string]any{
 						"type":        "string",
 						"description": "Filter the index by role: edible, drinkable, growable, minable, supply, or work (only used when 'resource' is omitted).",
+					},
+				},
+			},
+			"races": map[string]any{
+				"name": "Race & Species Lookup",
+				"description": "Look up a Songs of Syx species: whether it's playable, its preferred foods, " +
+					"slave price, baby/child maturation days, and the game's description. Use for population, " +
+					"happiness-by-food-preference, and species questions.",
+				"parameters": map[string]any{
+					"race": map[string]any{
+						"type":        "string",
+						"description": "A species ID or name (case-insensitive, fuzzy), e.g. 'HUMAN' or 'cretonian'. Omit to list all species.",
 					},
 				},
 			},

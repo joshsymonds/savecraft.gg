@@ -47,72 +47,22 @@ func main() {
 		log.Fatalf("datagen: resources: %v", err)
 	}
 	fmt.Fprintf(os.Stdout, "datagen: resources — wrote %d resources to %s/resources_gen.go\n", nres, *out)
+
+	nrace, err := genRaces(*input, *out)
+	if err != nil {
+		log.Fatalf("datagen: races: %v", err)
+	}
+	fmt.Fprintf(os.Stdout, "datagen: races — wrote %d races to %s/races_gen.go\n", nrace, *out)
 }
 
-// genResources walks the top-level init/resource/*.txt defs (skipping the role
-// subdirs), derives each resource's roles from subdir membership, joins its
-// text file, and writes reference/data/resources_gen.go. Returns the count.
-func genResources(input, out string) (int, error) {
-	resDir := filepath.Join(input, "init", "resource")
-	entries, err := os.ReadDir(resDir)
-	if err != nil {
-		return 0, fmt.Errorf("read %s: %w", resDir, err)
-	}
-
-	// init/resource subdirs whose membership tags a resource with a role.
-	roleDirs := []string{"edible", "drinkable", "growable", "minable", "supply", "work"}
-
-	var resources []data.Resource
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".txt") {
-			continue
-		}
-		id := strings.TrimSuffix(name, ".txt")
-
-		initVal, perr := parseFile(filepath.Join(resDir, name))
-		if perr != nil {
-			return 0, fmt.Errorf("resource %s: %w", id, perr)
-		}
-
-		var roles []string
-		for _, role := range roleDirs {
-			if _, statErr := os.Stat(filepath.Join(resDir, role, name)); statErr == nil {
-				roles = append(roles, role)
-			}
-		}
-
-		var textVal *sosdata.Value
-		textPath := filepath.Join(input, "text", "resource", name)
-		if _, statErr := os.Stat(textPath); statErr == nil {
-			textVal, perr = parseFile(textPath)
-			if perr != nil {
-				return 0, fmt.Errorf("resource text %s: %w", id, perr)
-			}
-		}
-		resources = append(resources, decodeResource(initVal, textVal, id, roles))
-	}
-
-	src, err := generateResourcesSource(resources)
-	if err != nil {
-		return 0, err
-	}
-	if err = os.WriteFile(filepath.Join(out, "resources_gen.go"), src, 0o600); err != nil {
-		return 0, fmt.Errorf("write resources_gen.go: %w", err)
-	}
-	return len(resources), nil
-}
-
-// genRooms walks init/room/*.txt, joins each with its sibling text/room file,
-// and writes reference/data/rooms_gen.go. Returns the room count.
-func genRooms(input, out string) (int, error) {
-	initDir := filepath.Join(input, "init", "room")
+// walkCategory iterates the .txt definitions in initDir, parsing each and its
+// optional sibling under textDir, and calls visit(id, initVal, textVal). The
+// shared join used by every per-category generator.
+func walkCategory(initDir, textDir string, visit func(id string, initVal, textVal *sosdata.Value) error) error {
 	entries, err := os.ReadDir(initDir)
 	if err != nil {
-		return 0, fmt.Errorf("read %s: %w", initDir, err)
+		return fmt.Errorf("read %s: %w", initDir, err)
 	}
-
-	var rooms []data.Room
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasSuffix(name, ".txt") {
@@ -122,29 +72,87 @@ func genRooms(input, out string) (int, error) {
 
 		initVal, perr := parseFile(filepath.Join(initDir, name))
 		if perr != nil {
-			return 0, fmt.Errorf("room %s: %w", id, perr)
+			return fmt.Errorf("%s: %w", id, perr)
 		}
 
-		// The sibling text/room file (display name + description) is optional.
 		var textVal *sosdata.Value
-		textPath := filepath.Join(input, "text", "room", name)
+		textPath := filepath.Join(textDir, name)
 		if _, statErr := os.Stat(textPath); statErr == nil {
-			textVal, perr = parseFile(textPath)
-			if perr != nil {
-				return 0, fmt.Errorf("room text %s: %w", id, perr)
+			if textVal, perr = parseFile(textPath); perr != nil {
+				return fmt.Errorf("%s text: %w", id, perr)
 			}
 		}
-		rooms = append(rooms, decodeRoom(initVal, textVal, id))
+		if verr := visit(id, initVal, textVal); verr != nil {
+			return verr
+		}
 	}
+	return nil
+}
 
-	src, err := generateRoomsSource(rooms)
+// emitGen renders items via gen and writes them to out/file, returning the
+// item count.
+func emitGen[T any](out, file string, items []T, gen func([]T) ([]byte, error)) (int, error) {
+	src, err := gen(items)
 	if err != nil {
 		return 0, err
 	}
-	if err = os.WriteFile(filepath.Join(out, "rooms_gen.go"), src, 0o600); err != nil {
-		return 0, fmt.Errorf("write rooms_gen.go: %w", err)
+	if err = os.WriteFile(filepath.Join(out, file), src, 0o600); err != nil {
+		return 0, fmt.Errorf("write %s: %w", file, err)
 	}
-	return len(rooms), nil
+	return len(items), nil
+}
+
+// genRaces writes reference/data/races_gen.go from init/race + text/race.
+func genRaces(input, out string) (int, error) {
+	var races []data.Race
+	err := walkCategory(filepath.Join(input, "init", "race"), filepath.Join(input, "text", "race"),
+		func(id string, initVal, textVal *sosdata.Value) error {
+			races = append(races, decodeRace(initVal, textVal, id))
+			return nil
+		})
+	if err != nil {
+		return 0, err
+	}
+	return emitGen(out, "races_gen.go", races, generateRacesSource)
+}
+
+// genResources writes reference/data/resources_gen.go from the top-level
+// init/resource defs + text/resource, deriving each resource's roles from
+// init/resource/<role>/ subdir membership.
+func genResources(input, out string) (int, error) {
+	resDir := filepath.Join(input, "init", "resource")
+	roleDirs := []string{"edible", "drinkable", "growable", "minable", "supply", "work"}
+
+	var resources []data.Resource
+	err := walkCategory(resDir, filepath.Join(input, "text", "resource"),
+		func(id string, initVal, textVal *sosdata.Value) error {
+			var roles []string
+			for _, role := range roleDirs {
+				if _, statErr := os.Stat(filepath.Join(resDir, role, id+".txt")); statErr == nil {
+					roles = append(roles, role)
+				}
+			}
+			resources = append(resources, decodeResource(initVal, textVal, id, roles))
+			return nil
+		})
+	if err != nil {
+		return 0, err
+	}
+	return emitGen(out, "resources_gen.go", resources, generateResourcesSource)
+}
+
+// genRooms writes reference/data/rooms_gen.go from init/room + text/room.
+func genRooms(input, out string) (int, error) {
+	var rooms []data.Room
+	err := walkCategory(filepath.Join(input, "init", "room"), filepath.Join(input, "text", "room"),
+		func(id string, initVal, textVal *sosdata.Value) error {
+			rooms = append(rooms, decodeRoom(initVal, textVal, id))
+			return nil
+		})
+	if err != nil {
+		return 0, err
+	}
+	return emitGen(out, "rooms_gen.go", rooms, generateRoomsSource)
 }
 
 // parseFile reads and parses a data file into an AST.
