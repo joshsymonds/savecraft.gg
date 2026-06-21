@@ -5,6 +5,39 @@
 // these tables to answer queries.
 package data
 
+// Room is a buildable room/building: its stats from init/room/<ID>.txt joined
+// with its display name and description from text/room/<ID>.txt by the shared
+// ID. Production rates and build costs are for the base upgrade tier; the game
+// also has per-tier upgrades and area-derived worker capacity, which are not
+// represented here.
+type Room struct {
+	// ID is the definition key (init/room filename without .txt), e.g.
+	// "EATERY_NORMAL".
+	ID string
+	// Name is the display name (text INFO.NAME), e.g. "Food Stall". May be
+	// empty if the room ships no text file.
+	Name string
+	// Description is the dev-written blurb (text INFO.DESC).
+	Description string
+	// Category groups the room (text INFO.WIKI.CATEGORY, e.g. "Service",
+	// "Refiner"). May be empty.
+	Category string
+	// BuildCost maps a build resource to its quantity for the base tier
+	// (RESOURCES zipped with ITEMS[0].COSTS; zero-cost entries omitted).
+	BuildCost map[string]int
+	// Produces / Consumes map a resource to its per-worker player rate from
+	// INDUSTRY.OUT / INDUSTRY.IN (top-level, else ITEMS[0].INDUSTRY).
+	Produces map[string]float64
+	Consumes map[string]float64
+	// UsesTool is WORK.USES_TOOL — whether workers' output scales with tools.
+	UsesTool bool
+	// IsService is true when the room provides a citizen SERVICE (hearth,
+	// well, food stall, bath, etc.) rather than producing goods.
+	IsService bool
+	// Growable is the farmed resource for farms (GROWABLE), else empty.
+	Growable string
+}
+
 // GuideArticle is one entry of the in-game mechanics guide, extracted verbatim
 // from data/assets/text/wiki/GUIDE.txt and ROOMS.txt. The prose is the
 // developer's own, version-matched with the game.

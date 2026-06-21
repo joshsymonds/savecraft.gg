@@ -19,6 +19,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/songsofsyx/reference/data"
 	"github.com/joshsymonds/savecraft.gg/plugins/songsofsyx/tools/datagen/sosdata"
@@ -34,6 +35,69 @@ func main() {
 		log.Fatalf("datagen: guide: %v", err)
 	}
 	fmt.Fprintf(os.Stdout, "datagen: guide — wrote %d articles to %s/guide_gen.go\n", n, *out)
+
+	nr, err := genRooms(*input, *out)
+	if err != nil {
+		log.Fatalf("datagen: rooms: %v", err)
+	}
+	fmt.Fprintf(os.Stdout, "datagen: rooms — wrote %d rooms to %s/rooms_gen.go\n", nr, *out)
+}
+
+// genRooms walks init/room/*.txt, joins each with its sibling text/room file,
+// and writes reference/data/rooms_gen.go. Returns the room count.
+func genRooms(input, out string) (int, error) {
+	initDir := filepath.Join(input, "init", "room")
+	entries, err := os.ReadDir(initDir)
+	if err != nil {
+		return 0, fmt.Errorf("read %s: %w", initDir, err)
+	}
+
+	var rooms []data.Room
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".txt") {
+			continue
+		}
+		id := strings.TrimSuffix(name, ".txt")
+
+		initVal, perr := parseFile(filepath.Join(initDir, name))
+		if perr != nil {
+			return 0, fmt.Errorf("room %s: %w", id, perr)
+		}
+
+		// The sibling text/room file (display name + description) is optional.
+		var textVal *sosdata.Value
+		textPath := filepath.Join(input, "text", "room", name)
+		if _, statErr := os.Stat(textPath); statErr == nil {
+			textVal, perr = parseFile(textPath)
+			if perr != nil {
+				return 0, fmt.Errorf("room text %s: %w", id, perr)
+			}
+		}
+		rooms = append(rooms, decodeRoom(initVal, textVal, id))
+	}
+
+	src, err := generateRoomsSource(rooms)
+	if err != nil {
+		return 0, err
+	}
+	if err = os.WriteFile(filepath.Join(out, "rooms_gen.go"), src, 0o600); err != nil {
+		return 0, fmt.Errorf("write rooms_gen.go: %w", err)
+	}
+	return len(rooms), nil
+}
+
+// parseFile reads and parses a data file into an AST.
+func parseFile(path string) (*sosdata.Value, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	val, err := sosdata.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return val, nil
 }
 
 // genGuide reads GUIDE.txt and ROOMS.txt, decodes their articles, and writes
