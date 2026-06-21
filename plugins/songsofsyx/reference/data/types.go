@@ -13,29 +13,29 @@ package data
 type Room struct {
 	// ID is the definition key (init/room filename without .txt), e.g.
 	// "EATERY_NORMAL".
-	ID string
+	ID string `json:"id"`
 	// Name is the display name (text INFO.NAME), e.g. "Food Stall". May be
 	// empty if the room ships no text file.
-	Name string
+	Name string `json:"name"`
 	// Description is the dev-written blurb (text INFO.DESC).
-	Description string
+	Description string `json:"description,omitempty"`
 	// Category groups the room (text INFO.WIKI.CATEGORY, e.g. "Service",
 	// "Refiner"). May be empty.
-	Category string
+	Category string `json:"category,omitempty"`
 	// BuildCost maps a build resource to its quantity for the base tier
 	// (RESOURCES zipped with ITEMS[0].COSTS; zero-cost entries omitted).
-	BuildCost map[string]int
+	BuildCost map[string]int `json:"buildCost,omitempty"`
 	// Produces / Consumes map a resource to its per-worker player rate from
-	// INDUSTRY.OUT / INDUSTRY.IN (top-level, else ITEMS[0].INDUSTRY).
-	Produces map[string]float64
-	Consumes map[string]float64
+	// INDUSTRY.OUT / INDUSTRY.IN (top-level, else INDUSTRIES[0].INDUSTRY).
+	Produces map[string]float64 `json:"produces,omitempty"`
+	Consumes map[string]float64 `json:"consumes,omitempty"`
 	// UsesTool is WORK.USES_TOOL — whether workers' output scales with tools.
-	UsesTool bool
+	UsesTool bool `json:"usesTool,omitempty"`
 	// IsService is true when the room provides a citizen SERVICE (hearth,
 	// well, food stall, bath, etc.) rather than producing goods.
-	IsService bool
+	IsService bool `json:"isService,omitempty"`
 	// Growable is the farmed resource for farms (GROWABLE), else empty.
-	Growable string
+	Growable string `json:"growable,omitempty"`
 }
 
 // GuideArticle is one entry of the in-game mechanics guide, extracted verbatim

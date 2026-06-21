@@ -25,7 +25,7 @@
   },
   "version": "dev",
   "reference": {
-    "sha256": "1b8b661f5c91da80f3241b784527abd4d0e8e7428b3469444ada4e6f7d7d8a1d",
+    "sha256": "894254104ed8aaad97efe77667c579f2127d6891d6c4f20181068042a31f6e86",
     "url": "plugins/songsofsyx/reference.wasm",
     "modules": {
       "guide": {
@@ -42,6 +42,20 @@
           },
           "q": {
             "description": "For op 'search': a keyword matched against article titles and bodies, e.g. 'happiness'.",
+            "type": "string"
+          }
+        }
+      },
+      "rooms": {
+        "name": "Room \u0026 Building Lookup",
+        "description": "Look up any Songs of Syx room/building's base-tier stats and the game's own description: resource build cost, what it produces and consumes per worker, whether it provides a citizen service, and the farmed crop for farms. Pass 'room' (an ID or fuzzy name) for one building, or omit it (with optional 'category') to list all. Use for any question about what a building costs, produces, consumes, or provides.",
+        "parameters": {
+          "category": {
+            "description": "Filter the index by category, e.g. 'Service' or 'Refiner' (only used when 'room' is omitted).",
+            "type": "string"
+          },
+          "room": {
+            "description": "A building ID or name (case-insensitive, fuzzy), e.g. 'EATERY_NORMAL' or 'smelter'. Omit to list all buildings.",
             "type": "string"
           }
         }

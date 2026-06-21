@@ -20,9 +20,14 @@ name = "Josh Symonds"
 github = "joshsymonds"
 
 # --- Reference modules (save-independent). Only implemented modules are
-# declared; rooms/resources/races/tech are added as their datagen + handler land. ---
+# declared; resources/races/tech are added as their datagen + handler land. ---
 
 [reference.modules.guide]
 name = "Mechanics Guide"
 description = "Look up Songs of Syx gameplay mechanics from the game's own shipped in-game guide and room notes. Returns a table of contents, full article text by key, or keyword matches — all dev-written, version-matched prose. Use PROACTIVELY before answering ANY question about how a system works (happiness, services, immigration, farming, military, trade, world map, law): this game is niche and easily mis-remembered, so ground and cite the article instead of guessing."
+requires_save = false
+
+[reference.modules.rooms]
+name = "Room & Building Lookup"
+description = "Look up any Songs of Syx room/building's base-tier stats and the game's own description: resource build cost, what it produces and consumes per worker, whether it provides a citizen service, and the farmed crop for farms. Pass 'room' (an ID or fuzzy name) for one building, or omit it (with optional 'category') to list all. Use for any question about what a building costs, produces, consumes, or provides."
 requires_save = false

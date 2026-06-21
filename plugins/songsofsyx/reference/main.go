@@ -56,6 +56,13 @@ func run() (code int) {
 			return 1
 		}
 		writeResult(enc, result)
+	case "rooms":
+		result, rerr := roomsModule(query)
+		if rerr != nil {
+			writeError(enc, "invalid_query", rerr.Error())
+			return 1
+		}
+		writeResult(enc, result)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		return 1
@@ -114,6 +121,22 @@ func schema() map[string]any {
 					"q": map[string]any{
 						"type":        "string",
 						"description": "For op 'search': a keyword matched against article titles and bodies, e.g. 'happiness'.",
+					},
+				},
+			},
+			"rooms": map[string]any{
+				"name": "Room & Building Lookup",
+				"description": "Look up a Songs of Syx room/building's base-tier stats and description: " +
+					"build cost, what it produces and consumes, whether it provides a service, and the " +
+					"farmed crop for farms. Use for any 'what does X cost / produce / consume' question.",
+				"parameters": map[string]any{
+					"room": map[string]any{
+						"type":        "string",
+						"description": "A building ID or name (case-insensitive, fuzzy), e.g. 'EATERY_NORMAL' or 'smelter'. Omit to list all buildings.",
+					},
+					"category": map[string]any{
+						"type":        "string",
+						"description": "Filter the index by category, e.g. 'Service' or 'Refiner' (only used when 'room' is omitted).",
 					},
 				},
 			},
