@@ -1,8 +1,6 @@
 package main
 
 import (
-	"sort"
-
 	"github.com/joshsymonds/savecraft.gg/plugins/songsofsyx/reference/data"
 )
 
@@ -27,12 +25,8 @@ func raceRef(race data.Race) entityRef {
 }
 
 func racesIndex() racesIndexResult {
-	refs := make([]entityRef, 0, len(data.Races))
-	for _, race := range data.Races {
-		refs = append(refs, raceRef(race))
-	}
-	sort.Slice(refs, func(i, j int) bool { return refs[i].ID < refs[j].ID })
-	return racesIndexResult{Count: len(refs), Races: refs}
+	count, refs := buildIndex(data.Races, raceRef, nil)
+	return racesIndexResult{Count: count, Races: refs}
 }
 
 func resolveRace(want string) (any, error) {

@@ -22,6 +22,20 @@ type candidatesResult struct {
 	Candidates []entityRef `json:"candidates"`
 }
 
+// buildIndex returns the count and sorted entityRefs of all entities for which
+// keep returns true (keep nil includes everything).
+func buildIndex[Ent any](all map[string]Ent, refOf func(Ent) entityRef, keep func(Ent) bool) (int, []entityRef) {
+	refs := make([]entityRef, 0, len(all))
+	for _, v := range all {
+		if keep != nil && !keep(v) {
+			continue
+		}
+		refs = append(refs, refOf(v))
+	}
+	sort.Slice(refs, func(i, j int) bool { return refs[i].ID < refs[j].ID })
+	return len(refs), refs
+}
+
 // resolveEntity resolves want against all by exact ID (case-insensitive), then
 // fuzzy ID/name substring. One match → single(match); several → a
 // candidatesResult built via refOf, sorted by ID; none → an error tagged kind.

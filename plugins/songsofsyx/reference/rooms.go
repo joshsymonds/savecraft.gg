@@ -1,7 +1,6 @@
 package main
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/songsofsyx/reference/data"
@@ -28,15 +27,10 @@ func roomRef(room data.Room) entityRef {
 }
 
 func roomsIndex(category string) roomsIndexResult {
-	refs := make([]entityRef, 0, len(data.Rooms))
-	for _, room := range data.Rooms {
-		if category != "" && !strings.EqualFold(room.Category, category) {
-			continue
-		}
-		refs = append(refs, roomRef(room))
-	}
-	sort.Slice(refs, func(i, j int) bool { return refs[i].ID < refs[j].ID })
-	return roomsIndexResult{Count: len(refs), Rooms: refs}
+	count, refs := buildIndex(data.Rooms, roomRef, func(room data.Room) bool {
+		return category == "" || strings.EqualFold(room.Category, category)
+	})
+	return roomsIndexResult{Count: count, Rooms: refs}
 }
 
 func resolveRoom(want string) (any, error) {

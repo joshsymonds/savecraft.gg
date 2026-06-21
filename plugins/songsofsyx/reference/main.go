@@ -50,37 +50,30 @@ func run() (code int) {
 	module := stringParam(query, "module")
 	switch module {
 	case "guide":
-		result, gerr := guideModule(query)
-		if gerr != nil {
-			writeError(enc, "invalid_query", gerr.Error())
-			return 1
-		}
-		writeResult(enc, result)
+		return dispatch(enc, guideModule, query)
 	case "rooms":
-		result, rerr := roomsModule(query)
-		if rerr != nil {
-			writeError(enc, "invalid_query", rerr.Error())
-			return 1
-		}
-		writeResult(enc, result)
+		return dispatch(enc, roomsModule, query)
 	case "resources":
-		result, reserr := resourcesModule(query)
-		if reserr != nil {
-			writeError(enc, "invalid_query", reserr.Error())
-			return 1
-		}
-		writeResult(enc, result)
+		return dispatch(enc, resourcesModule, query)
 	case "races":
-		result, raerr := racesModule(query)
-		if raerr != nil {
-			writeError(enc, "invalid_query", raerr.Error())
-			return 1
-		}
-		writeResult(enc, result)
+		return dispatch(enc, racesModule, query)
+	case "tech":
+		return dispatch(enc, techModule, query)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		return 1
 	}
+}
+
+// dispatch runs a module handler and writes its result or error as ndjson,
+// returning the process exit code.
+func dispatch(enc *json.Encoder, handler func(map[string]any) (any, error), query map[string]any) int {
+	result, err := handler(query)
+	if err != nil {
+		writeError(enc, "invalid_query", err.Error())
+		return 1
+	}
+	writeResult(enc, result)
 	return 0
 }
 
@@ -179,6 +172,22 @@ func schema() map[string]any {
 					"race": map[string]any{
 						"type":        "string",
 						"description": "A species ID or name (case-insensitive, fuzzy), e.g. 'HUMAN' or 'cretonian'. Omit to list all species.",
+					},
+				},
+			},
+			"tech": map[string]any{
+				"name": "Knowledge Tree Lookup",
+				"description": "Look up a Songs of Syx technology: its knowledge-point cost, the population " +
+					"threshold and prerequisite techs it requires, what it unlocks, and the game's description. " +
+					"Use for research-planning and unlock-path questions.",
+				"parameters": map[string]any{
+					"tech": map[string]any{
+						"type":        "string",
+						"description": "A tech key or name (case-insensitive, fuzzy), e.g. 'SCH00' or 'School'. Omit to list all techs.",
+					},
+					"category": map[string]any{
+						"type":        "string",
+						"description": "Filter the index by tree category, e.g. 'Administration' or 'Agriculture' (only used when 'tech' is omitted).",
 					},
 				},
 			},

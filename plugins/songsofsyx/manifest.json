@@ -25,7 +25,7 @@
   },
   "version": "dev",
   "reference": {
-    "sha256": "c2b8a62da84c55bf6a2c20b6afd61a99e63fa0864c1db437d7237451a58af6b0",
+    "sha256": "8a19ce76d2d7dad809bda6d656e759ad0c44d3bef0c8eef971df2f28d101d7c1",
     "url": "plugins/songsofsyx/reference.wasm",
     "modules": {
       "guide": {
@@ -80,6 +80,20 @@
           },
           "room": {
             "description": "A building ID or name (case-insensitive, fuzzy), e.g. 'EATERY_NORMAL' or 'smelter'. Omit to list all buildings.",
+            "type": "string"
+          }
+        }
+      },
+      "tech": {
+        "name": "Knowledge Tree Lookup",
+        "description": "Look up any Songs of Syx technology: its knowledge-point cost, the population threshold and prerequisite techs it requires, what it unlocks, and the game's own description. Pass 'tech' (a key or fuzzy name) for one technology, or omit it (with optional 'category') to list all. Use for research-planning and unlock-path questions.",
+        "parameters": {
+          "category": {
+            "description": "Filter the index by tree category, e.g. 'Administration' or 'Agriculture' (only used when 'tech' is omitted).",
+            "type": "string"
+          },
+          "tech": {
+            "description": "A tech key or name (case-insensitive, fuzzy), e.g. 'SCH00' or 'School'. Omit to list all techs.",
             "type": "string"
           }
         }

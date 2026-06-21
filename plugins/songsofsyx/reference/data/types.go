@@ -79,6 +79,31 @@ type Race struct {
 	PreferredFoods []string `json:"preferredFoods,omitempty"`
 }
 
+// Tech is one node of the knowledge tree: its stats from a TECHS entry in
+// init/tech/<CAT>.txt joined with its name/description from text/tech/<CAT>.txt.
+type Tech struct {
+	// ID is the tech key (e.g. "SCH00").
+	ID string `json:"id"`
+	// Name is the display name (text NAME), e.g. "School". May be empty.
+	Name string `json:"name"`
+	// Description is the dev-written blurb (text DESC).
+	Description string `json:"description,omitempty"`
+	// Category is the tree's display name (text top-level NAME), e.g.
+	// "Administration".
+	Category string `json:"category,omitempty"`
+	// Costs maps a knowledge-point type to the amount required (COSTS), e.g.
+	// {"CIVIC_ADMIN": 15}.
+	Costs map[string]float64 `json:"costs,omitempty"`
+	// RequiresPopulation is the settlement population threshold to unlock
+	// (REQUIRES.GREATER.POPULATION), or 0 if none.
+	RequiresPopulation int `json:"requiresPopulation,omitempty"`
+	// RequiresTech maps a prerequisite tech key to the level required
+	// (REQUIRES_TECH_LEVEL).
+	RequiresTech map[string]int `json:"requiresTech,omitempty"`
+	// Unlocks are the things this tech unlocks (UNLOCKS_FACTION), e.g. room ids.
+	Unlocks []string `json:"unlocks,omitempty"`
+}
+
 // GuideArticle is one entry of the in-game mechanics guide, extracted verbatim
 // from data/assets/text/wiki/GUIDE.txt and ROOMS.txt. The prose is the
 // developer's own, version-matched with the game.

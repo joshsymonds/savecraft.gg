@@ -40,15 +40,10 @@ func resourceRef(res data.Resource) entityRef {
 }
 
 func resourcesIndex(role string) resourcesIndexResult {
-	refs := make([]entityRef, 0, len(data.Resources))
-	for _, res := range data.Resources {
-		if role != "" && !hasRole(res.Roles, role) {
-			continue
-		}
-		refs = append(refs, resourceRef(res))
-	}
-	sort.Slice(refs, func(i, j int) bool { return refs[i].ID < refs[j].ID })
-	return resourcesIndexResult{Count: len(refs), Resources: refs}
+	count, refs := buildIndex(data.Resources, resourceRef, func(res data.Resource) bool {
+		return role == "" || hasRole(res.Roles, role)
+	})
+	return resourcesIndexResult{Count: count, Resources: refs}
 }
 
 func hasRole(roles []string, want string) bool {

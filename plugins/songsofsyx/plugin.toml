@@ -19,8 +19,8 @@ sources = ["gamatron"]
 name = "Josh Symonds"
 github = "joshsymonds"
 
-# --- Reference modules (save-independent). Only implemented modules are
-# declared; tech is added as its datagen + handler land. ---
+# --- Reference modules (save-independent), generated from the game's shipped
+# data and in-game guide. ---
 
 [reference.modules.guide]
 name = "Mechanics Guide"
@@ -40,4 +40,9 @@ requires_save = false
 [reference.modules.races]
 name = "Race & Species Lookup"
 description = "Look up any Songs of Syx species: whether it's playable, its preferred foods, slave price, baby/child maturation days, and the game's own description. Pass 'race' (an ID or fuzzy name) for one species, or omit it to list all. Use for population, happiness-by-food-preference, and species questions."
+requires_save = false
+
+[reference.modules.tech]
+name = "Knowledge Tree Lookup"
+description = "Look up any Songs of Syx technology: its knowledge-point cost, the population threshold and prerequisite techs it requires, what it unlocks, and the game's own description. Pass 'tech' (a key or fuzzy name) for one technology, or omit it (with optional 'category') to list all. Use for research-planning and unlock-path questions."
 requires_save = false
