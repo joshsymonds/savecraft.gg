@@ -41,6 +41,66 @@ func main() {
 		log.Fatalf("datagen: rooms: %v", err)
 	}
 	fmt.Fprintf(os.Stdout, "datagen: rooms — wrote %d rooms to %s/rooms_gen.go\n", nr, *out)
+
+	nres, err := genResources(*input, *out)
+	if err != nil {
+		log.Fatalf("datagen: resources: %v", err)
+	}
+	fmt.Fprintf(os.Stdout, "datagen: resources — wrote %d resources to %s/resources_gen.go\n", nres, *out)
+}
+
+// genResources walks the top-level init/resource/*.txt defs (skipping the role
+// subdirs), derives each resource's roles from subdir membership, joins its
+// text file, and writes reference/data/resources_gen.go. Returns the count.
+func genResources(input, out string) (int, error) {
+	resDir := filepath.Join(input, "init", "resource")
+	entries, err := os.ReadDir(resDir)
+	if err != nil {
+		return 0, fmt.Errorf("read %s: %w", resDir, err)
+	}
+
+	// init/resource subdirs whose membership tags a resource with a role.
+	roleDirs := []string{"edible", "drinkable", "growable", "minable", "supply", "work"}
+
+	var resources []data.Resource
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".txt") {
+			continue
+		}
+		id := strings.TrimSuffix(name, ".txt")
+
+		initVal, perr := parseFile(filepath.Join(resDir, name))
+		if perr != nil {
+			return 0, fmt.Errorf("resource %s: %w", id, perr)
+		}
+
+		var roles []string
+		for _, role := range roleDirs {
+			if _, statErr := os.Stat(filepath.Join(resDir, role, name)); statErr == nil {
+				roles = append(roles, role)
+			}
+		}
+
+		var textVal *sosdata.Value
+		textPath := filepath.Join(input, "text", "resource", name)
+		if _, statErr := os.Stat(textPath); statErr == nil {
+			textVal, perr = parseFile(textPath)
+			if perr != nil {
+				return 0, fmt.Errorf("resource text %s: %w", id, perr)
+			}
+		}
+		resources = append(resources, decodeResource(initVal, textVal, id, roles))
+	}
+
+	src, err := generateResourcesSource(resources)
+	if err != nil {
+		return 0, err
+	}
+	if err = os.WriteFile(filepath.Join(out, "resources_gen.go"), src, 0o600); err != nil {
+		return 0, fmt.Errorf("write resources_gen.go: %w", err)
+	}
+	return len(resources), nil
 }
 
 // genRooms walks init/room/*.txt, joins each with its sibling text/room file,

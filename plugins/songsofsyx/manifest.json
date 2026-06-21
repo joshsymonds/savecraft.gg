@@ -25,7 +25,7 @@
   },
   "version": "dev",
   "reference": {
-    "sha256": "894254104ed8aaad97efe77667c579f2127d6891d6c4f20181068042a31f6e86",
+    "sha256": "0525852e69ed5c77ad5dfe753e89677d9de18b018ccadd5e273404ffe6d099d6",
     "url": "plugins/songsofsyx/reference.wasm",
     "modules": {
       "guide": {
@@ -42,6 +42,20 @@
           },
           "q": {
             "description": "For op 'search': a keyword matched against article titles and bodies, e.g. 'happiness'.",
+            "type": "string"
+          }
+        }
+      },
+      "resources": {
+        "name": "Resource Lookup",
+        "description": "Look up any Songs of Syx resource/good: its roles (edible, drinkable, growable, minable, supply, work), spoilage rate, the game's own description, and — cross-referenced from the buildings — which rooms produce and consume it. Pass 'resource' (an ID or fuzzy name) for one good, or omit it (with optional 'role') to list all. Use for resource and production-chain questions.",
+        "parameters": {
+          "resource": {
+            "description": "A resource ID or name (case-insensitive, fuzzy), e.g. 'METAL' or 'grain'. Omit to list all resources.",
+            "type": "string"
+          },
+          "role": {
+            "description": "Filter the index by role: edible, drinkable, growable, minable, supply, or work (only used when 'resource' is omitted).",
             "type": "string"
           }
         }

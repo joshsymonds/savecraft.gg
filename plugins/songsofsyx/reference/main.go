@@ -63,6 +63,13 @@ func run() (code int) {
 			return 1
 		}
 		writeResult(enc, result)
+	case "resources":
+		result, reserr := resourcesModule(query)
+		if reserr != nil {
+			writeError(enc, "invalid_query", reserr.Error())
+			return 1
+		}
+		writeResult(enc, result)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		return 1
@@ -137,6 +144,22 @@ func schema() map[string]any {
 					"category": map[string]any{
 						"type":        "string",
 						"description": "Filter the index by category, e.g. 'Service' or 'Refiner' (only used when 'room' is omitted).",
+					},
+				},
+			},
+			"resources": map[string]any{
+				"name": "Resource Lookup",
+				"description": "Look up a Songs of Syx resource/good: its roles (edible, drinkable, growable, " +
+					"minable, etc.), spoilage rate, the game's description, and — cross-referenced from the " +
+					"buildings — which rooms produce and consume it. Use for resource and production-chain questions.",
+				"parameters": map[string]any{
+					"resource": map[string]any{
+						"type":        "string",
+						"description": "A resource ID or name (case-insensitive, fuzzy), e.g. 'METAL' or 'grain'. Omit to list all resources.",
+					},
+					"role": map[string]any{
+						"type":        "string",
+						"description": "Filter the index by role: edible, drinkable, growable, minable, supply, or work (only used when 'resource' is omitted).",
 					},
 				},
 			},

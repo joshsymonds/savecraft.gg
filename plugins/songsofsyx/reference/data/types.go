@@ -38,6 +38,24 @@ type Room struct {
 	Growable string `json:"growable,omitempty"`
 }
 
+// Resource is a tradeable good: its top-level stats from init/resource/<ID>.txt
+// joined with its name/description from text/resource/<ID>.txt, plus the roles
+// it fills (which init/resource/<role>/ subdirs list it).
+type Resource struct {
+	// ID is the definition key (init/resource filename without .txt), e.g.
+	// "GRAIN".
+	ID string `json:"id"`
+	// Name is the display name (text NAME), e.g. "Grain". May be empty.
+	Name string `json:"name"`
+	// Description is the dev-written blurb (text DESC).
+	Description string `json:"description,omitempty"`
+	// Roles are the categories the resource fills, sorted: any of edible,
+	// drinkable, growable, minable, supply, work.
+	Roles []string `json:"roles,omitempty"`
+	// DegradeRate is the fraction lost to spoilage per year (DEGRADE_RATE).
+	DegradeRate float64 `json:"degradeRate,omitempty"`
+}
+
 // GuideArticle is one entry of the in-game mechanics guide, extracted verbatim
 // from data/assets/text/wiki/GUIDE.txt and ROOMS.txt. The prose is the
 // developer's own, version-matched with the game.
