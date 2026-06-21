@@ -25,7 +25,7 @@
   },
   "version": "dev",
   "reference": {
-    "sha256": "8a19ce76d2d7dad809bda6d656e759ad0c44d3bef0c8eef971df2f28d101d7c1",
+    "sha256": "415ae94bc69c27e8287c6459dcaace23a9b36b4624ffa4a399f2991404914a50",
     "url": "plugins/songsofsyx/reference.wasm",
     "modules": {
       "guide": {

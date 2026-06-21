@@ -65,6 +65,15 @@ func TestDecodeResourceNilText(t *testing.T) {
 	}
 }
 
+func TestDecodeResourceMalformedNumericIsZero(t *testing.T) {
+	// A non-numeric value decodes to 0 (build-time over trusted data) — pin it
+	// so a future change to error-on-malformed is a deliberate decision.
+	r := parseResource(t, "DEGRADE_RATE: notanumber,", "", nil)
+	if r.DegradeRate != 0 {
+		t.Errorf("malformed DEGRADE_RATE = %v, want 0", r.DegradeRate)
+	}
+}
+
 func TestGenerateResourcesSourceCompiles(t *testing.T) {
 	resources := []data.Resource{
 		parseResource(t, "DEGRADE_RATE: 0.1,", `NAME: "Grain",`, []string{"growable"}),

@@ -84,6 +84,17 @@ func TestDecodeTechMinimalNilText(t *testing.T) {
 	}
 }
 
+func TestDecodeTechMalformedCostSkipped(t *testing.T) {
+	// A non-numeric cost is skipped (not coerced to 0); valid costs remain.
+	tech := parseTech(t, "COSTS: { CIVIC_ADMIN: notanum, CIVIC_OK: 5, },", "")
+	if _, ok := tech.Costs["CIVIC_ADMIN"]; ok {
+		t.Errorf("non-numeric cost CIVIC_ADMIN should be skipped, got %v", tech.Costs)
+	}
+	if tech.Costs["CIVIC_OK"] != 5 {
+		t.Errorf("valid cost CIVIC_OK = %v, want 5", tech.Costs["CIVIC_OK"])
+	}
+}
+
 func TestGenerateTechSourceCompiles(t *testing.T) {
 	techs := []data.Tech{
 		parseTech(t, techNode, techText),

@@ -80,6 +80,18 @@ func TestDecodeRaceNonPlayableNilText(t *testing.T) {
 	}
 }
 
+func TestDecodeRaceDescTrimsTrailingQuote(t *testing.T) {
+	// Real race DESC blocks carry a redundant inner closing quote + trailing
+	// newline before the real terminator; the decoder trims the trailing quote
+	// and whitespace while preserving interior quotes.
+	const textSrc = "NAME: \"X\",\nDESC:\n\"The gods' \"last\" creation.\"\n\",\n"
+	r := parseRace(t, "PLAYABLE: true,", textSrc)
+	want := `The gods' "last" creation.`
+	if r.Description != want {
+		t.Errorf("Description = %q, want %q", r.Description, want)
+	}
+}
+
 func TestGenerateRacesSourceCompiles(t *testing.T) {
 	races := []data.Race{
 		parseRace(t, raceInit, raceText),

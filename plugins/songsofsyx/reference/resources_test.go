@@ -90,6 +90,28 @@ func TestResourcesConsumers(t *testing.T) {
 	}
 }
 
+func TestWithFlowsSyntheticJoin(t *testing.T) {
+	// Pin the producer/consumer join on synthetic rooms, independent of the
+	// committed generated tables.
+	rooms := map[string]data.Room{
+		"SMELTER": {
+			ID:       "SMELTER",
+			Name:     "Smelter",
+			Produces: map[string]float64{"METAL": 0.5},
+			Consumes: map[string]float64{"ORE": 1.25},
+		},
+		"FORGE": {ID: "FORGE", Name: "Forge", Consumes: map[string]float64{"METAL": 0.2}},
+		"WELL":  {ID: "WELL", Name: "Well"},
+	}
+	out := withFlows(data.Resource{ID: "METAL", Name: "Metal"}, rooms)
+	if len(out.ProducedBy) != 1 || out.ProducedBy[0].ID != "SMELTER" || out.ProducedBy[0].Rate != 0.5 {
+		t.Errorf("ProducedBy = %+v, want [SMELTER@0.5]", out.ProducedBy)
+	}
+	if len(out.ConsumedBy) != 1 || out.ConsumedBy[0].ID != "FORGE" || out.ConsumedBy[0].Rate != 0.2 {
+		t.Errorf("ConsumedBy = %+v, want [FORGE@0.2]", out.ConsumedBy)
+	}
+}
+
 func TestResourcesUnknownErrors(t *testing.T) {
 	if _, err := resourcesModule(map[string]any{"resource": "zzz_nope"}); err == nil {
 		t.Errorf("unknown resource = nil error, want error")

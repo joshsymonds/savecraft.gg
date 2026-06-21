@@ -22,17 +22,27 @@ type candidatesResult struct {
 	Candidates []entityRef `json:"candidates"`
 }
 
+// sortedRefs maps entities to entityRefs and sorts them by ID.
+func sortedRefs[Ent any](xs []Ent, refOf func(Ent) entityRef) []entityRef {
+	refs := make([]entityRef, len(xs))
+	for i, v := range xs {
+		refs[i] = refOf(v)
+	}
+	sort.Slice(refs, func(i, j int) bool { return refs[i].ID < refs[j].ID })
+	return refs
+}
+
 // buildIndex returns the count and sorted entityRefs of all entities for which
 // keep returns true (keep nil includes everything).
 func buildIndex[Ent any](all map[string]Ent, refOf func(Ent) entityRef, keep func(Ent) bool) (int, []entityRef) {
-	refs := make([]entityRef, 0, len(all))
+	kept := make([]Ent, 0, len(all))
 	for _, v := range all {
 		if keep != nil && !keep(v) {
 			continue
 		}
-		refs = append(refs, refOf(v))
+		kept = append(kept, v)
 	}
-	sort.Slice(refs, func(i, j int) bool { return refs[i].ID < refs[j].ID })
+	refs := sortedRefs(kept, refOf)
 	return len(refs), refs
 }
 
@@ -67,11 +77,6 @@ func resolveEntity[Ent any](
 	case 1:
 		return single(matches[0]), nil
 	default:
-		refs := make([]entityRef, len(matches))
-		for i, v := range matches {
-			refs[i] = refOf(v)
-		}
-		sort.Slice(refs, func(i, j int) bool { return refs[i].ID < refs[j].ID })
-		return candidatesResult{Query: want, Candidates: refs}, nil
+		return candidatesResult{Query: want, Candidates: sortedRefs(matches, refOf)}, nil
 	}
 }

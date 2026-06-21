@@ -60,15 +60,16 @@ func resolveResource(want string) (any, error) {
 		func(res data.Resource) string { return res.ID },
 		func(res data.Resource) string { return res.Name },
 		resourceRef,
-		func(res data.Resource) any { return withFlows(res) },
+		func(res data.Resource) any { return withFlows(res, data.Rooms) },
 	)
 }
 
 // withFlows attaches the rooms that produce and consume the resource, sorted by
-// room ID.
-func withFlows(res data.Resource) resourceResult {
+// room ID. rooms is passed in (rather than read from the global) so the join is
+// testable with synthetic data.
+func withFlows(res data.Resource, rooms map[string]data.Room) resourceResult {
 	out := resourceResult{Resource: res}
-	for _, room := range data.Rooms {
+	for _, room := range rooms {
 		if rate, ok := room.Produces[res.ID]; ok {
 			out.ProducedBy = append(out.ProducedBy, roomRate{ID: room.ID, Name: room.Name, Rate: rate})
 		}
