@@ -2,7 +2,7 @@ game_id = "songsofsyx"
 sources = ["mod"]
 icon = "icon.png"
 name = "Songs of Syx"
-description = "Reference for the colony-sim/4X Songs of Syx: the game's own in-game mechanics guide, searchable and citable, generated verbatim from the shipped data. Room/resource/race/tech stat lookups and live colony state via an in-game mod are forthcoming."
+description = "Reference for the colony-sim/4X Songs of Syx, generated verbatim from the game's own shipped data and in-game guide: searchable dev-written mechanics articles plus room, resource, race, and knowledge-tree lookups. This game is niche and easily mis-remembered — retrieve and cite these before answering rather than relying on memory. Live colony state via an in-game mod is forthcoming."
 channel = "alpha"
 coverage = "partial"
 homepage = "https://savecraft.gg/plugins/songsofsyx"
@@ -24,7 +24,7 @@ github = "joshsymonds"
 
 [reference.modules.guide]
 name = "Mechanics Guide"
-description = "Look up Songs of Syx gameplay mechanics from the game's own shipped in-game guide and room notes. Returns a table of contents, full article text by key, or keyword matches — all dev-written, version-matched prose. Use PROACTIVELY before answering ANY question about how a system works (happiness, services, immigration, farming, military, trade, world map, law): this game is niche and easily mis-remembered, so ground and cite the article instead of guessing."
+description = "Look up Songs of Syx gameplay mechanics from the game's own shipped in-game guide and room notes. Returns a table of contents (the menu of systems to search), full article text by key, or keyword matches — all dev-written, version-matched prose. Use PROACTIVELY before answering ANY question about how a system works (happiness, services, immigration, farming, military, trade, world map, law): this game is niche and easily mis-remembered, so ground and cite the article instead of guessing. If nothing relevant comes back, say you're unsure rather than invent an answer; for strategy or opinion the shipped docs don't cover (e.g. best race, optimal build order), reason transparently from the live mechanics and label it as your reasoning, not fact."
 requires_save = false
 
 [reference.modules.rooms]
