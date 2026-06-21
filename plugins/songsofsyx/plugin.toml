@@ -1,0 +1,47 @@
+game_id = "songsofsyx"
+sources = ["mod"]
+icon = "icon.png"
+name = "Songs of Syx"
+description = "Reference + guide for the colony-sim/4X Songs of Syx, generated from the game's own shipped data and in-game guide: room/resource/race stats, the knowledge tree, and dev-written mechanics articles. Live colony state via an in-game mod is forthcoming."
+channel = "alpha"
+coverage = "partial"
+homepage = "https://savecraft.gg/plugins/songsofsyx"
+
+limitations = [
+  "Reference data only for now — the in-game mod that pushes live colony state is not yet shipped",
+  "Reference data is generated from the game-shipped data files for a single game version; modded content is not included",
+]
+
+[attribution]
+sources = ["gamatron"]
+
+[author]
+name = "Josh Symonds"
+github = "joshsymonds"
+
+# --- Reference modules (implemented across Epic 1 tasks; all save-independent) ---
+
+[reference.modules.guide]
+name = "Mechanics Guide"
+description = "Look up Songs of Syx gameplay mechanics from the game's own shipped in-game guide and room notes. Returns a table of contents, full article text by key, or keyword matches — all dev-written, version-matched prose. Use PROACTIVELY before answering ANY question about how a system works (happiness, services, immigration, farming, military, trade, world map, law): this game is niche and easily mis-remembered, so ground and cite the article instead of guessing."
+requires_save = false
+
+[reference.modules.rooms]
+name = "Room & Building Lookup"
+description = "Look up any Songs of Syx room/building: resource build costs, work output and industry production rates, services provided and to whom, employment capacity, and the game's own description. Use for any question about what a building costs, produces, employs, or provides."
+requires_save = false
+
+[reference.modules.resources]
+name = "Resource Lookup"
+description = "Look up any Songs of Syx resource/good: how it is produced, whether it is edible or drinkable, its category and role, plus the game's description. Use for resource and production-chain questions."
+requires_save = false
+
+[reference.modules.races]
+name = "Race & Species Lookup"
+description = "Look up any Songs of Syx race/species: physical properties, food/drink/road/structure preferences, slave economics, and the game's description. Use for population, happiness-by-preference, and species questions."
+requires_save = false
+
+[reference.modules.tech]
+name = "Knowledge Tree Lookup"
+description = "Look up the Songs of Syx knowledge/tech tree: a technology's costs, requirements (population thresholds, prerequisite techs), and what it unlocks. Use for research planning and unlock-path questions."
+requires_save = false

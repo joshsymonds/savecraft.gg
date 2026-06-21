@@ -1,0 +1,24 @@
+WIKIS: [
+	{
+		CATEGORY: "Guide",
+		NAME: "01. Introduction",
+		CATEGORIES: [],
+		LINK_KEY: INTRODUCTION,
+		TEXT: "
+Welcome to the grand wiki guide.
+
+This aims to explain gameplay mechanics in general terms.
+Follow <a CREATING here> to continue.
+",
+	},
+	{
+		CATEGORY: "Guide",
+		NAME: "02. Creating a world",
+		CATEGORIES: [],
+		LINK_KEY: CREATING,
+		TEXT: "
+Choosing to play a random game allows you to create the world.
+It's an important choice, so take your time.
+",
+	},
+]
