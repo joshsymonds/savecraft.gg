@@ -59,9 +59,17 @@ func intField(c map[string]json.RawMessage, name string) int {
 }
 
 func main() {
-	docsPath := flag.String("docs", "../../.reference/satisfactory-docs/en-US.json", "path to en-US.json")
+	docsPath := flag.String(
+		"docs",
+		"../../.reference/satisfactory-docs/en-US.json",
+		"path to en-US.json",
+	)
 	outDir := flag.String("out", "reference/data", "output directory")
-	parserOut := flag.String("parser-out", "parser", "output directory for the parser's canonical-name table")
+	parserOut := flag.String(
+		"parser-out",
+		"parser",
+		"output directory for the parser's canonical-name table",
+	)
 	flag.Parse()
 
 	raw, err := os.ReadFile(*docsPath)
@@ -93,10 +101,20 @@ func main() {
 	gen.parserNames(*parserOut)
 	gen.parserMilestoneTiers(*parserOut)
 	gen.parserProduction(*parserOut)
-	log.Printf("generated %d recipes, %d items, %d buildings, %d building infos, %d schematics → %s; "+
-		"%d canonical names, %d milestone tiers, %d recipe specs → %s",
-		gen.recipeCount, gen.itemCount, gen.buildingCount, gen.buildingInfoCount, gen.schematicCount, *outDir,
-		gen.nameCount, gen.milestoneTierCount, gen.productionCount, *parserOut)
+	log.Printf(
+		"generated %d recipes, %d items, %d buildings, %d building infos, %d schematics → %s; "+
+			"%d canonical names, %d milestone tiers, %d recipe specs → %s",
+		gen.recipeCount,
+		gen.itemCount,
+		gen.buildingCount,
+		gen.buildingInfoCount,
+		gen.schematicCount,
+		*outDir,
+		gen.nameCount,
+		gen.milestoneTierCount,
+		gen.productionCount,
+		*parserOut,
+	)
 }
 
 // schematicRef is the schematic that unlocks a recipe and its in-game tier.
@@ -223,10 +241,17 @@ func (g *generator) schematics() {
 			}
 		}
 
-		fmt.Fprintf(&b, "\t%q: {ClassName: %q, DisplayName: %q, Type: %q, Tier: %d, Cost: %s, UnlockRecipes: %s},\n",
-			className, className, display, schematicType,
-			tier, itemAmountsGo(parseItemAmounts(field(c, "mCost"))),
-			stringsGo(unlockRecipes))
+		fmt.Fprintf(
+			&b,
+			"\t%q: {ClassName: %q, DisplayName: %q, Type: %q, Tier: %d, Cost: %s, UnlockRecipes: %s},\n",
+			className,
+			className,
+			display,
+			schematicType,
+			tier,
+			itemAmountsGo(parseItemAmounts(field(c, "mCost"))),
+			stringsGo(unlockRecipes),
+		)
 		g.schematicCount++
 	}
 	b.WriteString("}\n")
@@ -329,10 +354,17 @@ func (g *generator) buildings() {
 			line := fmt.Sprintf(
 				"\t%q: {ClassName: %q, DisplayName: %q, Kind: %q, PowerMW: %v, PowerProductionMW: %v, "+
 					"FuelClasses: %s, SupplementalRatio: %v, ItemsPerCycle: %d, ExtractCycleSec: %v},\n",
-				className, className, field(c, "mDisplayName"), n.kind, power,
-				floatField(c, "mPowerProduction"), stringsGo(fuels),
+				className,
+				className,
+				field(c, "mDisplayName"),
+				n.kind,
+				power,
+				floatField(c, "mPowerProduction"),
+				stringsGo(fuels),
 				floatField(c, "mSupplementalToPowerRatio"),
-				intField(c, "mItemsPerCycle"), floatField(c, "mExtractCycleTime"))
+				intField(c, "mItemsPerCycle"),
+				floatField(c, "mExtractCycleTime"),
+			)
 			rows = append(rows, row{className, line})
 			g.buildingCount++
 		}
@@ -422,7 +454,9 @@ func (g *generator) parserMilestoneTiers(parserOut string) {
 
 	var b strings.Builder
 	b.WriteString("// milestoneTiers maps a HUB milestone schematic class (with the trailing _C)\n")
-	b.WriteString("// to its authoritative in-game tier (mTechTier). The class-name number is NOT\n")
+	b.WriteString(
+		"// to its authoritative in-game tier (mTechTier). The class-name number is NOT\n",
+	)
 	b.WriteString("// a reliable tier — milestoneTier consults this table first.\n")
 	b.WriteString("var milestoneTiers = map[string]int{\n")
 	for _, c := range classes {
@@ -466,6 +500,15 @@ func parserItemAmountsGo(pairs []pair) string {
 	return "[]itemAmount{" + strings.Join(parts, ", ") + "}"
 }
 
+// parserRecipeIO is one recipe's parser-side data: its ingredient/product
+// pairs and craft duration (seconds at 100% clock), used by the classifier and
+// the flow-balance rate math.
+type parserRecipeIO struct {
+	ingredients []pair
+	products    []pair
+	durationSec float64
+}
+
 // parserProduction writes the parser package's item stack-size and recipe
 // input/output tables, which the idle classifier uses to tell a blocked
 // (output full) machine from a starved (input empty) one.
@@ -484,15 +527,16 @@ func (g *generator) parserProduction(parserOut string) {
 		stacks[className] = n
 	}
 
-	recipes := map[string][2][]pair{}
+	recipes := map[string]parserRecipeIO{}
 	for _, c := range g.byNative["FGRecipe"] {
 		className := field(c, "ClassName")
 		if className == "" {
 			continue
 		}
-		recipes[className] = [2][]pair{
-			parseItemAmounts(field(c, "mIngredients")),
-			parseItemAmounts(field(c, "mProduct")),
+		recipes[className] = parserRecipeIO{
+			ingredients: parseItemAmounts(field(c, "mIngredients")),
+			products:    parseItemAmounts(field(c, "mProduct")),
+			durationSec: floatField(c, "mManufactoringDuration"),
 		}
 	}
 
@@ -515,13 +559,20 @@ func (g *generator) parserProduction(parserOut string) {
 		fmt.Fprintf(&b, "\t%q: %d,\n", c, stacks[c])
 	}
 	b.WriteString("}\n\n")
-	b.WriteString("// recipeIO maps a recipe class (with the trailing _C) to its ingredients\n")
-	b.WriteString("// and products, for the idle classifier's starved/blocked distinction.\n")
+	b.WriteString("// recipeIO maps a recipe class (with the trailing _C) to its ingredients,\n")
+	b.WriteString("// products, and craft duration — for the idle classifier's starved/blocked\n")
+	b.WriteString("// distinction and the flow-balance per-minute rate math.\n")
 	b.WriteString("var recipeIO = map[string]recipeSpec{\n")
 	for _, c := range recipeClasses {
 		io := recipes[c]
-		fmt.Fprintf(&b, "\t%q: {Ingredients: %s, Products: %s},\n",
-			c, parserItemAmountsGo(io[0]), parserItemAmountsGo(io[1]))
+		fmt.Fprintf(
+			&b,
+			"\t%q: {Ingredients: %s, Products: %s, DurationSec: %v},\n",
+			c,
+			parserItemAmountsGo(io.ingredients),
+			parserItemAmountsGo(io.products),
+			io.durationSec,
+		)
 	}
 	b.WriteString("}\n")
 	g.productionCount = len(recipeClasses)
