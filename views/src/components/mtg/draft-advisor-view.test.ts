@@ -84,4 +84,31 @@ describe("DraftAdvisor view", () => {
     expect(items.length).toBe(3);
     expect(items[0].textContent).toContain("Go for the Throat");
   });
+
+  it("renders the top pick card image when scryfallId is present", () => {
+    const withImage = {
+      ...data,
+      recommendations: [
+        {
+          ...makeRec("Go for the Throat", 0.78, 1),
+          scryfallId: "5446e1ba-c745-45b2-ad05-b22abf04daec",
+        },
+        makeRec("Preacher of the Schism", 0.72, 2),
+        makeRec("Plains", 0.15, 3),
+      ],
+    };
+    const { container } = render(DraftAdvisor, { props: { data: withImage } });
+    const img = container.querySelector(".card-image");
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute("src")).toBe(
+      "https://cards.scryfall.io/normal/front/5/4/5446e1ba-c745-45b2-ad05-b22abf04daec.jpg",
+    );
+    expect(img!.getAttribute("alt")).toBe("Go for the Throat");
+  });
+
+  it("renders no card image and keeps the verdict when scryfallId is absent", () => {
+    const { container } = render(DraftAdvisor, { props: { data } });
+    expect(container.querySelector(".card-image")).toBeNull();
+    expect(container.querySelector(".verdict")).not.toBeNull();
+  });
 });

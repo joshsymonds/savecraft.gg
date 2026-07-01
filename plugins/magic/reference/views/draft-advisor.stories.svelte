@@ -40,7 +40,9 @@
     },
     pick_number: 5,
     recommendations: [
-      makeRec("Go for the Throat", 0.82, 1),
+      // Real Scryfall id on the top pick only — lower ranks stay id-less
+      // to exercise the mixed case (image renders solely for rank 1).
+      { ...makeRec("Go for the Throat", 0.82, 1), scryfallId: "5446e1ba-c745-45b2-ad05-b22abf04daec" },
       makeRec("Preacher of the Schism", 0.74, 2, {
         baseline: axis(0.58, 0.75, 0.3, { gihwr: 58.0, source: "archetype" }),
         synergy: axis(0.35, 0.7, 0.15, { top_synergies: [{ card: "Sheoldred", delta: 0.05 }] }),

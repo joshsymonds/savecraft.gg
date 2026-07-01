@@ -665,6 +665,61 @@ describe("draft_advisor native module", () => {
     expect(bearRec!.axes.role.roles).not.toContain("removal");
   });
 
+  it("carries scryfallId from magic_cards on each recommendation", async () => {
+    await seedContextualData();
+    // A card whose magic_cards row has no scryfall_id (metadata lookup misses
+    // the id) — its recommendation must omit the field entirely.
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        null,
+        14,
+        "oracle-noscry",
+        "No Scry Card",
+        "No Scry Card",
+        "{B}",
+        1,
+        "Instant",
+        '["B"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO magic_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "No Scry Card", 5000, 7000, 2000, 0.53, 0.54, 0.52, 0.5, 0.01, 6, 7),
+    ]);
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge"],
+        pack: ["Blazing Bolt", "Forest Bear", "No Scry Card"],
+        pick_number: 8,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      recommendations: { card: string; scryfallId?: string }[];
+    };
+
+    // Cards seeded in magic_cards carry their seeded scryfall_id.
+    const blazingRec = data.recommendations.find((r) => r.card === "Blazing Bolt");
+    expect(blazingRec).toBeDefined();
+    expect(blazingRec!.scryfallId).toBe("scry-31");
+
+    const bearRec = data.recommendations.find((r) => r.card === "Forest Bear");
+    expect(bearRec).toBeDefined();
+    expect(bearRec!.scryfallId).toBe("scry-32");
+
+    // Metadata row without a scryfall_id → field omitted, not empty/null.
+    const noScryRec = data.recommendations.find((r) => r.card === "No Scry Card");
+    expect(noScryRec).toBeDefined();
+    expect("scryfallId" in noScryRec!).toBe(false);
+  });
+
   it("scores on-color card higher on color_commitment than off-color card", async () => {
     await seedContextualData();
 

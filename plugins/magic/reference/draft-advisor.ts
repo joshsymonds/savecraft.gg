@@ -70,6 +70,8 @@ interface SetStatsRow {
 
 interface PickRecommendation {
   card: string;
+  /** Scryfall card ID for image display; absent when the card name misses the metadata lookup. */
+  scryfallId?: string;
   composite_score: number;
   rank: number;
   axes: {
@@ -137,7 +139,7 @@ async function preloadSetData(
     metaChunks.push(
       db
         .prepare(
-          `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM magic_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
+          `SELECT front_face_name AS name, scryfall_id, cmc, mana_cost, colors, type_line, produced_mana FROM magic_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
         )
         .bind(...chunk)
         .all<CardMetaRow>(),
@@ -298,7 +300,7 @@ async function contextualPick(
         const ph = placeholders(chunk.length, 1);
         const result = await db
           .prepare(
-            `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM magic_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
+            `SELECT front_face_name AS name, scryfall_id, cmc, mana_cost, colors, type_line, produced_mana FROM magic_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
           )
           .bind(...chunk)
           .all<CardMetaRow>();
@@ -312,7 +314,7 @@ async function contextualPick(
     const metaPlaceholders = placeholders(allNames.length, 1);
     const metaResult = await db
       .prepare(
-        `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM magic_cards WHERE front_face_name IN (${metaPlaceholders}) AND is_default = 1`,
+        `SELECT front_face_name AS name, scryfall_id, cmc, mana_cost, colors, type_line, produced_mana FROM magic_cards WHERE front_face_name IN (${metaPlaceholders}) AND is_default = 1`,
       )
       .bind(...allNames)
       .all<CardMetaRow>();
@@ -1053,6 +1055,7 @@ async function contextualPick(
 
     recommendations.push({
       card: name,
+      ...(packCard.scryfall_id ? { scryfallId: packCard.scryfall_id } : {}),
       composite_score: r4(compositeScore),
       rank: 0,
       axes: {

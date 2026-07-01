@@ -29,6 +29,8 @@ export interface RatingRow {
 
 export interface CardMetaRow {
   name: string;
+  /** Scryfall card ID; null/absent when the row lacks one (narrow SELECTs). */
+  scryfall_id?: string | null;
   cmc: number;
   mana_cost: string;
   colors: string;

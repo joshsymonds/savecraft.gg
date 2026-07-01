@@ -9,6 +9,7 @@
   import FilterBar from "../../../../views/src/components/data/FilterBar.svelte";
   import Timeline from "../../../../views/src/components/charts/Timeline.svelte";
   import ArchetypeLabel from "../../../../views/src/components/mtg/ArchetypeLabel.svelte";
+  import CardImage from "../../../../views/src/components/mtg/CardImage.svelte";
   import { archetypeColors } from "../../../../views/src/components/mtg/colors";
 
   // ── Single pick types ──
@@ -22,6 +23,7 @@
 
   interface Recommendation {
     card: string;
+    scryfallId?: string;
     composite_score: number;
     rank: number;
     axes: Record<string, AxisScore>;
@@ -280,6 +282,11 @@
             stamp={gradeStamp(topPick.composite_score)}
             variant={topPickVariant}
           />
+          {#if topPick.scryfallId}
+            <div class="top-pick-image">
+              <CardImage scryfallId={topPick.scryfallId} name={topPick.card} size="normal" />
+            </div>
+          {/if}
         {/if}
         <RankedList items={pickItems} />
       </Section>
@@ -301,5 +308,13 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
+  }
+
+  /* ── Top pick card image ── */
+  /* Modest width: the visual payoff under the Verdict, not the hero itself. */
+  .top-pick-image {
+    width: 100%;
+    max-width: 220px;
+    margin: 0 auto;
   }
 </style>
