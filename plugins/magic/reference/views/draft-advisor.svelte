@@ -5,9 +5,11 @@
   import Stat from "../../../../views/src/components/data/Stat.svelte";
   import StatRow from "../../../../views/src/components/data/StatRow.svelte";
   import RankedList from "../../../../views/src/components/data/RankedList.svelte";
+  import Verdict from "../../../../views/src/components/data/Verdict.svelte";
   import FilterBar from "../../../../views/src/components/data/FilterBar.svelte";
   import Timeline from "../../../../views/src/components/charts/Timeline.svelte";
   import ArchetypeLabel from "../../../../views/src/components/mtg/ArchetypeLabel.svelte";
+  import CardImage from "../../../../views/src/components/mtg/CardImage.svelte";
   import { archetypeColors } from "../../../../views/src/components/mtg/colors";
 
   // ── Single pick types ──
@@ -21,6 +23,7 @@
 
   interface Recommendation {
     card: string;
+    scryfallId?: string;
     composite_score: number;
     rank: number;
     axes: Record<string, AxisScore>;
@@ -91,6 +94,27 @@
     if (score >= 0.35) return "warning";
     return "muted";
   }
+
+  function gradeStamp(score: number): string {
+    if (score >= 0.8) return "S";
+    if (score >= 0.65) return "A";
+    if (score >= 0.5) return "B";
+    if (score >= 0.35) return "C";
+    if (score >= 0.2) return "D";
+    return "F";
+  }
+
+  // Top recommendation drives the hero verdict in single-pick mode
+  let topPick = $derived(
+    data.recommendations?.find((r) => r.rank === 1) ?? data.recommendations?.[0],
+  );
+
+  let topPickVariant = $derived.by(() => {
+    if (!topPick) return "highlight" as const;
+    const v = gradeVariant(topPick.composite_score);
+    // Verdict has no "muted" variant — bottom-tier picks render as common
+    return (v === "muted" ? "common" : v) as "legendary" | "positive" | "info" | "warning" | "common";
+  });
 
   function topReasons(axes: Record<string, AxisScore>): string[] {
     const describers: Record<string, (a: Record<string, unknown>) => string | null> = {
@@ -204,8 +228,12 @@
   <div class="draft-advisor">
     <Panel watermark={data.icon_url}>
       <Section title="Draft Review">
+        <Verdict
+          value="{summary.optimal}/{summary.total_picks}"
+          caption="Optimal Picks"
+          variant={summary.misses === 0 ? "positive" : summary.misses > summary.optimal ? "negative" : "warning"}
+        />
         <StatRow>
-          <Stat value={summary.optimal} label="Optimal" variant="positive" />
           <Stat value={summary.good} label="Good" variant="info" />
           <Stat value={summary.questionable} label="Questionable" variant="warning" />
           <Stat value={summary.misses} label="Misses" variant="negative" />
@@ -246,6 +274,20 @@
           {/if}
         {/snippet}
 
+        {#if topPick}
+          <Verdict
+            value={topPick.card}
+            caption="Recommended Pick"
+            sub={topReasons(topPick.axes).join(" · ") || undefined}
+            stamp={gradeStamp(topPick.composite_score)}
+            variant={topPickVariant}
+          />
+          {#if topPick.scryfallId}
+            <div class="top-pick-image">
+              <CardImage scryfallId={topPick.scryfallId} name={topPick.card} size="normal" />
+            </div>
+          {/if}
+        {/if}
         <RankedList items={pickItems} />
       </Section>
     </Panel>
@@ -266,5 +308,13 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
+  }
+
+  /* ── Top pick card image ── */
+  /* Modest width: the visual payoff under the Verdict, not the hero itself. */
+  .top-pick-image {
+    width: 100%;
+    max-width: 220px;
+    margin: 0 auto;
   }
 </style>

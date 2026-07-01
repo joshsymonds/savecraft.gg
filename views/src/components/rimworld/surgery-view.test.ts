@@ -17,11 +17,12 @@ const baseData = {
 };
 
 describe("Surgery view", () => {
-  it("renders the success percentage", () => {
+  it("renders the success percentage as the hero verdict", () => {
     const { container } = render(Surgery, { props: { data: baseData } });
-    // ProgressRing renders the label
-    const ring = container.querySelector(".progress-ring");
-    expect(ring).toBeTruthy();
+    const verdict = container.querySelector(".verdict");
+    expect(verdict).toBeTruthy();
+    expect(verdict?.querySelector(".value")?.textContent).toBe("85.3%");
+    expect(verdict?.querySelector(".caption")?.textContent).toBe("Surgery Success Chance");
   });
 
   it("renders the factor chain", () => {

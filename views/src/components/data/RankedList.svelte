@@ -37,7 +37,7 @@
 
 <div class="ranked-list">
   {#each items as item, i (item.label)}
-    <div class="ranked-item" transition:slide={{ duration: 200 }} style:animation-delay="{i * 60}ms">
+    <div class="ranked-item" transition:slide={{ duration: 200 }} style:animation-delay="{Math.min(i, 3) * 75}ms">
       <span class="rank">{item.rank}</span>
       <div class="info">
         <span class="label">{item.label}</span>
@@ -70,7 +70,7 @@
     gap: var(--space-md);
     padding: var(--space-sm) var(--space-xs);
     border-bottom: 1px solid color-mix(in srgb, var(--color-border) 30%, transparent);
-    animation: row-enter 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation: row-enter 420ms ease-out both;
   }
 
   .ranked-item:nth-child(even) {
@@ -84,7 +84,7 @@
   @keyframes row-enter {
     from {
       opacity: 0;
-      transform: translateX(-8px);
+      transform: translateX(-6px);
     }
     to {
       opacity: 1;

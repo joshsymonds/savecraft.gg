@@ -84,6 +84,10 @@
   --radius-sm: 2px;
   --radius-md: 4px;
   --radius-lg: 8px;
+
+  /* Arcade texture — scanline overlay strength and header phosphor shine */
+  --scanline-opacity: 0.25;
+  --shine-color: rgba(255, 255, 255, 0.09);
 }
 
 /* ── Light theme (host-triggered) ────────────────────────── */
@@ -130,6 +134,10 @@
   --color-rarity-uncommon: #1a7a4a;
   --color-rarity-common: #6a6a8e;
   --color-rarity-poor: #8a8a98;
+
+  /* Arcade texture — much fainter on parchment */
+  --scanline-opacity: 0.08;
+  --shine-color: rgba(255, 255, 255, 0.4);
 }
 
 /* ── Global styles ───────────────────────────────────────── */
@@ -191,6 +199,20 @@ body {
 @keyframes fade-slide-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────
+ * Single global guard: all decorative animation off. Components
+ * must not need per-instance opt-outs — this catches everything,
+ * including JS-driven count-ups (they check the same media query). */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 /* ── Utility classes ──────────────────────────────────────── */

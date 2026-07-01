@@ -75,6 +75,7 @@ const VIEW_CSP = {
     "https://fonts.gstatic.com",
     "https://api.savecraft.gg",
     "https://staging-api.savecraft.gg",
+    "https://cards.scryfall.io",
   ],
 };
 

@@ -192,7 +192,7 @@
     fill-opacity: 0.12;
     stroke-width: 2;
     stroke-linejoin: round;
-    animation: radar-grow 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation: radar-grow 550ms ease-out both;
   }
 
   .data-dot {

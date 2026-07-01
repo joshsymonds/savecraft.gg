@@ -47,7 +47,11 @@
     color: var(--badge-color);
     background: color-mix(in srgb, var(--badge-color) 12%, transparent);
     padding: 3px 8px;
+    border: 1px solid color-mix(in srgb, var(--badge-color) 55%, transparent);
     border-radius: var(--radius-sm);
+    box-shadow:
+      inset 0 0 6px color-mix(in srgb, var(--badge-color) 25%, transparent),
+      0 0 6px color-mix(in srgb, var(--badge-color) 20%, transparent);
     text-transform: uppercase;
     letter-spacing: 1px;
     white-space: nowrap;
