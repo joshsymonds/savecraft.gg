@@ -112,7 +112,7 @@
     transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     min-width: 2px;
     transform-origin: left;
-    animation: bar-fill-grow 550ms ease-out backwards;
+    animation: bar-fill-grow 420ms ease-out backwards;
   }
 
   @keyframes bar-fill-grow {
