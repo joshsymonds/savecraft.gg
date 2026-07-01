@@ -35,6 +35,11 @@ const forest = {
   rarity: "common",
 };
 
+const boltWithImage = {
+  ...bolt,
+  scryfallId: "77c6fa74-5543-42ac-9ead-0e890b188e99",
+};
+
 describe("MtgCard", () => {
   it("renders the card name", () => {
     const { container } = render(MtgCard, { props: { card: bolt } });
@@ -102,5 +107,26 @@ describe("MtgCard", () => {
   it("does not render watermark when iconUrl absent", () => {
     const { container } = render(MtgCard, { props: { card: bolt } });
     expect(container.querySelector(".panel-watermark")).toBeNull();
+  });
+
+  it("renders a card image when scryfallId is present", () => {
+    const { container } = render(MtgCard, { props: { card: boltWithImage } });
+    const img = container.querySelector(".card-image") as HTMLImageElement;
+    expect(img).not.toBeNull();
+    expect(img.src).toBe(
+      "https://cards.scryfall.io/small/front/7/7/77c6fa74-5543-42ac-9ead-0e890b188e99.jpg",
+    );
+    expect(img.alt).toBe("Lightning Bolt");
+  });
+
+  it("renders no card image and leaves the text layout unchanged when scryfallId is absent", () => {
+    const { container } = render(MtgCard, { props: { card: bolt } });
+    expect(container.querySelector(".card-image")).toBeNull();
+    expect(container.textContent).toContain("Lightning Bolt");
+    expect(container.textContent).toContain("Instant");
+    expect(container.textContent).toContain("deals 3 damage");
+    expect(container.querySelectorAll(".pip").length).toBeGreaterThan(0);
+    const badge = container.querySelector(".badge");
+    expect(badge!.textContent).toBe("common");
   });
 });

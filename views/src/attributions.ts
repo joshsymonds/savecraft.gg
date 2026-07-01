@@ -19,7 +19,7 @@ export const SOURCES: Record<string, Attribution> = {
   scryfall: {
     name: "Scryfall",
     disclaimer:
-      "Not produced by, endorsed by, supported by, or affiliated with Scryfall, LLC.",
+      "Not produced by, endorsed by, supported by, or affiliated with Scryfall, LLC. Data and card images courtesy of Scryfall.",
     url: "https://scryfall.com/docs/api",
   },
   "17lands": {

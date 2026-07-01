@@ -10,6 +10,7 @@
   import ManaCost from "./ManaCost.svelte";
   import ColorBar from "./ColorBar.svelte";
   import OracleText from "./OracleText.svelte";
+  import CardImage from "./CardImage.svelte";
   import { WUBRG_SOLID, WUBRG_ACCENT, COLORLESS_SOLID, COLORLESS_ACCENT, RARITY_VARIANT } from "./colors";
 
   interface MtgCardData {
@@ -23,6 +24,8 @@
     keywords?: string[];
     power?: string;
     toughness?: string;
+    /** Scryfall card ID — when present, renders a card image thumbnail. */
+    scryfallId?: string;
   }
 
   interface Props {
@@ -74,6 +77,11 @@
         <ColorBar colors={colorIdentity} height={3} />
       {/snippet}
       <div class="card-body">
+        {#if card.scryfallId}
+          <div class="card-thumb">
+            <CardImage scryfallId={card.scryfallId} name={card.name} size="small" />
+          </div>
+        {/if}
         {#if card.oracleText}
           <OracleText text={card.oracleText} />
         {/if}
@@ -96,6 +104,15 @@
 
   .card-body {
     min-height: 48px;
+  }
+
+  /* Compact thumbnail — floats so oracle text wraps around it; collapses
+     to nothing when CardImage itself renders nothing (no width is set,
+     only a cap, so an empty float takes no space). */
+  .card-thumb {
+    float: right;
+    max-width: 92px;
+    margin: 0 0 var(--space-sm) var(--space-sm);
   }
 
   .pt-line {

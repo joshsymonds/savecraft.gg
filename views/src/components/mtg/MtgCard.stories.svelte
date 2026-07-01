@@ -11,6 +11,7 @@
     colors: ["R"],
     colorIdentity: ["R"],
     rarity: "common",
+    scryfallId: "77c6fa74-5543-42ac-9ead-0e890b188e99",
   };
 
   const sheoldred = {
@@ -22,6 +23,7 @@
     colorIdentity: ["B"],
     rarity: "mythic",
     keywords: ["Deathtouch"],
+    scryfallId: "d67be074-cdd4-41d9-ac89-0a0456c4e4b2",
   };
 
   const omnath = {
@@ -33,6 +35,7 @@
     colorIdentity: ["R", "G", "W", "U"],
     rarity: "mythic",
     keywords: ["Landfall"],
+    scryfallId: "4e4fb50c-a81f-44d3-93c5-fa9a0b37f617",
   };
 
   const forest = {
@@ -42,6 +45,7 @@
     colors: [],
     colorIdentity: ["G"],
     rarity: "common",
+    scryfallId: "22463284-2478-4b1e-9a37-6dd2383266cf",
   };
 
   const iconUrl = "/plugins/magic/icon.png";
@@ -54,6 +58,7 @@
     colors: ["B"],
     colorIdentity: ["B"],
     rarity: "uncommon",
+    scryfallId: "5446e1ba-c745-45b2-ad05-b22abf04daec",
   };
 </script>
 
