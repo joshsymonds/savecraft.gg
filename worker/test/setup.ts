@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
+import { afterEach } from "vitest";
 
-import { CLEANUP_TABLES } from "./helpers";
+import { CLEANUP_TABLES, flushWorkerd } from "./helpers";
 
 // No per-test DurableObject teardown. abortAllDurableObjects() interacted
 // badly with workerd's WebSocket pool — it triggered cascading "Network
@@ -781,3 +782,16 @@ for (const bucket of [env.PLUGINS]) {
     await bucket.delete(object.key);
   }
 }
+
+// Drain workerd's queued fire-and-forget work after every test. Handlers like
+// webSocketMessage/alarm spawn async DO work (e.g. SourceHub → UserHub event
+// forwarding via a cross-DO stub.fetch) that the test body never awaits. Without
+// this pump, such a forward can still be in flight when vitest tears down the
+// workerd environment between files — the closing RPC then rejects with
+// "EnvironmentTeardownError: Closing rpc while ... pending", which vitest
+// surfaces as an unhandled error and fails the whole shard intermittently (most
+// visible under `just check`'s heavy parallel load). Draining is always safe and
+// cheap, so it runs globally here rather than being mounted per-suite.
+afterEach(async () => {
+  await flushWorkerd();
+});

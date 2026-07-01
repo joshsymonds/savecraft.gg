@@ -1,5 +1,5 @@
 import { env, runDurableObjectAlarm, SELF } from "cloudflare:test";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type { Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
 import {
@@ -14,7 +14,6 @@ import {
   closeWs,
   connectDaemonWs,
   connectWs,
-  flushWorkerd,
   pollUntil,
   requireInnerPayload,
   requirePayload,
@@ -57,7 +56,8 @@ function sourceOnlineMsg(
 
 describe("SourceHub", () => {
   beforeEach(cleanAll);
-  afterEach(flushWorkerd);
+  // flushWorkerd runs globally in test/setup.ts's afterEach (drains queued
+  // SourceHub → UserHub forwards before teardown), so no per-suite mount here.
 
   it("relays daemon messages to UI", async () => {
     const userUuid = "relay-test-user";

@@ -1,0 +1,17 @@
+build: build-reference
+
+build-reference:
+    GOOS=wasip1 GOARCH=wasm go build -o reference.wasm ./reference
+
+test:
+    go test ./reference/... ./tools/...
+
+lint:
+    golangci-lint run ./reference/... ./tools/...
+
+# Regenerate reference tables from the game-shipped data files.
+# Input: .reference/songsofsyx/data/assets (extract from a game install:
+#   ssh gnomon 'unzip ".../Songs of Syx/base/data.zip" "data/assets/*"' then rsync
+#   into .reference/songsofsyx/)
+datagen:
+    go run ./tools/datagen/ -input ../../.reference/songsofsyx/data/assets -out reference/data

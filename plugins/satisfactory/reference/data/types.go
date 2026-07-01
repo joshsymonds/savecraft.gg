@@ -1,0 +1,148 @@
+// Package data holds Satisfactory game data generated from the game-shipped
+// CommunityResources/Docs/en-US.json by plugins/satisfactory/tools/datagen.
+// All keys are short class names (e.g. "Recipe_IronPlate_C").
+package data
+
+// ItemAmount pairs an item class with a quantity. Fluid and gas amounts are
+// in the Docs' native units (1000 = 1 m³); divide by 1000 for display.
+type ItemAmount struct {
+	ItemClass string
+	Amount    int
+}
+
+// Recipe is an FGRecipe: what goes in, what comes out, how long it takes,
+// and which buildings can run it.
+type Recipe struct {
+	ClassName   string
+	DisplayName string
+	Ingredients []ItemAmount
+	Products    []ItemAmount
+	DurationSec float64
+	ProducedIn  []string // building class names; includes hand-craft benches
+	Alternate   bool     // unlocked via an EST_Alternate schematic
+}
+
+// Item is any descriptor (parts, resources, equipment, biomass, ammo, ...).
+type Item struct {
+	ClassName   string
+	DisplayName string
+	Form        string // RF_SOLID, RF_LIQUID, RF_GAS
+	StackSize   string // SS_ONE/SMALL/MEDIUM/BIG/HUGE/FLUID
+	EnergyMJ    float64
+	SinkPoints  int
+	// Raw marks world-extracted resources (FGResourceDescriptor): ores,
+	// water, oil, gases. Production planning stops at these.
+	Raw bool
+	// Nuclear fuels: the waste item and amount left after burning one unit.
+	WasteClass  string
+	WasteAmount int
+}
+
+// Building covers production machines, extractors, and generators.
+type Building struct {
+	ClassName   string
+	DisplayName string
+	// Kind: manufacturer, manufacturerVariablePower, extractor, generator.
+	Kind string
+	// PowerMW is consumption at 100% clock (manufacturers, extractors). For
+	// variable-power manufacturers it is the estimated maximum.
+	PowerMW float64
+	// PowerProductionMW is generation at 100% clock (generators).
+	PowerProductionMW float64
+	// FuelClasses lists burnable fuel item classes (generators).
+	FuelClasses []string
+	// SupplementalRatio drives supplemental (water) consumption:
+	// m3/min = PowerProductionMW * SupplementalRatio * 60 / 1000.
+	// Verified: coal 75MW*10 -> 45 m3/min; nuclear 2500MW*1.6 -> 240 m3/min.
+	SupplementalRatio float64
+	// Extractors: items per cycle and cycle seconds; rate/min at 100% clock
+	// = ItemsPerCycle * 60 / ExtractCycleSec.
+	ItemsPerCycle   int
+	ExtractCycleSec float64
+}
+
+// BuildingInfo is the game's own reference card for a placeable building (any
+// Build_* class): its in-game description verbatim, footprint, and the key
+// stats the game exposes. Powers the building_reference module. Unlike Building
+// (which is restricted to production/extraction/power machines for the planner),
+// this covers every buildable — foundations, belts, the Dimensional Depot,
+// blueprint designers, and so on.
+type BuildingInfo struct {
+	ClassName   string
+	DisplayName string
+	// Description is the game's mDescription, CRLF-normalized to \n and trimmed.
+	// Surfaced verbatim — facts embedded in it (e.g. "Dimensions: 48 m x 48 m")
+	// are NOT parsed back out into structured fields.
+	Description string
+	// Category: production, extraction, power, logistics, structure, special, other.
+	Category string
+	// Footprint is the clearance-box extent in meters; nil when the game ships
+	// no clearance (spline buildings like belts, pipes, wires, and the
+	// blueprint designers).
+	Footprint *Footprint
+	// Stats are the type-specific key numbers the game exposes, in display order.
+	Stats []BuildingStat
+	// BuildCost is the build-gun ingredient cost, joined from the recipe that
+	// produces the building (ItemAmount convention: fluids in /1000 units).
+	// nil when no individual build recipe resolves (shape variants of a parent).
+	BuildCost []ItemAmount
+	// UnlockSchematic/UnlockTier identify the schematic (milestone/MAM/tutorial)
+	// that unlocks the build recipe, and its authoritative in-game tier. Tier is
+	// -1 and the name empty when no schematic unlocks it (or the cost is unresolved).
+	UnlockSchematic string
+	UnlockTier      int
+}
+
+// Footprint is a building's axis-aligned clearance extent in meters, taken from
+// the first ClearanceBox the game ships for the building.
+type Footprint struct {
+	WidthM  float64 // X extent (Max.X - Min.X)
+	DepthM  float64 // Y extent (Max.Y - Min.Y)
+	HeightM float64 // Z height (Max.Z)
+	// Foundation counts when the horizontal extent is 8 m-aligned; 0 otherwise.
+	WidthFoundations int
+	DepthFoundations int
+}
+
+// BuildingStat is one labeled number drawn from the game data (e.g. power draw,
+// conveyor throughput). Value is preformatted for display; Unit may be empty.
+type BuildingStat struct {
+	Label string
+	Value string
+	Unit  string
+}
+
+// AltRankScore is one alternate recipe's standing under a single ranking
+// weighting: a letter tier, the overall percent improvement over the standard
+// recipe (higher is better; ~0 is neutral), and the per-metric percent deltas
+// that explain it (negative = less of that cost). Generated by tools/altrank.
+type AltRankScore struct {
+	Tier               string // S, A, B, C, D, F (or "?" if not exercised)
+	ImprovementPct     float64
+	PowerPct           float64
+	ItemsPct           float64
+	BuildingsPct       float64
+	ResourcesPct       float64
+	BuildingsScaledPct float64
+	ResourcesScaledPct float64
+}
+
+// AltRanking is a single alternate recipe's tiers under both published
+// weightings: Effort (favor fewer/simpler buildings) and Resources (minimize
+// raw extraction). Keyed by recipe class in AltRankings.
+type AltRanking struct {
+	Recipe    string
+	Name      string
+	Effort    AltRankScore
+	Resources AltRankScore
+}
+
+// Schematic is an FGSchematic: milestones, MAM research, alternates, shop.
+type Schematic struct {
+	ClassName     string
+	DisplayName   string
+	Type          string // EST_Milestone, EST_MAM, EST_Alternate, EST_ResourceSink, ...
+	Tier          int
+	Cost          []ItemAmount
+	UnlockRecipes []string // recipe class names
+}

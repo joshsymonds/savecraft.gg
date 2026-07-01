@@ -17,7 +17,11 @@ namespace SavecraftRimWorld.Collectors
             "Full detail for colonist {0}. " +
             "Backstory, all traits, all skills (level + passion), " +
             "mood value + all modifiers, all hediffs, equipment + apparel (with quality), " +
-            "needs breakdown, current job, schedule.";
+            "needs breakdown, current job, schedule. " +
+            "Biotech: xenotype, endo/xenogenes, gene metabolism/complexity/archite count. " +
+            "Royalty: title, faction, honor, psylink level, psycasts, psychic entropy/sensitivity, permits. " +
+            "Ideology: ideo name, role, certainty. " +
+            "Capacities: manipulation/sight/hearing/moving/talking/eating/breathing/consciousness/blood (percent).";
 
         public List<CollectedSection> CollectAll()
         {
@@ -49,6 +53,10 @@ namespace SavecraftRimWorld.Collectors
 
             CollectBackstory(pawn, p);
             CollectTraits(pawn, p);
+            CollectGenes(pawn, p);
+            CollectRoyalty(pawn, p);
+            CollectIdeology(pawn, p);
+            CollectCapacities(pawn, p);
             CollectSkills(pawn, p);
             CollectMood(pawn, p);
             CollectHealth(pawn, p);
@@ -85,6 +93,131 @@ namespace SavecraftRimWorld.Collectors
             }
             if (traits.Count > 0)
                 p.SetList("traits", traits);
+        }
+
+        void CollectGenes(Pawn pawn, Struct p)
+        {
+            if (!ModsConfig.BiotechActive || pawn.genes == null) return;
+
+            p.Set("xenotype", pawn.genes.XenotypeLabelCap);
+            p.Set("xenotype_custom", pawn.genes.CustomXenotype != null);
+
+            var endogenes = new List<string>();
+            foreach (var g in pawn.genes.Endogenes)
+                endogenes.Add(g.def.label);
+            p.SetList("endogenes", endogenes);
+
+            var xenogenes = new List<string>();
+            foreach (var g in pawn.genes.Xenogenes)
+                xenogenes.Add(g.def.label);
+            p.SetList("xenogenes", xenogenes);
+
+            // Biostats summed over active genes only (overridden genes don't count).
+            int metabolism = 0, complexity = 0, architeCount = 0;
+            foreach (var g in pawn.genes.GenesListForReading)
+            {
+                if (!g.Active) continue;
+                metabolism += g.def.biostatMet;
+                complexity += g.def.biostatCpx;
+                if (g.def.biostatArc > 0) architeCount++;
+            }
+            p.Set("gene_metabolism", metabolism);
+            p.Set("gene_complexity", complexity);
+            p.Set("archite_count", architeCount);
+        }
+
+        void CollectRoyalty(Pawn pawn, Struct p)
+        {
+            if (!ModsConfig.RoyaltyActive || pawn.royalty == null) return;
+
+            var title = pawn.royalty.MostSeniorTitle;
+            if (title != null)
+            {
+                p.Set("royalty_title", title.def.GetLabelCapFor(pawn));
+                p.Set("royalty_faction", title.faction?.Name ?? "");
+                p.Set("royalty_honor", pawn.royalty.GetFavor(title.faction));
+            }
+            else
+            {
+                p.SetNull("royalty_title");
+                p.SetNull("royalty_faction");
+                p.Set("royalty_honor", 0);
+            }
+
+            var entropy = pawn.psychicEntropy;
+            p.Set("psylink_level", (entropy?.Psylink as Hediff_Level)?.level ?? 0);
+            if (entropy != null)
+            {
+                p.Set("psychic_entropy_max", System.Math.Round(entropy.MaxEntropy, 1));
+                p.Set("psychic_sensitivity", System.Math.Round(entropy.PsychicSensitivity, 2));
+            }
+
+            var psycasts = new List<string>();
+            var abilities = pawn.abilities?.AllAbilitiesForReading;
+            if (abilities != null)
+            {
+                foreach (var ability in abilities)
+                {
+                    if (ability.def.IsPsycast)
+                        psycasts.Add(ability.def.label);
+                }
+            }
+            p.SetList("psycasts", psycasts);
+
+            var permits = new List<Struct>();
+            foreach (var fp in pawn.royalty.AllFactionPermits)
+            {
+                var permit = StructHelper.NewStruct();
+                permit.Set("permit", fp.Permit.label);
+                permit.Set("faction", fp.Faction?.Name ?? "");
+                permit.Set("on_cooldown", fp.OnCooldown);
+                permits.Add(permit);
+            }
+            p.SetList("royal_permits", permits);
+        }
+
+        void CollectIdeology(Pawn pawn, Struct p)
+        {
+            if (!ModsConfig.IdeologyActive || pawn.ideo == null) return;
+
+            var ideo = pawn.ideo.Ideo;
+            if (ideo == null) return;
+
+            p.Set("ideo_name", ideo.name);
+
+            var role = ideo.GetRole(pawn);
+            if (role != null)
+                p.Set("ideo_role", role.LabelCap);
+            else
+                p.SetNull("ideo_role");
+
+            p.Set("ideo_certainty", System.Math.Round(pawn.ideo.Certainty, 2));
+        }
+
+        void CollectCapacities(Pawn pawn, Struct p)
+        {
+            if (pawn.health?.capacities == null) return;
+
+            var capacities = StructHelper.NewStruct();
+            void Add(string key, PawnCapacityDef def)
+            {
+                if (def == null) return;
+                capacities.Set(key, System.Math.Round(pawn.health.capacities.GetLevel(def) * 100));
+            }
+
+            Add("manipulation", PawnCapacityDefOf.Manipulation);
+            Add("sight", PawnCapacityDefOf.Sight);
+            Add("hearing", PawnCapacityDefOf.Hearing);
+            Add("moving", PawnCapacityDefOf.Moving);
+            Add("talking", PawnCapacityDefOf.Talking);
+            Add("breathing", PawnCapacityDefOf.Breathing);
+            Add("consciousness", PawnCapacityDefOf.Consciousness);
+            Add("blood_filtration", PawnCapacityDefOf.BloodFiltration);
+            Add("blood_pumping", PawnCapacityDefOf.BloodPumping);
+            // Eating is a real PawnCapacityDef but not a PawnCapacityDefOf member.
+            Add("eating", DefDatabase<PawnCapacityDef>.GetNamedSilentFail("Eating"));
+
+            p.Set("capacities", capacities);
         }
 
         void CollectSkills(Pawn pawn, Struct p)
@@ -159,7 +292,8 @@ namespace SavecraftRimWorld.Collectors
 
         void CollectEquipment(Pawn pawn, Struct p)
         {
-            // Primary weapon
+            // Primary weapon — always emit the key (null when unarmed) so consumers
+            // never need key-existence checks.
             var primary = pawn.equipment?.Primary;
             if (primary != null)
             {
@@ -169,6 +303,10 @@ namespace SavecraftRimWorld.Collectors
                 if (qc != null)
                     weapon.Set("quality", qc.Quality.GetLabel());
                 p.Set("weapon", weapon);
+            }
+            else
+            {
+                p.SetNull("weapon");
             }
 
             // Apparel

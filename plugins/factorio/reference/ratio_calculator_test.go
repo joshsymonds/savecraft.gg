@@ -486,3 +486,24 @@ func TestDAG_FlowFields(t *testing.T) {
 		}
 	}
 }
+
+// findMachine must be deterministic when the assembler tier doesn't cover a
+// category and it falls back to scanning all machines: ranging a map picked
+// a random furnace (stone speed 1 vs electric/steel speed 2), doubling
+// smelting machine counts ~1/3 of runs. It must always pick the highest
+// crafting speed.
+func TestFindMachineDeterministicFallback(t *testing.T) {
+	b := &dagBuilder{assemblerTier: ""}
+	first := b.findMachine("smelting")
+	if first == nil {
+		t.Fatal("no machine for smelting")
+	}
+	if first.CraftingSpeed != 2 {
+		t.Errorf("smelting machine = %s (speed %g), want a speed-2 furnace", first.Name, first.CraftingSpeed)
+	}
+	for range 50 {
+		if got := b.findMachine("smelting"); got.Name != first.Name {
+			t.Fatalf("findMachine non-deterministic: got %s then %s", first.Name, got.Name)
+		}
+	}
+}

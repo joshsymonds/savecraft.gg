@@ -18,7 +18,8 @@ namespace SavecraftRimWorld.Collectors
         public string Description =>
             "Summary of all colonists for quick comparison. " +
             "Per pawn: name, age, best skill with passion, mood value and worst modifier, " +
-            "current job, and health status (healthy/injured/sick).";
+            "current job, health status (healthy/injured/sick), and at-a-glance " +
+            "xenotype, royalty title, ideology role, and equipped weapon (null when absent).";
 
         public Struct Collect()
         {
@@ -84,6 +85,12 @@ namespace SavecraftRimWorld.Collectors
 
             // Health status
             p.Set("health_status", GetHealthStatus(pawn));
+
+            // At-a-glance DLC scalars (null when DLC inactive / value absent).
+            p.SetOrNull("xenotype", PawnSummary.Xenotype(pawn));
+            p.SetOrNull("royalty_title", PawnSummary.RoyaltyTitle(pawn));
+            p.SetOrNull("ideo_role", PawnSummary.IdeoRole(pawn));
+            p.SetOrNull("weapon_name", PawnSummary.WeaponName(pawn));
 
             return p;
         }

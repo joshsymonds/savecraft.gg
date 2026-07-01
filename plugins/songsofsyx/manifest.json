@@ -1,0 +1,103 @@
+{
+  "game_id": "songsofsyx",
+  "sources": [
+    "mod"
+  ],
+  "icon": "icon.png",
+  "name": "Songs of Syx",
+  "description": "Reference for the colony-sim/4X Songs of Syx, generated verbatim from the game's own shipped data and in-game guide: searchable dev-written mechanics articles plus room, resource, race, and knowledge-tree lookups. This game is niche and easily mis-remembered — retrieve and cite these before answering rather than relying on memory. Live colony state via an in-game mod is forthcoming.",
+  "channel": "alpha",
+  "coverage": "partial",
+  "file_extensions": null,
+  "homepage": "https://savecraft.gg/plugins/songsofsyx",
+  "limitations": [
+    "Reference data only for now — the in-game mod that pushes live colony state is not yet shipped",
+    "Reference data is generated from the game-shipped data files for a single game version; modded content is not included"
+  ],
+  "author": {
+    "name": "Josh Symonds",
+    "github": "joshsymonds"
+  },
+  "default_paths": {
+    "windows": "",
+    "linux": "",
+    "darwin": ""
+  },
+  "version": "dev",
+  "reference": {
+    "sha256": "415ae94bc69c27e8287c6459dcaace23a9b36b4624ffa4a399f2991404914a50",
+    "url": "plugins/songsofsyx/reference.wasm",
+    "modules": {
+      "guide": {
+        "name": "Mechanics Guide",
+        "description": "Look up Songs of Syx gameplay mechanics from the game's own shipped in-game guide and room notes. Returns a table of contents (the menu of systems to search), full article text by key, or keyword matches — all dev-written, version-matched prose. Use PROACTIVELY before answering ANY question about how a system works (happiness, services, immigration, farming, military, trade, world map, law): this game is niche and easily mis-remembered, so ground and cite the article instead of guessing. If nothing relevant comes back, say you're unsure rather than invent an answer; for strategy or opinion the shipped docs don't cover (e.g. best race, optimal build order), reason transparently from the live mechanics and label it as your reasoning, not fact.",
+        "parameters": {
+          "key": {
+            "description": "For op 'article': the article's LINK_KEY from the index (case-insensitive), e.g. 'STANDINGS'.",
+            "type": "string"
+          },
+          "op": {
+            "description": "'index' (default) returns the table of contents; 'article' returns one article's full text; 'search' returns matching articles.",
+            "type": "string"
+          },
+          "q": {
+            "description": "For op 'search': a keyword matched against article titles and bodies, e.g. 'happiness'.",
+            "type": "string"
+          }
+        }
+      },
+      "races": {
+        "name": "Race \u0026 Species Lookup",
+        "description": "Look up any Songs of Syx species: whether it's playable, its preferred foods, slave price, baby/child maturation days, and the game's own description. Pass 'race' (an ID or fuzzy name) for one species, or omit it to list all. Use for population, happiness-by-food-preference, and species questions.",
+        "parameters": {
+          "race": {
+            "description": "A species ID or name (case-insensitive, fuzzy), e.g. 'HUMAN' or 'cretonian'. Omit to list all species.",
+            "type": "string"
+          }
+        }
+      },
+      "resources": {
+        "name": "Resource Lookup",
+        "description": "Look up any Songs of Syx resource/good: its roles (edible, drinkable, growable, minable, supply, work), spoilage rate, the game's own description, and — cross-referenced from the buildings — which rooms produce and consume it. Pass 'resource' (an ID or fuzzy name) for one good, or omit it (with optional 'role') to list all. Use for resource and production-chain questions.",
+        "parameters": {
+          "resource": {
+            "description": "A resource ID or name (case-insensitive, fuzzy), e.g. 'METAL' or 'grain'. Omit to list all resources.",
+            "type": "string"
+          },
+          "role": {
+            "description": "Filter the index by role: edible, drinkable, growable, minable, supply, or work (only used when 'resource' is omitted).",
+            "type": "string"
+          }
+        }
+      },
+      "rooms": {
+        "name": "Room \u0026 Building Lookup",
+        "description": "Look up any Songs of Syx room/building's base-tier stats and the game's own description: resource build cost, what it produces and consumes per worker, whether it provides a citizen service, and the farmed crop for farms. Pass 'room' (an ID or fuzzy name) for one building, or omit it (with optional 'category') to list all. Use for any question about what a building costs, produces, consumes, or provides.",
+        "parameters": {
+          "category": {
+            "description": "Filter the index by category, e.g. 'Service' or 'Refiner' (only used when 'room' is omitted).",
+            "type": "string"
+          },
+          "room": {
+            "description": "A building ID or name (case-insensitive, fuzzy), e.g. 'EATERY_NORMAL' or 'smelter'. Omit to list all buildings.",
+            "type": "string"
+          }
+        }
+      },
+      "tech": {
+        "name": "Knowledge Tree Lookup",
+        "description": "Look up any Songs of Syx technology: its knowledge-point cost, the population threshold and prerequisite techs it requires, what it unlocks, and the game's own description. Pass 'tech' (a key or fuzzy name) for one technology, or omit it (with optional 'category') to list all. Use for research-planning and unlock-path questions.",
+        "parameters": {
+          "category": {
+            "description": "Filter the index by tree category, e.g. 'Administration' or 'Agriculture' (only used when 'tech' is omitted).",
+            "type": "string"
+          },
+          "tech": {
+            "description": "A tech key or name (case-insensitive, fuzzy), e.g. 'SCH00' or 'School'. Omit to list all techs.",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
