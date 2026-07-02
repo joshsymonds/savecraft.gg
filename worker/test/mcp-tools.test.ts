@@ -2031,6 +2031,32 @@ describe("MCP Tools", () => {
       expect(byGame.get("ffxiv")).toBe("expired");
     });
 
+    it("expands a single ggg provider credential row to both poe and poe2", async () => {
+      await seedAdapterSource({ sourceUuid: "adapter-ggg", userUuid: USER_A });
+      const futureExpiry = new Date(Date.now() + 3_600_000).toISOString();
+      // One provider_credentials row, keyed by provider (not per-game) —
+      // seeding via gameId "poe" resolves to provider "ggg", the same
+      // row that backs poe2.
+      await seedGameCredentials({
+        userUuid: USER_A,
+        gameId: "poe",
+        expiresAt: futureExpiry,
+      });
+
+      const result = await getInfo(env, USER_A);
+      const data = parseResult(result) as {
+        sources: {
+          source_uuid: string;
+          adapter_credentials: { game_id: string; status: string }[];
+        }[];
+      };
+      const source = data.sources.find((s) => s.source_uuid === "adapter-ggg")!;
+      expect(source.adapter_credentials).toHaveLength(2);
+      const byGame = new Map(source.adapter_credentials.map((c) => [c.game_id, c.status]));
+      expect(byGame.get("poe")).toBe("connected");
+      expect(byGame.get("poe2")).toBe("connected");
+    });
+
     it("does not include adapter_credentials for daemon sources", async () => {
       await seedTestSource({
         sourceUuid: "dev-no-creds",

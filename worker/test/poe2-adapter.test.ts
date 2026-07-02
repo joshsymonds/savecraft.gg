@@ -98,6 +98,37 @@ describe("PoE2 discoverSaves", () => {
         error instanceof AdapterError && error.code === "rate_limited" && error.retryAfter === 12,
     );
   });
+
+  it("falls back to the fixed poe2 realm when GGG omits realm, regardless of caller region", async () => {
+    mockFetch.activate();
+    mockFetch
+      .get("https://api.pathofexile.com")
+      .intercept({ path: "/character/poe2", method: "GET" })
+      .reply(
+        200,
+        JSON.stringify({
+          characters: [
+            {
+              id: "4444444444444444444444444444444444444444444444444444444444444444",
+              name: "NoRealmChar",
+              class: "Witch",
+              league: "Standard",
+              level: 10,
+              expired: false,
+              deleted: false,
+            },
+          ],
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+
+    // A poe-card connect passes region="pc" (GGG's default region) into
+    // poe2's discoverSaves — the realm must still resolve to poe2's fixed
+    // realm, never the caller's region.
+    const saves = await poe2Adapter.discoverSaves("tok", "pc");
+    expect(saves).toHaveLength(1);
+    expect(saves[0]!.metadata.realm).toBe("poe2");
+  });
 });
 
 describe("PoE2 section mappers", () => {
@@ -172,6 +203,33 @@ describe("PoE2 section mappers", () => {
     const bell = bindings.find((b) => b.skill === "Tempest Bell")!;
     expect(bell.level).toBe("12");
     expect(bell.quality).toBeUndefined();
+  });
+
+  it("mapSkills derives gemSockets as a count from the GGG string-array shape", () => {
+    const s = mapSkills(char);
+    const bindings = s.data.bindings as Record<string, unknown>[];
+
+    // Fixture encodes gemSockets as GGG's documented ?array of string
+    // (each entry always "W"), not a number — the section still emits a
+    // numeric count under the same "gemSockets" key.
+    const concoction = bindings.find((b) => b.skill === "Explosive Concoction")!;
+    expect(concoction.gemSockets).toBe(2);
+
+    const bell = bindings.find((b) => b.skill === "Tempest Bell")!;
+    expect(bell.gemSockets).toBe(1);
+  });
+
+  it("mapSkills surfaces grantedSkills as name/values pairs", () => {
+    const s = mapSkills(char);
+    const bindings = s.data.bindings as Record<string, unknown>[];
+
+    const concoction = bindings.find((b) => b.skill === "Explosive Concoction")!;
+    expect(concoction.grantedSkills).toEqual([
+      { name: "Grants Skill: Flammability", values: ["Level 12"] },
+    ]);
+
+    const bell = bindings.find((b) => b.skill === "Tempest Bell")!;
+    expect(bell.grantedSkills).toEqual([]);
   });
 
   it("mapPassives surfaces specialisation sets and allocated count from hashes", () => {

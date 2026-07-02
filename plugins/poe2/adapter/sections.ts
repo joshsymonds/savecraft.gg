@@ -58,9 +58,16 @@ export function mapSkills(char: Poe2Character): GameStateSection {
     const quality = gemProp(item, "Quality");
     return {
       skill: item.gemSkill || item.typeLine || item.baseType || "",
-      gemSockets: item.gemSockets ?? 0,
+      // GGG's gemSockets is ?array of string (each entry always "W"), not
+      // a count — this section still surfaces "how many sockets" under
+      // the same key, derived from the array length.
+      gemSockets: (item.gemSockets ?? []).length,
       ...(level !== undefined ? { level } : {}),
       ...(quality !== undefined ? { quality } : {}),
+      grantedSkills: (item.grantedSkills ?? []).map((p) => ({
+        name: p.name,
+        values: p.values.map(([value]) => value),
+      })),
       tabs: (item.gemTabs ?? []).map((tab) => ({
         name: tab.name ?? "",
         pages: (tab.pages ?? []).map((page) => page.skillName ?? "").filter((name) => name !== ""),

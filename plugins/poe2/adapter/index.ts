@@ -73,7 +73,7 @@ export const poe2Adapter: ApiAdapter = {
 
   async discoverSaves(
     accessToken: string,
-    region: string,
+    _region: string,
   ): Promise<DiscoveredSave[]> {
     const { characters } = await gggGet<Poe2CharacterListResponse>(
       `/character/${POE2_REALM}`,
@@ -92,7 +92,7 @@ export const poe2Adapter: ApiAdapter = {
           class: char.class,
           league: char.league,
           level: char.level,
-          realm: char.realm ?? region,
+          realm: char.realm ?? POE2_REALM,
           expired: char.expired ?? false,
         },
       }));

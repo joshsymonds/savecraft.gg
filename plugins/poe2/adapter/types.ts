@@ -88,7 +88,9 @@ export interface Poe2Item {
   gemTabs?: Poe2GemTab[];
   gemBackground?: string;
   gemSkill?: string;
-  gemSockets?: number;
+  /** One entry per socket on the skill item; each entry is always "W"
+   *  (GGG's documented shape — no socket colours in PoE2). */
+  gemSockets?: string[];
   runeMods?: string[];
   bondedMods?: string[];
   desecratedMods?: string[];
@@ -97,7 +99,7 @@ export interface Poe2Item {
   unidentifiedTier?: number;
   weaponRequirements?: Poe2ItemProperty[];
   supportGemRequirements?: Poe2ItemProperty[];
-  grantedSkills?: unknown[];
+  grantedSkills?: Poe2ItemProperty[];
 }
 
 /** GGG `GET /character/poe2/<name>` response character object. */

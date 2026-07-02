@@ -17,6 +17,10 @@
 set -euo pipefail
 
 USER_UUID="${1:?usage: capture-ggg-character.sh <staging_user_uuid> [character_name]}"
+[[ "$USER_UUID" =~ ^[A-Za-z0-9_-]+$ ]] || {
+  echo "invalid user uuid" >&2
+  exit 1
+}
 CHAR_NAME="${2:-}"
 UA='OAuth savecraft/1.0 (contact: oauth@savecraft.gg)'
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
