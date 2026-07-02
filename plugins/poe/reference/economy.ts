@@ -11,6 +11,11 @@ import type {
   NativeReferenceModule,
   ReferenceResult,
 } from "../../../worker/src/reference/types";
+import {
+  createEconomyCache,
+  FETCH_TIMEOUT_MS,
+  INDEX_STATE_CACHE_KEY,
+} from "../../../worker/src/reference/economy-cache";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -22,13 +27,6 @@ const VERSION = "current";
 /** Types served by /currency/overview. Everything else uses /item/overview. */
 const CURRENCY_TYPES = new Set<string>(["Currency", "Fragment"]);
 const DEFAULT_TYPE = "UniqueArmour";
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
-/** Short TTL for cached upstream failures so a misbehaving league/type
- *  doesn't keep slamming poe.ninja while every LLM caller retries. */
-const FAILURE_TTL_MS = 60 * 1000; // 1 minute
-const MAX_CACHE_ENTRIES = 50;
-const FETCH_TIMEOUT_MS = 10_000;
-const INDEX_STATE_CACHE_KEY = "index-state";
 
 // ---------------------------------------------------------------------------
 // poe.ninja response types
@@ -110,83 +108,11 @@ interface CachedIndexState {
   readonly fetchedAt: number;
 }
 
-/** Sentinel for upstream non-OK responses. Prevents thundering herd against
- *  poe.ninja while LLM callers retry the same bad league/type combo. */
-interface CachedFailure {
-  readonly kind: "failure";
-  readonly fetchedAt: number;
-}
-
-type CacheEntry = CachedOverview | CachedIndexState | CachedFailure;
-
-const cache = new Map<string, CacheEntry>();
-/** Singleflight: in-flight fetches deduplicated by cache key. */
-const inflight = new Map<string, Promise<CacheEntry>>();
+const economyCache = createEconomyCache<CachedOverview | CachedIndexState>();
 
 /** Clear all caches. Test helper. */
 export function resetEconomyCache(): void {
-  cache.clear();
-  inflight.clear();
-}
-
-function cacheGet(key: string): CacheEntry | undefined {
-  const entry = cache.get(key);
-  if (!entry) return undefined;
-  const ttl = entry.kind === "failure" ? FAILURE_TTL_MS : CACHE_TTL_MS;
-  if (Date.now() - entry.fetchedAt >= ttl) {
-    cache.delete(key);
-    return undefined;
-  }
-  return entry;
-}
-
-function cacheSet(key: string, entry: CacheEntry): void {
-  if (cache.size >= MAX_CACHE_ENTRIES && !cache.has(key)) {
-    // FIFO-evict the oldest entry. Skip INDEX_STATE_CACHE_KEY since every
-    // league-resolution path depends on it; losing it stampedes that fetch.
-    for (const k of cache.keys()) {
-      if (k === INDEX_STATE_CACHE_KEY) continue;
-      cache.delete(k);
-      break;
-    }
-  }
-  cache.set(key, entry);
-}
-
-/**
- * Cache + singleflight + negative-cache wrapper around an upstream fetch.
- * `fetcher` returns a positive cache entry on success, or `null` on a
- * documented upstream failure (e.g. !response.ok) — null gets cached as a
- * short-TTL failure sentinel. Network errors thrown by `fetch` propagate
- * uncached so transient blips can retry immediately.
- */
-async function cachedFetch<T extends CachedOverview | CachedIndexState>(
-  key: string,
-  fetcher: () => Promise<T | null>,
-): Promise<T | null> {
-  const existing = cacheGet(key);
-  if (existing) {
-    if (existing.kind === "failure") return null;
-    return existing as T;
-  }
-
-  let promise = inflight.get(key);
-  if (!promise) {
-    promise = (async (): Promise<CacheEntry> => {
-      const result = await fetcher();
-      return result ?? { kind: "failure", fetchedAt: Date.now() };
-    })();
-    inflight.set(key, promise);
-  }
-
-  let result: CacheEntry;
-  try {
-    result = await promise;
-  } finally {
-    inflight.delete(key);
-  }
-  cacheSet(key, result);
-  return result.kind === "failure" ? null : (result as T);
+  economyCache.reset();
 }
 
 // ---------------------------------------------------------------------------
@@ -210,7 +136,7 @@ function overviewCacheKey(path: Path, league: string, type: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Fetch helpers (singleflight on top of cacheGet)
+// Fetch helpers (singleflight on top of the shared economy cache)
 // ---------------------------------------------------------------------------
 
 function fetchOverview(
@@ -218,7 +144,7 @@ function fetchOverview(
   league: string,
   type: string,
 ): Promise<CachedOverview | null> {
-  return cachedFetch<CachedOverview>(
+  return economyCache.cachedFetch<CachedOverview>(
     overviewCacheKey(path, league, type),
     async () => {
       const response = await fetch(overviewUrl(path, league, type), {
@@ -237,7 +163,7 @@ function fetchOverview(
 }
 
 async function fetchIndexState(): Promise<IndexState | null> {
-  const cached = await cachedFetch<CachedIndexState>(
+  const cached = await economyCache.cachedFetch<CachedIndexState>(
     INDEX_STATE_CACHE_KEY,
     async () => {
       const response = await fetch(indexStateUrl(), {
