@@ -57,11 +57,14 @@ export async function cleanupSource(
   // adapter game it served, so clear both. No-op for daemon sources (no
   // linked_characters rows).
   //
-  // 1:1 today: each provider backs exactly one game, so deleting every
-  // provider row touched by this source's games is equivalent to
-  // disconnecting them. Once a provider backs multiple games (the next
-  // task in the PoE2 epic), this must change — wiping the shared row
-  // here would revoke a sibling game's still-active token too.
+  // findOrCreateAdapterSource ensures at most one adapter source per
+  // user, so a source's linked_characters cover EVERY adapter game that
+  // user has — including every sibling game sharing a provider (e.g.
+  // poe + poe2 both on ggg). Deleting every provider row touched by
+  // this source's games is therefore always the "last game" case, safe
+  // even when a provider backs more than one game: there's no other
+  // adapter source left for this user where a sibling's
+  // linked_characters could still be alive.
   const adapterGames = await env.DB.prepare(
     "SELECT DISTINCT game_id FROM linked_characters WHERE source_uuid = ?",
   )

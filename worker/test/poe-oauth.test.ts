@@ -201,6 +201,16 @@ describe("PoE GGG OAuth + discoverSaves", () => {
         .reply(200, JSON.stringify(characterListFixture), {
           headers: { "content-type": "application/json" },
         });
+      // ggg now also backs poe2 (shared provider, see poe2-oauth.test.ts
+      // for the multi-game discovery scenarios) — poe2's discovery runs
+      // alongside poe's from this same token exchange. An empty list is
+      // a normal success (R1).
+      mockFetch
+        .get("https://api.pathofexile.com")
+        .intercept({ path: "/character/poe2", method: "GET" })
+        .reply(200, JSON.stringify({ characters: [] }), {
+          headers: { "content-type": "application/json" },
+        });
 
       const resp = await SELF.fetch(
         new Request(`https://test-host/oauth/ggg/callback?code=good&state=${stateKey}`, {
@@ -270,6 +280,15 @@ describe("PoE GGG OAuth + discoverSaves", () => {
         .get("https://api.pathofexile.com")
         .intercept({ path: "/character", method: "GET" })
         .reply(200, JSON.stringify(characterListFixture), {
+          headers: { "content-type": "application/json" },
+        });
+      // ggg also backs poe2 from this same token exchange (see
+      // poe2-oauth.test.ts) — mock its discovery too so this UA-focused
+      // test doesn't rely on poe2's call going unmocked.
+      mockFetch
+        .get("https://api.pathofexile.com")
+        .intercept({ path: "/character/poe2", method: "GET" })
+        .reply(200, JSON.stringify({ characters: [] }), {
           headers: { "content-type": "application/json" },
         });
 

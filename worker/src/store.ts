@@ -62,42 +62,48 @@ async function postPushHooks(
   if (gameId === "magic" && userUuid) {
     await ingestMatchHistory(db, userUuid, sections);
   }
-  if (gameId === "poe" && extra) {
-    await persistPoeRefreshArtifacts(db, userUuid, saveUuid, extra);
+  if (extra) {
+    await persistAdapterRefreshArtifacts(db, gameId, userUuid, saveUuid, extra);
   }
 }
 
-interface PoeRefreshedCreds {
+interface RefreshedProviderCreds {
   accessToken: string;
   refreshToken: string | null;
   expiresAt: string | null;
 }
 
 /**
- * Persist PoE refresh side effects that must not live in a section:
- * the content-addressed PoB build snapshot (raw XML, re-fed to
- * pob-server /calc on eviction) and any GGG tokens refreshed
- * in-adapter during fetchState.
+ * Persist adapter refresh side effects that must not live in a section:
+ * PoE's content-addressed PoB build snapshot (raw XML, re-fed to
+ * pob-server /calc on eviction — PoE-only, PoE2 has no PoB2 enrichment
+ * yet) and any provider tokens refreshed in-adapter during fetchState,
+ * for ANY adapter game (poe, poe2, and future ones) — persisted into
+ * the shared provider_credentials row via providerForGame(gameId), so
+ * a rotation from either game keeps the row current for its siblings.
  */
-async function persistPoeRefreshArtifacts(
+async function persistAdapterRefreshArtifacts(
   db: D1Database,
+  gameId: string,
   userUuid: string | null,
   saveUuid: string,
   extra: Record<string, unknown>,
 ): Promise<void> {
-  const buildId = extra.pobBuildId;
-  const xml = extra.pobXml;
-  if (typeof buildId === "string" && typeof xml === "string") {
-    await db
-      .prepare(
-        `INSERT OR REPLACE INTO poe_build_snapshot (save_uuid, pob_build_id, pob_xml, imported_at)
-         VALUES (?, ?, ?, datetime('now'))`,
-      )
-      .bind(saveUuid, buildId, xml)
-      .run();
+  if (gameId === "poe") {
+    const buildId = extra.pobBuildId;
+    const xml = extra.pobXml;
+    if (typeof buildId === "string" && typeof xml === "string") {
+      await db
+        .prepare(
+          `INSERT OR REPLACE INTO poe_build_snapshot (save_uuid, pob_build_id, pob_xml, imported_at)
+           VALUES (?, ?, ?, datetime('now'))`,
+        )
+        .bind(saveUuid, buildId, xml)
+        .run();
+    }
   }
 
-  const refreshed = extra.refreshedCreds as PoeRefreshedCreds | undefined;
+  const refreshed = extra.refreshedCreds as RefreshedProviderCreds | undefined;
   if (refreshed && userUuid) {
     await db
       .prepare(
@@ -110,7 +116,7 @@ async function persistPoeRefreshArtifacts(
         refreshed.refreshToken,
         refreshed.expiresAt,
         userUuid,
-        providerForGame("poe"),
+        providerForGame(gameId),
       )
       .run();
   }

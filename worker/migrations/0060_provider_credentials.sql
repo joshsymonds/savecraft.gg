@@ -10,7 +10,8 @@
 -- game that authenticates through that provider.
 --
 -- The game->provider mapping lives in worker/src/adapters/providers.ts
--- (OAUTH_PROVIDERS) and is 1:1 today: wow -> battlenet, poe -> ggg.
+-- (OAUTH_PROVIDERS). At the time this migration ran it was 1:1: wow ->
+-- battlenet, poe -> ggg (ggg -> poe2 came later, once poe2 existed).
 -- This migration can't call that TS mapping, so it's inlined via CASE;
 -- keep the two in sync if OAUTH_PROVIDERS ever changes. Any game_id not
 -- in the CASE falls back to itself as its own provider, mirroring

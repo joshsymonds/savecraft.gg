@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { poe2Adapter } from "../../plugins/poe2/adapter";
 import characterFixture from "../../plugins/poe2/testdata/ggg-poe2-character-full.json";
 import type { FetchParams } from "../src/adapters/adapter";
+import { storePush } from "../src/store";
 import type { Env } from "../src/types";
 
 import { cleanAll, mockFetch } from "./helpers";
@@ -85,7 +86,7 @@ describe("poe2Adapter.fetchState", () => {
     ]);
   });
 
-  it("returns refreshed GGG creds in identity.extra when the token was expired (persistence deferred)", async () => {
+  it("returns refreshed GGG creds in identity.extra when the token was expired", async () => {
     // mockGgg() calls mockFetch.activate() (which clears any queued
     // replies) — queue the token-refresh reply AFTER it, not before.
     mockGgg();
@@ -110,15 +111,55 @@ describe("poe2Adapter.fetchState", () => {
     );
 
     // fetchState surfaces refreshed creds in identity.extra exactly like
-    // poe's does. Unlike poe, storePush's postPushHooks only persists
-    // this for gameId === "poe" (see worker/src/store.ts) — poe2's
-    // provider_credentials persistence is deferred to the next task, once
-    // poe2 is wired into providerForGame/OAUTH_PROVIDERS for multi-game
-    // ggg discovery. This assertion only covers what fetchState returns.
+    // poe's does; storePush's postPushHooks persists it into the shared
+    // ggg provider_credentials row for ANY adapter game (see the
+    // "storePush poe2 credential persistence" describe block below).
     expect(state.identity.extra?.refreshedCreds).toEqual({
       accessToken: "new-acc",
       refreshToken: "new-ref",
       expiresAt: expect.any(String),
     });
+  });
+});
+
+describe("storePush poe2 credential persistence", () => {
+  beforeEach(cleanAll);
+
+  it("persists refreshed GGG credentials pushed from poe2 into the shared ggg row", async () => {
+    const sourceUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+    )
+      .bind(sourceUuid, "poe2-user", `h-${sourceUuid}`)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
+       VALUES ('poe2-user', 'ggg', 'old-acc', 'old-ref', '2000-01-01T00:00:00Z')`,
+    ).run();
+
+    await storePush(
+      env as unknown as Env,
+      "poe2-user",
+      sourceUuid,
+      "poe2",
+      "InfernalConcoction",
+      "summary",
+      new Date().toISOString(),
+      { character_overview: { description: "o", data: {} } },
+      undefined,
+      {
+        refreshedCreds: {
+          accessToken: "fresh-acc-2",
+          refreshToken: "fresh-ref-2",
+          expiresAt: "2099-01-01T00:00:00Z",
+        },
+      },
+    );
+
+    const cred = await env.DB.prepare(
+      "SELECT access_token, refresh_token FROM provider_credentials WHERE user_uuid = 'poe2-user' AND provider = 'ggg'",
+    ).first<{ access_token: string; refresh_token: string }>();
+    expect(cred!.access_token).toBe("fresh-acc-2");
+    expect(cred!.refresh_token).toBe("fresh-ref-2");
   });
 });

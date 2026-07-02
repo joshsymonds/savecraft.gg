@@ -1623,7 +1623,8 @@ async function attachAdapterCredentials(
   ]);
 
   // Provider rows are per-provider, not per-game — expand each back to
-  // the game(s) it backs (1:1 today) so per-game status still renders.
+  // every game it backs (e.g. ggg → poe + poe2) so per-game status
+  // still renders.
   const now = Date.now();
   const credByGame = new Map<string, "connected" | "expired">();
   for (const row of credRows.results) {

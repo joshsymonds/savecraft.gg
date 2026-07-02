@@ -423,7 +423,10 @@ describe("Adapter Removal", () => {
   beforeEach(cleanAll);
 
   /** One adapter source per user (shared across adapter games), with
-   *  linked_characters + provider_credentials for the given games. */
+   *  linked_characters + provider_credentials for the given games. Two
+   *  games can share a provider (e.g. poe + poe2 both on ggg) — the
+   *  credential row is per-provider, so it's inserted once per distinct
+   *  provider even when multiple games map to it. */
   async function seedAdapter(
     userUuid: string,
     games: { gameId: string; chars: string[] }[],
@@ -434,13 +437,18 @@ describe("Adapter Removal", () => {
     )
       .bind(sourceUuid, userUuid, `h-${sourceUuid}`)
       .run();
+    const seededProviders = new Set<string>();
     for (const { gameId, chars } of games) {
-      await env.DB.prepare(
-        `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
-         VALUES (?, ?, ?, ?, '2099-01-01T00:00:00Z')`,
-      )
-        .bind(userUuid, providerForGame(gameId), `acc-${gameId}`, `ref-${gameId}`)
-        .run();
+      const provider = providerForGame(gameId);
+      if (!seededProviders.has(provider)) {
+        seededProviders.add(provider);
+        await env.DB.prepare(
+          `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
+           VALUES (?, ?, ?, ?, '2099-01-01T00:00:00Z')`,
+        )
+          .bind(userUuid, provider, `acc-${provider}`, `ref-${provider}`)
+          .run();
+      }
       for (const name of chars) {
         await env.DB.prepare(
           `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
@@ -535,5 +543,115 @@ describe("Adapter Removal", () => {
       .bind(TEST_USER)
       .first<{ n: number }>();
     expect(gc!.n).toBe(0);
+  });
+
+  // Shared-provider (ggg backs both poe and poe2) delete semantics: the
+  // credential row must survive as long as ANY game on that provider
+  // still has linked_characters, and only disappear with the last one.
+  describe("shared ggg provider (poe + poe2)", () => {
+    it("DELETE /api/v1/games/poe2 keeps the shared ggg credential while poe is still linked", async () => {
+      await seedAdapter(TEST_USER, [
+        { gameId: "poe", chars: ["Chantome"] },
+        { gameId: "poe2", chars: ["InfernalConcoction"] },
+      ]);
+
+      const resp = await SELF.fetch("https://test-host/api/v1/games/poe2", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${TEST_USER}` },
+      });
+      expect(resp.status).toBe(200);
+
+      // poe2's own linked_characters are gone.
+      const poe2Lc = await env.DB.prepare(
+        "SELECT COUNT(*) n FROM linked_characters WHERE user_uuid = ? AND game_id = 'poe2'",
+      )
+        .bind(TEST_USER)
+        .first<{ n: number }>();
+      expect(poe2Lc!.n).toBe(0);
+
+      // poe's linked_characters are untouched.
+      const poeLc = await env.DB.prepare(
+        "SELECT COUNT(*) n FROM linked_characters WHERE user_uuid = ? AND game_id = 'poe'",
+      )
+        .bind(TEST_USER)
+        .first<{ n: number }>();
+      expect(poeLc!.n).toBe(1);
+
+      // The shared ggg credential row survives — poe is still linked.
+      const ggCred = await env.DB.prepare(
+        "SELECT COUNT(*) n FROM provider_credentials WHERE user_uuid = ? AND provider = 'ggg'",
+      )
+        .bind(TEST_USER)
+        .first<{ n: number }>();
+      expect(ggCred!.n).toBe(1);
+    });
+
+    it("DELETE /api/v1/games/poe then /poe2 deletes the shared ggg credential once the last game goes", async () => {
+      await seedAdapter(TEST_USER, [
+        { gameId: "poe", chars: ["Chantome"] },
+        { gameId: "poe2", chars: ["InfernalConcoction"] },
+      ]);
+
+      const first = await SELF.fetch("https://test-host/api/v1/games/poe2", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${TEST_USER}` },
+      });
+      expect(first.status).toBe(200);
+
+      const midCred = await env.DB.prepare(
+        "SELECT COUNT(*) n FROM provider_credentials WHERE user_uuid = ? AND provider = 'ggg'",
+      )
+        .bind(TEST_USER)
+        .first<{ n: number }>();
+      expect(midCred!.n).toBe(1);
+
+      const second = await SELF.fetch("https://test-host/api/v1/games/poe", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${TEST_USER}` },
+      });
+      expect(second.status).toBe(200);
+
+      const finalCred = await env.DB.prepare(
+        "SELECT COUNT(*) n FROM provider_credentials WHERE user_uuid = ? AND provider = 'ggg'",
+      )
+        .bind(TEST_USER)
+        .first<{ n: number }>();
+      expect(finalCred!.n).toBe(0);
+    });
+
+    it("DELETE /api/v1/sources/:sourceUuid removes the shared ggg credential when poe + poe2 (+ wow) all go together", async () => {
+      const sourceUuid = await seedAdapter(TEST_USER, [
+        { gameId: "poe", chars: ["Chantome"] },
+        { gameId: "poe2", chars: ["InfernalConcoction"] },
+        { gameId: "wow", chars: ["Thrall"] },
+      ]);
+
+      const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${TEST_USER}` },
+      });
+      expect(resp.status).toBe(200);
+
+      const ggCred = await env.DB.prepare(
+        "SELECT COUNT(*) n FROM provider_credentials WHERE user_uuid = ? AND provider = 'ggg'",
+      )
+        .bind(TEST_USER)
+        .first<{ n: number }>();
+      expect(ggCred!.n).toBe(0);
+
+      const battlenetCred = await env.DB.prepare(
+        "SELECT COUNT(*) n FROM provider_credentials WHERE user_uuid = ? AND provider = 'battlenet'",
+      )
+        .bind(TEST_USER)
+        .first<{ n: number }>();
+      expect(battlenetCred!.n).toBe(0);
+
+      const lc = await env.DB.prepare(
+        "SELECT COUNT(*) n FROM linked_characters WHERE source_uuid = ?",
+      )
+        .bind(sourceUuid)
+        .first<{ n: number }>();
+      expect(lc!.n).toBe(0);
+    });
   });
 });

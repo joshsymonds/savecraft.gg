@@ -14,14 +14,17 @@
  * That path segment is owned here as POE2_REALM rather than derived from
  * the caller's `region`, since GGG's realm value for this game is fixed.
  *
- * poe2 is NOT yet registered in worker/src/adapters/providers.ts
- * (OAUTH_PROVIDERS still maps "ggg" only to "poe") — multi-game
- * discovery under the shared ggg provider is the next task in this epic.
- * fetchState still returns any refreshed GGG token in identity.extra
- * exactly like poe's does (see the comment at its call site below), but
- * persisting that refresh is deferred: worker/src/store.ts's
- * postPushHooks only calls persistPoeRefreshArtifacts for
- * gameId === "poe", so poe2's refreshed creds are dropped for now.
+ * poe2 is registered in worker/src/adapters/providers.ts under the
+ * shared "ggg" provider (OAUTH_PROVIDERS: ggg → ["poe", "poe2"]). One
+ * GGG OAuth grant's token exchange (worker/src/index.ts's
+ * handleAdapterCallback) discovers + reconciles characters for both
+ * games under a single adapter source, since one credential row backs
+ * every game the provider serves. fetchState returns any refreshed GGG
+ * token in identity.extra exactly like poe's does (see the comment at
+ * its call site below); worker/src/store.ts's postPushHooks persists it
+ * into the shared provider_credentials row via
+ * persistAdapterRefreshArtifacts, keyed by providerForGame("poe2") ===
+ * "ggg", the same as poe's refresh.
  *
  * No inventory section: GGG's PoE2 character API does not return
  * unequipped items. No pob_build section: PoB2 enrichment is a separate,
@@ -119,8 +122,8 @@ export const poe2Adapter: ApiAdapter = {
       passives: mapPassives(character),
     };
 
-    // Returned exactly like poe's fetchState; persistence into
-    // provider_credentials for poe2 is deferred (see header comment).
+    // Returned exactly like poe's fetchState; persisted into the shared
+    // ggg provider_credentials row by storePush (see header comment).
     const extra: Record<string, unknown> = {};
     if (refreshed) extra.refreshedCreds = refreshed;
 

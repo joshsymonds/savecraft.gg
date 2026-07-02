@@ -58,7 +58,11 @@ interface RefreshRow {
  * hand-written mapping: unmapped game_ids fall back to themselves as
  * their own provider, exactly like providerForGame does.
  */
-const PROVIDER_CASE_SQL = `CASE s.game_id ${OAUTH_PROVIDERS.map(() => "WHEN ? THEN ?").join(" ")} ELSE s.game_id END`;
+const PROVIDER_CASE_SQL = `CASE s.game_id ${OAUTH_PROVIDERS.flatMap(
+  (provider) => provider.adapterIds,
+)
+  .map(() => "WHEN ? THEN ?")
+  .join(" ")} ELSE s.game_id END`;
 
 export async function refreshAdapterSources(env: Env): Promise<void> {
   const cooldownSeconds = ADAPTER_REFRESH_COOLDOWN_SEC;
@@ -91,7 +95,9 @@ export async function refreshAdapterSources(env: Env): Promise<void> {
      LIMIT ?`,
   )
     .bind(
-      ...OAUTH_PROVIDERS.flatMap((provider) => [provider.adapterId, provider.segment]),
+      ...OAUTH_PROVIDERS.flatMap((provider) =>
+        provider.adapterIds.flatMap((adapterId) => [adapterId, provider.segment]),
+      ),
       `-${String(cooldownSeconds)} seconds`,
       BATCH_LIMIT,
     )

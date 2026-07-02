@@ -7,7 +7,12 @@ import { URLS } from "@savecraft/content/facts";
 
 import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError, type ApiAdapter } from "./adapters/adapter";
 import { discoverAndReconcileSaves } from "./adapters/discover";
-import { OAUTH_PROVIDERS, type OAuthProvider, providerForGame } from "./adapters/providers";
+import {
+  gamesForProvider,
+  OAUTH_PROVIDERS,
+  type OAuthProvider,
+  providerForGame,
+} from "./adapters/providers";
 import { adapters } from "./adapters/registry";
 import { resolveAdapterCharacter, type ResolvedCharacter } from "./adapters/resolve-character";
 import { handleAdminRoute } from "./admin";
@@ -318,9 +323,30 @@ async function routePublicEndpoints(
 // ./adapters/providers.ts (single source of truth for the game→provider
 // mapping, importable from store.ts/tools.ts/jobs without a cycle).
 
-/** Resolve a provider's adapter, or null when it isn't configured. */
+/**
+ * Resolve a provider's adapter for the authorize-path OAuth config, or
+ * null when it isn't configured. Every adapter behind a provider
+ * returns an identical getOAuthConfig by construction (shared OAuth
+ * client constants — e.g. poe and poe2 both read GGG_AUTHORIZE_URL /
+ * GGG_SCOPES from worker/src/adapters/ggg.ts), so the first adapterId
+ * is representative and the authorize flow never needs to know which
+ * game the user will end up connecting.
+ */
 function providerAdapter(provider: OAuthProvider): ApiAdapter | null {
-  return adapters[provider.adapterId] ?? null;
+  return adapters[provider.adapterIds[0] ?? ""] ?? null;
+}
+
+/**
+ * Resolve every adapter registered for a provider's adapterIds
+ * (skipping any not present in the registry). The callback uses this
+ * so one token exchange can discover + reconcile every game the
+ * provider backs (e.g. poe + poe2 sharing ggg) instead of just one.
+ */
+function providerAdapters(provider: OAuthProvider): ApiAdapter[] {
+  return provider.adapterIds.flatMap((id) => {
+    const adapter = adapters[id];
+    return adapter ? [adapter] : [];
+  });
 }
 
 async function routeAdapterOAuth(request: Request, url: URL, env: Env): Promise<Response | null> {
@@ -364,7 +390,7 @@ async function handleAdapterAuthorize(
   const adapter = providerAdapter(provider);
   if (!adapter) {
     return Response.json(
-      { error: `${provider.adapterId} adapter not configured` },
+      { error: `${provider.adapterIds[0] ?? provider.segment} adapter not configured` },
       { status: 500 },
     );
   }
@@ -377,7 +403,7 @@ async function handleAdapterAuthorize(
   // first surfaced — as a user bug report).
   if (!oauthConfig.clientId || !provider.clientSecret(env)) {
     return Response.json(
-      { error: `${provider.adapterId} OAuth credentials not configured` },
+      { error: `${provider.adapterIds[0] ?? provider.segment} OAuth credentials not configured` },
       { status: 500 },
     );
   }
@@ -619,24 +645,27 @@ async function handleAdapterCallback(
   }
   const state = JSON.parse(storedRaw) as OAuthCallbackState;
 
-  const adapter = providerAdapter(provider);
-  if (!adapter) {
-    return Response.json(
-      { error: `${provider.adapterId} adapter not configured` },
-      { status: 500 },
-    );
+  const gameAdapters = providerAdapters(provider);
+  const primaryAdapter = gameAdapters[0];
+  if (!primaryAdapter) {
+    return Response.json({ error: `${provider.segment} adapter not configured` }, { status: 500 });
   }
 
   const webUrl = env.WEB_URL ?? url.origin;
   const validatedReturn = validateReturnUrl(state.returnUrl, env, url.origin);
   const redirectUrl = new URL(validatedReturn || `${webUrl}/`);
 
+  // One token exchange backs every game this provider serves (poe +
+  // poe2 both authenticate through ggg) — exchangeAndStoreToken only
+  // needs an adapter to read its OAuth config, and every adapter behind
+  // a provider returns identical config by construction (see
+  // providerAdapter's doc comment), so the first is representative.
   const tokenResult = await exchangeAndStoreToken(
     code,
     stateKey,
     state,
     provider,
-    adapter,
+    primaryAdapter,
     redirectUrl,
     url,
     env,
@@ -646,35 +675,55 @@ async function handleAdapterCallback(
   // Connection is real now: create the adapter source and push the
   // "watching" status (previously done prematurely at authorize, #22).
   const sourceUuid = await findOrCreateAdapterSource(env, state.userUuid);
-  await Promise.all([
-    logSourceEvent(env, sourceUuid, "oauthTokenExchanged", {
-      oauthTokenExchanged: { gameId: adapter.gameId, region: state.region },
+
+  // Discover + reconcile every game this provider backs from the single
+  // token exchange above. A thrown AdapterError from one game's
+  // discovery must not lose a sibling game's already-reconciled
+  // characters, so each adapter is isolated (discoverReconcileOrError
+  // never throws); the connect only fails once EVERY adapter has failed
+  // (an empty character list is a normal success, R1, never a failure
+  // here).
+  const succeeded = await Promise.all(
+    gameAdapters.map(async (adapter) => {
+      await Promise.all([
+        logSourceEvent(env, sourceUuid, "oauthTokenExchanged", {
+          oauthTokenExchanged: { gameId: adapter.gameId, region: state.region },
+        }),
+        pushGameStatus(
+          env,
+          sourceUuid,
+          state.userUuid,
+          adapter.gameId,
+          adapter.gameName,
+          "watching",
+        ),
+      ]);
+      return discoverReconcileOrError(adapter, env, state, sourceUuid, tokenResult.accessToken);
     }),
-    pushGameStatus(env, sourceUuid, state.userUuid, adapter.gameId, adapter.gameName, "watching"),
-  ]);
-
-  const discoveryError = await discoverReconcileOrError(
-    adapter,
-    env,
-    state,
-    sourceUuid,
-    tokenResult.accessToken,
-    redirectUrl,
   );
-  if (discoveryError) return discoveryError;
 
-  redirectUrl.searchParams.set("game_id", adapter.gameId);
+  redirectUrl.searchParams.set("game_id", primaryAdapter.gameId);
   redirectUrl.searchParams.set("connected", "true");
+
+  if (!succeeded.some(Boolean)) {
+    return errorRedirect(
+      redirectUrl,
+      primaryAdapter.gameId,
+      "discovery_failed",
+      "Failed to discover game characters",
+    );
+  }
 
   return new Response(null, { status: 302, headers: { Location: redirectUrl.toString() } });
 }
 
 /**
- * Discover + reconcile the connected account's characters into D1.
- * Returns a redirect Response on failure (with `connected=true` so the
- * UI still shows the connected state), or null on success so the caller
- * issues the normal success redirect. Behavior unchanged from the
- * pre-refactor inline block.
+ * Discover + reconcile one adapter's characters into D1, logging the
+ * characterDiscovery(Failed) event and pushing the SourceHub game
+ * status either way. Never throws — returns whether this adapter's
+ * discovery succeeded, so the caller can aggregate across every adapter
+ * sharing a provider (poe + poe2 under ggg) instead of letting one
+ * game's failure abort a sibling's already-reconciled characters.
  */
 async function discoverReconcileOrError(
   adapter: ApiAdapter,
@@ -682,8 +731,7 @@ async function discoverReconcileOrError(
   state: OAuthCallbackState,
   sourceUuid: string,
   accessToken: string,
-  redirectUrl: URL,
-): Promise<Response | null> {
+): Promise<boolean> {
   try {
     const reconcileResult = await discoverAndReconcileSaves(
       adapter,
@@ -704,7 +752,7 @@ async function discoverReconcileOrError(
         reactivated: reconcileResult.reactivated.length,
       },
     });
-    return null;
+    return true;
   } catch (error: unknown) {
     await Promise.all([
       logSourceEvent(env, sourceUuid, "characterDiscoveryFailed", {
@@ -724,13 +772,7 @@ async function discoverReconcileOrError(
         toErrorMessage(error),
       ),
     ]);
-    redirectUrl.searchParams.set("connected", "true");
-    return errorRedirect(
-      redirectUrl,
-      adapter.gameId,
-      "discovery_failed",
-      "Failed to discover game characters",
-    );
+    return false;
   }
 }
 
@@ -1473,22 +1515,36 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
   // all the user's adapter games, so it must NOT be deleted here) and
   // drop the game from each adapter source's live DO state.
   if (adapters[gameId]) {
-    // 1:1 today: each provider backs exactly one game (poe→ggg,
-    // wow→battlenet), so deleting this game's provider credential row
-    // is equivalent to disconnecting it. Once a provider backs multiple
-    // games (the next task in the PoE2 epic), this must change — wiping
-    // the shared row here would revoke a sibling game's still-active
-    // token too.
-    await env.DB.batch([
+    const provider = providerForGame(gameId);
+
+    // A provider's credential row is shared by every game it backs
+    // (poe + poe2 both authenticate through ggg) and rotates on any
+    // game's refresh — deleting it here would revoke a sibling game's
+    // still-active token. Only delete it once no sibling game (another
+    // game_id mapped to this same provider) still has linked_characters
+    // for this user, i.e. this is the last linked game on the provider.
+    // Both deletes below run in a single D1 batch (one transaction), so
+    // the credential delete's NOT EXISTS guard atomically observes this
+    // game's own linked_characters row as already gone.
+    const siblingGames = gamesForProvider(provider).filter((g) => g !== gameId);
+    const credentialGuard =
+      siblingGames.length > 0
+        ? ` AND NOT EXISTS (
+             SELECT 1 FROM linked_characters
+             WHERE user_uuid = ? AND game_id IN (${siblingGames.map(() => "?").join(", ")})
+           )`
+        : "";
+
+    const adapterCleanup: D1PreparedStatement[] = [
       env.DB.prepare("DELETE FROM linked_characters WHERE user_uuid = ? AND game_id = ?").bind(
         userUuid,
         gameId,
       ),
-      env.DB.prepare("DELETE FROM provider_credentials WHERE user_uuid = ? AND provider = ?").bind(
-        userUuid,
-        providerForGame(gameId),
-      ),
-    ]);
+      env.DB.prepare(
+        `DELETE FROM provider_credentials WHERE user_uuid = ? AND provider = ?${credentialGuard}`,
+      ).bind(userUuid, provider, ...(siblingGames.length > 0 ? [userUuid, ...siblingGames] : [])),
+    ];
+    await env.DB.batch(adapterCleanup);
 
     const adapterSources = await env.DB.prepare(
       "SELECT source_uuid FROM sources WHERE user_uuid = ? AND source_kind = 'adapter'",
