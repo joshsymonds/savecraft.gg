@@ -216,12 +216,12 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       expect(location.searchParams.get("error")).toBeNull();
 
       const cred = await env.DB.prepare(
-        "SELECT game_id, access_token FROM game_credentials WHERE user_uuid = ? AND game_id = 'poe'",
+        "SELECT provider, access_token FROM provider_credentials WHERE user_uuid = ? AND provider = 'ggg'",
       )
         .bind(USER_UUID)
-        .first<{ game_id: string; access_token: string }>();
+        .first<{ provider: string; access_token: string }>();
       expect(cred).toBeTruthy();
-      expect(cred!.game_id).toBe("poe");
+      expect(cred!.provider).toBe("ggg");
       expect(cred!.access_token).toBe("ggg-access");
 
       const saves = await env.DB.prepare(
@@ -284,11 +284,11 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       expect(new URL(resp.headers.get("Location")).searchParams.get("connected")).toBe("true");
 
       const cred = await env.DB.prepare(
-        "SELECT game_id FROM game_credentials WHERE user_uuid = ? AND game_id = 'poe'",
+        "SELECT provider FROM provider_credentials WHERE user_uuid = ? AND provider = 'ggg'",
       )
         .bind(USER_UUID)
-        .first<{ game_id: string }>();
-      expect(cred?.game_id).toBe("poe");
+        .first<{ provider: string }>();
+      expect(cred?.provider).toBe("ggg");
     });
 
     it("a failed token exchange leaves no source and no credential (#22)", async () => {
@@ -326,7 +326,7 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       expect(sourceCount!.c).toBe(0);
 
       const cred = await env.DB.prepare(
-        "SELECT COUNT(*) c FROM game_credentials WHERE user_uuid = ?",
+        "SELECT COUNT(*) c FROM provider_credentials WHERE user_uuid = ?",
       )
         .bind(USER_UUID)
         .first<{ c: number }>();

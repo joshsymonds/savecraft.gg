@@ -112,7 +112,7 @@ User clicks region button in GamePickerModal
   -> SourceHub forwards to UserHub -> WebSocket -> game card appears on dashboard
   -> Redirect to Battle.net OAuth
   -> GET /oauth/battlenet/callback
-  -> Worker exchanges code for tokens, stores in game_credentials
+  -> Worker exchanges code for tokens, stores in provider_credentials
   -> Worker calls discoverAndReconcileSaves(adapter, env, token, region, user, source)
       -> adapter.discoverSaves(token, region) — calls game API
       -> reconcileCharacters(env, user, gameId, source, gameName, discovered)
@@ -301,7 +301,7 @@ Adapter errors are typed via `AdapterError` so the Worker and MCP layer can give
 | `character_not_found` | Character deleted or transferred | "Character not found. They may have been deleted or transferred." |
 | `partial_failure` | Enrichment source failed | Not thrown — handled via `enrichment` field on sections |
 
-**Token refresh failure path:** Before calling `fetchState`, the Worker checks `game_credentials.expires_at`. If expired, it attempts a refresh using the stored refresh token. If refresh fails (token revoked, user changed password), the Worker throws `AdapterError` with `code: "token_expired"` and a `userAction` from `reconnectAdapterAction(game)` (`worker/src/adapters/adapter.ts`) — "Reconnect your {game} account: open https://my.savecraft.gg, sign in, and reconnect {game} from the dashboard …". The MCP layer passes this message to the AI, which relays it to the user. The single source of truth for the app URL is `SAVECRAFT_APP_URL`; there is no `/settings` route (the apex `savecraft.gg` is the marketing/docs site).
+**Token refresh failure path:** Before calling `fetchState`, the Worker checks `provider_credentials.expires_at`. If expired, it attempts a refresh using the stored refresh token. If refresh fails (token revoked, user changed password), the Worker throws `AdapterError` with `code: "token_expired"` and a `userAction` from `reconnectAdapterAction(game)` (`worker/src/adapters/adapter.ts`) — "Reconnect your {game} account: open https://my.savecraft.gg, sign in, and reconnect {game} from the dashboard …". The MCP layer passes this message to the AI, which relays it to the user. The single source of truth for the app URL is `SAVECRAFT_APP_URL`; there is no `/settings` route (the apex `savecraft.gg` is the marketing/docs site).
 
 **Partial failure (enrichment degradation):** When Raider.io (or any enrichment source) is unavailable, the adapter does NOT throw. Instead, it returns the GameState with primary data fully populated and sets `enrichment` on affected sections:
 
@@ -376,7 +376,7 @@ The web UI uses these flags to hide filesystem-specific UI (path editor, rescan 
 4. `GET /oauth/battlenet/authorize`: Worker creates adapter source in D1, pushes WATCHING status to SourceHub
 5. SourceHub forwards state to UserHub → WebSocket → game card appears on dashboard immediately
 6. User redirected to Battle.net OAuth, authenticates
-7. `GET /oauth/battlenet/callback`: Worker exchanges code for tokens, stores in `game_credentials`
+7. `GET /oauth/battlenet/callback`: Worker exchanges code for tokens, stores in `provider_credentials`
 8. Worker calls `discoverAndReconcileSaves()` → discovers all characters, reconciles into D1 (linked_characters + saves)
 9. Worker redirects to web UI with `?connected=true&game_id=wow`
 10. SourceHub enriches adapter state with saves from D1, forwards to UserHub → game card updates with character count
@@ -469,7 +469,7 @@ There is no character picker — all discovered characters are tracked automatic
 
 ### Authentication Model
 
-OAuth tokens are stored in `game_credentials` (D1 provides encryption at rest) with automatic refresh. This differs from the "discard token" approach initially considered — the account profile endpoint requires a user token, and token refresh avoids forcing users to re-authorize every 24 hours.
+OAuth tokens are stored in `provider_credentials` (D1 provides encryption at rest) with automatic refresh. This differs from the "discard token" approach initially considered — the account profile endpoint requires a user token, and token refresh avoids forcing users to re-authorize every 24 hours.
 
 **OAuth flow:**
 
@@ -479,7 +479,7 @@ OAuth tokens are stored in `game_credentials` (D1 provides encryption at rest) w
 4. User authenticates with Battle.net
 5. Callback receives authorization code
 6. Worker exchanges code for access + refresh tokens (server-to-server)
-7. Tokens stored in D1 keyed by `(user_uuid, "wow")` (D1 encrypts at rest)
+7. Tokens stored in D1 keyed by `(user_uuid, "battlenet")` — the OAuth provider, not the game_id, since a provider's refresh token can back more than one game (D1 encrypts at rest)
 8. Worker calls `discoverAndReconcileSaves()` → discovers all characters, creates saves in D1
 9. Worker redirects to web UI; SourceHub reads saves from D1 and forwards to UserHub
 
@@ -578,7 +578,7 @@ PoE2 character profiles are **private**. Every API call requires a user access t
 - Every API call uses the user's token (not app-level credentials)
 - Stricter rate limits (~45 req/min)
 - Token refresh critical (GGG tokens expire)
-- Same `game_credentials` table, same encrypted storage
+- Same `provider_credentials` table, keyed by the shared `"ggg"` provider rather than per-game — PoE2 reads/writes the same row PoE does, so a GGG-rotated refresh token never goes stale for whichever game refreshes second
 
 The plugin structure would be:
 
@@ -615,21 +615,21 @@ CREATE TABLE linked_characters (
 
 Game-specific fields like realm, region, class, and level live in `metadata` JSON rather than as columns. The table is queried by `(user_uuid, game_id)` for listing and by `character_id` for reconciliation — neither requires game-specific column indexes.
 
-### Game credentials
+### Provider credentials
 
-Stores OAuth tokens for API-backed games. D1 provides encryption at rest at the infrastructure level. Used by WoW (token refresh for account profile) and future games like PoE2.
+Stores OAuth tokens for API-backed games, keyed by `(user_uuid, provider)` — the OAuth provider ("battlenet", "ggg"), not the game_id. A provider's refresh token rotates on use, so a per-game copy would go stale the moment a second game sharing that provider refreshed; keying by provider means every game backed by the same provider reads/writes one row. D1 provides encryption at rest at the infrastructure level. The game→provider mapping lives in `worker/src/adapters/providers.ts` (`OAUTH_PROVIDERS`); it's 1:1 today (wow→battlenet, poe→ggg) but PoE2 sharing "ggg" with PoE is the motivating case for this shape.
 
 ```sql
-CREATE TABLE game_credentials (
+CREATE TABLE provider_credentials (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_uuid TEXT NOT NULL,
-  game_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
   access_token TEXT NOT NULL,
   refresh_token TEXT,
   expires_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(user_uuid, game_id)
+  UNIQUE(user_uuid, provider)
 );
 ```
 

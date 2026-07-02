@@ -2,6 +2,7 @@ import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { ApiAdapter, FetchParams, GameState } from "../src/adapters/adapter";
+import { providerForGame } from "../src/adapters/providers";
 import { adapters } from "../src/adapters/registry";
 import { sha256Hex } from "../src/auth";
 
@@ -194,10 +195,10 @@ describe("Adapter Refresh", () => {
         )
         .run();
       await env.DB.prepare(
-        `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
-         VALUES (?, 'fakegame', 'acc-tok', 'ref-tok', NULL)`,
+        `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
+         VALUES (?, ?, 'acc-tok', 'ref-tok', NULL)`,
       )
-        .bind(USER_UUID)
+        .bind(USER_UUID, providerForGame("fakegame"))
         .run();
 
       const resp = await SELF.fetch(refreshRequest("fakegame", saveUuid));

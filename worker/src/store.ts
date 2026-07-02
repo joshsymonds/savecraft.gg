@@ -4,6 +4,7 @@
  * storePush upserts a save in D1 (metadata + sections) and indexes sections in FTS.
  */
 
+import { providerForGame } from "./adapters/providers";
 import { ingestMatchHistory } from "./magic/ingest";
 import { MANIFESTS } from "./mcp/manifests.gen.js";
 import type { Env } from "./types";
@@ -100,11 +101,17 @@ async function persistPoeRefreshArtifacts(
   if (refreshed && userUuid) {
     await db
       .prepare(
-        `UPDATE game_credentials
+        `UPDATE provider_credentials
          SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = datetime('now')
-         WHERE user_uuid = ? AND game_id = 'poe'`,
+         WHERE user_uuid = ? AND provider = ?`,
       )
-      .bind(refreshed.accessToken, refreshed.refreshToken, refreshed.expiresAt, userUuid)
+      .bind(
+        refreshed.accessToken,
+        refreshed.refreshToken,
+        refreshed.expiresAt,
+        userUuid,
+        providerForGame("poe"),
+      )
       .run();
   }
 }

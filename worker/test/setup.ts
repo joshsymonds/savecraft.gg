@@ -147,16 +147,19 @@ const statements = [
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(user_uuid, game_id, character_id)
   )`,
-  `CREATE TABLE IF NOT EXISTS game_credentials (
+  // Renamed from game_credentials (migration 0060): keyed by OAuth
+  // provider ("ggg", "battlenet"), not game_id, so one credential row
+  // covers every game sharing that provider.
+  `CREATE TABLE IF NOT EXISTS provider_credentials (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_uuid TEXT NOT NULL,
-    game_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
     access_token TEXT NOT NULL,
     refresh_token TEXT,
     expires_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(user_uuid, game_id)
+    UNIQUE(user_uuid, provider)
   )`,
   // MTG Arena rules (migration 0014, card rulings dropped in 0040)
   `CREATE TABLE IF NOT EXISTS magic_rules (

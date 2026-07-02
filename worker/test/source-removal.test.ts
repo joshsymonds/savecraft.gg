@@ -1,6 +1,8 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { providerForGame } from "../src/adapters/providers";
+
 import {
   cleanAll,
   closeWs,
@@ -421,7 +423,7 @@ describe("Adapter Removal", () => {
   beforeEach(cleanAll);
 
   /** One adapter source per user (shared across adapter games), with
-   *  linked_characters + game_credentials for the given games. */
+   *  linked_characters + provider_credentials for the given games. */
   async function seedAdapter(
     userUuid: string,
     games: { gameId: string; chars: string[] }[],
@@ -434,10 +436,10 @@ describe("Adapter Removal", () => {
       .run();
     for (const { gameId, chars } of games) {
       await env.DB.prepare(
-        `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
+        `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
          VALUES (?, ?, ?, ?, '2099-01-01T00:00:00Z')`,
       )
-        .bind(userUuid, gameId, `acc-${gameId}`, `ref-${gameId}`)
+        .bind(userUuid, providerForGame(gameId), `acc-${gameId}`, `ref-${gameId}`)
         .run();
       for (const name of chars) {
         await env.DB.prepare(
@@ -472,7 +474,7 @@ describe("Adapter Removal", () => {
       .first<{ n: number }>();
     expect(lc!.n).toBe(0);
     const gc = await env.DB.prepare(
-      "SELECT COUNT(*) n FROM game_credentials WHERE user_uuid = ? AND game_id = 'poe'",
+      "SELECT COUNT(*) n FROM provider_credentials WHERE user_uuid = ? AND provider = 'ggg'",
     )
       .bind(TEST_USER)
       .first<{ n: number }>();
@@ -498,7 +500,7 @@ describe("Adapter Removal", () => {
       .first<{ n: number }>();
     expect(wowLc!.n).toBe(1);
     const wowGc = await env.DB.prepare(
-      "SELECT COUNT(*) n FROM game_credentials WHERE user_uuid = ? AND game_id = 'wow'",
+      "SELECT COUNT(*) n FROM provider_credentials WHERE user_uuid = ? AND provider = 'battlenet'",
     )
       .bind(TEST_USER)
       .first<{ n: number }>();
@@ -527,7 +529,9 @@ describe("Adapter Removal", () => {
       .bind(sourceUuid)
       .first<{ n: number }>();
     expect(lc!.n).toBe(0);
-    const gc = await env.DB.prepare("SELECT COUNT(*) n FROM game_credentials WHERE user_uuid = ?")
+    const gc = await env.DB.prepare(
+      "SELECT COUNT(*) n FROM provider_credentials WHERE user_uuid = ?",
+    )
       .bind(TEST_USER)
       .first<{ n: number }>();
     expect(gc!.n).toBe(0);

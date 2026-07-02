@@ -223,7 +223,7 @@ export const STORAGE_LAYERS = {
     "API keys (SHA-256 hashed)",
     "device auth tokens (SHA-256 hashed)",
     "linked characters",
-    "adapter OAuth tokens (game_credentials)",
+    "adapter OAuth tokens (provider_credentials)",
     "MCP tool-call audit log (90-day retention)",
     "reference data",
   ],
@@ -428,7 +428,7 @@ export const SECURITY = {
   oauthMcpTokens:
     "Opaque random strings, stored in Cloudflare KV with automatic TTL-based expiration.",
   oauthAdapterTokens:
-    "Stored in D1 game_credentials, used by the worker to fetch your character data on demand from the game provider (Battle.net, GGG). Protected by Cloudflare's platform-level encryption at rest; revoke at any time from your game-provider's account settings.",
+    "Stored in D1 provider_credentials, used by the worker to fetch your character data on demand from the game provider (Battle.net, GGG). Protected by Cloudflare's platform-level encryption at rest; revoke at any time from your game-provider's account settings.",
   passwordHashing:
     "Handled by Clerk per their security practices. Savecraft never sees or stores your password.",
   daemonFilesystemAccess:

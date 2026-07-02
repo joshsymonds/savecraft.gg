@@ -7,6 +7,7 @@ import { URLS } from "@savecraft/content/facts";
 
 import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError, type ApiAdapter } from "./adapters/adapter";
 import { discoverAndReconcileSaves } from "./adapters/discover";
+import { OAUTH_PROVIDERS, type OAuthProvider, providerForGame } from "./adapters/providers";
 import { adapters } from "./adapters/registry";
 import { resolveAdapterCharacter, type ResolvedCharacter } from "./adapters/resolve-character";
 import { handleAdminRoute } from "./admin";
@@ -312,40 +313,10 @@ async function routePublicEndpoints(
 }
 
 // -- Adapter OAuth routes (provider-parameterized) ---------------------------
-
-/**
- * One OAuth provider backing an API adapter. The generic authorize/
- * callback handlers are driven entirely by this descriptor — adding a
- * provider is a new entry here, never a duplicated handler.
- *
- * `segment` is the route + KV-state-key + event-label namespace
- * ("battlenet" → /oauth/battlenet/*, `battlenet-oauth-state:` keys).
- * Token URL / clientId / scopes come from `adapter.getOAuthConfig`.
- */
-interface OAuthProvider {
-  segment: string;
-  adapterId: string;
-  defaultRegion: string;
-  clientSecret: (env: Env) => string;
-  /** When true, use Authorization Code + PKCE S256 (GGG requires it). */
-  pkce?: boolean;
-}
-
-const OAUTH_PROVIDERS: readonly OAuthProvider[] = [
-  {
-    segment: "battlenet",
-    adapterId: "wow",
-    defaultRegion: "us",
-    clientSecret: (env) => env.BATTLENET_CLIENT_SECRET ?? "",
-  },
-  {
-    segment: "ggg",
-    adapterId: "poe",
-    defaultRegion: "pc",
-    clientSecret: (env) => env.GGG_CLIENT_SECRET ?? "",
-    pkce: true,
-  },
-];
+//
+// The OAuthProvider descriptor + OAUTH_PROVIDERS registry live in
+// ./adapters/providers.ts (single source of truth for the game→provider
+// mapping, importable from store.ts/tools.ts/jobs without a cycle).
 
 /** Resolve a provider's adapter, or null when it isn't configured. */
 function providerAdapter(provider: OAuthProvider): ApiAdapter | null {
@@ -605,13 +576,15 @@ async function exchangeAndStoreToken(
     );
   }
 
-  // Exchange succeeded — persist the credential (keyed by user+game,
-  // not source). Source creation + status push happen in the caller,
-  // now that the connection is real (#22).
+  // Exchange succeeded — persist the credential (keyed by user+provider,
+  // not source or game: a provider's refresh token rotates on use, so
+  // every game sharing it must read/write the same row). Source
+  // creation + status push happen in the caller, now that the
+  // connection is real (#22).
   await env.DB.prepare(
-    `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
+    `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
        VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(user_uuid, game_id) DO UPDATE SET
+       ON CONFLICT(user_uuid, provider) DO UPDATE SET
          access_token = excluded.access_token,
          refresh_token = excluded.refresh_token,
          expires_at = excluded.expires_at,
@@ -619,7 +592,7 @@ async function exchangeAndStoreToken(
   )
     .bind(
       state.userUuid,
-      adapter.gameId,
+      provider.segment,
       tokenResult.accessToken,
       tokenResult.refreshToken,
       tokenResult.expiresAt,
@@ -1063,9 +1036,9 @@ async function lookupGameCredentials(
   expiresAt: string | undefined;
 }> {
   const creds = await env.DB.prepare(
-    "SELECT access_token, refresh_token, expires_at FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
+    "SELECT access_token, refresh_token, expires_at FROM provider_credentials WHERE user_uuid = ? AND provider = ?",
   )
-    .bind(userUuid, gameId)
+    .bind(userUuid, providerForGame(gameId))
     .first<{
       access_token: string;
       refresh_token: string | null;
@@ -1500,14 +1473,20 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
   // all the user's adapter games, so it must NOT be deleted here) and
   // drop the game from each adapter source's live DO state.
   if (adapters[gameId]) {
+    // 1:1 today: each provider backs exactly one game (poe→ggg,
+    // wow→battlenet), so deleting this game's provider credential row
+    // is equivalent to disconnecting it. Once a provider backs multiple
+    // games (the next task in the PoE2 epic), this must change — wiping
+    // the shared row here would revoke a sibling game's still-active
+    // token too.
     await env.DB.batch([
       env.DB.prepare("DELETE FROM linked_characters WHERE user_uuid = ? AND game_id = ?").bind(
         userUuid,
         gameId,
       ),
-      env.DB.prepare("DELETE FROM game_credentials WHERE user_uuid = ? AND game_id = ?").bind(
+      env.DB.prepare("DELETE FROM provider_credentials WHERE user_uuid = ? AND provider = ?").bind(
         userUuid,
-        gameId,
+        providerForGame(gameId),
       ),
     ]);
 

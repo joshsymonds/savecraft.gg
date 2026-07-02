@@ -26,7 +26,7 @@ cd "${REPO_ROOT}/worker"
 
 # Pull the token straight into a variable — no echo, no temp file.
 TOKEN="$(npx wrangler d1 execute savecraft-staging --env staging --remote --json \
-  --command "SELECT access_token FROM game_credentials WHERE user_uuid='${USER_UUID}' AND game_id='poe'" \
+  --command "SELECT access_token FROM provider_credentials WHERE user_uuid='${USER_UUID}' AND provider='ggg'" \
   2>/dev/null | jq -r '.[0].results[0].access_token // empty')"
 
 if [ -z "${TOKEN}" ]; then

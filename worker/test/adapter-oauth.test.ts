@@ -203,7 +203,7 @@ describe("Adapter OAuth", () => {
       expect(sourceCount!.c).toBe(0);
 
       const cred = await env.DB.prepare(
-        "SELECT COUNT(*) c FROM game_credentials WHERE user_uuid = ?",
+        "SELECT COUNT(*) c FROM provider_credentials WHERE user_uuid = ?",
       )
         .bind(USER_UUID)
         .first<{ c: number }>();
@@ -213,9 +213,9 @@ describe("Adapter OAuth", () => {
 
   // Characterization of the callback SUCCESS path — uncovered before the
   // provider-parameterized OAuth refactor. These pin the exact behavior
-  // the generalization must preserve: credential row keyed by the
-  // adapter's game_id, discover+reconcile creating saves, and the
-  // connected redirect. They must stay green verbatim post-refactor.
+  // the generalization must preserve: credential row keyed by the OAuth
+  // provider, discover+reconcile creating saves, and the connected
+  // redirect. They must stay green verbatim post-refactor.
   describe("GET /oauth/battlenet/callback (success path) [characterization]", () => {
     function mockBattlenetSuccess(): void {
       mockFetch.activate();
@@ -285,15 +285,16 @@ describe("Adapter OAuth", () => {
         mockFetch.deactivate();
       }
 
-      // Credential row keyed by the adapter game_id (the literal being
-      // parameterized in the refactor).
+      // Credential row keyed by the OAuth provider ("battlenet"), not
+      // the adapter's game_id ("wow") — provider_credentials is shared
+      // across every game backed by the same provider.
       const cred = await env.DB.prepare(
-        "SELECT game_id, access_token, refresh_token FROM game_credentials WHERE user_uuid = ? AND game_id = 'wow'",
+        "SELECT provider, access_token, refresh_token FROM provider_credentials WHERE user_uuid = ? AND provider = 'battlenet'",
       )
         .bind(USER_UUID)
-        .first<{ game_id: string; access_token: string; refresh_token: string }>();
+        .first<{ provider: string; access_token: string; refresh_token: string }>();
       expect(cred).toBeTruthy();
-      expect(cred!.game_id).toBe("wow");
+      expect(cred!.provider).toBe("battlenet");
       expect(cred!.access_token).toBe("char-access-token");
       expect(cred!.refresh_token).toBe("char-refresh-token");
 

@@ -19,7 +19,7 @@ export const CLEANUP_TABLES = [
   "mcp_tool_calls",
   "api_keys",
   "linked_characters",
-  "game_credentials",
+  "provider_credentials",
   "poe_build_snapshot",
   "saves",
   "sources",

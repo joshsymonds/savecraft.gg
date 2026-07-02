@@ -1,3 +1,4 @@
+import { providerForGame } from "./adapters/providers";
 import type { Env } from "./types";
 
 /**
@@ -52,9 +53,15 @@ export async function cleanupSource(
   }
 
   // Adapter teardown: linked_characters are keyed by source, credentials
-  // by (user, game). Deleting an adapter source disconnects every adapter
-  // game it served, so clear both. No-op for daemon sources (no
+  // by (user, provider). Deleting an adapter source disconnects every
+  // adapter game it served, so clear both. No-op for daemon sources (no
   // linked_characters rows).
+  //
+  // 1:1 today: each provider backs exactly one game, so deleting every
+  // provider row touched by this source's games is equivalent to
+  // disconnecting them. Once a provider backs multiple games (the next
+  // task in the PoE2 epic), this must change — wiping the shared row
+  // here would revoke a sibling game's still-active token too.
   const adapterGames = await env.DB.prepare(
     "SELECT DISTINCT game_id FROM linked_characters WHERE source_uuid = ?",
   )
@@ -64,12 +71,12 @@ export async function cleanupSource(
     env.DB.prepare("DELETE FROM linked_characters WHERE source_uuid = ?").bind(sourceUuid),
   ];
   if (userUuid) {
-    for (const row of adapterGames.results) {
+    const providers = new Set(adapterGames.results.map((row) => providerForGame(row.game_id)));
+    for (const provider of providers) {
       adapterCleanup.push(
-        env.DB.prepare("DELETE FROM game_credentials WHERE user_uuid = ? AND game_id = ?").bind(
-          userUuid,
-          row.game_id,
-        ),
+        env.DB.prepare(
+          "DELETE FROM provider_credentials WHERE user_uuid = ? AND provider = ?",
+        ).bind(userUuid, provider),
       );
     }
   }

@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { ApiAdapter, FetchParams, GameState } from "../src/adapters/adapter";
+import { providerForGame } from "../src/adapters/providers";
 import { adapters } from "../src/adapters/registry";
 import type { ToolResult, ViewToolResult } from "../src/mcp/tools";
 
@@ -1416,10 +1417,10 @@ describe("MCP Tools", () => {
           )
           .run();
         await env.DB.prepare(
-          `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
-           VALUES (?, 'fakegame', 'acc-tok', NULL, NULL)`,
+          `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
+           VALUES (?, ?, 'acc-tok', NULL, NULL)`,
         )
-          .bind(USER_A)
+          .bind(USER_A, providerForGame("fakegame"))
           .run();
 
         const result = await refreshSave(env, USER_A, "save-fakeok");
@@ -1796,17 +1797,17 @@ describe("MCP Tools", () => {
         .run();
     }
 
-    /** Seed game credentials for a user. */
+    /** Seed provider credentials for a user, resolving gameId to its OAuth provider. */
     async function seedGameCredentials(options: {
       userUuid: string;
       gameId: string;
       expiresAt: string;
     }): Promise<void> {
       await env.DB.prepare(
-        `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
+        `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
          VALUES (?, ?, 'tok', 'ref', ?)`,
       )
-        .bind(options.userUuid, options.gameId, options.expiresAt)
+        .bind(options.userUuid, providerForGame(options.gameId), options.expiresAt)
         .run();
     }
 
@@ -1980,7 +1981,7 @@ describe("MCP Tools", () => {
 
     it("returns adapter_credentials with missing status when game linked but no credentials", async () => {
       await seedAdapterSource({ sourceUuid: "adapter-miss", userUuid: USER_A });
-      // Linked character exists but no game_credentials row
+      // Linked character exists but no provider_credentials row
       await env.DB.prepare(
         `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, source_uuid)
          VALUES (?, 'wow', 'char-1', 'Thrall', ?)`,

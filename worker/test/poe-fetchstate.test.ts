@@ -229,8 +229,8 @@ describe("storePush poe snapshot persistence", () => {
   it("persists refreshed GGG credentials", async () => {
     const sourceUuid = await seedSave();
     await env.DB.prepare(
-      `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
-       VALUES ('poe-user', 'poe', 'old-acc', 'old-ref', '2000-01-01T00:00:00Z')`,
+      `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
+       VALUES ('poe-user', 'ggg', 'old-acc', 'old-ref', '2000-01-01T00:00:00Z')`,
     ).run();
 
     await storePush(
@@ -253,7 +253,7 @@ describe("storePush poe snapshot persistence", () => {
     );
 
     const cred = await env.DB.prepare(
-      "SELECT access_token, refresh_token FROM game_credentials WHERE user_uuid = 'poe-user' AND game_id = 'poe'",
+      "SELECT access_token, refresh_token FROM provider_credentials WHERE user_uuid = 'poe-user' AND provider = 'ggg'",
     ).first<{ access_token: string; refresh_token: string }>();
     expect(cred!.access_token).toBe("fresh-acc");
     expect(cred!.refresh_token).toBe("fresh-ref");

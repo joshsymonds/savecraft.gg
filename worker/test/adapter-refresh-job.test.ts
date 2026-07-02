@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { ApiAdapter, FetchParams, GameState } from "../src/adapters/adapter";
 import { AdapterError } from "../src/adapters/adapter";
+import { providerForGame } from "../src/adapters/providers";
 import { adapters } from "../src/adapters/registry";
 import { sha256Hex } from "../src/auth";
 import { REFRESH_CONCURRENCY, refreshAdapterSources } from "../src/jobs/adapter-refresh";
@@ -117,10 +118,10 @@ async function seedGameCredentials(
   accessToken: string,
 ): Promise<void> {
   await env.DB.prepare(
-    `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
+    `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
      VALUES (?, ?, ?, NULL, NULL)`,
   )
-    .bind(userUuid, gameId, accessToken)
+    .bind(userUuid, providerForGame(gameId), accessToken)
     .run();
 }
 

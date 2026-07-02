@@ -22,6 +22,7 @@ import {
   AdapterError,
   reconnectAdapterAction,
 } from "../adapters/adapter";
+import { gamesForProvider, providerForGame } from "../adapters/providers";
 import { adapters } from "../adapters/registry";
 import { resolveAdapterCharacter } from "../adapters/resolve-character";
 import { normalizeGameId } from "../gameid";
@@ -1031,9 +1032,9 @@ async function refreshAdapterSave(
   }
 
   const creds = await env.DB.prepare(
-    "SELECT access_token, refresh_token, expires_at FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
+    "SELECT access_token, refresh_token, expires_at FROM provider_credentials WHERE user_uuid = ? AND provider = ?",
   )
-    .bind(userUuid, save.game_id)
+    .bind(userUuid, providerForGame(save.game_id))
     .first<CredentialRow>();
 
   try {
@@ -1612,22 +1613,25 @@ async function attachAdapterCredentials(
 ): Promise<void> {
   const [credRows, linkedGameRows] = await Promise.all([
     db
-      .prepare(`SELECT game_id, expires_at FROM game_credentials WHERE user_uuid = ?`)
+      .prepare(`SELECT provider, expires_at FROM provider_credentials WHERE user_uuid = ?`)
       .bind(userUuid)
-      .all<{ game_id: string; expires_at: string }>(),
+      .all<{ provider: string; expires_at: string }>(),
     db
       .prepare(`SELECT DISTINCT game_id FROM linked_characters WHERE user_uuid = ? AND active = 1`)
       .bind(userUuid)
       .all<{ game_id: string }>(),
   ]);
 
+  // Provider rows are per-provider, not per-game — expand each back to
+  // the game(s) it backs (1:1 today) so per-game status still renders.
   const now = Date.now();
-  const credByGame = new Map<string, "connected" | "expired">(
-    credRows.results.map((row) => [
-      row.game_id,
-      new Date(row.expires_at).getTime() > now ? "connected" : "expired",
-    ]),
-  );
+  const credByGame = new Map<string, "connected" | "expired">();
+  for (const row of credRows.results) {
+    const status = new Date(row.expires_at).getTime() > now ? "connected" : "expired";
+    for (const gameId of gamesForProvider(row.provider)) {
+      credByGame.set(gameId, status);
+    }
+  }
 
   const linkedGameIds = new Set(linkedGameRows.results.map((r) => r.game_id));
   for (const gameId of credByGame.keys()) {

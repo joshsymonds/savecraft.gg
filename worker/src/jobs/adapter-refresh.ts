@@ -7,6 +7,7 @@
  */
 
 import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError } from "../adapters/adapter";
+import { OAUTH_PROVIDERS } from "../adapters/providers";
 import { adapters } from "../adapters/registry";
 import { resolveAdapterCharacter } from "../adapters/resolve-character";
 import { pushGameStatus } from "../index";
@@ -41,24 +42,35 @@ interface RefreshRow {
   character_id: string;
   character_name: string;
   metadata: string | null;
-  // game_credentials
+  // provider_credentials
   access_token: string;
   refresh_token: string | null;
   expires_at: string | null;
   last_refresh_at: string | null;
 }
 
+/**
+ * Static `CASE game_id WHEN ? THEN ? ... ELSE game_id END` fragment,
+ * generated from OAUTH_PROVIDERS so the cron JOIN's game→provider
+ * translation can never drift from the same table every other call site
+ * resolves through (providers.ts's providerForGame). SQL can't call a TS
+ * function, so this mirrors its logic instead of duplicating a second
+ * hand-written mapping: unmapped game_ids fall back to themselves as
+ * their own provider, exactly like providerForGame does.
+ */
+const PROVIDER_CASE_SQL = `CASE s.game_id ${OAUTH_PROVIDERS.map(() => "WHEN ? THEN ?").join(" ")} ELSE s.game_id END`;
+
 export async function refreshAdapterSources(env: Env): Promise<void> {
   const cooldownSeconds = ADAPTER_REFRESH_COOLDOWN_SEC;
 
-  // Single query joins saves + sources + linked_characters + game_credentials,
+  // Single query joins saves + sources + linked_characters + provider_credentials,
   // eliminating per-save D1 round-trips. Rows without a linked character or
   // credentials are excluded by the INNER JOINs.
   const rows = await env.DB.prepare(
     `SELECT s.uuid AS save_uuid, s.save_name, s.game_id, s.last_source_uuid AS source_uuid,
             src.user_uuid,
             lc.character_id, lc.character_name, lc.metadata,
-            gc.access_token, gc.refresh_token, gc.expires_at,
+            pc.access_token, pc.refresh_token, pc.expires_at,
             s.last_refresh_at
      FROM saves s
      JOIN sources src ON s.last_source_uuid = src.source_uuid
@@ -70,15 +82,19 @@ export async function refreshAdapterSources(env: Env): Promise<void> {
                   THEN SUBSTR(s.save_name, 1, INSTR(s.save_name, '-') - 1)
                 ELSE s.save_name
               END
-     JOIN game_credentials gc
-       ON gc.user_uuid = src.user_uuid AND gc.game_id = s.game_id
+     JOIN provider_credentials pc
+       ON pc.user_uuid = src.user_uuid AND pc.provider = ${PROVIDER_CASE_SQL}
      WHERE src.source_kind = 'adapter'
        AND src.user_uuid IS NOT NULL
        AND (s.last_refresh_at IS NULL OR s.last_refresh_at < datetime('now', ?))
      ORDER BY s.last_refresh_at ASC
      LIMIT ?`,
   )
-    .bind(`-${String(cooldownSeconds)} seconds`, BATCH_LIMIT)
+    .bind(
+      ...OAUTH_PROVIDERS.flatMap((provider) => [provider.adapterId, provider.segment]),
+      `-${String(cooldownSeconds)} seconds`,
+      BATCH_LIMIT,
+    )
     .all<RefreshRow>();
 
   // Saves are user-isolated, but each refresh fires 2+ sequential GGG

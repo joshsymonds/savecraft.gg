@@ -74,7 +74,7 @@ export async function gggGet<T>(path: string, accessToken: string): Promise<T> {
 
 const GGG_TOKEN_URL = "https://www.pathofexile.com/oauth/token";
 
-/** Refreshed GGG tokens to persist back to game_credentials. */
+/** Refreshed GGG tokens to persist back to provider_credentials. */
 export interface RefreshedCreds {
   accessToken: string;
   refreshToken: string | null;
@@ -86,7 +86,7 @@ export interface RefreshedCreds {
  * client) when the stored one has expired. WoW-style: no global
  * refresher. When a refresh happens, `refreshed` carries the new
  * tokens so the caller (via identity.extra → postPushHooks) can
- * persist them to game_credentials.
+ * persist them to provider_credentials.
  *
  * @throws {AdapterError} token_expired when expired and unrefreshable.
  */
