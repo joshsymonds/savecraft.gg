@@ -1,0 +1,142 @@
+{
+  "id": "1111111111111111111111111111111111111111111111111111111111111111",
+  "name": "InfernalConcoction",
+  "class": "Chronomancer",
+  "league": "Standard",
+  "level": 87,
+  "realm": "poe2",
+  "expired": false,
+  "metadata": {
+    "version": "1.0.0"
+  },
+  "equipment": [
+    {
+      "id": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+      "name": "Timeless Warden",
+      "typeLine": "Expert Bone Sabre",
+      "baseType": "Expert Bone Sabre",
+      "rarity": "Rare",
+      "ilvl": 82,
+      "identified": true,
+      "properties": [
+        { "name": "Physical Damage", "values": [["45-98", 1]], "displayMode": 0 },
+        { "name": "Attacks per Second", "values": [["1.55", 0]], "displayMode": 0 }
+      ],
+      "implicitMods": ["8% increased Attack Speed"],
+      "explicitMods": ["+180% increased Physical Damage", "Adds 12 to 24 Fire Damage"],
+      "frameType": 2,
+      "inventoryId": "Weapon",
+      "sockets": [
+        { "type": "rune", "item": "rune" },
+        { "type": "rune", "item": "rune" }
+      ],
+      "runeMods": ["+16 to Strength", "Gain 5% of Physical Damage as Extra Lightning Damage"]
+    },
+    {
+      "id": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3",
+      "name": "Aegis of the Unshaken",
+      "typeLine": "Expert Chain Mail",
+      "baseType": "Expert Chain Mail",
+      "rarity": "Rare",
+      "ilvl": 79,
+      "identified": true,
+      "properties": [{ "name": "Armour", "values": [["610", 1]], "displayMode": 0 }],
+      "implicitMods": [],
+      "explicitMods": ["+95 to maximum Life", "+38% to Fire Resistance", "+30% to Cold Resistance"],
+      "frameType": 2,
+      "inventoryId": "BodyArmour",
+      "sockets": [{ "type": "jewel", "item": "ruby" }]
+    },
+    {
+      "id": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4",
+      "name": "",
+      "typeLine": "Nubuck Gloves",
+      "baseType": "Nubuck Gloves",
+      "rarity": "Magic",
+      "ilvl": 45,
+      "identified": true,
+      "properties": [],
+      "implicitMods": ["+12 to Dexterity"],
+      "explicitMods": ["+22 to Accuracy Rating"],
+      "frameType": 1,
+      "inventoryId": "Gloves"
+    }
+  ],
+  "skills": [
+    {
+      "id": "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5",
+      "name": "",
+      "typeLine": "Explosive Concoction",
+      "baseType": "Explosive Concoction",
+      "identified": true,
+      "gemSkill": "Explosive Concoction",
+      "gemBackground": "default",
+      "gemSockets": 2,
+      "properties": [
+        { "name": "Level", "values": [["18", 0]], "displayMode": 0 },
+        { "name": "Quality", "values": [["+14%", 1]], "displayMode": 0 }
+      ],
+      "gemTabs": [
+        {
+          "name": "Loadout 1",
+          "pages": [
+            {
+              "skillName": "Explosive Concoction",
+              "description": "Throws a concoction that explodes on impact, dealing fire damage in an area.",
+              "properties": [{ "name": "Level", "values": [["18", 0]] }],
+              "stats": ["Deals 120 to 180 Fire Damage", "33% chance to Ignite"]
+            }
+          ]
+        }
+      ],
+      "socketedItems": [
+        {
+          "id": "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6",
+          "name": "",
+          "typeLine": "Volatility Support",
+          "baseType": "Volatility Support",
+          "support": true,
+          "identified": true,
+          "gemSkill": "Volatility Support",
+          "properties": [{ "name": "Level", "values": [["18", 0]], "displayMode": 0 }]
+        }
+      ]
+    },
+    {
+      "id": "f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7",
+      "name": "",
+      "typeLine": "Tempest Bell",
+      "baseType": "Tempest Bell",
+      "identified": true,
+      "gemSkill": "Tempest Bell",
+      "gemBackground": "default",
+      "gemSockets": 1,
+      "properties": [{ "name": "Level", "values": [["12", 0]], "displayMode": 0 }],
+      "gemTabs": [
+        {
+          "name": "Loadout 1",
+          "pages": [
+            {
+              "skillName": "Tempest Bell",
+              "description": "Summons a giant bell that can be struck to release a damaging shockwave.",
+              "properties": [{ "name": "Level", "values": [["12", 0]] }],
+              "stats": ["Deals 80 to 120 Lightning Damage"]
+            }
+          ]
+        }
+      ],
+      "socketedItems": []
+    }
+  ],
+  "passives": {
+    "hashes": [1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010],
+    "specialisations": {
+      "set1": [2001, 2002, 2003],
+      "set2": [2101, 2102]
+    },
+    "quest_stats": {
+      "PassiveRefundPoints": 6,
+      "AscendancyPoints": 4
+    }
+  }
+}

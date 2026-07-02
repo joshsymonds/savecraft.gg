@@ -1,0 +1,32 @@
+game_id = "poe2"
+sources = ["api"]
+icon = "icon.png"
+name = "Path of Exile 2"
+description = "Connect your GGG account to analyze your live Path of Exile 2 characters — equipped gear, socketed skill gems, and passive tree progress."
+channel = "alpha"
+coverage = "partial"
+file_extensions = []
+
+limitations = [
+  "Character data reflects the last refresh, not real-time",
+  "No unequipped inventory — GGG's PoE2 character API does not expose it",
+  "No Path of Building analysis yet — PoB2 enrichment is a future epic",
+]
+
+[adapter]
+auth_provider = "ggg"
+auth_flow = "oauth2_code_pkce"
+scopes = ["account:characters", "account:profile"]
+regions = ["poe2"]
+
+[attribution]
+sources = ["ggg"]
+
+[author]
+name = "Josh Symonds"
+github = "joshsymonds"
+
+[default_paths]
+windows = ""
+linux = ""
+darwin = ""
