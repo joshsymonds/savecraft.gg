@@ -170,6 +170,17 @@ The WoW adapter is the first API-backed connector. Players authenticate via Batt
 
 WoW has no reference modules — the Blizzard API data is self-contained and the game's theorycrafting community maintains external tools that are better suited to simulation-based optimization than static reference lookups.
 
+## Path of Exile 2
+
+**Source:** API adapter (TypeScript) — fetches character data from the GGG (Grinding Gear Games) API; shares its OAuth provider with Path of Exile, so connecting either game's account discovers both games' characters
+**Status:** Alpha
+
+PoE2 character profiles are private, so every request uses the player's own GGG token rather than app-level credentials. The adapter produces `character_overview` (name, class, league, level, realm), `gear` (equipped items by slot, including PoE2's rune/jewel gear sockets, rune mods, and explicit mods), `skills` (the skill-binding screen: socketed skill gems, gem tabs, and attached supports — PoE2 gems live on the binding screen rather than on gear the way PoE1's do), and `passives` (allocated passive count and specialisation-set sizes). There is no `inventory` section — GGG's PoE2 character API does not return unequipped items — and no `pob_build` section, since Path of Building 2 enrichment is a separate, future epic.
+
+### Reference: Economy Prices
+
+Live price data from poe.ninja's PoE2 API, split across its two endpoint families: "exchange" (currency-like categories such as Currency, Fragments, Runes, and Essences) and "stash" (unique weapons, armour, accessories, and other stash items). Every result is denominated in `core.primary` (divine) and pulled from an hourly per-isolate cache. League is auto-detected when the caller omits it.
+
 ## Clair Obscur: Expedition 33
 
 **Source:** WASM plugin — parses Unreal Engine 5 GVAS binary save files (`.sav`)

@@ -65,4 +65,49 @@ describe("GamePickerCard", () => {
     render(GamePickerCard, { props: { game: makePickerGame() } });
     expect(screen.getByText("D")).toBeInTheDocument();
   });
+
+  it("hints that the connect covers a sibling game sharing the same OAuth provider", () => {
+    render(GamePickerCard, {
+      props: {
+        game: makePickerGame({
+          gameId: "poe2",
+          name: "Path of Exile 2",
+          methods: ["adapter"],
+          adapter: { authProvider: "ggg", regions: ["poe2"] },
+          sharedConnectGames: ["Path of Exile"],
+        }),
+      },
+    });
+    expect(screen.getByText(/also connects Path of Exile/i)).toBeInTheDocument();
+  });
+
+  it("shows no shared-connect hint for an adapter game with no sibling on its provider", () => {
+    render(GamePickerCard, {
+      props: {
+        game: makePickerGame({
+          gameId: "wow",
+          name: "World of Warcraft",
+          methods: ["adapter"],
+          adapter: { authProvider: "battlenet", regions: ["us"] },
+        }),
+      },
+    });
+    expect(screen.queryByText(/also connects/i)).not.toBeInTheDocument();
+  });
+
+  it("hides the shared-connect hint once the game is already watched", () => {
+    render(GamePickerCard, {
+      props: {
+        game: makePickerGame({
+          gameId: "poe2",
+          name: "Path of Exile 2",
+          methods: ["adapter"],
+          watched: true,
+          adapter: { authProvider: "ggg", regions: ["poe2"] },
+          sharedConnectGames: ["Path of Exile"],
+        }),
+      },
+    });
+    expect(screen.queryByText(/also connects/i)).not.toBeInTheDocument();
+  });
 });

@@ -221,7 +221,9 @@ describe("PoE GGG OAuth + discoverSaves", () => {
 
       expect(resp.status).toBe(302);
       const location = new URL(resp.headers.get("Location"));
-      expect(location.searchParams.get("game_id")).toBe("poe");
+      // Both poe and poe2 discovery succeeded (an empty list is a normal
+      // success) — game_id attributes the connect to both.
+      expect(location.searchParams.get("game_id")).toBe("poe,poe2");
       expect(location.searchParams.get("connected")).toBe("true");
       expect(location.searchParams.get("error")).toBeNull();
 

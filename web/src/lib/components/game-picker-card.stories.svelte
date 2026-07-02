@@ -19,6 +19,7 @@
         description: "Parses .d2s character saves and shared stash",
         watched: true,
         saveCount: 3,
+        methods: ["daemon"],
       }}
       onclick={() => alert("Configure D2R")}
     />
@@ -36,6 +37,7 @@
         watched: false,
         saveCount: 0,
         defaultPaths: { linux: "~/.config/StardewValley/Saves" },
+        methods: ["daemon"],
       }}
       onclick={() => alert("Add Stardew")}
     />
@@ -52,6 +54,7 @@
         watched: false,
         saveCount: 0,
         workshopUrl: "https://steamcommunity.com/sharedfiles/filedetails/?id=3693580596",
+        methods: ["mod"],
       }}
       onclick={() => alert("Workshop install")}
     />
@@ -64,9 +67,13 @@
       game={{
         gameId: "poe2",
         name: "Path of Exile 2",
-        description: "Character builds, atlas progress, stash contents",
+        description: "Live characters — gear, gems, and passive tree via your GGG account",
         watched: false,
         saveCount: 0,
+        methods: ["adapter"],
+        isApiGame: true,
+        adapter: { authProvider: "ggg", regions: ["poe2"] },
+        sharedConnectGames: ["Path of Exile"],
       }}
     />
   </div>

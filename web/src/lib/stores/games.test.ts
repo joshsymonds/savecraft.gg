@@ -581,6 +581,53 @@ describe("buildPickerCatalog", () => {
     expect(fac!.methods).toEqual(["daemon", "mod"]);
   });
 
+  it("attaches sharedConnectGames when two adapter games share an authProvider (poe/poe2 via ggg)", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "poe",
+        makeManifest({
+          game_id: "poe",
+          name: "Path of Exile",
+          sources: ["api"],
+          file_extensions: [],
+          adapter: { authProvider: "ggg", regions: ["pc"] },
+        }),
+      ],
+      [
+        "poe2",
+        makeManifest({
+          game_id: "poe2",
+          name: "Path of Exile 2",
+          sources: ["api"],
+          file_extensions: [],
+          adapter: { authProvider: "ggg", regions: ["poe2"] },
+        }),
+      ],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    const poe = result.find((g) => g.gameId === "poe");
+    const poe2 = result.find((g) => g.gameId === "poe2");
+    expect(poe!.sharedConnectGames).toEqual(["Path of Exile 2"]);
+    expect(poe2!.sharedConnectGames).toEqual(["Path of Exile"]);
+  });
+
+  it("leaves sharedConnectGames unset for an adapter game with no sibling on its provider", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "wow",
+        makeManifest({
+          game_id: "wow",
+          name: "World of Warcraft",
+          sources: ["api"],
+          file_extensions: [],
+          adapter: { authProvider: "battlenet", regions: ["us"] },
+        }),
+      ],
+    ]);
+    const [wow] = buildPickerCatalog(plugins, []);
+    expect(wow!.sharedConnectGames).toBeUndefined();
+  });
+
   it("includes every supported game (catalog), regardless of method", () => {
     const plugins = new Map<string, PluginManifest>([
       ["d2r", makeManifest({ game_id: "d2r", name: "Diablo II", sources: ["wasm"] })],

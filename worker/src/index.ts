@@ -703,7 +703,6 @@ async function handleAdapterCallback(
     }),
   );
 
-  redirectUrl.searchParams.set("game_id", primaryAdapter.gameId);
   redirectUrl.searchParams.set("connected", "true");
 
   if (!succeeded.some(Boolean)) {
@@ -714,6 +713,16 @@ async function handleAdapterCallback(
       "Failed to discover game characters",
     );
   }
+
+  // Attribute the connect to every game whose discovery actually
+  // succeeded (order = adapterIds order), not just the primary adapter —
+  // both poe and poe2 discover from the single ggg grant, and a poe2
+  // connect must not read back as "Path of Exile connected" only.
+  const connectedGameIds = gameAdapters
+    .filter((_, index) => succeeded[index])
+    .map((adapter) => adapter.gameId)
+    .join(",");
+  redirectUrl.searchParams.set("game_id", connectedGameIds);
 
   return new Response(null, { status: 302, headers: { Location: redirectUrl.toString() } });
 }

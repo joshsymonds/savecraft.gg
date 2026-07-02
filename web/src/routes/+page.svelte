@@ -96,6 +96,14 @@
 
   const COLLAPSED_EVENT_COUNT = 8;
 
+  // Renders "and"-joined game names for a successful multi-game connect
+  // (e.g. ggg backs both poe + poe2 from one grant, #22) — Oxford-comma
+  // conjunction so it scales past two without a bespoke format.
+  const CONNECTED_GAMES_FORMAT = new Intl.ListFormat("en", {
+    style: "long",
+    type: "conjunction",
+  });
+
   // Consume pending link code from localStorage synchronously on first render.
   const pendingCode = consumePendingLinkCode();
   if (pendingCode) {
@@ -120,7 +128,11 @@
         errorDetail ?? error,
       );
     } else if (params.has("connected") && gameId) {
-      pushActivityEvent("oauth_connected", `${gameDisplayName(gameId)} connected`);
+      const connectedNames = gameId.split(",").map((id) => gameDisplayName(id));
+      pushActivityEvent(
+        "oauth_connected",
+        `${CONNECTED_GAMES_FORMAT.format(connectedNames)} connected`,
+      );
     }
 
     // Clean URL params after consuming (don't pollute browser history)

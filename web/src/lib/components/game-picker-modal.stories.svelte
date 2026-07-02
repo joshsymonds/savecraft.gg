@@ -36,11 +36,14 @@
     },
     {
       gameId: "poe2",
-      methods: ["reference"],
+      methods: ["adapter"],
       name: "Path of Exile 2",
-      description: "Character builds, atlas progress, stash contents",
+      description: "Live characters — gear, gems, and passive tree via your GGG account",
       watched: false,
       saveCount: 0,
+      isApiGame: true,
+      adapter: { authProvider: "ggg", regions: ["poe2"] },
+      sharedConnectGames: ["Path of Exile"],
     },
     {
       gameId: "bg3",
@@ -82,6 +85,7 @@
       saveCount: 0,
       isApiGame: true,
       adapter: { authProvider: "ggg", regions: ["pc"] },
+      sharedConnectGames: ["Path of Exile 2"],
     },
     {
       gameId: "factorio",
@@ -253,9 +257,11 @@
 <!--
   Unified picker, no daemon paired (#17). Click a daemon game (Stardew
   Valley / BG3) → contextual SET UP DAEMON (install + pairing) inline,
-  NOT an error. Click Path of Exile / WoW → SELECT REGION (OAuth).
-  Click Path of Exile 2 (reference-only) → "Ready — no setup". Click
-  RimWorld → INSTALL MOD. One catalog; per-game connect method.
+  NOT an error. Click WoW → SELECT REGION (OAuth). Click Path of Exile or
+  Path of Exile 2 → straight to OAuth (GGG has one realm each, no region
+  step) — both share the "Same account also connects..." hint since they
+  authenticate through the same GGG provider. Click RimWorld → INSTALL
+  MOD. One catalog; per-game connect method.
 -->
 <Story name="NoDaemonPaired">
   <div style="width: 560px; position: relative; height: 500px;">

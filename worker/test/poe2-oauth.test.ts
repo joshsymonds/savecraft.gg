@@ -102,6 +102,10 @@ describe("GGG OAuth callback discovers + reconciles poe AND poe2 from one grant"
     const location = new URL(resp.headers.get("Location"));
     expect(location.searchParams.get("connected")).toBe("true");
     expect(location.searchParams.get("error")).toBeNull();
+    // Both games' discovery succeeded — attribute the connect to both,
+    // not just the primary adapter (poe), so the dashboard doesn't tell
+    // a poe2-connecting user their connect failed.
+    expect(location.searchParams.get("game_id")).toBe("poe,poe2");
 
     // One source for both games.
     const sources = await env.DB.prepare(
@@ -237,6 +241,9 @@ describe("GGG OAuth callback discovers + reconciles poe AND poe2 from one grant"
     // Connect still succeeds — poe discovered fine, only poe2 failed.
     expect(location.searchParams.get("connected")).toBe("true");
     expect(location.searchParams.get("error")).toBeNull();
+    // Attribution follows the survivor only — poe2 never made it, so it
+    // must not appear in game_id.
+    expect(location.searchParams.get("game_id")).toBe("poe");
 
     const poeSaves = await env.DB.prepare(
       "SELECT COUNT(*) c FROM saves WHERE user_uuid = ? AND game_id = 'poe'",

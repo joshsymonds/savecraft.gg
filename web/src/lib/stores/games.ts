@@ -131,5 +131,25 @@ export function buildPickerCatalog(
       methods,
     });
   }
+
+  // Shared-provider honesty (poe/poe2 both authenticate through "ggg"):
+  // group adapter games by authProvider and attach sibling names whenever
+  // more than one game shares a provider, so the picker can say the
+  // connect covers every sibling without hardcoding which games share
+  // which provider.
+  const byProvider = new Map<string, PickerGame[]>();
+  for (const game of result) {
+    if (!game.adapter) continue;
+    const siblings = byProvider.get(game.adapter.authProvider) ?? [];
+    siblings.push(game);
+    byProvider.set(game.adapter.authProvider, siblings);
+  }
+  for (const siblings of byProvider.values()) {
+    if (siblings.length < 2) continue;
+    for (const game of siblings) {
+      game.sharedConnectGames = siblings.filter((g) => g.gameId !== game.gameId).map((g) => g.name);
+    }
+  }
+
   return result.sort((a, b) => a.name.localeCompare(b.name));
 }

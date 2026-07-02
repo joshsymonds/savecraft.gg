@@ -120,6 +120,15 @@ export interface PickerGame {
   workshopUrl?: string;
   adapter?: { authProvider: string; regions: string[] };
   /**
+   * Names of sibling games that authenticate through the same OAuth
+   * provider as this one (e.g. PoE + PoE2 both share "ggg") — set only
+   * when more than one catalog game shares the provider, so the picker
+   * can say the connect covers every sibling instead of implying
+   * per-game isolation that doesn't exist. Computed in
+   * `buildPickerCatalog`, never hardcoded per game.
+   */
+  sharedConnectGames?: string[];
+  /**
    * How this game can be connected (unified picker, #17). Derived from
    * the manifest by connectionMethods(): "adapter" (OAuth, no install),
    * "daemon" (local save files), "mod" (game mod / Workshop),

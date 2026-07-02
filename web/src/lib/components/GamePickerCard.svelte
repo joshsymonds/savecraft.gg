@@ -44,6 +44,11 @@
     <div class="picker-info">
       <span class="picker-name">{game.name}</span>
       <span class="picker-desc">{game.description}</span>
+      {#if !game.watched && method === "adapter" && game.sharedConnectGames?.length}
+        <span class="picker-shared-hint"
+          >Same account also connects {game.sharedConnectGames.join(" & ")}</span
+        >
+      {/if}
     </div>
   </div>
   <div class="picker-right">
@@ -122,6 +127,14 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .picker-shared-hint {
+    display: block;
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin-top: 2px;
   }
 
   .picker-right {

@@ -355,7 +355,7 @@ WoW characters get deleted, transferred to other realms, and renamed. The adapte
 
 API-backed games use the existing source-centric ownership model. When a user connects a game API account, a source is created with `source_kind = 'adapter'`.
 
-**One source per user per API game.** A WoW user with 15 characters has one source (`Battle.net . Josh#1234`) with 15 saves (one per character). This matches how daemon sources work: one daemon per machine, many saves.
+**One shared adapter source per user, not one per API game.** `findOrCreateAdapterSource` reuses any existing `source_kind = 'adapter'` row for the user rather than creating a new one per provider or game — a user who connects WoW, PoE, and PoE2 has a single adapter source carrying all three games' saves. A WoW-only user with 15 characters sees that as one source (`Battle.net . Josh#1234`) with 15 saves (one per character); it's the same source that gains PoE and PoE2 saves if they connect those too. This still matches how daemon sources work in spirit: one source, many saves — it just doesn't split per game the way the D2R/Stardew example implies a separate daemon per machine would.
 
 **Source capabilities:**
 
@@ -571,24 +571,36 @@ The WoW adapter is the first to composite multiple API sources into a single Gam
 - PvP data (available but not priority)
 - Auction house / gold-making
 
-## PoE2 (Future — Requires Per-User OAuth)
+## PoE2 (GGG — Shared Provider with PoE)
 
-PoE2 character profiles are **private**. Every API call requires a user access token. The adapter interface is identical — `getOAuthConfig()`, `discoverSaves()`, `fetchState()` — but the authentication plumbing differs:
+PoE2 shares its OAuth provider with PoE instead of getting its own. `worker/src/adapters/providers.ts`'s `OAUTH_PROVIDERS` registers one `"ggg"` entry with `adapterIds: ["poe", "poe2"]` — every read/write path resolves which games a provider backs (and which provider backs a game) through `gamesForProvider()` / `providerForGame()` rather than a second, driftable mapping.
 
-- Every API call uses the user's token (not app-level credentials)
-- Stricter rate limits (~45 req/min)
-- Token refresh critical (GGG tokens expire)
-- Same `provider_credentials` table, keyed by the shared `"ggg"` provider rather than per-game — PoE2 reads/writes the same row PoE does, so a GGG-rotated refresh token never goes stale for whichever game refreshes second
+**One token exchange discovers both games.** Clicking "Connect account" on either the PoE or the PoE2 card sends the user through the same `/oauth/ggg/authorize` → `/oauth/ggg/callback` flow (the manifest-driven `adapter.authProvider`, never hardcoded — see `web/src/lib/api/client.ts`'s `fetchOAuthAuthorizeUrl`). `handleAdapterCallback` exchanges the authorization code exactly once (every adapter behind one provider returns an identical OAuth config, so the first — "primary" — adapter is representative), then runs `discoverReconcileOrError` for **every** game the provider backs, in parallel. Each adapter is isolated: an `AdapterError` thrown by one game's discovery can't lose a sibling game's already-reconciled characters, and the connect only fails once every adapter has failed. The result is one GGG sign-in that populates both PoE and PoE2 characters under the single shared adapter source (`findOrCreateAdapterSource` reuses one `source_kind='adapter'` row per user across every API game, not one per provider).
 
-The plugin structure would be:
+**Credentials keyed by provider, not game.** The `provider_credentials` row is written once per token exchange, keyed by `(user_uuid, "ggg")`. PoE and PoE2 read and refresh the identical row — GGG rotates the refresh token on use, so a per-game copy would go stale the instant the sibling game refreshed first. Whichever game's `fetchState` runs next always sees the latest token via `ensureGggAccessToken`.
+
+**Last-linked-game credential deletion.** Removing a game (`handleDeleteGame`) always deletes that game's own `linked_characters` rows. The shared `provider_credentials` row is deleted only when no sibling game on the same provider (`gamesForProvider(provider)`) still has `linked_characters` for that user — i.e. only once this was the *last* linked game on "ggg". Removing PoE while PoE2 is still connected leaves the shared GGG token intact; only removing both drops it.
+
+**PoE2-specific API differences from PoE1:**
+
+- PoE2 character profiles are **private** — every call needs the user's own token, never app-level credentials
+- Stricter rate limits (~45 req/min) on the character endpoints
+- GGG's PoE2 character API puts the realm in the URL path (`/character/poe2`, `/character/poe2/<name>`) rather than deriving it from the caller's region
+- No unequipped inventory — the API doesn't expose it
+- No Path of Building analysis — PoB2 enrichment is a separate, future epic (unlike PoE1, which attaches a `pob_build` section)
+
+The adapter interface is identical to every other adapter — `getOAuthConfig()`, `discoverSaves()`, `fetchState()` — with `sections.ts` mapping GGG's character payload to `character_overview`, `gear`, `skills`, and `passives`. The plugin structure (shipped, not hypothetical):
 
 ```
 plugins/poe2/
   plugin.toml              # source = "api", [adapter] with auth_provider = "ggg"
   adapter/
-    index.ts
+    index.ts               # getOAuthConfig / discoverSaves / fetchState
     types.ts
     sections.ts
+  reference/
+    economy.ts              # native reference module: poe.ninja PoE2 prices
+    register.ts
   Justfile
 ```
 
@@ -617,7 +629,7 @@ Game-specific fields like realm, region, class, and level live in `metadata` JSO
 
 ### Provider credentials
 
-Stores OAuth tokens for API-backed games, keyed by `(user_uuid, provider)` — the OAuth provider ("battlenet", "ggg"), not the game_id. A provider's refresh token rotates on use, so a per-game copy would go stale the moment a second game sharing that provider refreshed; keying by provider means every game backed by the same provider reads/writes one row. D1 provides encryption at rest at the infrastructure level. The game→provider mapping lives in `worker/src/adapters/providers.ts` (`OAUTH_PROVIDERS`); it's 1:1 today (wow→battlenet, poe→ggg) but PoE2 sharing "ggg" with PoE is the motivating case for this shape.
+Stores OAuth tokens for API-backed games, keyed by `(user_uuid, provider)` — the OAuth provider ("battlenet", "ggg"), not the game_id. A provider's refresh token rotates on use, so a per-game copy would go stale the moment a second game sharing that provider refreshed; keying by provider means every game backed by the same provider reads/writes one row. D1 provides encryption at rest at the infrastructure level. The game→provider mapping lives in `worker/src/adapters/providers.ts` (`OAUTH_PROVIDERS`); it's 1:1 for `wow`→`battlenet`, but `ggg` backs both `poe` and `poe2` — the motivating case for this shape (see [PoE2](#poe2-ggg--shared-provider-with-poe) above).
 
 ```sql
 CREATE TABLE provider_credentials (
