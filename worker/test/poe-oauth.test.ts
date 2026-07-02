@@ -105,6 +105,9 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       expect(challenge).toBeTruthy();
       expect(challenge).not.toMatch(/[+/=]/);
       expect(authorize.searchParams.get("scope")).toContain("account:characters");
+      // GGG answers an empty client_id with an opaque invalid_client
+      // page; the URL must carry the configured id, never "".
+      expect(authorize.searchParams.get("client_id")).toBe("test-ggg-client");
 
       // The verifier must NOT appear anywhere on the wire.
       expect(url).not.toContain("code_verifier");
@@ -115,6 +118,32 @@ describe("PoE GGG OAuth + discoverSaves", () => {
       const parsed = JSON.parse(stored) as { codeVerifier?: string };
       expect(parsed.codeVerifier).toBeTruthy();
       expect(url).not.toContain(parsed.codeVerifier!);
+    });
+
+    it("returns 500 and stores no state when GGG credentials are unset", async () => {
+      const bindings = env as unknown as Record<string, unknown>;
+      const savedId = bindings.GGG_CLIENT_ID;
+      const savedSecret = bindings.GGG_CLIENT_SECRET;
+      delete bindings.GGG_CLIENT_ID;
+      delete bindings.GGG_CLIENT_SECRET;
+      try {
+        const listedBefore = await env.OAUTH_KV.list({ prefix: "ggg-oauth-state:" });
+        const resp = await SELF.fetch(
+          new Request("https://test-host/oauth/ggg/authorize", {
+            method: "GET",
+            headers: { Authorization: `Bearer ${USER_UUID}` },
+          }),
+        );
+        expect(resp.status).toBe(500);
+        const body = await resp.json<{ error: string }>();
+        expect(body.error).toContain("credentials not configured");
+
+        const listedAfter = await env.OAUTH_KV.list({ prefix: "ggg-oauth-state:" });
+        expect(listedAfter.keys.length).toBe(listedBefore.keys.length);
+      } finally {
+        bindings.GGG_CLIENT_ID = savedId;
+        bindings.GGG_CLIENT_SECRET = savedSecret;
+      }
     });
 
     it("persists no source and no DO game status (state created only on success, #22)", async () => {

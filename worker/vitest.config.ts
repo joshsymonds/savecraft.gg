@@ -51,6 +51,13 @@ export default defineConfig({
           // which slowed every subsequent test in the file dramatically.
           STALE_THRESHOLD_MS: 600_000,
           ALARM_INTERVAL_MS: 600_000,
+          // Adapter OAuth app credentials. The authorize handler
+          // hard-fails without them (missing-credential tests delete
+          // these bindings to exercise that guard).
+          BATTLENET_CLIENT_ID: "test-battlenet-client",
+          BATTLENET_CLIENT_SECRET: "test-battlenet-secret",
+          GGG_CLIENT_ID: "test-ggg-client",
+          GGG_CLIENT_SECRET: "test-ggg-secret",
         },
         kvNamespaces: ["OAUTH_KV"],
       },

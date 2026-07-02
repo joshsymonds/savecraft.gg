@@ -63,6 +63,17 @@ describe("ensureGggAccessToken", () => {
     });
   });
 
+  it("throws api_unavailable when a refresh is needed but GGG credentials are unset", async () => {
+    await expect(
+      ensureGggAccessToken(
+        { accessToken: "old", refreshToken: "rt", expiresAt: "2000-01-01T00:00:00Z" },
+        {} as unknown as Env,
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => error instanceof AdapterError && error.code === "api_unavailable",
+    );
+  });
+
   it("throws token_expired when expired with no refresh token", async () => {
     await expect(
       ensureGggAccessToken(

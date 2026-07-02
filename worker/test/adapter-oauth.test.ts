@@ -47,6 +47,7 @@ describe("Adapter OAuth", () => {
       expect(body.url).toContain("response_type=code");
       expect(body.url).toContain("scope=wow.profile");
       expect(body.url).toContain("state=");
+      expect(new URL(body.url).searchParams.get("client_id")).toBe("test-battlenet-client");
 
       // State holds only intent; no pre-created source (#22).
       const url = new URL(body.url);

@@ -400,6 +400,17 @@ async function handleAdapterAuthorize(
 
   const oauthConfig = adapter.getOAuthConfig(region, env);
 
+  // Unset app credentials must fail here, loudly: an empty client_id
+  // otherwise rides the redirect to the provider, which answers with an
+  // opaque invalid_client page (how the missing production GGG secret
+  // first surfaced — as a user bug report).
+  if (!oauthConfig.clientId || !provider.clientSecret(env)) {
+    return Response.json(
+      { error: `${provider.adapterId} OAuth credentials not configured` },
+      { status: 500 },
+    );
+  }
+
   // No source/DO writes here. Authorize is unauthenticated intent; an
   // abandoned or failed flow must leave nothing behind. The adapter
   // source and "watching" status are created in the callback only after

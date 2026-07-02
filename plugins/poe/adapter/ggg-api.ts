@@ -104,6 +104,14 @@ export async function ensureGggAccessToken(
       userAction: reconnectAdapterAction("Path of Exile"),
     });
   }
+  // Server misconfiguration, not a user problem: refuse before sending
+  // GGG an empty client_id (which it rejects as invalid_client).
+  if (!env.GGG_CLIENT_ID || !env.GGG_CLIENT_SECRET) {
+    throw new AdapterError(
+      "api_unavailable",
+      "GGG credentials not configured (GGG_CLIENT_ID and GGG_CLIENT_SECRET required)",
+    );
+  }
 
   const res = await fetch(GGG_TOKEN_URL, {
     method: "POST",
@@ -114,8 +122,8 @@ export async function ensureGggAccessToken(
     body: new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: creds.refreshToken,
-      client_id: env.GGG_CLIENT_ID ?? "",
-      client_secret: env.GGG_CLIENT_SECRET ?? "",
+      client_id: env.GGG_CLIENT_ID,
+      client_secret: env.GGG_CLIENT_SECRET,
     }),
     signal: AbortSignal.timeout(GGG_REQUEST_TIMEOUT_MS),
   });
