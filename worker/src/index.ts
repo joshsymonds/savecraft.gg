@@ -1,6 +1,7 @@
 // Side-effect import: register native reference modules
 import "../../plugins/magic/reference/register";
 import "../../plugins/poe/reference/register";
+import "../../plugins/poe2/reference/register";
 import "../../plugins/wow/reference/register";
 
 import { URLS } from "@savecraft/content/facts";
