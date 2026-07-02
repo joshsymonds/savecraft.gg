@@ -1,17 +1,17 @@
 /**
- * Authenticated GGG (Path of Exile) API access.
+ * Authenticated GGG (Grinding Gear Games) API access and OAuth
+ * constants, shared by every game on the "ggg" provider (see
+ * providers.ts) — currently PoE, with PoE2 next.
  *
- * Centralizes the mandatory User-Agent, rate-limit handling, and the
- * GGG-status → AdapterError mapping so every call (discoverSaves now,
- * fetchState later) behaves consistently.
+ * Centralizes the OAuth endpoints/scopes, the mandatory User-Agent,
+ * rate-limit handling, and the GGG-status → AdapterError mapping so
+ * every call (discoverSaves, fetchState, token refresh) behaves
+ * consistently across adapters.
  */
 
-import {
-  AdapterError,
-  type GameCredentials,
-  reconnectAdapterAction,
-} from "../../../worker/src/adapters/adapter";
-import type { Env } from "../../../worker/src/types";
+import type { Env } from "../types";
+
+import { AdapterError, type GameCredentials, reconnectAdapterAction } from "./adapter";
 
 const GGG_API_BASE = "https://api.pathofexile.com";
 
@@ -44,10 +44,10 @@ export async function gggGet<T>(path: string, accessToken: string): Promise<T> {
       // Worker's whole wall-clock budget (mirrors the pob-server call).
       signal: AbortSignal.timeout(GGG_REQUEST_TIMEOUT_MS),
     });
-  } catch (cause) {
+  } catch (error) {
     throw new AdapterError(
       "api_unavailable",
-      `GGG API request to ${path} failed: ${String(cause)}`,
+      `GGG API request to ${path} failed: ${String(error)}`,
     );
   }
 
@@ -63,16 +63,19 @@ export async function gggGet<T>(path: string, accessToken: string): Promise<T> {
     });
   }
   if (!res.ok) {
-    throw new AdapterError(
-      "api_unavailable",
-      `GGG API ${path} returned ${res.status}`,
-    );
+    throw new AdapterError("api_unavailable", `GGG API ${path} returned ${String(res.status)}`);
   }
 
   return res.json<T>();
 }
 
-const GGG_TOKEN_URL = "https://www.pathofexile.com/oauth/token";
+export const GGG_AUTHORIZE_URL = "https://www.pathofexile.com/oauth/authorize";
+export const GGG_TOKEN_URL = "https://www.pathofexile.com/oauth/token";
+
+// account:characters returns the full build (gear + passives + jewels);
+// account:profile gives the correctly-cased account name needed for the
+// case-sensitive character sub-endpoints.
+export const GGG_SCOPES = ["account:characters", "account:profile"];
 
 /** Refreshed GGG tokens to persist back to provider_credentials. */
 export interface RefreshedCreds {
@@ -94,8 +97,7 @@ export async function ensureGggAccessToken(
   creds: GameCredentials,
   env: Env,
 ): Promise<{ accessToken: string; refreshed?: RefreshedCreds }> {
-  const stillValid =
-    !creds.expiresAt || new Date(creds.expiresAt).getTime() > Date.now();
+  const stillValid = !creds.expiresAt || new Date(creds.expiresAt).getTime() > Date.now();
   if (stillValid) {
     return { accessToken: creds.accessToken };
   }
@@ -128,7 +130,7 @@ export async function ensureGggAccessToken(
     signal: AbortSignal.timeout(GGG_REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
-    throw new AdapterError("token_expired", `GGG token refresh failed (${res.status})`, {
+    throw new AdapterError("token_expired", `GGG token refresh failed (${String(res.status)})`, {
       userAction: reconnectAdapterAction("Path of Exile"),
     });
   }

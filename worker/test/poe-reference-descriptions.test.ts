@@ -3,7 +3,6 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { poeAdapter } from "../../plugins/poe/adapter";
-import { ensureGggAccessToken } from "../../plugins/poe/adapter/ggg-api";
 import { buildPlannerModule } from "../../plugins/poe/reference/build-planner";
 import { economyModule } from "../../plugins/poe/reference/economy";
 import { gemSearchModule } from "../../plugins/poe/reference/gem-search";
@@ -15,6 +14,7 @@ import {
   connectAdapterGuidance,
   reconnectAdapterAction,
 } from "../src/adapters/adapter";
+import { ensureGggAccessToken } from "../src/adapters/ggg";
 import type { Env } from "../src/types";
 
 import { cleanAll } from "./helpers";
@@ -45,7 +45,7 @@ describe("connect-guidance copy (epic Req 14)", () => {
     expect(msg).not.toContain(DEAD);
   });
 
-  it("ggg-api token_expired userAction uses the real dashboard URL", async () => {
+  it("ggg token_expired userAction uses the real dashboard URL", async () => {
     let thrown: unknown;
     try {
       await ensureGggAccessToken(

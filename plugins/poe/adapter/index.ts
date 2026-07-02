@@ -8,7 +8,8 @@
  * fetchState (the sole GGG-touching path, driven by refresh_save) calls
  * GET /profile + GET /character/<name>, maps the result to GameState
  * sections, and converts the character to a PoB build via pob-server
- * POST /import. GGG token refresh happens in-adapter (see ggg-api.ts).
+ * POST /import. GGG token refresh happens in-adapter (see
+ * worker/src/adapters/ggg.ts).
  *
  * GGG is a single global OAuth endpoint (no per-region hosts, unlike
  * Battle.net); `region` is the PoE realm ("pc" for PoE1 PC) and does
@@ -23,8 +24,15 @@ import {
   type GameStateSection,
   type OAuthConfig,
 } from "../../../worker/src/adapters/adapter";
+import {
+  ensureGggAccessToken,
+  GGG_AUTHORIZE_URL,
+  GGG_SCOPES,
+  GGG_TOKEN_URL,
+  GGG_USER_AGENT,
+  gggGet,
+} from "../../../worker/src/adapters/ggg";
 import type { Env } from "../../../worker/src/types";
-import { ensureGggAccessToken, GGG_USER_AGENT, gggGet } from "./ggg-api";
 import {
   buildPobSection,
   mapCharacterOverview,
@@ -38,14 +46,6 @@ import type {
   GggCharacterListResponse,
   GggCharacterResponse,
 } from "./types";
-
-const GGG_AUTHORIZE_URL = "https://www.pathofexile.com/oauth/authorize";
-const GGG_TOKEN_URL = "https://www.pathofexile.com/oauth/token";
-
-// account:characters returns the full build (gear + passives + jewels);
-// account:profile gives the correctly-cased account name needed for the
-// case-sensitive character sub-endpoints.
-const GGG_SCOPES = ["account:characters", "account:profile"];
 
 export const poeAdapter: ApiAdapter = {
   gameId: "poe",

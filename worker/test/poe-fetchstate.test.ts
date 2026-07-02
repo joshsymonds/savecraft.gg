@@ -2,9 +2,9 @@ import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { poeAdapter } from "../../plugins/poe/adapter";
-import { ensureGggAccessToken } from "../../plugins/poe/adapter/ggg-api";
 import characterFixture from "../../plugins/poe/testdata/ggg-character-full.json";
 import { AdapterError, type FetchParams } from "../src/adapters/adapter";
+import { ensureGggAccessToken } from "../src/adapters/ggg";
 import { storePush } from "../src/store";
 import type { Env } from "../src/types";
 
