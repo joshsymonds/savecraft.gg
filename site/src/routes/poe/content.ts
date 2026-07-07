@@ -38,10 +38,14 @@ export const content: GamePageContent = {
     frames: [
       {
         src: "/images/poe/poe3.jpeg",
+        width: 1654,
+        height: 1538,
         alt: "Claude swapping Void Manipulation for Concentrated Effect in a PoE build -- before/after table showing +766k DPS (+14.7%) with real Path of Building calc deltas",
       },
       {
         src: "/images/poe/poe2.jpg",
+        width: 1512,
+        height: 1522,
         alt: "Hierophant Level 94 Templar build analysis -- 5.22M DPS, 20.9k Life, resistances, offense stats, socket groups rendered from pob-server",
       },
       {

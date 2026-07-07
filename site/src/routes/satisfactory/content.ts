@@ -36,15 +36,21 @@ export const content: GamePageContent = {
     variant: "solo-peek",
     frames: [
       {
-        src: "/images/satisfactory/productionplanner-deep-endgame-plan.png",
+        src: "/images/satisfactory/productionplanner-deep-endgame-plan.webp",
+        width: 2200,
+        height: 1600,
         alt: "Production plan for a Thermal Propulsion Rocket per minute -- 169 machines, 1,911.53 MW of power, 10 raw inputs, machine counts broken down per recipe from Iron Rod constructors to Modular Engine manufacturers",
       },
       {
-        src: "/images/satisfactory/productionplanner-save-aware-plan.png",
+        src: "/images/satisfactory/productionplanner-save-aware-plan.webp",
+        width: 2200,
+        height: 1064,
         alt: "Save-aware production plan comparing the target chain against machines that already exist in the player's factory",
       },
       {
-        src: "/images/satisfactory/productionplanner-small-plan.png",
+        src: "/images/satisfactory/productionplanner-small-plan.webp",
+        width: 1320,
+        height: 882,
         alt: "A compact production plan with per-recipe machine counts and power totals from the game's shipped recipe data",
       },
     ],

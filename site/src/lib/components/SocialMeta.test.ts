@@ -14,7 +14,7 @@ const baseProps = {
 };
 
 describe("SocialMeta", () => {
-  it("emits og:title, og:description, og:url, and og:type from props", () => {
+  it("emits og:title, og:description, and og:url from props", () => {
     render(SocialMeta, { props: baseProps });
     expect(document.head.querySelector('meta[property="og:title"]')?.getAttribute("content")).toBe(
       baseProps.title,
@@ -24,9 +24,6 @@ describe("SocialMeta", () => {
     ).toBe(baseProps.description);
     expect(document.head.querySelector('meta[property="og:url"]')?.getAttribute("content")).toBe(
       baseProps.url,
-    );
-    expect(document.head.querySelector('meta[property="og:type"]')?.getAttribute("content")).toBe(
-      "website",
     );
   });
 

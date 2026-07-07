@@ -37,15 +37,21 @@ export const content: GamePageContent = {
     variant: "solo-peek",
     frames: [
       {
-        src: "/images/rimworld/surgery-low-success.png",
+        src: "/images/rimworld/surgery-low-success.webp",
+        width: 1304,
+        height: 642,
         alt: "Surgery success calculator showing a 12.6% success chance from the exact CheckSurgeryFail factors -- 0.35 surgeon, 0.80 regular bed, 0.60 herbal medicine, against an operation of 1.50 difficulty",
       },
       {
         src: "/images/rimworld/raids-late-game.png",
+        width: 782,
+        height: 1000,
         alt: "Raid threat estimate for a late-game colony -- 6200 total raid points, 3800 from 800,000 effective wealth and 2400 from colonists",
       },
       {
         src: "/images/rimworld/combat-bolt-action-vs-armor.png",
+        width: 846,
+        height: 774,
         alt: "Bolt-action rifle combat card -- 4.68 DPS at range from 5.50 raw at 85% accuracy, 12.3 expected damage versus armor",
       },
     ],

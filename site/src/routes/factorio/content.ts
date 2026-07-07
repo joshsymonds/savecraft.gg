@@ -39,14 +39,20 @@ export const content: GamePageContent = {
     frames: [
       {
         src: "/images/factorio/factorio2.jpg",
+        width: 1630,
+        height: 1444,
         alt: "Claude walking the research path to Artillery -- 7 technologies remaining, 12h 30m of research time, 172 already completed, with Vulcanus-tagged prerequisites listed in order",
       },
       {
-        src: "/images/factorio/views-productionflow-bottlenecked-factory.png",
+        src: "/images/factorio/views-productionflow-bottlenecked-factory.webp",
+        width: 1602,
+        height: 1600,
         alt: "Factory health diagnosis showing Factory Stalled -- 5 critical bottlenecks, steel plate producing 38/min against 1,175/min consumed, copper cable needing one more Assembling Machine 3",
       },
       {
-        src: "/images/factorio/views-ratiocalculator-electronic-circuit.png",
+        src: "/images/factorio/views-ratiocalculator-electronic-circuit.webp",
+        width: 2200,
+        height: 1236,
         alt: "Production ratio calculator for electronic circuits -- machine counts by tier with belt requirements, computed from the game's recipe data",
       },
     ],

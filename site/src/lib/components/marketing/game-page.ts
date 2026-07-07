@@ -5,6 +5,10 @@ export interface HeroFrame {
   src: string;
   alt: string;
   caption?: string;
+  /** Intrinsic pixel dimensions; when present the rendered <img> reserves
+   *  its layout box, preventing CLS while the frame loads. */
+  width?: number;
+  height?: number;
 }
 
 /**

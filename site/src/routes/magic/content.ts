@@ -44,14 +44,20 @@ export const content: GamePageContent = {
     frames: [
       {
         src: "/images/magic/magic-good.jpeg",
+        width: 1568,
+        height: 1444,
         alt: "Claude reviewing a Magic TMNT draft -- user asks 'how did I do?', Claude pulls draft history and renders a 14/12/3/12 Optimal/Good/Questionable/Miss review with a pick timeline filtered by outcome",
       },
       {
         src: "/images/magic/rocks.jpg",
+        width: 1622,
+        height: 1476,
         alt: "Claude recommending 3-CMC mana rocks for Commander -- tabbed grid of Eye / Heart / Horn / Skull / Tooth of Ramos colored by mana identity",
       },
       {
         src: "/images/magic/lifelink.jpg",
+        width: 1660,
+        height: 1490,
         alt: "Claude listing every white lifelink creature 2 mana or less -- framed card grid with rarity chips and abilities",
       },
     ],

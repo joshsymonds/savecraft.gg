@@ -21,4 +21,7 @@ const main = async () => {
   await browser.close();
   console.log("captured");
 };
-main();
+main().catch((err: unknown) => {
+  console.error(err);
+  process.exit(1);
+});

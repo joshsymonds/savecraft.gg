@@ -57,7 +57,7 @@ describe("Factorio landing page", () => {
 
   it("renders a module card per reference module", () => {
     const { container } = renderPage();
-    expect(container.querySelectorAll(".module-card")).toHaveLength(11);
+    expect(container.querySelectorAll(".module-card")).toHaveLength(moduleNames.length);
   });
 
   it("uses at least 3 distinct section treatments", () => {
@@ -76,11 +76,10 @@ describe("Factorio landing page", () => {
     expect(all).toContain("38 a minute");
     expect(all).toContain("1,175");
     expect(all).toContain("+1,960");
-    expect(all).toContain("538");
-    expect(all).toContain("540");
+    expect(all).toContain("538 versus 540");
     // Artillery tech-path capture
     expect(all).toContain("12h 30m");
-    expect(all).toContain("172");
+    expect(all).toContain("completed 172");
   });
 
   it("discloses the mod requirement and points at the mod portal, never the Workshop", () => {

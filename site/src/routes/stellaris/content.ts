@@ -39,14 +39,20 @@ export const content: GamePageContent = {
     frames: [
       {
         src: "/images/stellaris/stellaris2.jpg",
+        width: 1614,
+        height: 1512,
         alt: "Claude auditing a Devouring Swarm empire -- 22 critical findings, food burning 1,068.3 a month with a 43-month runway, alloys negative, energy and unity healthy",
       },
       {
         src: "/images/stellaris/stellaris1.jpg",
+        width: 1736,
+        height: 1518,
         alt: "Claude showing the technology path to Battleships -- 6,500 remaining research cost, with Destroyers and Cruisers as the main prerequisites",
       },
       {
-        src: "/images/stellaris/empirehealth-empire-in-crisis.png",
+        src: "/images/stellaris/empirehealth-empire-in-crisis.webp",
+        width: 1328,
+        height: 1600,
         alt: "Empire health view during an active Prethoryn Scourge crisis -- energy at 2 months of runway and an empty food stockpile flagged critical, alloys still buffered at 65 months",
       },
     ],

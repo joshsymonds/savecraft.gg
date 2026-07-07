@@ -38,14 +38,20 @@ export const content: GamePageContent = {
     frames: [
       {
         src: "/images/d2r/d2r2.jpeg",
+        width: 1614,
+        height: 1368,
         alt: "Drop calculator for Skin of the Vipermagi at 81% Magic Find -- 5,228 sources ranked by chance, Uber Diablo in Nightmare at 1:101, Mephisto Hell quest drops at 1:579",
       },
       {
         src: "/images/d2r/d2r1.jpeg",
+        width: 1592,
+        height: 942,
         alt: "Claude reading Atmus, a Level 75 Warlock in Hell difficulty Act 2 -- the character card parsed straight from the .d2s save",
       },
       {
-        src: "/images/d2r/dropcalc-monster-drops.png",
+        src: "/images/d2r/dropcalc-monster-drops.webp",
+        width: 1586,
+        height: 1148,
         alt: "Drop calculator view showing a monster's drop table with Magic Find applied -- odds per item computed from treasure classes",
       },
     ],

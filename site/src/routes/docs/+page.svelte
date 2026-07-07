@@ -5,8 +5,7 @@
 <script lang="ts">
   import { PUBLIC_APP_URL } from "$env/static/public";
   import { SOURCE_KINDS, URLS } from "@savecraft/content/facts";
-  import SocialMeta from "$lib/components/SocialMeta.svelte";
-  import { jsonLd } from "$lib/jsonld";
+  import PageHead from "$lib/components/PageHead.svelte";
 
   const howGameConnectsCards = [
     { title: "Reference, instantly", body: SOURCE_KINDS.reference.shortDescription },
@@ -22,24 +21,7 @@
   ];
 </script>
 
-<svelte:head>
-  <title>Docs - Savecraft</title>
-  <meta
-    name="description"
-    content="How Savecraft works: add a game and your AI gets real, current data for it -- plus your live game state, where the game supports it. Setup guides for Claude and ChatGPT."
-  />
-  <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of static data, escaped in jsonLd() -->
-  {@html jsonLd({
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    name: "Docs - Savecraft",
-    url: "https://savecraft.gg/docs",
-    description:
-      "How Savecraft works: add a game and your AI gets real, current data for it -- plus your live game state, where the game supports it. Setup guides for Claude and ChatGPT.",
-  })}
-</svelte:head>
-
-<SocialMeta
+<PageHead
   slug="docs"
   title="Docs - Savecraft"
   description="How Savecraft works: add a game and your AI gets real, current data for it -- plus your live game state, where the game supports it. Setup guides for Claude and ChatGPT."

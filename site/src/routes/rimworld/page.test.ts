@@ -127,7 +127,7 @@ describe("RimWorld landing page", () => {
 
   it("hero frames are real view renders from the capture pipeline", () => {
     for (const frame of content.hero.frames ?? []) {
-      expect(frame.src).toMatch(/^\/images\/rimworld\/[a-z-]+\.png$/);
+      expect(frame.src).toMatch(/^\/images\/rimworld\/[a-z-]+\.(png|webp)$/);
     }
     expect(content.hero.frames?.length).toBeGreaterThanOrEqual(3);
   });

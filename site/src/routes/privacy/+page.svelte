@@ -15,27 +15,10 @@
     URLS,
   } from "@savecraft/content/facts";
   import { LAYER_NAMES, PRIVACY_TLDR } from "@savecraft/content/privacy";
-  import SocialMeta from "$lib/components/SocialMeta.svelte";
-  import { jsonLd } from "$lib/jsonld";
+  import PageHead from "$lib/components/PageHead.svelte";
 </script>
 
-<svelte:head>
-  <title>Privacy Policy - Savecraft</title>
-  <meta
-    name="description"
-    content="Savecraft privacy policy. What we collect, why, and what we don't."
-  />
-  <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of static data, escaped in jsonLd() -->
-  {@html jsonLd({
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    name: "Privacy Policy - Savecraft",
-    url: "https://savecraft.gg/privacy",
-    description: "Savecraft privacy policy. What we collect, why, and what we don't.",
-  })}
-</svelte:head>
-
-<SocialMeta
+<PageHead
   slug="privacy"
   title="Privacy Policy - Savecraft"
   description="Savecraft privacy policy. What we collect, why, and what we don't."
