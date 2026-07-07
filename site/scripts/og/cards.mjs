@@ -48,6 +48,12 @@ export const cards = [
     screenshot: "images/poe2/gear-check-demo.png",
   },
   {
+    slug: "clair-obscur",
+    eyebrow: "FOR THOSE WHO COME AFTER",
+    title: "Expedition 33, read by Claude.",
+    screenshot: "images/clair-obscur/build-check-demo.png",
+  },
+  {
     slug: "d2r",
     eyebrow: "REIGN OF THE WARLOCK, PARSED",
     title: "Your D2R characters, read by Claude.",
