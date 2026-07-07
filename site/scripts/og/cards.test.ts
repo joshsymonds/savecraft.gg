@@ -24,6 +24,7 @@ describe("OG card definitions", () => {
       "poe2",
       "privacy",
       "rimworld",
+      "satisfactory",
       "sdv",
       "stellaris",
       "support",

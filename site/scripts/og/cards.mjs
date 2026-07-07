@@ -66,6 +66,12 @@ export const cards = [
     screenshot: "images/sdv/gift-check-demo.png",
   },
   {
+    slug: "satisfactory",
+    eyebrow: "FICSIT-GRADE PLANNING IN CHAT",
+    title: "Satisfactory factories, planned in Claude.",
+    screenshot: "images/satisfactory/productionplanner-deep-endgame-plan.png",
+  },
+  {
     slug: "stellaris",
     eyebrow: "YOUR EMPIRE, AUDITED",
     title: "Your Stellaris empire, briefed in Claude.",
