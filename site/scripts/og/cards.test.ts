@@ -19,6 +19,7 @@ describe("OG card definitions", () => {
       "home",
       "magic",
       "poe",
+      "poe2",
       "privacy",
       "rimworld",
       "support",

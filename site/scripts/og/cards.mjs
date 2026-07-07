@@ -42,6 +42,12 @@ export const cards = [
     screenshot: "images/factorio/factorio3.jpg",
   },
   {
+    slug: "poe2",
+    eyebrow: "GGG-APPROVED ACCOUNT CONNECT",
+    title: "Your Path of Exile 2 characters, in Claude.",
+    screenshot: "images/poe2/gear-check-demo.png",
+  },
+  {
     slug: "rimworld",
     eyebrow: "THE GAME'S EXACT FORMULAS, IN CHAT",
     title: "RimWorld's real math, in Claude.",

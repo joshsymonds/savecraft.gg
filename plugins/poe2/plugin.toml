@@ -30,3 +30,8 @@ github = "joshsymonds"
 windows = ""
 linux = ""
 darwin = ""
+
+[reference.modules.economy]
+name = "Economy Prices"
+description = "Live Path of Exile 2 item and currency prices from poe.ninja, by league. Every price is denominated in divine orbs and labeled with the league it came from."
+requires_save = false
