@@ -48,6 +48,12 @@ export const cards = [
     screenshot: "images/poe2/gear-check-demo.png",
   },
   {
+    slug: "factorio",
+    eyebrow: "THE FACTORY, DIAGNOSED IN CHAT",
+    title: "Your Factorio factory, diagnosed in Claude.",
+    screenshot: "images/factorio/views-productionflow-bottlenecked-factory.png",
+  },
+  {
     slug: "stellaris",
     eyebrow: "YOUR EMPIRE, AUDITED",
     title: "Your Stellaris empire, briefed in Claude.",

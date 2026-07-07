@@ -15,6 +15,7 @@ describe("OG card definitions", () => {
     const slugs = cards.map((c) => c.slug);
     expect(slugs.toSorted()).toEqual([
       "docs",
+      "factorio",
       "games",
       "home",
       "magic",
