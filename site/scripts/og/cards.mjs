@@ -42,6 +42,12 @@ export const cards = [
     screenshot: "images/factorio/factorio3.jpg",
   },
   {
+    slug: "rimworld",
+    eyebrow: "THE GAME'S EXACT FORMULAS, IN CHAT",
+    title: "RimWorld's real math, in Claude.",
+    screenshot: "images/rimworld/surgery-low-success.png",
+  },
+  {
     slug: "docs",
     eyebrow: "HOW SAVECRAFT WORKS",
     title: "Documentation",

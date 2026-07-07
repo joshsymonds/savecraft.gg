@@ -11,7 +11,7 @@ describe("OG card definitions", () => {
     expect(OG_HEIGHT).toBe(630);
   });
 
-  it("covers all eight marketing pages with unique slugs", () => {
+  it("covers every marketing page with a unique slug", () => {
     const slugs = cards.map((c) => c.slug);
     expect(slugs.toSorted()).toEqual([
       "docs",
@@ -20,6 +20,7 @@ describe("OG card definitions", () => {
       "magic",
       "poe",
       "privacy",
+      "rimworld",
       "support",
       "terms",
     ]);
