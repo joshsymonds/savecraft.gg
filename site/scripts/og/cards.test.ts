@@ -26,6 +26,7 @@ describe("OG card definitions", () => {
       "rimworld",
       "satisfactory",
       "sdv",
+      "songsofsyx",
       "stellaris",
       "support",
       "terms",

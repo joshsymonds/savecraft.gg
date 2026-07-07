@@ -72,6 +72,12 @@ export const cards = [
     screenshot: "images/satisfactory/productionplanner-deep-endgame-plan.png",
   },
   {
+    slug: "songsofsyx",
+    eyebrow: "THE GAME'S OWN WORDS, QUERYABLE",
+    title: "Songs of Syx, explained in Claude.",
+    screenshot: "images/songsofsyx/race-check-demo.png",
+  },
+  {
     slug: "stellaris",
     eyebrow: "YOUR EMPIRE, AUDITED",
     title: "Your Stellaris empire, briefed in Claude.",
