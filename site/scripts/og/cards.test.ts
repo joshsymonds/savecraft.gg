@@ -22,6 +22,7 @@ describe("OG card definitions", () => {
       "poe2",
       "privacy",
       "rimworld",
+      "stellaris",
       "support",
       "terms",
     ]);

@@ -48,6 +48,12 @@ export const cards = [
     screenshot: "images/poe2/gear-check-demo.png",
   },
   {
+    slug: "stellaris",
+    eyebrow: "YOUR EMPIRE, AUDITED",
+    title: "Your Stellaris empire, briefed in Claude.",
+    screenshot: "images/stellaris/empirehealth-empire-in-crisis.png",
+  },
+  {
     slug: "rimworld",
     eyebrow: "THE GAME'S EXACT FORMULAS, IN CHAT",
     title: "RimWorld's real math, in Claude.",
