@@ -41,4 +41,28 @@ export const cards = [
     title: "Supported Games",
     screenshot: "images/factorio/factorio3.jpg",
   },
+  {
+    slug: "docs",
+    eyebrow: "HOW SAVECRAFT WORKS",
+    title: "Documentation",
+    screenshot: "images/magic/magic2.jpg",
+  },
+  {
+    slug: "privacy",
+    eyebrow: "SAVECRAFT PRIVACY POLICY",
+    title: "Privacy Policy",
+    screenshot: "images/poe/poe2.jpg",
+  },
+  {
+    slug: "terms",
+    eyebrow: "SAVECRAFT TERMS OF SERVICE",
+    title: "Terms of Service",
+    screenshot: "images/stellaris/stellaris2.jpg",
+  },
+  {
+    slug: "support",
+    eyebrow: "GET HELP WITH SAVECRAFT",
+    title: "Support",
+    screenshot: "images/factorio/factorio1.jpg",
+  },
 ];

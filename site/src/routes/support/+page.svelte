@@ -4,12 +4,29 @@
 -->
 <script lang="ts">
   import { PUBLIC_APP_URL } from "$env/static/public";
+  import SocialMeta from "$lib/components/SocialMeta.svelte";
+  import { jsonLd } from "$lib/jsonld";
 </script>
 
 <svelte:head>
   <title>Support - Savecraft</title>
   <meta name="description" content="Get help with Savecraft. Join our Discord or email support." />
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of static data, escaped in jsonLd() -->
+  {@html jsonLd({
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: "Support - Savecraft",
+    url: "https://savecraft.gg/support",
+    description: "Get help with Savecraft. Join our Discord or email support.",
+  })}
 </svelte:head>
+
+<SocialMeta
+  slug="support"
+  title="Support - Savecraft"
+  description="Get help with Savecraft. Join our Discord or email support."
+  url="https://savecraft.gg/support"
+/>
 
 <div class="page">
   <article class="support">

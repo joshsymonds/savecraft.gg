@@ -2,13 +2,33 @@
   @component
   Terms of Service page -- rendered at savecraft.gg/terms
 -->
+<script lang="ts">
+  import SocialMeta from "$lib/components/SocialMeta.svelte";
+  import { jsonLd } from "$lib/jsonld";
+</script>
+
 <svelte:head>
   <title>Terms of Service - Savecraft</title>
   <meta
     name="description"
     content="Savecraft terms of service. What you agree to when using the service."
   />
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of static data, escaped in jsonLd() -->
+  {@html jsonLd({
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: "Terms of Service - Savecraft",
+    url: "https://savecraft.gg/terms",
+    description: "Savecraft terms of service. What you agree to when using the service.",
+  })}
 </svelte:head>
+
+<SocialMeta
+  slug="terms"
+  title="Terms of Service - Savecraft"
+  description="Savecraft terms of service. What you agree to when using the service."
+  url="https://savecraft.gg/terms"
+/>
 
 <div class="page">
   <article class="privacy">
