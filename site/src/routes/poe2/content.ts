@@ -187,7 +187,7 @@ export const content: GamePageContent = {
         },
         {
           title: "Characters import",
-          desc: "Every non-deleted character comes in: equipped gear, socketed skill gems with supports, and the full passive tree with ascendancy choices.",
+          desc: "Every non-deleted character comes in: equipped gear, skill gems with their supports, and the full passive tree with ascendancy choices.",
         },
         {
           title: "Ask, refresh, repeat",
