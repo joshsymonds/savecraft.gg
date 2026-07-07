@@ -48,6 +48,12 @@ export const cards = [
     screenshot: "images/poe2/gear-check-demo.png",
   },
   {
+    slug: "d2r",
+    eyebrow: "REIGN OF THE WARLOCK, PARSED",
+    title: "Your D2R characters, read by Claude.",
+    screenshot: "images/d2r/d2r2.jpeg",
+  },
+  {
     slug: "factorio",
     eyebrow: "THE FACTORY, DIAGNOSED IN CHAT",
     title: "Your Factorio factory, diagnosed in Claude.",

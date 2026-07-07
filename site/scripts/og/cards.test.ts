@@ -14,6 +14,7 @@ describe("OG card definitions", () => {
   it("covers every marketing page with a unique slug", () => {
     const slugs = cards.map((c) => c.slug);
     expect(slugs.toSorted()).toEqual([
+      "d2r",
       "docs",
       "factorio",
       "games",
