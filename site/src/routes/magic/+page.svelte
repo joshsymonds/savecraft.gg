@@ -52,13 +52,6 @@
     name="description"
     content="Real card data for Claude and ChatGPT -- every Magic format, the moment you add the game. EDHREC for Commander, 17Lands for limited, plus the full MTG rules. Add Magic on the machine you play Arena on and your live game state comes along too."
   />
-  <meta property="og:title" content="Savecraft -- Real MTG Data for Claude and ChatGPT" />
-  <meta
-    property="og:description"
-    content="Real card data, every Magic format, the moment you add the game. EDHREC for Commander, 17Lands for limited, plus the full MTG rules. Add Magic on the machine you play Arena on and your live game state comes along too."
-  />
-  <meta property="og:url" content="https://savecraft.gg/magic" />
-  <meta property="og:type" content="website" />
   <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of static data, escaped in jsonLd() -->
   {@html jsonLd({
     "@context": "https://schema.org",
@@ -74,7 +67,12 @@
   })}
 </svelte:head>
 
-<SocialMeta slug="magic" />
+<SocialMeta
+  slug="magic"
+  title="Savecraft -- Real MTG Data for Claude and ChatGPT"
+  description="Real card data, every Magic format, the moment you add the game. EDHREC for Commander, 17Lands for limited, plus the full MTG rules. Add Magic on the machine you play Arena on and your live game state comes along too."
+  url="https://savecraft.gg/magic"
+/>
 
 <div class="page">
   <!-- ═══ HERO ═══ -->

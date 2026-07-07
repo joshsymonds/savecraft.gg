@@ -91,6 +91,23 @@ describe("PoE landing page", () => {
     expect(document.head.querySelector('script[type="application/ld+json"]')).not.toBeNull();
   });
 
+  it("ships exactly one canonical link and one of each og:title/description/url", () => {
+    render(Page, { props: { data: { game: mockGame } } });
+    expect(document.head.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
+    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
+      "https://savecraft.gg/poe",
+    );
+    expect(document.head.querySelectorAll('meta[property="og:title"]')).toHaveLength(1);
+    expect(document.head.querySelectorAll('meta[property="og:description"]')).toHaveLength(1);
+    expect(document.head.querySelectorAll('meta[property="og:url"]')).toHaveLength(1);
+    expect(
+      document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
+    ).toBe("Savecraft -- Path of Building in Chat");
+    expect(
+      document.head.querySelector('meta[name="twitter:description"]')?.getAttribute("content"),
+    ).not.toBeNull();
+  });
+
   it("tree audit swap arithmetic is stated correctly", () => {
     const { container } = render(Page, { props: { data: { game: mockGame } } });
     const text = container.textContent ?? "";

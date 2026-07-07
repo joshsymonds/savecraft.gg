@@ -82,13 +82,6 @@
     name="description"
     content="Savecraft gives Claude and ChatGPT real game data on Magic, Path of Exile, Factorio, and more: rules, items, builds, economy. Plus live save state for supported games. Open source."
   />
-  <meta property="og:title" content="Savecraft -- Real game data for your AI assistant" />
-  <meta
-    property="og:description"
-    content="Savecraft gives Claude and ChatGPT real game data on Magic, Path of Exile, Factorio, and more: rules, items, builds, economy. Plus live save state for supported games."
-  />
-  <meta property="og:url" content="https://savecraft.gg" />
-  <meta property="og:type" content="website" />
   <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of static data, escaped in jsonLd() -->
   {@html jsonLd({
     "@context": "https://schema.org",
@@ -111,7 +104,12 @@
   })}
 </svelte:head>
 
-<SocialMeta slug="home" />
+<SocialMeta
+  slug="home"
+  title="Savecraft -- Real game data for your AI assistant"
+  description="Savecraft gives Claude and ChatGPT real game data on Magic, Path of Exile, Factorio, and more: rules, items, builds, economy. Plus live save state for supported games."
+  url="https://savecraft.gg"
+/>
 
 <div class="page">
   <!-- ═══ HERO AREA ═══ -->

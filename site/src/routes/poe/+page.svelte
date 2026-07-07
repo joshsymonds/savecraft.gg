@@ -46,13 +46,6 @@
     name="description"
     content="Savecraft is GGG-approved. Link your Path of Exile account and your AI runs your live characters through the real Path of Building calc engine -- or paste a pobb.in link. Real DPS deltas and live poe.ninja prices for budget upgrades."
   />
-  <meta property="og:title" content="Savecraft -- Path of Building in Chat" />
-  <meta
-    property="og:description"
-    content="GGG-approved account connect: your AI reads your live PoE characters and runs them through real Path of Building. Or paste a pobb.in link. Real DPS deltas plus live poe.ninja prices."
-  />
-  <meta property="og:url" content="https://savecraft.gg/poe" />
-  <meta property="og:type" content="website" />
   <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of static data, escaped in jsonLd() -->
   {@html jsonLd({
     "@context": "https://schema.org",
@@ -68,7 +61,12 @@
   })}
 </svelte:head>
 
-<SocialMeta slug="poe" />
+<SocialMeta
+  slug="poe"
+  title="Savecraft -- Path of Building in Chat"
+  description="GGG-approved account connect: your AI reads your live PoE characters and runs them through real Path of Building. Or paste a pobb.in link. Real DPS deltas plus live poe.ninja prices."
+  url="https://savecraft.gg/poe"
+/>
 
 <div class="page">
   <!-- ═══ HERO ═══ -->

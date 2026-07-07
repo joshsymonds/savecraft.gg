@@ -79,4 +79,21 @@ describe("Games listing structure", () => {
     expect(data["@type"]).toBe("CollectionPage");
     expect(data.mainEntity.itemListElement[0].name).toBe("Magic: The Gathering");
   });
+
+  it("ships exactly one canonical link and one of each og:title/description/url", () => {
+    render(Page, { props: { data: { games: [mockGame] } } });
+    expect(document.head.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
+    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
+      "https://savecraft.gg/games",
+    );
+    expect(document.head.querySelectorAll('meta[property="og:title"]')).toHaveLength(1);
+    expect(document.head.querySelectorAll('meta[property="og:description"]')).toHaveLength(1);
+    expect(document.head.querySelectorAll('meta[property="og:url"]')).toHaveLength(1);
+    expect(
+      document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
+    ).toBe("Supported Games - Savecraft");
+    expect(
+      document.head.querySelector('meta[name="twitter:description"]')?.getAttribute("content"),
+    ).not.toBeNull();
+  });
 });

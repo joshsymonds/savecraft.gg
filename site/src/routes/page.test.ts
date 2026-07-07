@@ -118,6 +118,26 @@ describe("Marketing page", () => {
     );
   });
 
+  it("ships exactly one canonical link and one of each og:title/description/url", () => {
+    render(Page, { props: { data: mockData } });
+    expect(document.head.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
+    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
+      "https://savecraft.gg",
+    );
+    expect(document.head.querySelectorAll('meta[property="og:title"]')).toHaveLength(1);
+    expect(document.head.querySelectorAll('meta[property="og:description"]')).toHaveLength(1);
+    expect(document.head.querySelectorAll('meta[property="og:url"]')).toHaveLength(1);
+    expect(document.head.querySelector('meta[property="og:url"]')?.getAttribute("content")).toBe(
+      "https://savecraft.gg",
+    );
+    expect(
+      document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
+    ).toBe("Savecraft -- Real game data for your AI assistant");
+    expect(
+      document.head.querySelector('meta[name="twitter:description"]')?.getAttribute("content"),
+    ).not.toBeNull();
+  });
+
   it("ships WebSite + SoftwareApplication JSON-LD", () => {
     render(Page, { props: { data: mockData } });
     const script = document.head.querySelector('script[type="application/ld+json"]');

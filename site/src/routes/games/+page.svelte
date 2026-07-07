@@ -36,13 +36,6 @@
     name="description"
     content="Every game Savecraft supports for Claude and ChatGPT, with each card showing how the game connects."
   />
-  <meta property="og:title" content="Supported Games - Savecraft" />
-  <meta
-    property="og:description"
-    content="Every game Savecraft supports for Claude and ChatGPT, with each card showing how the game connects."
-  />
-  <meta property="og:url" content="https://savecraft.gg/games" />
-  <meta property="og:type" content="website" />
   <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of manifest data, escaped in jsonLd() -->
   {@html jsonLd({
     "@context": "https://schema.org",
@@ -60,7 +53,12 @@
   })}
 </svelte:head>
 
-<SocialMeta slug="games" />
+<SocialMeta
+  slug="games"
+  title="Supported Games - Savecraft"
+  description="Every game Savecraft supports for Claude and ChatGPT, with each card showing how the game connects."
+  url="https://savecraft.gg/games"
+/>
 
 <div class="page">
   <main class="content">
