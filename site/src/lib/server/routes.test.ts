@@ -13,7 +13,10 @@ function walk(dir: string): string[] {
     if (entry.isDirectory()) {
       found.push(...walk(full));
     } else if (entry.name === "+page.svelte") {
-      const rel = full.slice(ROUTES_DIR.length).replace(/\\/g, "/").replace(/\/\+page\.svelte$/, "");
+      const rel = full
+        .slice(ROUTES_DIR.length)
+        .replace(/\\/g, "/")
+        .replace(/\/\+page\.svelte$/, "");
       found.push(rel === "" ? "/" : rel);
     }
   }

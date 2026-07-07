@@ -20,9 +20,7 @@ const mockGame = {
   coverage: "full",
   limitations: [],
   iconHtml: "",
-  referenceModules: [
-    { name: "Drop Calculator", description: "drop odds", requires_save: false },
-  ],
+  referenceModules: [{ name: "Drop Calculator", description: "drop odds", requires_save: false }],
 };
 
 function renderPage() {
@@ -64,7 +62,9 @@ describe("D2R landing page", () => {
     expect(text).toContain("mod that adds the Warlock class");
     expect(text.toLowerCase()).toContain("aren't the target");
     expect(text.toLowerCase()).toContain("aren't supported");
-    expect(text).not.toMatch(/supports classic|classic (LoD|Lord of Destruction) (works|supported)/i);
+    expect(text).not.toMatch(
+      /supports classic|classic (LoD|Lord of Destruction) (works|supported)/i,
+    );
   });
 
   it("quotes only capture-verified numbers in demo copy", () => {

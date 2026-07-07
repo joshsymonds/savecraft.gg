@@ -136,9 +136,9 @@ describe("GamePage head", () => {
   it("emits title, description, canonical, and full social tags", () => {
     render(GamePage, { props: { content: fullContent(), game } });
     expect(document.title).toBe("Test Game with Claude & ChatGPT | Savecraft");
-    expect(
-      document.head.querySelector('meta[name="description"]')?.getAttribute("content"),
-    ).toBe("Real Test Game data for your AI.");
+    expect(document.head.querySelector('meta[name="description"]')?.getAttribute("content")).toBe(
+      "Real Test Game data for your AI.",
+    );
     expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
       "https://savecraft.gg/testgame",
     );
@@ -151,9 +151,9 @@ describe("GamePage head", () => {
     expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe(
       "https://savecraft.gg/og/testgame.png",
     );
-    expect(
-      document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
-    ).toBe("Savecraft -- Test Game");
+    expect(document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content")).toBe(
+      "Savecraft -- Test Game",
+    );
     expect(
       document.head.querySelector('meta[name="twitter:description"]')?.getAttribute("content"),
     ).toBe("Real Test Game data.");
@@ -216,8 +216,7 @@ describe("GamePage sections", () => {
     const { container } = render(GamePage, { props: { content: fullContent(), game } });
     const treatments = new Set(
       Array.from(container.querySelectorAll("section[class*='treatment-']")).map(
-        (el) =>
-          Array.from(el.classList).find((c) => c.startsWith("treatment-")) ?? "",
+        (el) => Array.from(el.classList).find((c) => c.startsWith("treatment-")) ?? "",
       ),
     );
     expect(treatments.size).toBeGreaterThanOrEqual(3);
@@ -227,9 +226,7 @@ describe("GamePage sections", () => {
 describe("GamePage minimal content", () => {
   it("renders a demo-led hero when no frames exist", () => {
     render(GamePage, { props: { content: minimalContent(), game } });
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Demo-led hero." }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Demo-led hero." })).toBeInTheDocument();
     expect(screen.getByText("DEMO HEADER")).toBeInTheDocument();
   });
 

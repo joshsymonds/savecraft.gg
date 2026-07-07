@@ -111,7 +111,7 @@ export const content: GamePageContent = {
               text: "Skin of the Vipermagi drops from most Act bosses. Mephisto runs are usually your best bet -- he has a high drop rate for mid-level uniques. Just do a few hundred runs and it should show up!",
             },
           ],
-          withoutCaption: "\"A few hundred runs\" is not a number. Neither is \"usually.\"",
+          withoutCaption: '"A few hundred runs" is not a number. Neither is "usually."',
           with: [
             {
               role: "player",

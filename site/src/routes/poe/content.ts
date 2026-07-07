@@ -74,7 +74,7 @@ export const content: GamePageContent = {
       items: [
         {
           source: "Connect your account",
-          desc: "Link your Path of Exile account once, through GGG's official OAuth -- read-only, character data only. Every non-deleted character is imported: gear, the full passive tree, jewels (cluster jewels included), skill links. Then you ask your AI about your own characters by name -- \"where is my Champion losing the most damage?\"",
+          desc: 'Link your Path of Exile account once, through GGG\'s official OAuth -- read-only, character data only. Every non-deleted character is imported: gear, the full passive tree, jewels (cluster jewels included), skill links. Then you ask your AI about your own characters by name -- "where is my Champion losing the most damage?"',
         },
         {
           source: "Or paste a link",
@@ -103,7 +103,8 @@ export const content: GamePageContent = {
           withoutCaption:
             "Stale memory. Ballpark numbers. No idea what your actual build looks like.",
           with: withPoB,
-          withCaption: "Real PoB calc on your actual build, with the cheaper alternative priced too.",
+          withCaption:
+            "Real PoB calc on your actual build, with the cheaper alternative priced too.",
         },
       ],
     },
@@ -204,7 +205,7 @@ export const content: GamePageContent = {
         },
         {
           source: "Content-addressed builds",
-          desc: 'Every build (original or modified) is content-hashed and gets a permanent short URL at <code>pob.savecraft.gg/{id}</code>. Parent-child lineage tracks modifications, so you can branch hypotheses, compare, and share any state.',
+          desc: "Every build (original or modified) is content-hashed and gets a permanent short URL at <code>pob.savecraft.gg/{id}</code>. Parent-child lineage tracks modifications, so you can branch hypotheses, compare, and share any state.",
         },
       ],
     },

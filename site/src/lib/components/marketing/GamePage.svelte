@@ -140,9 +140,7 @@
         <div class="method-grid">
           {#each section.items as item, i (item.source)}
             <div class="method-item" style="--i:{i}">
-              <span class="method-index" aria-hidden="true"
-                >{String(i + 1).padStart(2, "0")}</span
-              >
+              <span class="method-index" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
               <span class="method-source">{item.source}</span>
               <!-- eslint-disable-next-line svelte/no-at-html-tags -- descs are static site-authored strings from content modules, may carry <code> -->
               <span class="method-desc">{@html item.desc}</span>

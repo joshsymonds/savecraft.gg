@@ -16,7 +16,9 @@ describe("GET /llms.txt", () => {
     expect(games.length).toBeGreaterThan(0);
 
     for (const game of games) {
-      expect(body).toContain(`- [${game.name}](https://savecraft.gg/${game.gameId}): ${game.description}`);
+      expect(body).toContain(
+        `- [${game.name}](https://savecraft.gg/${game.gameId}): ${game.description}`,
+      );
     }
 
     const gameLines = body.split("\n").filter((line) => line.startsWith("- ["));

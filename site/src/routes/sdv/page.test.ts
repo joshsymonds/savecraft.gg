@@ -65,7 +65,14 @@ describe("Stardew Valley landing page", () => {
   it("quotes only module-data-verified gift and crop facts", () => {
     const all = JSON.stringify(content);
     // Sebastian's loved list, verbatim from data.go taste tables
-    for (const item of ["Frozen Tear", "Obsidian", "Void Egg", "Sashimi", "Pumpkin Soup", "Frog Egg"]) {
+    for (const item of [
+      "Frozen Tear",
+      "Obsidian",
+      "Void Egg",
+      "Sashimi",
+      "Pumpkin Soup",
+      "Frog Egg",
+    ]) {
       expect(all).toContain(item);
     }
     // Clay is on his hate list in the data; the demo leans on it

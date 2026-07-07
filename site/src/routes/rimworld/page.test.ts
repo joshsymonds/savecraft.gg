@@ -28,7 +28,11 @@ const mockGame = {
     { name: "Drug Economy & Addiction Analyzer", description: "drugs", requires_save: false },
     { name: "Colony Wealth & Raid Threat Estimator", description: "raids", requires_save: false },
     { name: "Gene Metabolism & Xenotype Builder", description: "genes", requires_save: false },
-    { name: "Research Tree & Crafting Chain Navigator", description: "research", requires_save: false },
+    {
+      name: "Research Tree & Crafting Chain Navigator",
+      description: "research",
+      requires_save: false,
+    },
   ],
 };
 
@@ -115,9 +119,9 @@ describe("RimWorld landing page", () => {
       "https://savecraft.gg/rimworld",
     );
     expect(document.head.querySelectorAll('meta[property="og:title"]')).toHaveLength(1);
-    expect(
-      document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
-    ).toBe("Savecraft -- RimWorld's Real Formulas for Your AI");
+    expect(document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content")).toBe(
+      "Savecraft -- RimWorld's Real Formulas for Your AI",
+    );
     const scripts = Array.from(
       document.head.querySelectorAll('script[type="application/ld+json"]'),
     ).map((s) => JSON.parse(s.textContent ?? "{}"));

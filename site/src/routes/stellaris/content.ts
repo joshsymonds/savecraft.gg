@@ -130,7 +130,8 @@ export const content: GamePageContent = {
       kind: "modes",
       eyebrow: "HOW YOU USE IT",
       title: "A chief of staff for the galaxy",
-      subtitle: "Audits, tech routes, and loadout lookups -- grounded in your save and the game's data.",
+      subtitle:
+        "Audits, tech routes, and loadout lookups -- grounded in your save and the game's data.",
       treatment: "plain",
       cards: [
         {
@@ -197,7 +198,7 @@ export const content: GamePageContent = {
         },
         {
           title: "Ask for the briefing",
-          desc: "\"How am I doing?\" runs the empire health audit. Tech routes, component options, civic ideas -- all grounded in your version's data.",
+          desc: '"How am I doing?" runs the empire health audit. Tech routes, component options, civic ideas -- all grounded in your version\'s data.',
         },
       ],
     },

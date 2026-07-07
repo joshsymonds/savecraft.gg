@@ -109,7 +109,7 @@ export const content: GamePageContent = {
               text: "Quite a lot! You'll need a good aluminum setup, plenty of turbo motors, and a strong power grid -- probably a few hundred megawatts. Plan for a large factory floor and work backwards from the components.",
             },
           ],
-          withoutCaption: "\"Probably a few hundred megawatts\" is off by more than a gigawatt.",
+          withoutCaption: '"Probably a few hundred megawatts" is off by more than a gigawatt.',
           with: [
             {
               role: "player",
@@ -195,7 +195,7 @@ export const content: GamePageContent = {
         },
         {
           title: "Plan out loud",
-          desc: "\"What does X per minute take?\" gets the full tree with machine counts and megawatts, staged however you want to build it.",
+          desc: '"What does X per minute take?" gets the full tree with machine counts and megawatts, staged however you want to build it.',
         },
       ],
     },

@@ -103,7 +103,8 @@ export const content: GamePageContent = {
               text: "Great season to push keys! Focus on the classics in the rotation: Mists of Tirna Scithe, De Other Side, and Halls of Atonement are all excellent for learning routes. Freehold is also a community favorite!",
             },
           ],
-          withoutCaption: "That's a rotation from years ago. Confidently wrong is worse than unsure.",
+          withoutCaption:
+            "That's a rotation from years ago. Confidently wrong is worse than unsure.",
           with: [
             {
               role: "player",
@@ -114,7 +115,8 @@ export const content: GamePageContent = {
               text: "Let me pull the current rotation rather than guess from memory -- season_info returns this season's actual Mythic+ pool and raid tier. From your profile, you've already timed 12s in two of them; I'd drill the ones where you don't have a timed run yet, starting with the Floodgate route.",
             },
           ],
-          withCaption: "The season module answers from live data, and your profile fills in the rest.",
+          withCaption:
+            "The season module answers from live data, and your profile fills in the rest.",
         },
       ],
     },
@@ -122,7 +124,8 @@ export const content: GamePageContent = {
       kind: "modes",
       eyebrow: "HOW YOU USE IT",
       title: "A raid-night companion that checks first",
-      subtitle: "Ratings from your profile, mechanics from the encounter data, gear flags from your gear.",
+      subtitle:
+        "Ratings from your profile, mechanics from the encounter data, gear flags from your gear.",
       treatment: "plain",
       cards: [
         {

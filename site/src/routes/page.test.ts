@@ -130,9 +130,9 @@ describe("Marketing page", () => {
     expect(document.head.querySelector('meta[property="og:url"]')?.getAttribute("content")).toBe(
       "https://savecraft.gg",
     );
-    expect(
-      document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
-    ).toBe("Savecraft -- Real game data for your AI assistant");
+    expect(document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content")).toBe(
+      "Savecraft -- Real game data for your AI assistant",
+    );
     expect(
       document.head.querySelector('meta[name="twitter:description"]')?.getAttribute("content"),
     ).not.toBeNull();

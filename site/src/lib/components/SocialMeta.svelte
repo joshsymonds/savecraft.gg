@@ -14,8 +14,7 @@
     description,
     url,
     type = "website",
-  }: { slug: string; title: string; description: string; url: string; type?: string } =
-    $props();
+  }: { slug: string; title: string; description: string; url: string; type?: string } = $props();
 
   const image = $derived(`https://savecraft.gg/og/${slug}.png`);
 </script>

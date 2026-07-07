@@ -103,7 +103,7 @@ export const content: GamePageContent = {
               text: "Like most colony sims, happiness comes from meeting needs -- food variety, housing quality, and entertainment. Keep everyone fed and sheltered and build some taverns; it works similarly to RimWorld's mood system.",
             },
           ],
-          withoutCaption: "\"Similar to RimWorld\" is how every wrong Songs of Syx answer starts.",
+          withoutCaption: '"Similar to RimWorld" is how every wrong Songs of Syx answer starts.',
           with: [
             {
               role: "player",

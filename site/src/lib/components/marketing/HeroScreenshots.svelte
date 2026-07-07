@@ -82,7 +82,13 @@
     <div class="stacked-frames">
       {#each frames as frame, i (i)}
         <figure class="frame frame-{i}">
-          <img src={frame.src} alt={frame.alt} width={frame.width} height={frame.height} loading={i === 0 ? "eager" : "lazy"} />
+          <img
+            src={frame.src}
+            alt={frame.alt}
+            width={frame.width}
+            height={frame.height}
+            loading={i === 0 ? "eager" : "lazy"}
+          />
           {#if frame.caption}
             <figcaption class="caption">{frame.caption}</figcaption>
           {/if}
@@ -93,7 +99,13 @@
     <div class="overlap-stage">
       {#each frames.slice(0, 3) as frame, i (i)}
         <figure class="frame overlap-frame overlap-frame-{i}">
-          <img src={frame.src} alt={frame.alt} width={frame.width} height={frame.height} loading={i === 1 ? "eager" : "lazy"} />
+          <img
+            src={frame.src}
+            alt={frame.alt}
+            width={frame.width}
+            height={frame.height}
+            loading={i === 1 ? "eager" : "lazy"}
+          />
           {#if frame.caption}
             <figcaption class="caption">{frame.caption}</figcaption>
           {/if}
@@ -113,7 +125,13 @@
     <div class="solo-peek-stage">
       {#if frames[1]}
         <figure class="frame solo-peek-left">
-          <img src={frames[1].src} alt={frames[1].alt} width={frames[1].width} height={frames[1].height} loading="lazy" />
+          <img
+            src={frames[1].src}
+            alt={frames[1].alt}
+            width={frames[1].width}
+            height={frames[1].height}
+            loading="lazy"
+          />
         </figure>
       {/if}
       <figure class="frame solo-peek-main">
@@ -124,7 +142,13 @@
       </figure>
       {#if frames[2]}
         <figure class="frame solo-peek-right">
-          <img src={frames[2].src} alt={frames[2].alt} width={frames[2].width} height={frames[2].height} loading="lazy" />
+          <img
+            src={frames[2].src}
+            alt={frames[2].alt}
+            width={frames[2].width}
+            height={frames[2].height}
+            loading="lazy"
+          />
         </figure>
       {/if}
     </div>
@@ -146,7 +170,13 @@
             class:active={i === carouselIndex}
             aria-hidden={i !== carouselIndex}
           >
-            <img src={frame.src} alt={frame.alt} width={frame.width} height={frame.height} loading={i === 0 ? "eager" : "lazy"} />
+            <img
+              src={frame.src}
+              alt={frame.alt}
+              width={frame.width}
+              height={frame.height}
+              loading={i === 0 ? "eager" : "lazy"}
+            />
             {#if frame.caption}
               <figcaption class="caption">{frame.caption}</figcaption>
             {/if}

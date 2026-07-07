@@ -111,7 +111,8 @@ export const content: GamePageContent = {
               text: "Bionic surgery is generally safe when you have a decent doctor and a clean room. If Anya's in stable condition, it should be fine to go ahead.",
             },
           ],
-          withoutCaption: "Generic reassurance. No formula, no numbers, no idea who your surgeon is.",
+          withoutCaption:
+            "Generic reassurance. No formula, no numbers, no idea who your surgeon is.",
           with: [
             {
               role: "player",
@@ -122,7 +123,8 @@ export const content: GamePageContent = {
               text: "Not tonight. With the surgeon you have awake right now, the game's formula lands at 12.6% -- a 0.35 surgeon factor, a 0.80 regular bed, and 0.60 herbal medicine, dragged down further by the operation's 1.50 difficulty. Wait for your real doctor and industrial medicine; the same operation becomes routine.",
             },
           ],
-          withCaption: "The exact CheckSurgeryFail factor chain, computed on your colony's actual options.",
+          withCaption:
+            "The exact CheckSurgeryFail factor chain, computed on your colony's actual options.",
         },
       ],
     },

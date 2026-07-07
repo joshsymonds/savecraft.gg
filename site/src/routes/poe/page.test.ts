@@ -100,9 +100,9 @@ describe("PoE landing page", () => {
     expect(document.head.querySelectorAll('meta[property="og:title"]')).toHaveLength(1);
     expect(document.head.querySelectorAll('meta[property="og:description"]')).toHaveLength(1);
     expect(document.head.querySelectorAll('meta[property="og:url"]')).toHaveLength(1);
-    expect(
-      document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
-    ).toBe("Savecraft -- Path of Building in Chat");
+    expect(document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content")).toBe(
+      "Savecraft -- Path of Building in Chat",
+    );
     expect(
       document.head.querySelector('meta[name="twitter:description"]')?.getAttribute("content"),
     ).not.toBeNull();

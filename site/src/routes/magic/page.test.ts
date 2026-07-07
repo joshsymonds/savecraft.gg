@@ -148,9 +148,9 @@ describe("Magic landing page reframe", () => {
     expect(document.head.querySelectorAll('meta[property="og:title"]')).toHaveLength(1);
     expect(document.head.querySelectorAll('meta[property="og:description"]')).toHaveLength(1);
     expect(document.head.querySelectorAll('meta[property="og:url"]')).toHaveLength(1);
-    expect(
-      document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
-    ).toBe("Savecraft -- Real MTG Data for Claude and ChatGPT");
+    expect(document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content")).toBe(
+      "Savecraft -- Real MTG Data for Claude and ChatGPT",
+    );
     expect(
       document.head.querySelector('meta[name="twitter:description"]')?.getAttribute("content"),
     ).not.toBeNull();

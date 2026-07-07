@@ -50,9 +50,9 @@ describe("SocialMeta", () => {
 
   it("emits twitter:title, twitter:description, and twitter:image from props", () => {
     render(SocialMeta, { props: baseProps });
-    expect(
-      document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
-    ).toBe(baseProps.title);
+    expect(document.head.querySelector('meta[name="twitter:title"]')?.getAttribute("content")).toBe(
+      baseProps.title,
+    );
     expect(
       document.head.querySelector('meta[name="twitter:description"]')?.getAttribute("content"),
     ).toBe(baseProps.description);
