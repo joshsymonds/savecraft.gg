@@ -21,7 +21,8 @@ DB="savecraft"
 ENV="production"
 
 d1() {
-    (cd "$WORKER_DIR" && npx wrangler d1 execute "$DB" --env "$ENV" --remote --json --command "$1" 2>/dev/null)
+    (cd "$WORKER_DIR" && npx wrangler d1 execute "$DB" --env "$ENV" --remote --json --command "$1" 2>/dev/null) \
+        | awk 'f||/^\[/{f=1;print}'
 }
 
 # Shared CTE: users whose first D1 appearance falls within the window
