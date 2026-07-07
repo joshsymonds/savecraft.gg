@@ -28,6 +28,7 @@ describe("OG card definitions", () => {
       "stellaris",
       "support",
       "terms",
+      "wow",
     ]);
   });
 

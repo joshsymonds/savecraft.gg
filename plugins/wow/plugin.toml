@@ -28,3 +28,23 @@ auth_provider = "battlenet"
 auth_flow = "oauth2_code"
 scopes = ["wow.profile", "openid"]
 regions = ["us", "eu", "kr", "tw"]
+
+[reference.modules.ability_lookup]
+name = "Ability Lookup"
+description = "Search WoW spells and abilities by name with class and spec filtering — verify an ability exists, which spec owns it, and what it actually does before your AI references it."
+requires_save = false
+
+[reference.modules.dungeon_guide]
+name = "Dungeon Guide"
+description = "Search dungeon and raid boss encounters by name, with each boss's abilities — accurate mechanics instead of misremembered ones."
+requires_save = false
+
+[reference.modules.gear_audit]
+name = "Gear Audit"
+description = "Audit your character's equipped gear for the obvious misses: absent enchants, empty gem sockets, item-level outliers. Flags oversights; doesn't compute stat weights or best-in-slot."
+requires_save = true
+
+[reference.modules.season_info]
+name = "Season Info"
+description = "The current season's Mythic+ dungeon rotation, raid tier, and season ID — so answers reference this season's content, not stale training data."
+requires_save = false

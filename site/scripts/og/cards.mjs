@@ -78,6 +78,12 @@ export const cards = [
     screenshot: "images/rimworld/surgery-low-success.png",
   },
   {
+    slug: "wow",
+    eyebrow: "SEASON-CURRENT, NOT STALE",
+    title: "World of Warcraft, current in Claude.",
+    screenshot: "images/wow/season-check-demo.png",
+  },
+  {
     slug: "docs",
     eyebrow: "HOW SAVECRAFT WORKS",
     title: "Documentation",
