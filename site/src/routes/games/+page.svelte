@@ -109,11 +109,7 @@
 
           <p class="card-description">
             {game.description}
-            {#if game.gameId === "magic"}
-              <a href="/magic" class="card-detail-link">See what your AI can do &rarr;</a>
-            {:else if game.gameId === "poe"}
-              <a href="/poe" class="card-detail-link">See what your AI can do &rarr;</a>
-            {/if}
+            <a href="/{game.gameId}" class="card-detail-link">See what your AI can do &rarr;</a>
           </p>
 
           {#if game.referenceModules.length > 0}

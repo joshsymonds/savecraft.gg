@@ -49,12 +49,15 @@ describe("Games listing module badges", () => {
 });
 
 describe("Games listing structure", () => {
-  it("renders a card per game and links migrated game pages", () => {
+  it("renders a card per game and links each to its landing page", () => {
     const second = { ...mockGame, gameId: "poe", name: "Path of Exile" };
-    const { container } = render(Page, { props: { data: { games: [mockGame, second] } } });
-    expect(container.querySelectorAll(".game-card")).toHaveLength(2);
-    expect(container.querySelector('a[href="/magic"]')).not.toBeNull();
-    expect(container.querySelector('a[href="/poe"]')).not.toBeNull();
+    const third = { ...mockGame, gameId: "rimworld", name: "RimWorld" };
+    const games = [mockGame, second, third];
+    const { container } = render(Page, { props: { data: { games } } });
+    expect(container.querySelectorAll(".game-card")).toHaveLength(games.length);
+    for (const game of games) {
+      expect(container.querySelector(`a[href="/${game.gameId}"]`)).not.toBeNull();
+    }
   });
 
   it("renders limitations when the manifest lists them", () => {
