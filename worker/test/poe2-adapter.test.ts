@@ -145,7 +145,7 @@ describe("PoE2 section mappers", () => {
   it("mapGear surfaces socket types and rune mods", () => {
     const s = mapGear(char);
     const items = s.data.items as Record<string, unknown>[];
-    expect(items.length).toBe(3);
+    expect(items.length).toBe(4);
 
     const weapon = items.find((it) => it.slot === "Weapon")!;
     expect(weapon).toBeTruthy();
@@ -171,6 +171,49 @@ describe("PoE2 section mappers", () => {
     const gloves = items.find((it) => it.slot === "Gloves")!;
     expect(gloves).toBeTruthy();
     expect((gloves.sockets as unknown[]).length).toBe(0);
+  });
+
+  it("mapGear surfaces desecrated/bonded/enchant/fractured/crafted/mutated mods for an item whose implicit/explicit arrays are empty", () => {
+    // Regression fixture: a production rare helmet ("Grinning Mask", Wrath
+    // Crown base) whose implicit/explicit arrays are empty but which
+    // carries mods in the previously-unread GGG fields.
+    const s = mapGear(char);
+    const items = s.data.items as Record<string, unknown>[];
+
+    const helm = items.find((it) => it.slot === "Helmet")!;
+    expect(helm).toBeTruthy();
+    expect(helm.name).toBe("Grinning Mask");
+    expect(helm.implicits).toEqual([]);
+    expect(helm.explicits).toEqual([]);
+    expect(helm.desecratedMods).toEqual([
+      "+1 to Level of all Minion Skills",
+      "Nearby Enemies have -9% to Chaos Resistance",
+    ]);
+    expect(helm.bondedMods).toEqual(["Bonded: +40% increased Spirit"]);
+    expect(helm.enchantMods).toEqual(["Grants Skill: Rejuvenation Totem"]);
+    expect(helm.fracturedMods).toEqual(["+62 to maximum Energy Shield"]);
+    expect(helm.craftedMods).toEqual(["+15% to Chaos Resistance"]);
+    expect(helm.mutatedMods).toEqual(["Vaal Unique: 30% increased Effect of Non-Damaging Ailments"]);
+  });
+
+  it("mapGear omits mod-array keys that are empty (only present when non-empty)", () => {
+    const s = mapGear(char);
+    const items = s.data.items as Record<string, unknown>[];
+
+    // The weapon has runeMods (existing precedent: always present, even
+    // empty) but no desecrated/bonded/enchant/fractured/crafted/mutated
+    // mods — those new keys must be omitted entirely, not emitted empty.
+    const weapon = items.find((it) => it.slot === "Weapon")!;
+    expect(weapon.runeMods).toEqual([
+      "+16 to Strength",
+      "Gain 5% of Physical Damage as Extra Lightning Damage",
+    ]);
+    expect(weapon).not.toHaveProperty("desecratedMods");
+    expect(weapon).not.toHaveProperty("bondedMods");
+    expect(weapon).not.toHaveProperty("enchantMods");
+    expect(weapon).not.toHaveProperty("fracturedMods");
+    expect(weapon).not.toHaveProperty("craftedMods");
+    expect(weapon).not.toHaveProperty("mutatedMods");
   });
 
   it("mapSkills surfaces gem/skill names from gemTabs + gemSockets", () => {
@@ -236,9 +279,18 @@ describe("PoE2 section mappers", () => {
     const s = mapPassives(char);
     expect(s.data.allocated).toBe(10); // passives.hashes.length
     expect(s.data.specialisations).toEqual({ set1: 3, set2: 2 });
-    // Raw node-id lists must NOT be surfaced verbatim.
-    expect(JSON.stringify(s.data)).not.toContain("2001");
-    expect(JSON.stringify(s.data)).not.toContain("1001");
+  });
+
+  it("mapPassives surfaces the allocated node hashes and per-specialisation hash arrays, not just counts", () => {
+    const s = mapPassives(char);
+    expect(s.data.hashes).toEqual([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010]);
+    expect(s.data.specialisationHashes).toEqual({
+      set1: [2001, 2002, 2003],
+      set2: [2101, 2102],
+    });
+    // Counts are still present alongside the hash arrays.
+    expect(s.data.allocated).toBe(10);
+    expect(s.data.specialisations).toEqual({ set1: 3, set2: 2 });
   });
 
   it("mapPassives description does not reference the nonexistent build_planner module", () => {

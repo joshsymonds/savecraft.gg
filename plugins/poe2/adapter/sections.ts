@@ -30,24 +30,42 @@ export function mapCharacterOverview(char: Poe2Character): GameStateSection {
 }
 
 export function mapGear(char: Poe2Character): GameStateSection {
-  const items = (char.equipment ?? []).map((item) => ({
-    slot: item.inventoryId ?? "",
-    name: item.name || item.typeLine || item.baseType || "",
-    base: item.baseType ?? item.typeLine ?? "",
-    rarity: item.rarity ?? "",
-    implicits: item.implicitMods ?? [],
-    explicits: item.explicitMods ?? [],
-    // PoE2-only: rune/jewel sockets on gear (distinct from the gem
-    // sockets on skill items, which live under `skills`/mapSkills).
-    sockets: (item.sockets ?? []).map((socket) => ({
-      type: socket.type ?? "",
-      item: socket.item ?? "",
-    })),
-    runeMods: item.runeMods ?? [],
-  }));
+  const items = (char.equipment ?? []).map((item) => {
+    // Provenance-distinct mod sources beyond implicit/explicit/rune —
+    // included only when non-empty, to keep gear lean for AI consumption
+    // (mirrors the level/quality convention in mapSkills below).
+    const desecratedMods = item.desecratedMods ?? [];
+    const bondedMods = item.bondedMods ?? [];
+    const enchantMods = item.enchantMods ?? [];
+    const fracturedMods = item.fracturedMods ?? [];
+    const craftedMods = item.craftedMods ?? [];
+    const mutatedMods = item.mutatedMods ?? [];
+    return {
+      slot: item.inventoryId ?? "",
+      name: item.name || item.typeLine || item.baseType || "",
+      base: item.baseType ?? item.typeLine ?? "",
+      rarity: item.rarity ?? "",
+      implicits: item.implicitMods ?? [],
+      explicits: item.explicitMods ?? [],
+      // PoE2-only: rune/jewel sockets on gear (distinct from the gem
+      // sockets on skill items, which live under `skills`/mapSkills).
+      sockets: (item.sockets ?? []).map((socket) => ({
+        type: socket.type ?? "",
+        item: socket.item ?? "",
+      })),
+      runeMods: item.runeMods ?? [],
+      ...(desecratedMods.length > 0 ? { desecratedMods } : {}),
+      ...(bondedMods.length > 0 ? { bondedMods } : {}),
+      ...(enchantMods.length > 0 ? { enchantMods } : {}),
+      ...(fracturedMods.length > 0 ? { fracturedMods } : {}),
+      ...(craftedMods.length > 0 ? { craftedMods } : {}),
+      ...(mutatedMods.length > 0 ? { mutatedMods } : {}),
+    };
+  });
   return {
     description:
-      "Equipped items by slot, with rune/jewel socket types, rune mods, and explicit mods.",
+      "Equipped items by slot, with rune/jewel socket types, and mods by provenance " +
+      "(implicit, explicit, rune, desecrated, bonded, enchant, fractured, crafted, mutated).",
     data: { items },
   };
 }
@@ -94,14 +112,20 @@ export function mapSkills(char: Poe2Character): GameStateSection {
 export function mapPassives(char: Poe2Character): GameStateSection {
   const p = char.passives;
   const specialisations: Record<string, number> = {};
+  const specialisationHashes: Record<string, number[]> = {};
   for (const [set, nodes] of Object.entries(p?.specialisations ?? {})) {
     specialisations[set] = nodes.length;
+    specialisationHashes[set] = nodes;
   }
   return {
-    description: "Passive tree summary: allocated node count and specialisation set sizes.",
+    description:
+      "Passive tree summary: allocated node hashes (and counts), plus specialisation set " +
+      "hashes (and sizes).",
     data: {
       allocated: p?.hashes?.length ?? 0,
+      hashes: p?.hashes ?? [],
       specialisations,
+      specialisationHashes,
       quest_stats: p?.quest_stats ?? {},
     },
   };

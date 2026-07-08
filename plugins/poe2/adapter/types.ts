@@ -83,6 +83,20 @@ export interface Poe2Item {
   sockets?: Poe2ItemSocket[];
   socketedItems?: Poe2Item[];
 
+  // Mod-array fields on GGG's shared Item type that PoE2 items can carry
+  // besides implicitMods/explicitMods. Provenance matters here (e.g. a
+  // desecrated mod is not an explicit mod) so these are kept as separate
+  // arrays rather than merged — see mapGear. Corroborated against GGG's
+  // developer changelog (https://www.pathofexile.com/developer/docs/reference,
+  // /developer/docs/changelog) and PathOfBuilding-PoE2's item importer
+  // (src/Classes/ImportTab.lua, dev branch), which reads all six of
+  // these off real captured PoE2 character payloads.
+  enchantMods?: string[];
+  fracturedMods?: string[];
+  craftedMods?: string[];
+  /** GGG docs: "PoE1: Foulborn Unique mods, PoE2: Vaal Unique mods". */
+  mutatedMods?: string[];
+
   // PoE2-only fields (absent on PoE1's Item shape).
   /** Skill-gem loadouts: name + pages, only present on `skills` entries. */
   gemTabs?: Poe2GemTab[];
@@ -92,7 +106,9 @@ export interface Poe2Item {
    *  (GGG's documented shape — no socket colours in PoE2). */
   gemSockets?: string[];
   runeMods?: string[];
+  /** GGG docs: "PoE2 only" (added to Item Dec 2025). */
   bondedMods?: string[];
+  /** GGG docs: "PoE2 only" (added to Item Aug 2025). */
   desecratedMods?: string[];
   sanctified?: boolean;
   doubleCorrupted?: boolean;

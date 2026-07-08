@@ -60,6 +60,26 @@
       "explicitMods": ["+22 to Accuracy Rating"],
       "frameType": 1,
       "inventoryId": "Gloves"
+    },
+    {
+      "id": "d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2",
+      "name": "Grinning Mask",
+      "typeLine": "Wrath Crown",
+      "baseType": "Wrath Crown",
+      "rarity": "Rare",
+      "ilvl": 81,
+      "identified": true,
+      "properties": [{ "name": "Energy Shield", "values": [["120", 1]], "displayMode": 0 }],
+      "implicitMods": [],
+      "explicitMods": [],
+      "frameType": 2,
+      "inventoryId": "Helmet",
+      "desecratedMods": ["+1 to Level of all Minion Skills", "Nearby Enemies have -9% to Chaos Resistance"],
+      "bondedMods": ["Bonded: +40% increased Spirit"],
+      "enchantMods": ["Grants Skill: Rejuvenation Totem"],
+      "fracturedMods": ["+62 to maximum Energy Shield"],
+      "craftedMods": ["+15% to Chaos Resistance"],
+      "mutatedMods": ["Vaal Unique: 30% increased Effect of Non-Damaging Ailments"]
     }
   ],
   "skills": [
