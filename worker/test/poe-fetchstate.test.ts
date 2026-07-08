@@ -184,7 +184,7 @@ describe("poeAdapter.fetchState", () => {
     await poeAdapter.fetchState(params(), { ...env, POB_URL: POB } as unknown as Env);
 
     const importCall = fetchSpy.mock.calls.find(([input]) => {
-      const url = typeof input === "string" ? input : input.toString();
+      const url = input instanceof Request ? input.url : String(input);
       return url.includes("/import");
     });
     expect(importCall).toBeDefined();
