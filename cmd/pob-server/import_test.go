@@ -7,8 +7,13 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // importTestServer builds a minimal Server sufficient for the /import
@@ -58,24 +63,74 @@ func TestHandleImportRejectsEmptyBody(t *testing.T) {
 	assertErrorEnvelope(t, recorder.Body.Bytes())
 }
 
-// /import needs an explicit game before any PoB process is touched — the
-// caller (poe or poe2 adapter) knows which one it is; pob-server can't
-// infer it from a GGG character object the way /resolve infers it from
-// build XML. Missing/invalid game is pure input validation, so it's
-// checked before the transform step and importTestServer (no pool)
-// suffices.
-func TestHandleImportRejectsMissingGame(t *testing.T) {
-	srv := importTestServer()
+// mockImportPool returns a Pool backed by a bash mock that answers
+// /import's two-message exchange in order: the "import" request (runImportLua)
+// gets a canned build XML, then calcAndRespond's "calc" request gets a
+// canned result carrying the given Life value — the same sentinel
+// technique pool2_routing_test.go uses to prove which pool actually
+// served a request.
+func mockImportPool(t *testing.T, game string, life int, logger *slog.Logger) *Pool {
+	t.Helper()
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+	importResp := `{"type":"result","xml":"<PathOfBuilding><Build level=\"1\"/></PathOfBuilding>"}`
+	calcResp := `{"type":"result","data":{"character":{"class":"Witch","level":1},` +
+		`"summary":{"Life":` + strconv.Itoa(life) + `},"section_index":[],"sections":{}}}`
+	mockScript := filepath.Join(t.TempDir(), "mock-import.sh")
+	script := "#!/bin/sh\nread line\necho '" + importResp + "'\nread line\necho '" + calcResp + "'\n"
+	if err := os.WriteFile(mockScript, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), game, logger)
+	t.Cleanup(pool.Shutdown)
+	return pool
+}
+
+// /import needs an explicit game before any PoB process is touched in the
+// common case — the caller (poe or poe2 adapter) knows which one it is;
+// pob-server can't infer it from a GGG character object the way /resolve
+// infers it from build XML. But pob.savecraft.gg fronts both the staging
+// and production workers, and the currently-deployed production worker
+// sends no game field — so a missing/empty game must default to poe1
+// (every pre-existing caller is poe1) rather than hard-fail, mirroring
+// detectBuildGameOrDefault's lenient/strict split in decode.go. This is
+// proven by routing, not just a non-error status code: a poe2 pool is
+// also configured, and the response's sentinel Life value must come from
+// the poe1 pool, not poe2.
+func TestHandleImportMissingGameDefaultsToPoE1Pool(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	poolPoE := mockImportPool(t, GamePoE, 1111, logger)
+	poolPoE2 := mockImportPool(t, GamePoE2, 2222, logger)
+
+	cache := NewBuildCache(10*time.Minute, 100)
+	defer cache.Shutdown()
+
+	srv := &Server{pool: poolPoE, pool2: poolPoE2, cache: cache, log: logger}
 
 	body := `{"character":{"name":"X","class":"Witch","level":1}}`
 	req := httptest.NewRequest(http.MethodPost, "/import", strings.NewReader(body))
 	recorder := httptest.NewRecorder()
 	srv.handleImport(recorder, req)
 
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", recorder.Code, recorder.Body.String())
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recorder.Code, recorder.Body.String())
 	}
-	assertErrorEnvelope(t, recorder.Body.Bytes())
+
+	var env struct {
+		Data struct {
+			Summary struct {
+				Life int `json:"Life"`
+			} `json:"summary"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode response: %v (body: %s)", err, recorder.Body.String())
+	}
+	if env.Data.Summary.Life != 1111 {
+		t.Fatalf("game-less import routed to wrong pool: Life=%d, want 1111 (poe1)", env.Data.Summary.Life)
+	}
 }
 
 func TestHandleImportRejectsInvalidGame(t *testing.T) {

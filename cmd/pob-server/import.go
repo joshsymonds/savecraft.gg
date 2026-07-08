@@ -69,6 +69,18 @@ func (srv *Server) handleImport(
 		return
 	}
 
+	// Missing/empty game defaults to poe1: pob.savecraft.gg fronts both
+	// the staging and production workers, and the currently-deployed
+	// production worker sends no game field on /import. Mirrors
+	// detectBuildGameOrDefault's lenient/strict split in decode.go —
+	// omitted input defaults instead of hard-failing, while an
+	// explicit-but-invalid game is still rejected below — so rebuilding
+	// pob-server doesn't have to be sequenced with a production worker
+	// release.
+	if req.Game == "" {
+		req.Game = GamePoE
+	}
+
 	getItems, getPassives, err := transformToImportJSON(req.Character, req.Game)
 	if err != nil {
 		srv.log.Error("import transform error", "err", err)
