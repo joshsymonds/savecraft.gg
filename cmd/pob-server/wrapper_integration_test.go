@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -196,5 +197,138 @@ func TestWrapperLuaCharacterIncludesBanditAndPantheon(t *testing.T) {
 		if _, ok := parsed.Data.Character[key]; !ok {
 			t.Errorf("PoE1 character object missing %q key; got keys: %v", key, parsed.Data.Character)
 		}
+	}
+}
+
+// TestPoE1ImportRealCharacterProducesDPS drives /import against the REAL
+// PoE1 GGG capture (testdata/ggg_character_real_chalith.json — a level 90
+// Ascendant, live-captured via the OAuth adapter; see testdata/README.md)
+// and asserts the resulting calc summary carries a nonzero CombinedDPS
+// and that exactly one socket group is marked as the main group.
+//
+// Companion to TestPoE2ImportRealCharacterProducesDPS
+// (wrapper_poe2_integration_test.go): wrapper.lua's handleImport now
+// always overrides build.mainSocketGroup via pickMainSocketGroup after
+// loadBuildFromJSON — shared code, BOTH games. The PoE2 sibling proves
+// the new selection fixes the tree-granted-skill bug there; this test
+// proves the same selection does not regress a normal PoE1 import,
+// which previously relied on PoB's own GuessMainSocketGroup landing on
+// a damage skill.
+func TestPoE1ImportRealCharacterProducesDPS(t *testing.T) {
+	luajitPath, err := exec.LookPath("luajit")
+	if err != nil {
+		t.Skip("luajit not installed — integration test skipped")
+	}
+	pobDir := pobSourceDir(t)
+	wrapperPath := filepath.Join(filepath.Dir(pobDir), "..", "..", "cmd", "pob-server", "wrapper.lua")
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, luajitPath, wrapperPath, pobDir, GamePoE, logger)
+	defer pool.Shutdown()
+
+	proc, err := pool.Acquire()
+	if err != nil {
+		t.Skipf("cannot acquire LuaJIT process (PoB source may be incomplete): %v", err)
+	}
+	defer pool.Release(proc)
+
+	fixture, err := os.ReadFile(filepath.Join("testdata", "ggg_character_real_chalith.json"))
+	if err != nil {
+		t.Fatalf("read poe1 character fixture: %v", err)
+	}
+
+	getItems, getPassives, err := transformToImportJSON(json.RawMessage(fixture), GamePoE)
+	if err != nil {
+		t.Fatalf("transformToImportJSON: %v", err)
+	}
+
+	importResp, err := proc.Send(importLuaRequest{
+		Type:                 "import",
+		GetItemsJSON:         string(getItems),
+		GetPassiveSkillsJSON: string(getPassives),
+		League:               "Standard",
+	})
+	if err != nil {
+		t.Fatalf("import send failed: %v", err)
+	}
+	var importParsed struct {
+		Type    string `json:"type"`
+		XML     string `json:"xml"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(importResp, &importParsed); err != nil {
+		t.Fatalf("import response not JSON: %v (raw: %s)", err, importResp)
+	}
+	if importParsed.Type != "result" {
+		t.Fatalf("expected import type=result, got type=%q message=%q", importParsed.Type, importParsed.Message)
+	}
+	if importParsed.XML == "" {
+		t.Fatal("import produced empty XML")
+	}
+
+	calcResp, err := proc.Send(map[string]any{
+		"type": "calc",
+		"xml":  importParsed.XML,
+	})
+	if err != nil {
+		t.Fatalf("calc send failed: %v", err)
+	}
+	var calcParsed struct {
+		Type string `json:"type"`
+		Data struct {
+			Character struct {
+				Class      string `json:"class"`
+				Ascendancy string `json:"ascendancy"`
+				Level      int    `json:"level"`
+			} `json:"character"`
+			Summary  map[string]any `json:"summary"`
+			Sections struct {
+				SocketGroups []struct {
+					Label       string           `json:"label"`
+					IsMainGroup bool             `json:"isMainGroup"`
+					Gems        []map[string]any `json:"gems"`
+				} `json:"socketGroups"`
+			} `json:"sections"`
+		} `json:"data"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(calcResp, &calcParsed); err != nil {
+		t.Fatalf("calc response not JSON: %v (raw: %s)", err, calcResp)
+	}
+	if calcParsed.Type != "result" {
+		t.Fatalf("expected calc type=result, got type=%q message=%q", calcParsed.Type, calcParsed.Message)
+	}
+
+	if calcParsed.Data.Character.Ascendancy != "Ascendant" {
+		t.Errorf("character.ascendancy = %q, want Ascendant", calcParsed.Data.Character.Ascendancy)
+	}
+	if calcParsed.Data.Character.Level != 90 {
+		t.Errorf("character.level = %d, want 90 (fixture level)", calcParsed.Data.Character.Level)
+	}
+
+	// Exactly one socket group must be flagged as the main group —
+	// pickMainSocketGroup always assigns build.mainSocketGroup, and
+	// serializeSocketGroups marks the group at that index.
+	mainGroups := 0
+	for _, g := range calcParsed.Data.Sections.SocketGroups {
+		if g.IsMainGroup {
+			mainGroups++
+			if len(g.Gems) == 0 {
+				t.Errorf("main socket group %q has no gems", g.Label)
+			}
+		}
+	}
+	if mainGroups != 1 {
+		t.Errorf("socket groups flagged as main = %d, want exactly 1 (groups: %d)",
+			mainGroups, len(calcParsed.Data.Sections.SocketGroups))
+	}
+
+	combinedDPS, ok := calcParsed.Data.Summary["CombinedDPS"].(float64)
+	if !ok {
+		t.Fatalf("expected numeric summary.CombinedDPS, got %T (%v); summary=%+v",
+			calcParsed.Data.Summary["CombinedDPS"], calcParsed.Data.Summary["CombinedDPS"], calcParsed.Data.Summary)
+	}
+	if combinedDPS <= 0 {
+		t.Errorf("summary.CombinedDPS = %v, want > 0 — a level 90 character with real gear should deal damage", combinedDPS)
 	}
 }
