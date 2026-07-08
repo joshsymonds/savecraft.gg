@@ -1,0 +1,215 @@
+{
+  "nodes": {
+    "18684": {
+      "id": "passive_keystone_avatar_of_fire",
+      "skill": 18684,
+      "name": "Avatar of Fire",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneAvatarOfFire.png",
+      "isKeystone": true,
+      "stats": [
+        "75% of Damage Converted to Fire Damage\nDeal no Non-Fire Damage"
+      ],
+      "flavourText": [
+        "\"In my dreams I see a great warrior, his skin scorched black, his fists aflame.\""
+      ],
+      "group": 137,
+      "orbit": 0,
+      "orbitIndex": 0,
+      "x": -10198.3,
+      "y": 3732.13,
+      "out": [],
+      "in": [
+        "27296"
+      ],
+      "edges": [
+        430
+      ]
+    },
+    "58058": {
+      "id": "oracle_bow_mastery1",
+      "skill": 58058,
+      "name": "Bow Mastery",
+      "icon": "Art/2DArt/SkillIcons/passives/MasteryGroupBow.png",
+      "isMastery": true,
+      "activeEffectImage": "Art/2DArt/UIImages/InGame/PassiveMastery/MasteryBackgroundGraphic/MasteryBowPattern.png",
+      "unlockConstraint": {
+        "nodes": [
+          5571
+        ],
+        "ascendancy": "Druid1"
+      },
+      "stats": [],
+      "group": 86,
+      "orbit": 0,
+      "orbitIndex": 0,
+      "x": -12135.7,
+      "y": -1230.15,
+      "out": [],
+      "in": [
+        "17894"
+      ],
+      "edges": [
+        214
+      ]
+    },
+    "25092": {
+      "id": "AscendancyDruid1Small7",
+      "skill": 25092,
+      "name": "Critical Damage Bonus on You",
+      "icon": "Art/2DArt/SkillIcons/passives/Oracle/OracleNode.png",
+      "ascendancyId": "Druid1",
+      "stats": [
+        "[HitDamage|Hits] against you have 12% reduced [CriticalDamageBonus|Critical Damage Bonus]"
+      ],
+      "group": 2,
+      "orbit": 0,
+      "orbitIndex": 0,
+      "x": -22257.9,
+      "y": -2725.84,
+      "out": [
+        "34313"
+      ],
+      "in": [
+        "42761"
+      ],
+      "edges": [
+        10,
+        12
+      ]
+    },
+    "41311": {
+      "id": null,
+      "skill": 41311,
+      "name": "",
+      "icon": "",
+      "stats": [],
+      "ascendancyId": "Templar1",
+      "group": 3,
+      "orbit": 6,
+      "orbitIndex": 48,
+      "x": -22983.6,
+      "y": -6094,
+      "out": [
+        "63633"
+      ],
+      "in": [
+        "44889"
+      ],
+      "edges": [
+        16,
+        13
+      ]
+    },
+    "47175": {
+      "id": "marauder594",
+      "skill": 47175,
+      "name": "MARAUDER",
+      "icon": "Art/2DArt/SkillIcons/passives/blankStr.png",
+      "stats": [],
+      "classStartIndex": [
+        0,
+        6
+      ],
+      "group": 746,
+      "orbit": 0,
+      "orbitIndex": 0,
+      "x": -1271.19,
+      "y": 733.095,
+      "out": [
+        "16732",
+        "51916",
+        "54579",
+        "5852",
+        "33812",
+        "32534",
+        "3936",
+        "38646"
+      ],
+      "in": [],
+      "edges": [
+        1,
+        2815,
+        2816,
+        2817,
+        2818,
+        2819,
+        2820,
+        2821,
+        2822
+      ]
+    },
+    "root": {
+      "group": 0,
+      "orbit": 0,
+      "orbitIndex": 0,
+      "out": [
+        "50459",
+        "47175",
+        "50986",
+        "61525",
+        "54447",
+        "44683"
+      ],
+      "in": [],
+      "edges": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "17894": {
+      "id": "oracle_bow_movement9",
+      "skill": 17894,
+      "name": "Her Final Bite",
+      "icon": "Art/2DArt/SkillIcons/passives/BowDamage.png",
+      "isNotable": true,
+      "unlockConstraint": {
+        "nodes": [
+          5571
+        ],
+        "ascendancy": "Druid1"
+      },
+      "stats": [
+        "20% increased Physical Damage with Bows",
+        "[Bow|Bow] [Attack|Attacks] have [CullingStrike|Culling Strike]"
+      ],
+      "group": 86,
+      "orbit": 4,
+      "orbitIndex": 42,
+      "x": -12379.7,
+      "y": -807.525,
+      "out": [
+        "58058"
+      ],
+      "in": [
+        "60708"
+      ],
+      "edges": [
+        207,
+        214
+      ]
+    }
+  },
+  "classes": [
+    {
+      "name": "Druid",
+      "ascendancies": [
+        {
+          "id": "Druid1",
+          "name": "Oracle"
+        },
+        {
+          "id": "Druid2",
+          "name": "Shaman"
+        },
+        {
+          "id": "Druid3",
+          "name": null
+        }
+      ]
+    }
+  ]
+}

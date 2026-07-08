@@ -59,6 +59,8 @@ export const CLEANUP_TABLES = [
   "poe_gems",
   "poe_passive_nodes_fts",
   "poe_passive_nodes",
+  "poe2_passive_nodes_fts",
+  "poe2_passive_nodes",
   "poe_base_items_fts",
   "poe_base_items",
   "poe_stat_translations",

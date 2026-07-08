@@ -765,6 +765,20 @@ const statements = [
     pob_xml TEXT NOT NULL,
     imported_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  // migration 0061 — PoE2 passive tree nodes (GGG poe2-skilltree-export)
+  `CREATE TABLE IF NOT EXISTS poe2_passive_nodes (
+    hash INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    is_notable INTEGER NOT NULL DEFAULT 0,
+    is_keystone INTEGER NOT NULL DEFAULT 0,
+    is_mastery INTEGER NOT NULL DEFAULT 0,
+    ascendancy_name TEXT,
+    stats TEXT NOT NULL DEFAULT '[]'
+  )`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS poe2_passive_nodes_fts USING fts5(
+    hash UNINDEXED, name, stats, ascendancy_name,
+    tokenize='porter unicode61'
+  )`,
 ];
 
 for (const sql of statements) {
