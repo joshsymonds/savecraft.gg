@@ -135,3 +135,66 @@ func TestWrapperLuaSetItemPcallGuardsAgainstMalformedText(t *testing.T) {
 		t.Fatalf("subprocess died after malformed set_item (pcall failed to contain): %v", err)
 	}
 }
+
+// TestWrapperLuaCharacterIncludesBanditAndPantheon verifies that a PoE1
+// build's serialized character object still carries the bandit and
+// pantheon fields — PoE1 has both mechanics, so serializeCharacter
+// (wrapper.lua) must keep emitting them unconditionally for this game.
+// Companion to TestPoE2CharacterExcludesBanditAndPantheon, which
+// verifies the opposite for PoE2 (neither mechanic exists there).
+func TestWrapperLuaCharacterIncludesBanditAndPantheon(t *testing.T) {
+	luajitPath, err := exec.LookPath("luajit")
+	if err != nil {
+		t.Skip("luajit not installed — integration test skipped")
+	}
+	pobDir := pobSourceDir(t)
+	wrapperPath := filepath.Join(filepath.Dir(pobDir), "..", "..", "cmd", "pob-server", "wrapper.lua")
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, luajitPath, wrapperPath, pobDir, GamePoE, logger)
+	defer pool.Shutdown()
+
+	minimalXML := `<PathOfBuilding>
+<Build level="1" targetVersion="3_0" className="Scion" ascendClassName="None">
+</Build>
+<Skills />
+<Tree><Spec /></Tree>
+<Items />
+<Notes />
+<Config />
+<TreeView />
+</PathOfBuilding>`
+
+	proc, err := pool.Acquire()
+	if err != nil {
+		t.Skipf("cannot acquire LuaJIT process (PoB source may be incomplete): %v", err)
+	}
+	defer pool.Release(proc)
+
+	rawResp, err := proc.Send(map[string]any{
+		"type": "calc",
+		"xml":  minimalXML,
+	})
+	if err != nil {
+		t.Fatalf("process send failed: %v", err)
+	}
+	var parsed struct {
+		Type string `json:"type"`
+		Data struct {
+			Character map[string]any `json:"character"`
+		} `json:"data"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rawResp, &parsed); err != nil {
+		t.Fatalf("response not JSON: %v (raw: %s)", err, rawResp)
+	}
+	if parsed.Type != "result" {
+		t.Fatalf("expected type=result, got type=%q message=%q", parsed.Type, parsed.Message)
+	}
+
+	for _, key := range []string{"bandit", "pantheon_major", "pantheon_minor"} {
+		if _, ok := parsed.Data.Character[key]; !ok {
+			t.Errorf("PoE1 character object missing %q key; got keys: %v", key, parsed.Data.Character)
+		}
+	}
+}

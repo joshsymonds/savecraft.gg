@@ -269,3 +269,42 @@ func TestPoE2ImportProducesBuild(t *testing.T) {
 		t.Errorf("summary.Life = %v, want > 0", life)
 	}
 }
+
+// TestPoE2CharacterExcludesBanditAndPantheon verifies that a PoE2
+// build's serialized character object carries no bandit or pantheon
+// fields — neither mechanic exists in PoE2, and the poe2 build_planner
+// module description promises their absence. Companion to
+// TestWrapperLuaCharacterIncludesBanditAndPantheon (wrapper_integration_test.go),
+// which verifies PoE1 still emits them.
+func TestPoE2CharacterExcludesBanditAndPantheon(t *testing.T) {
+	pool, proc := newPoE2Wrapper(t)
+	defer pool.Shutdown()
+	defer pool.Release(proc)
+
+	rawResp, err := proc.Send(map[string]any{
+		"type": "calc",
+		"xml":  minimalPoE2BuildXML,
+	})
+	if err != nil {
+		t.Fatalf("process send failed: %v", err)
+	}
+	var parsed struct {
+		Type string `json:"type"`
+		Data struct {
+			Character map[string]any `json:"character"`
+		} `json:"data"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rawResp, &parsed); err != nil {
+		t.Fatalf("response not JSON: %v (raw: %s)", err, rawResp)
+	}
+	if parsed.Type != "result" {
+		t.Fatalf("expected type=result, got type=%q message=%q", parsed.Type, parsed.Message)
+	}
+
+	for _, key := range []string{"bandit", "pantheon_major", "pantheon_minor"} {
+		if _, ok := parsed.Data.Character[key]; ok {
+			t.Errorf("PoE2 character object should not have %q key; got keys: %v", key, parsed.Data.Character)
+		}
+	}
+}

@@ -346,18 +346,24 @@ local configCharacterKeys = {
 }
 
 -- Serialize the build's character info with human-readable labels.
+-- Bandit and pantheon are PoE1-only mechanics — PoE2 has neither, so
+-- those keys are omitted entirely for pobGame == "poe2" rather than
+-- emitted with a meaningless "None" value.
 local function serializeCharacter(build)
-	local banditRaw = (build.configTab and build.configTab.input.bandit) or build.bandit or "None"
-	local majorRaw = (build.configTab and build.configTab.input.pantheonMajorGod) or build.pantheonMajorGod or "None"
-	local minorRaw = (build.configTab and build.configTab.input.pantheonMinorGod) or build.pantheonMinorGod or "None"
-	return {
+	local character = {
 		class = build.spec.curClassName,
 		ascendancy = build.spec.curAscendClassName,
 		level = build.characterLevel,
-		bandit = banditLabels[banditRaw] or banditRaw,
-		pantheon_major = pantheonMajorLabels[majorRaw] or majorRaw,
-		pantheon_minor = pantheonMinorLabels[minorRaw] or minorRaw,
 	}
+	if pobGame ~= "poe2" then
+		local banditRaw = (build.configTab and build.configTab.input.bandit) or build.bandit or "None"
+		local majorRaw = (build.configTab and build.configTab.input.pantheonMajorGod) or build.pantheonMajorGod or "None"
+		local minorRaw = (build.configTab and build.configTab.input.pantheonMinorGod) or build.pantheonMinorGod or "None"
+		character.bandit = banditLabels[banditRaw] or banditRaw
+		character.pantheon_major = pantheonMajorLabels[majorRaw] or majorRaw
+		character.pantheon_minor = pantheonMinorLabels[minorRaw] or minorRaw
+	end
+	return character
 end
 
 -- Serialize all non-default configTab inputs (excluding character keys).
