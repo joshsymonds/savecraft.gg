@@ -24,8 +24,12 @@ function stripAnsi(s) {
  * suite; a single shard going past 180s means it's wedged (DO leak, stuck
  * matcher, infinite loop) rather than legitimately slow. SIGTERM at this
  * mark prevents one wedged shard from hanging `npm test` indefinitely.
+ *
+ * Overridable via the SHARD_TIMEOUT_MS env var for loaded dev machines
+ * (parallel agents/sessions make shards legitimately slow); CI keeps the
+ * strict default.
  */
-const SHARD_TIMEOUT_MS = 180_000;
+const SHARD_TIMEOUT_MS = Number(process.env.SHARD_TIMEOUT_MS) || 180_000;
 
 /** @param {number} index @param {number} total */
 function runShard(index, total) {
