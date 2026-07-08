@@ -193,7 +193,9 @@ describe("PoE2 section mappers", () => {
     expect(helm.enchantMods).toEqual(["Grants Skill: Rejuvenation Totem"]);
     expect(helm.fracturedMods).toEqual(["+62 to maximum Energy Shield"]);
     expect(helm.craftedMods).toEqual(["+15% to Chaos Resistance"]);
-    expect(helm.mutatedMods).toEqual(["Vaal Unique: 30% increased Effect of Non-Damaging Ailments"]);
+    expect(helm.mutatedMods).toEqual([
+      "Vaal Unique: 30% increased Effect of Non-Damaging Ailments",
+    ]);
   });
 
   it("mapGear omits mod-array keys that are empty (only present when non-empty)", () => {

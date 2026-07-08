@@ -160,7 +160,7 @@ describe("poeAdapter.fetchState", () => {
     expect(JSON.stringify(state.sections)).not.toContain("<PathOfBuilding>");
   });
 
-  it("sends game:\"poe\" in the pob-server /import request body", async () => {
+  it('sends game:"poe" in the pob-server /import request body', async () => {
     mockGgg();
     mockFetch
       .get(POB)
