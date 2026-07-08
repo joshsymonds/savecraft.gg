@@ -100,6 +100,69 @@ func TestHealthEndpoint(t *testing.T) {
 	}
 }
 
+// TestHealthEndpointOmitsPool2WhenNotConfigured: a server with no poe2
+// pool wired up (the default dev/test shape) must not report a pool2
+// key at all — its absence is how a caller distinguishes "poe2
+// disabled" from "poe2 configured but idle".
+func TestHealthEndpointOmitsPool2WhenNotConfigured(t *testing.T) {
+	srv := &Server{
+		pool: newTestPool(4, 5*time.Minute),
+		cache: &BuildCache{
+			builds:  make(map[string]cachedBuild),
+			ttl:     10 * time.Minute,
+			nowFunc: time.Now,
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	recorder := httptest.NewRecorder()
+	srv.handleHealth(recorder, req)
+
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
+		t.Fatalf("decode response: %v (body: %s)", err, recorder.Body.String())
+	}
+	if _, ok := decoded["pool2"]; ok {
+		t.Errorf("expected no pool2 key without a configured poe2 pool; body: %s", recorder.Body.String())
+	}
+}
+
+// TestHealthEndpointIncludesPool2WhenConfigured: with a poe2 pool
+// wired up, /health reports its idle/busy/max stats under a separate
+// pool2 key alongside the existing (poe1) pool key.
+func TestHealthEndpointIncludesPool2WhenConfigured(t *testing.T) {
+	srv := &Server{
+		pool:  newTestPool(4, 5*time.Minute),
+		pool2: newTestPool(2, 5*time.Minute),
+		cache: &BuildCache{
+			builds:  make(map[string]cachedBuild),
+			ttl:     10 * time.Minute,
+			nowFunc: time.Now,
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	recorder := httptest.NewRecorder()
+	srv.handleHealth(recorder, req)
+
+	var decoded struct {
+		Pool2 *struct {
+			Idle int `json:"idle"`
+			Busy int `json:"busy"`
+			Max  int `json:"max"`
+		} `json:"pool2"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
+		t.Fatalf("decode response: %v (body: %s)", err, recorder.Body.String())
+	}
+	if decoded.Pool2 == nil {
+		t.Fatalf("expected pool2 key when poe2 pool is configured; body: %s", recorder.Body.String())
+	}
+	if decoded.Pool2.Idle != 0 || decoded.Pool2.Busy != 0 || decoded.Pool2.Max != 2 {
+		t.Errorf("pool2 stats = %+v, want {idle:0 busy:0 max:2}", decoded.Pool2)
+	}
+}
+
 func TestCalcRejectsGet(t *testing.T) {
 	srv := &Server{}
 
@@ -150,7 +213,7 @@ func TestCalcResponseShape(t *testing.T) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), GamePoE, logger)
 	defer pool.Shutdown()
 
 	cache := &BuildCache{
@@ -282,7 +345,7 @@ func TestGetBuildReturnsXML(t *testing.T) {
 
 	xml := "<PathOfBuilding><Build level=\"90\"/></PathOfBuilding>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, `{"summary":{},"section_index":[],"sections":{}}`, "", "")
+	_ = srv.cache.store.Put(id, xml, `{"summary":{},"section_index":[],"sections":{}}`, "", "", GamePoE)
 
 	req := httptest.NewRequest(http.MethodGet, "/build/"+id, nil)
 	rec := httptest.NewRecorder()
@@ -304,7 +367,7 @@ func TestGetBuildReturnsBuildCode(t *testing.T) {
 
 	xml := "<PathOfBuilding><Build level=\"90\"/></PathOfBuilding>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, `{"summary":{},"section_index":[],"sections":{}}`, "", "")
+	_ = srv.cache.store.Put(id, xml, `{"summary":{},"section_index":[],"sections":{}}`, "", "", GamePoE)
 
 	req := httptest.NewRequest(http.MethodGet, "/build/"+id, nil)
 	req.Header.Set("Accept", "application/x-pob-code")
@@ -346,7 +409,7 @@ func TestGetBuildSummaryReturnsJSON(t *testing.T) {
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
 	summary := `{"character":{"class":"Witch"},"summary":{"Life":6728},"section_index":[],"sections":{}}`
-	_ = srv.cache.store.Put(id, xml, summary, "", "")
+	_ = srv.cache.store.Put(id, xml, summary, "", "", GamePoE)
 
 	req := httptest.NewRequest(
 		http.MethodGet, "/build/"+id+"/summary", nil,
@@ -479,7 +542,7 @@ func TestSummaryWithoutSectionsParam(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, storedSummary, "", "")
+	_ = srv.cache.store.Put(id, xml, storedSummary, "", "", GamePoE)
 
 	req := httptest.NewRequest(http.MethodGet, "/build/"+id+"/summary", nil)
 	rec := httptest.NewRecorder()
@@ -517,7 +580,7 @@ func TestSummaryWithSectionsParam(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, storedSummary, "", "")
+	_ = srv.cache.store.Put(id, xml, storedSummary, "", "", GamePoE)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -577,7 +640,7 @@ func TestSummaryWithUnknownSections(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, storedSummary, "", "")
+	_ = srv.cache.store.Put(id, xml, storedSummary, "", "", GamePoE)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -624,7 +687,7 @@ func TestCalcWithSectionsParam(t *testing.T) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), GamePoE, logger)
 	defer pool.Shutdown()
 
 	cache := &BuildCache{
@@ -691,7 +754,7 @@ func TestModifyWithSectionsParam(t *testing.T) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), GamePoE, logger)
 	defer pool.Shutdown()
 
 	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
@@ -714,7 +777,7 @@ func TestModifyWithSectionsParam(t *testing.T) {
 	// First, create a build so we have a buildId
 	xml := "<PathOfBuilding/>"
 	buildID := cache.Put(xml)
-	_ = store.Put(buildID, xml, `{}`, "", "")
+	_ = store.Put(buildID, xml, `{}`, "", "", GamePoE)
 
 	body := `{"buildId":"` + buildID + `","operations":[{"op":"set_level","level":95}]}`
 	req := httptest.NewRequest(
@@ -757,7 +820,7 @@ func TestResolveCachedWithSectionsParam(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, storedSummary, "https://pob.savecraft.gg/"+id, "")
+	_ = srv.cache.store.Put(id, xml, storedSummary, "https://pob.savecraft.gg/"+id, "", GamePoE)
 
 	// Use the new flat taxonomy: defense aggregates the old defense +
 	// resistances + ehp + recovery + minion_defense. Requesting just

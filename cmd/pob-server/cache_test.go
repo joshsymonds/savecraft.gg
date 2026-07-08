@@ -123,7 +123,7 @@ func TestBuildCacheGetReadThrough(t *testing.T) {
 	// Put directly into store, bypassing memory cache
 	xml := "<PathOfBuilding><Build/></PathOfBuilding>"
 	id := contentHash(xml)
-	if err := store.Put(id, xml, "{}", "", ""); err != nil {
+	if err := store.Put(id, xml, "{}", "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 

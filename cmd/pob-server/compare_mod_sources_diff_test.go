@@ -203,7 +203,7 @@ func TestCompareModSourcesDiffN3(t *testing.T) {
 	idB := srv.cache.Put("<B/>")
 	idC := srv.cache.Put("<C/>")
 	for _, id := range []string{idA, idB, idC} {
-		_ = srv.cache.store.Put(id, "<x/>", "", "", "")
+		_ = srv.cache.store.Put(id, "<x/>", "", "", "", GamePoE)
 	}
 
 	body := `{"builds":["` + idA + `","` + idB + `","` + idC + `"],"modSources":["Life"]}`

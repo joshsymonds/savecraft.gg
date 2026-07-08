@@ -162,7 +162,7 @@ async function attachPobBuild(
         "Content-Type": "application/json",
         ...(env.POB_API_KEY ? { Authorization: `Bearer ${env.POB_API_KEY}` } : {}),
       },
-      body: JSON.stringify({ character }),
+      body: JSON.stringify({ character, game: "poe" }),
       signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) {

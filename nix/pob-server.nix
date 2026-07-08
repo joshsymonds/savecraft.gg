@@ -8,6 +8,7 @@
 
   # Shared with devenv.nix so dev/CI/prod can never drift.
   pobSrc = import ./pob-source.nix {inherit pkgs;};
+  pob2Src = import ./pob2-source.nix {inherit pkgs;};
 in {
   options.services.savecraftPobServer = {
     enable = lib.mkEnableOption "PoB calc server (headless Path of Building via LuaJIT)";
@@ -33,6 +34,20 @@ in {
       type = lib.types.int;
       default = 8;
       description = "Maximum number of concurrent LuaJIT PoB processes.";
+    };
+
+    poe2Enable = lib.mkEnableOption "the PoE2 (Path of Building 2) process pool, in addition to PoE1";
+
+    pool2Size = lib.mkOption {
+      type = lib.types.int;
+      default = 4;
+      description = ''
+        Maximum number of concurrent PoE2 LuaJIT PoB processes. Each LuaJIT
+        process (either game) peaks around 145MB resident — size poolSize +
+        pool2Size against the host's available memory budget, not just this
+        option in isolation. Defaults lower than poolSize since PoE2 support
+        is newer and lower-traffic at launch; raise as PoE2 usage grows.
+      '';
     };
 
     idleTimeout = lib.mkOption {
@@ -93,6 +108,8 @@ in {
               -port ${toString cfg.port} \
               -pool-size ${toString cfg.poolSize} \
               -idle-timeout ${cfg.idleTimeout} \
+              ${lib.optionalString cfg.poe2Enable
+              "-pob2-dir ${pob2Src}/src -pool2-size ${toString cfg.pool2Size}"} \
               ${lib.optionalString (cfg.dbPath != "") "-db-path ${lib.escapeShellArg cfg.dbPath}"}
           '';
         in "${pkgs.bash}/bin/bash ${runScript}";
@@ -113,9 +130,9 @@ in {
         NoNewPrivileges = true;
         ProtectHome = true;
         ProtectSystem = "strict";
-        ReadOnlyPaths = [
-          "${pobSrc}"
-        ];
+        ReadOnlyPaths =
+          ["${pobSrc}"]
+          ++ lib.optional cfg.poe2Enable "${pob2Src}";
         ReadWritePaths = ["/var/lib/pob-server"];
         PrivateDevices = true;
         RestrictRealtime = true;

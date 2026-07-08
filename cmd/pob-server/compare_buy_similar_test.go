@@ -345,7 +345,7 @@ func TestCompareBuySimilarErroredBuildExcluded(t *testing.T) {
 	srv.cache.store = newInMemoryStoreForTest(t)
 
 	idA := srv.cache.Put("<A/>")
-	_ = srv.cache.store.Put(idA, "<A/>", "", "", "")
+	_ = srv.cache.store.Put(idA, "<A/>", "", "", "", GamePoE)
 
 	// idB intentionally absent → errored slot.
 	body := `{"builds":["` + idA + `","00000000000000000000000000000000"],"buySimilar":true}`

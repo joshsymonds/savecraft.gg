@@ -421,6 +421,11 @@ type compareBuildEntry struct {
 	itemsBySlot    map[string]gearItemSummary
 	socketGroups   []socketGroupSummary
 	config         map[string]any
+	// game is the build's detected game ("poe" or "poe2"), derived from
+	// its XML root element. Hidden from the wire like the other
+	// diff-input fields; feeds the buy-similar QueryMods gate (leg 1 of
+	// lookupModTradeID is poe1-only — see lookupQueryModsLeg).
+	game string
 }
 
 // compareBuildTree is the per-build wire shape for tree allocation
@@ -589,7 +594,7 @@ func (srv *Server) runCompareCalcs(
 	sections []string,
 ) []compareBuildEntry {
 	out := make([]compareBuildEntry, len(req.Builds))
-	compareSlots := max(1, srv.pool.maxSize-1)
+	compareSlots := max(1, srv.totalPoolCapacity()-1)
 	concurrency := min(len(req.Builds), compareSlots)
 	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
@@ -627,12 +632,18 @@ func (srv *Server) compareOneBuild(
 		return compareBuildEntry{Label: label, Error: err.Error()}
 	}
 
+	// Detected once, up front, so both the cache fast-path and the cold
+	// calc path stamp the same value onto entry.game — the buy-similar
+	// QueryMods gate (lookupQueryModsLeg) needs it regardless of which
+	// path served the build.
+	game := detectBuildGameOrDefault(xml)
+
 	// Cached fast-path is only valid when statSources is unset — stored
 	// summaries don't include source data, so a fresh calc is required
 	// to populate it.
 	if statSources == nil {
 		if cachedData, ok := srv.tryCachedSummary(buildID); ok {
-			entry := compareBuildEntry{ID: buildID, Label: label}
+			entry := compareBuildEntry{ID: buildID, Label: label, game: game}
 			hydrateEntryFromData(&entry, cachedData)
 			srv.attachFilteredSections(&entry, cachedData, sections)
 			return entry
@@ -640,11 +651,15 @@ func (srv *Server) compareOneBuild(
 	}
 
 	// Cold path: acquire process, calc, persist.
-	proc, err := srv.pool.AcquireForBuild(buildID)
+	pool, err := srv.poolFor(game)
+	if err != nil {
+		return compareBuildEntry{Label: label, Error: err.Error()}
+	}
+	proc, err := pool.AcquireForBuild(buildID)
 	if err != nil {
 		return compareBuildEntry{Label: label, Error: "failed to acquire PoB process: " + err.Error()}
 	}
-	defer srv.pool.Release(proc)
+	defer pool.Release(proc)
 
 	resp, err := proc.Send(calcLuaRequest{
 		Type:          "calc",
@@ -675,12 +690,12 @@ func (srv *Server) compareOneBuild(
 		buildID = srv.cache.Put(xml)
 	}
 	if srv.cache.store != nil {
-		_ = srv.cache.store.Put(buildID, xml, string(pobResp.Data), "", "")
+		_ = srv.cache.store.Put(buildID, xml, string(pobResp.Data), "", "", game)
 	}
-	srv.pool.Pin(proc, buildID)
+	pool.Pin(proc, buildID)
 	proc.SetLastLoadedBuildID(buildID)
 
-	entry := compareBuildEntry{ID: buildID, Label: label}
+	entry := compareBuildEntry{ID: buildID, Label: label, game: game}
 	hydrateEntryFromData(&entry, pobResp.Data)
 	srv.attachFilteredSections(&entry, pobResp.Data, sections)
 	return entry
@@ -1781,7 +1796,7 @@ func buySimilarPairsForSlotWithFilters(
 		if filters == nil {
 			tradeURL = buildTradeURL(fromItem.Name, league)
 		} else {
-			tradeURL = buildTradeURLWithFilters(srv, fromItem.Name, league, filters)
+			tradeURL = buildTradeURLWithFilters(srv, fromItem.Name, league, filters, from.game)
 		}
 		for j, to := range successful {
 			if i == j || to.itemsBySlot[slot].Name == fromItem.Name {
@@ -1842,8 +1857,17 @@ func buildTradeURL(itemName, league string) string {
 // dropped from the stats[0].filters list. The URL still emits with
 // whatever non-mod filters were specified so the LLM gets a usable
 // (if less precise) search instead of an error.
-func buildTradeURLWithFilters(srv *Server, itemName, league string, filters *compareBuySimilarFilters) string {
-	payload := buildTradeQueryPayloadWithFilters(srv, itemName, league, filters)
+//
+// game is the source item's build game ("poe" or "poe2"); it gates the
+// QueryMods lookup leg (poe1-only, see lookupQueryModsLeg) inside mod
+// resolution.
+func buildTradeURLWithFilters(
+	srv *Server,
+	itemName, league string,
+	filters *compareBuySimilarFilters,
+	game string,
+) string {
+	payload := buildTradeQueryPayloadWithFilters(srv, itemName, league, filters, game)
 
 	realm := filters.Realm
 	if realm == "" {
@@ -1869,13 +1893,18 @@ func buildTradeURLWithFilters(srv *Server, itemName, league string, filters *com
 // buildTradeQueryPayloadWithFilters serializes the full PoE trade
 // query envelope. Defaults to the same status / sort as the legacy
 // payload when filters omit them.
-func buildTradeQueryPayloadWithFilters(srv *Server, itemName, league string, filters *compareBuySimilarFilters) []byte {
+func buildTradeQueryPayloadWithFilters(
+	srv *Server,
+	itemName, league string,
+	filters *compareBuySimilarFilters,
+	game string,
+) []byte {
 	status := filters.Listed
 	if status == "" {
 		status = "available"
 	}
 	queryStats := []map[string]any{
-		{"type": "and", "filters": resolveModFilters(srv, league, filters.Mods)},
+		{"type": "and", "filters": resolveModFilters(srv, league, filters.Mods, game)},
 	}
 	queryFilters := buildOuterQueryFilters(filters)
 	queryInner := map[string]any{
@@ -1897,7 +1926,7 @@ func buildTradeQueryPayloadWithFilters(srv *Server, itemName, league string, fil
 // resolveModFilters maps each filter's mod_text → trade_id via the
 // store's trade_stats lookup. Entries without a cached ID are
 // dropped silently. Result is the value for query.stats[0].filters.
-func resolveModFilters(srv *Server, league string, mods []compareBuySimilarModFilter) []any {
+func resolveModFilters(srv *Server, league string, mods []compareBuySimilarModFilter, game string) []any {
 	out := make([]any, 0, len(mods))
 	if len(mods) == 0 || srv == nil {
 		return out
@@ -1907,7 +1936,7 @@ func resolveModFilters(srv *Server, league string, mods []compareBuySimilarModFi
 		if category == "" {
 			category = "Explicit"
 		}
-		tradeID := srv.lookupModTradeID(league, mod.ModText, category)
+		tradeID := srv.lookupModTradeID(league, mod.ModText, category, game)
 		if tradeID == "" {
 			continue
 		}
@@ -1936,7 +1965,9 @@ func resolveModFilters(srv *Server, league string, mods []compareBuySimilarModFi
 // Returns "" when neither leg resolves the mod. The caller silently
 // drops unresolved mods rather than failing the request — buy-similar
 // filters are best-effort.
-func (srv *Server) lookupModTradeID(league, modText, modType string) string {
+//
+// game gates leg 1 to poe1 builds only — see lookupQueryModsLeg.
+func (srv *Server) lookupModTradeID(league, modText, modType, game string) string {
 	template := modLineTemplate(modText)
 
 	// Leg 1: QueryMods snapshot. PoB stores modType lowercase
@@ -1945,7 +1976,7 @@ func (srv *Server) lookupModTradeID(league, modText, modType string) string {
 	// trade_stats convention). Try template+type first, then
 	// template-only fallback. Mirrors getTradeModLookup's secondary
 	// indexing in CompareTradeHelpers.lua.
-	if id := srv.lookupQueryModsLeg(template, modType); id != "" {
+	if id := srv.lookupQueryModsLeg(template, modType, game); id != "" {
 		return id
 	}
 
@@ -1967,7 +1998,19 @@ func (srv *Server) lookupModTradeID(league, modText, modType string) string {
 // Returns "" when the snapshot is empty or no entry matches; the
 // `defer RUnlock` here means a future early return cannot leak the
 // read lock.
-func (srv *Server) lookupQueryModsLeg(template, modType string) string {
+//
+// srv.queryMods is dumped exclusively from the poe1 process pool (see
+// ensureQueryModsLoaded) — PoE2 has its own mod/trade data that this
+// table does not represent, and PoE2 trade support is out of scope
+// (no per-game snapshot is built). So this leg is gated to poe1
+// builds only; "" is treated as poe1 to match poolFor's convention for
+// callers that predate multi-game support. Any other game (poe2)
+// returns "" unconditionally, falling through to the trade_stats leg
+// in lookupModTradeID rather than risking a wrong poe1-sourced id.
+func (srv *Server) lookupQueryModsLeg(template, modType, game string) string {
+	if game != "" && game != GamePoE {
+		return ""
+	}
 	srv.queryModsMu.RLock()
 	defer srv.queryModsMu.RUnlock()
 	if srv.queryMods == nil {

@@ -32,6 +32,13 @@ type Process struct {
 	stderr io.ReadCloser
 	exited chan struct{} // closed when the process exits
 
+	// game is the game ("poe" or "poe2") of the Pool this process was
+	// spawned by. Server.poolForProc reads this to route Release/Pin
+	// back to the correct underlying per-game Pool after acquisition —
+	// see Server.poolFor for the (game string) → *Pool lookup used
+	// before a process exists.
+	game string
+
 	loadedMu          sync.Mutex
 	lastLoadedBuildID string
 }
@@ -63,10 +70,16 @@ func (proc *Process) ResetLastLoadedBuildID() {
 }
 
 // SpawnProcess starts a new LuaJIT subprocess running wrapper.lua.
-func SpawnProcess(ctx context.Context, luajitBin, wrapperPath, pobDir string) (*Process, error) {
+//
+// game ("poe" or "poe2") is exported as POB_GAME so wrapper.lua can select
+// the per-game module path for PoE2's renamed Classes/TradeHelpers module
+// (PoE1: Classes/CompareTradeHelpers). It is also stamped onto the returned
+// Process so Server.poolForProc can route Release/Pin back to the correct
+// pool without a separate lookup.
+func SpawnProcess(ctx context.Context, luajitBin, wrapperPath, pobDir, game string) (*Process, error) {
 	command := exec.CommandContext(ctx, luajitBin, wrapperPath)
 	command.Dir = pobDir
-	command.Env = append(command.Environ(), "POB_DIR=.")
+	command.Env = append(command.Environ(), "POB_DIR=.", "POB_GAME="+game)
 
 	stdin, err := command.StdinPipe()
 	if err != nil {
@@ -93,6 +106,7 @@ func SpawnProcess(ctx context.Context, luajitBin, wrapperPath, pobDir string) (*
 		stdout: bufio.NewScanner(stdout),
 		stderr: stderrPipe,
 		exited: make(chan struct{}),
+		game:   game,
 	}
 	proc.stdout.Buffer(make([]byte, 0, 64*1024), 4*1024*1024) // 4MB max line
 
@@ -204,6 +218,7 @@ type Pool struct {
 	luajitBin   string
 	wrapperPath string
 	pobDir      string
+	game        string // "poe" or "poe2"; stamped onto every process this pool spawns
 
 	// Idle timers keyed by process pointer
 	timers map[*Process]*time.Timer
@@ -218,17 +233,23 @@ type Pool struct {
 	affinityEpoch    map[string]uint64      // buildID → monotonic epoch; bumped on touch/unpin so already-fired timers can detect they're stale and skip Unpin
 }
 
-// NewPool creates a new lazy process pool.
+// NewPool creates a new lazy process pool for the given game ("poe" or
+// "poe2"). Every process this pool spawns is tagged with game (see
+// SpawnProcess) so Server.poolForProc can route Release/Pin back here
+// without a separate lookup.
 //
 // affinityMaxPins defaults to poolMax; affinityTTL to DefaultAffinityTTL. Tests
 // override via direct field assignment.
-func NewPool(poolMax int, idleTimeout time.Duration, luajitBin, wrapperPath, pobDir string, logger *slog.Logger) *Pool {
+func NewPool(
+	poolMax int, idleTimeout time.Duration, luajitBin, wrapperPath, pobDir, game string, logger *slog.Logger,
+) *Pool {
 	return &Pool{
 		maxSize:          poolMax,
 		idleTimeout:      idleTimeout,
 		luajitBin:        luajitBin,
 		wrapperPath:      wrapperPath,
 		pobDir:           pobDir,
+		game:             game,
 		log:              logger,
 		timers:           make(map[*Process]*time.Timer),
 		affinityTTL:      DefaultAffinityTTL,
@@ -279,7 +300,7 @@ func (pool *Pool) AcquireForBuild(buildID string) (*Process, error) {
 		pool.busy++
 		pool.mu.Unlock()
 
-		proc, err := SpawnProcess(context.Background(), pool.luajitBin, pool.wrapperPath, pool.pobDir)
+		proc, err := SpawnProcess(context.Background(), pool.luajitBin, pool.wrapperPath, pool.pobDir, pool.game)
 		if err != nil {
 			pool.mu.Lock()
 			pool.busy--

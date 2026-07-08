@@ -121,7 +121,7 @@ func TestCompareWithModSourcesPropagatesToCalcRequest(t *testing.T) {
 	idA := srv.cache.Put("<A/>")
 	idB := srv.cache.Put("<B/>")
 	for _, id := range []string{idA, idB} {
-		_ = srv.cache.store.Put(id, "<x/>", "", "", "")
+		_ = srv.cache.store.Put(id, "<x/>", "", "", "", GamePoE)
 	}
 
 	body := `{"builds":["` + idA + `","` + idB + `"],"modSources":["Life","CombinedDPS"],"modSourcesLimit":7}`
@@ -186,7 +186,7 @@ func TestCompareWithoutModSourcesOmitsField(t *testing.T) {
 	idA := srv.cache.Put("<A/>")
 	idB := srv.cache.Put("<B/>")
 	for _, id := range []string{idA, idB} {
-		_ = srv.cache.store.Put(id, "<x/>", "", "", "")
+		_ = srv.cache.store.Put(id, "<x/>", "", "", "", GamePoE)
 	}
 
 	body := `{"builds":["` + idA + `","` + idB + `"]}`
@@ -228,7 +228,7 @@ func TestCompareWithModSourcesBypassesCachedSummary(t *testing.T) {
 	// Stored summary present — without ModSources this would skip calc.
 	storedSummary := `{"summary":{"Life":5000},"character":{"class":"Witch","ascendancy":"X","level":99}}`
 	for _, id := range []string{idA, idB} {
-		_ = srv.cache.store.Put(id, "<x/>", storedSummary, "", "")
+		_ = srv.cache.store.Put(id, "<x/>", storedSummary, "", "", GamePoE)
 	}
 
 	body := `{"builds":["` + idA + `","` + idB + `"],"modSources":["Life"]}`

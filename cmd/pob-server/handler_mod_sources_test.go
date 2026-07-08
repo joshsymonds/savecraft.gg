@@ -22,7 +22,7 @@ func TestResolveWithModSourcesBypassesCache(t *testing.T) {
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
 	if err := srv.cache.store.Put(id, xml, `{"summary":{"Life":5000}}`,
-		"https://pob.savecraft.gg/"+id, ""); err != nil {
+		"https://pob.savecraft.gg/"+id, "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 
@@ -81,7 +81,7 @@ func TestResolveCachedFastPathStillUsedWithoutModSources(t *testing.T) {
 	id := srv.cache.Put(xml)
 	storedSummaryWithSignature := `{"summary":{"Life":12345}}`
 	if err := srv.cache.store.Put(id, xml, storedSummaryWithSignature,
-		"https://pob.savecraft.gg/"+id, ""); err != nil {
+		"https://pob.savecraft.gg/"+id, "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 
@@ -111,7 +111,7 @@ func TestResolveModSourcesDefaultLimit(t *testing.T) {
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
 	if err := srv.cache.store.Put(id, xml, `{"summary":{}}`,
-		"https://pob.savecraft.gg/"+id, ""); err != nil {
+		"https://pob.savecraft.gg/"+id, "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 
@@ -143,7 +143,7 @@ func TestResolveModSourcesLimitOverCapRejected(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, `{}`, "", "")
+	_ = srv.cache.store.Put(id, xml, `{}`, "", "", GamePoE)
 
 	body := `{"url":"https://pob.savecraft.gg/` + id + `","modSources":["Life"],"modSourcesLimit":100}`
 	req := httptest.NewRequest(http.MethodPost, "/resolve", strings.NewReader(body))
@@ -175,7 +175,7 @@ func TestModifyWithModSources(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, `{}`, "", "")
+	_ = srv.cache.store.Put(id, xml, `{}`, "", "", GamePoE)
 
 	body := `{"buildId":"` + id + `","operations":[{"op":"set_level","level":95}],"modSources":["Life"],"modSourcesLimit":3}`
 	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
@@ -210,7 +210,7 @@ func TestModifyModSourcesLimitOverCapRejected(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, `{}`, "", "")
+	_ = srv.cache.store.Put(id, xml, `{}`, "", "", GamePoE)
 
 	body := `{"buildId":"` + id + `","operations":[{"op":"set_level","level":95}],"modSources":["Life"],"modSourcesLimit":51}`
 	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
@@ -233,7 +233,7 @@ func TestModifyWithoutModSourcesOmitsField(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, `{}`, "", "")
+	_ = srv.cache.store.Put(id, xml, `{}`, "", "", GamePoE)
 
 	body := `{"buildId":"` + id + `","operations":[{"op":"set_level","level":95}]}`
 	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))

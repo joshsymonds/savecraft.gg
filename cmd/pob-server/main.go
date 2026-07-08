@@ -20,16 +20,23 @@ import (
 )
 
 type config struct {
-	port            int
-	pobDir          string
-	apiKey          string
-	poolSize        int
-	idleTimeout     time.Duration
-	cacheTTL        time.Duration
-	cacheMax        int
-	dbPath          string
-	luajitBin       string
-	wrapperPath     string
+	port        int
+	pobDir      string
+	apiKey      string
+	poolSize    int
+	idleTimeout time.Duration
+	cacheTTL    time.Duration
+	cacheMax    int
+	dbPath      string
+	luajitBin   string
+	wrapperPath string
+	// pob2Dir is the PathOfBuilding-PoE2 src/ directory. Empty (the
+	// default) disables PoE2 support entirely — requests that need the
+	// poe2 pool get a clear "not configured" error instead of routing
+	// to the poe1 pool. wrapper.lua is shared between both pools (see
+	// -wrapper); only the source tree and pool size differ per game.
+	pob2Dir         string
+	pool2Size       int
 	affinityTTL     time.Duration
 	affinityMaxPins int
 }
@@ -43,6 +50,9 @@ func parseConfig() config {
 		"API key for authentication (optional, reads POB_API_KEY env if not set)",
 	)
 	flag.IntVar(&cfg.poolSize, "pool-size", 4, "Maximum number of concurrent PoB processes")
+	flag.StringVar(&cfg.pob2Dir, "pob2-dir", "",
+		"Path to PathOfBuilding-PoE2 src/ directory (optional; empty disables PoE2 support)")
+	flag.IntVar(&cfg.pool2Size, "pool2-size", 4, "Maximum number of concurrent PoE2 PoB processes")
 	flag.DurationVar(&cfg.idleTimeout, "idle-timeout", 5*time.Minute, "Kill idle processes after this duration")
 	flag.DurationVar(&cfg.cacheTTL, "cache-ttl", 10*time.Minute, "Build cache entry TTL")
 	flag.IntVar(&cfg.cacheMax, "cache-max", 1000, "Maximum number of cached builds")
@@ -65,6 +75,10 @@ func parseConfig() config {
 	}
 	if cfg.poolSize <= 0 {
 		fmt.Fprintf(os.Stderr, "error: -pool-size must be > 0\n")
+		os.Exit(1)
+	}
+	if cfg.pob2Dir != "" && cfg.pool2Size <= 0 {
+		fmt.Fprintf(os.Stderr, "error: -pool2-size must be > 0\n")
 		os.Exit(1)
 	}
 	if cfg.apiKey == "" {
@@ -99,15 +113,34 @@ func parseConfig() config {
 	return cfg
 }
 
+// newPoE2Pool stands up the PoE2 process pool when -pob2-dir is set, or
+// returns nil (PoE2 support disabled — see Server.poolFor) otherwise.
+// wrapper.lua is shared between both pools; only POB_DIR/POB_GAME differ
+// per spawn.
+func newPoE2Pool(cfg config, logger *slog.Logger) *Pool {
+	if cfg.pob2Dir == "" {
+		return nil
+	}
+	pool2 := NewPool(cfg.pool2Size, cfg.idleTimeout, cfg.luajitBin, cfg.wrapperPath, cfg.pob2Dir, GamePoE2, logger)
+	pool2.affinityTTL = cfg.affinityTTL
+	if cfg.affinityMaxPins > 0 {
+		pool2.affinityMaxPins = cfg.affinityMaxPins
+	}
+	return pool2
+}
+
 func main() {
 	cfg := parseConfig()
 	logger := slog.Default()
 
-	pool := NewPool(cfg.poolSize, cfg.idleTimeout, cfg.luajitBin, cfg.wrapperPath, cfg.pobDir, logger)
+	pool := NewPool(cfg.poolSize, cfg.idleTimeout, cfg.luajitBin, cfg.wrapperPath, cfg.pobDir, GamePoE, logger)
 	pool.affinityTTL = cfg.affinityTTL
 	if cfg.affinityMaxPins > 0 {
 		pool.affinityMaxPins = cfg.affinityMaxPins
 	}
+
+	pool2 := newPoE2Pool(cfg, logger)
+
 	cache := NewBuildCache(cfg.cacheTTL, cfg.cacheMax)
 
 	if cfg.dbPath != "" {
@@ -122,6 +155,7 @@ func main() {
 
 	srv := &Server{
 		pool:               pool,
+		pool2:              pool2,
 		cache:              cache,
 		apiKey:             cfg.apiKey,
 		client:             newResolveHTTPClient(),
@@ -156,6 +190,8 @@ func main() {
 	logger.Info("pob-server starting",
 		"addr", addr,
 		"poolMax", cfg.poolSize,
+		"pool2Enabled", pool2 != nil,
+		"pool2Max", cfg.pool2Size,
 		"idleTimeout", cfg.idleTimeout,
 		"affinityTTL", pool.affinityTTL,
 		"affinityMaxPins", pool.affinityMaxPins,
@@ -184,6 +220,9 @@ func main() {
 		}
 		cache.Shutdown()
 		pool.Shutdown()
+		if pool2 != nil {
+			pool2.Shutdown()
+		}
 	}()
 
 	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

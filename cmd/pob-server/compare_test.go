@@ -35,11 +35,11 @@ func compareHarness(
 	srv.cache.store = newInMemoryStoreForTest(t)
 
 	idA := srv.cache.Put(xmlA)
-	if err := srv.cache.store.Put(idA, xmlA, "", "", ""); err != nil {
+	if err := srv.cache.store.Put(idA, xmlA, "", "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 	idB := srv.cache.Put(xmlB)
-	if err := srv.cache.store.Put(idB, xmlB, "", "", ""); err != nil {
+	if err := srv.cache.store.Put(idB, xmlB, "", "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 	return srv, idA, idB
@@ -139,7 +139,7 @@ func TestCompareN3HappyPath(t *testing.T) {
 	idB := srv.cache.Put(xmlB)
 	idC := srv.cache.Put(xmlC)
 	for id, xml := range map[string]string{idA: xmlA, idB: xmlB, idC: xmlC} {
-		_ = srv.cache.store.Put(id, xml, "", "", "")
+		_ = srv.cache.store.Put(id, xml, "", "", "", GamePoE)
 	}
 
 	body := `{"builds":["` + idA + `","` + idB + `","` + idC + `"]}`
@@ -302,7 +302,7 @@ func TestCompareUnknownBuildIDPerSlot(t *testing.T) {
 
 	xmlA := "<PathOfBuilding/>"
 	idA := srv.cache.Put(xmlA)
-	_ = srv.cache.store.Put(idA, xmlA, "", "", "")
+	_ = srv.cache.store.Put(idA, xmlA, "", "", "", GamePoE)
 
 	body := `{"builds":["` + idA + `","00000000000000000000000000000000"]}`
 	rec := httptest.NewRecorder()

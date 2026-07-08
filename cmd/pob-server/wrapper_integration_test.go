@@ -60,7 +60,7 @@ func TestWrapperLuaSetItemPcallGuardsAgainstMalformedText(t *testing.T) {
 	wrapperPath := filepath.Join(filepath.Dir(pobDir), "..", "..", "cmd", "pob-server", "wrapper.lua")
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, luajitPath, wrapperPath, pobDir, logger)
+	pool := NewPool(1, 5*time.Minute, luajitPath, wrapperPath, pobDir, GamePoE, logger)
 	defer pool.Shutdown()
 
 	// A minimal valid PoB XML that loadBuildFromXML will accept.

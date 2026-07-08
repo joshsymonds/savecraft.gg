@@ -108,7 +108,7 @@ func TestBuySimilarWithModFilterFromCache(t *testing.T) {
 			{ModText: "+90 to maximum Life", ModType: "Explicit", Min: &minVal},
 		},
 	}
-	tradeURL := buildTradeURLWithFilters(srv, "Belly of the Beast", "Standard", filters)
+	tradeURL := buildTradeURLWithFilters(srv, "Belly of the Beast", "Standard", filters, GamePoE)
 	q := decodeTradeQueryFromURL(t, tradeURL)
 	queryObj := mustMap(t, q["query"], "query")
 	stats := mustSlice(t, queryObj["stats"], "stats")
@@ -151,7 +151,7 @@ func TestBuySimilarUsesQueryModsLookup(t *testing.T) {
 			{ModText: "+90 to maximum Life", ModType: "Explicit", Min: &minVal},
 		},
 	}
-	tradeURL := buildTradeURLWithFilters(srv, "Belly", "Standard", filters)
+	tradeURL := buildTradeURLWithFilters(srv, "Belly", "Standard", filters, GamePoE)
 	q := decodeTradeQueryFromURL(t, tradeURL)
 	queryObj := mustMap(t, q["query"], "query")
 	stats := mustSlice(t, queryObj["stats"], "stats")
@@ -172,6 +172,65 @@ func TestBuySimilarUsesQueryModsLookup(t *testing.T) {
 	}
 }
 
+// TestBuySimilarPoE2SkipsPoE1QueryMods: a poe2 build's mod filter must
+// NOT resolve via the QueryMods snapshot, even when the snapshot has a
+// colliding template entry for the exact same mod text. QueryMods is
+// dumped exclusively from the poe1 process pool (ensureQueryModsLoaded
+// draws from srv.pool only — see handler.go); reusing that table for a
+// PoE2 build risks handing back a PoE1 trade-stat ID that doesn't exist
+// (or means something else) in PoE2's trade API. PoE2 trade support is
+// out of scope entirely, so the correct behavior is silent fall-through
+// past both legs (QueryMods AND the also-empty trade_stats cache), not
+// a wrong poe1-sourced id.
+func TestBuySimilarPoE2SkipsPoE1QueryMods(t *testing.T) {
+	srv := newTestServer(t)
+	// Pre-populate the queryMods snapshot with an entry that collides
+	// with the poe2 build's mod text below — if the poe1 gate is
+	// missing, this is exactly the wrong-ID leak the fix prevents.
+	srv.queryMods = map[string]string{
+		"+# to maximum Life|explicit": "explicit.stat_life_query_mods",
+	}
+	minVal := 90.0
+	filters := &compareBuySimilarFilters{
+		Mods: []compareBuySimilarModFilter{
+			{ModText: "+90 to maximum Life", ModType: "Explicit", Min: &minVal},
+		},
+	}
+	entries := []compareBuildEntry{
+		{
+			ID:   "from",
+			game: GamePoE2,
+			itemsBySlot: map[string]gearItemSummary{
+				"Helmet": {Name: "Item A"},
+			},
+		},
+		{
+			ID:   "to",
+			game: GamePoE2,
+			itemsBySlot: map[string]gearItemSummary{
+				"Helmet": {Name: "Item B"},
+			},
+		},
+	}
+	out := computeBuySimilarWithFilters(srv, entries, "Standard", filters)
+	if len(out) == 0 {
+		t.Fatalf("expected at least one buySimilar entry")
+	}
+	for _, entry := range out {
+		q := decodeTradeQueryFromURL(t, entry.TradeURL)
+		queryObj := mustMap(t, q["query"], "query")
+		stats := mustSlice(t, queryObj["stats"], "stats")
+		group := mustMap(t, stats[0], "stats[0]")
+		innerFilters := mustSlice(t, group["filters"], "stats[0].filters")
+		if len(innerFilters) != 0 {
+			t.Errorf(
+				"poe2 build must not resolve mod via poe1 QueryMods snapshot; got %+v",
+				innerFilters,
+			)
+		}
+	}
+}
+
 // TestBuySimilarFiltersUnknownModSkipped: a mod_text without a cached
 // trade_id is silently dropped from the stats filter list — the URL
 // still emits with the rest of the filters intact.
@@ -183,7 +242,7 @@ func TestBuySimilarFiltersUnknownModSkipped(t *testing.T) {
 			{ModText: "+30 unknown mod with no trade ID", ModType: "Explicit", Min: &minVal},
 		},
 	}
-	tradeURL := buildTradeURLWithFilters(srv, "X", "Standard", filters)
+	tradeURL := buildTradeURLWithFilters(srv, "X", "Standard", filters, GamePoE)
 	q := decodeTradeQueryFromURL(t, tradeURL)
 	queryObj := mustMap(t, q["query"], "query")
 	stats := mustSlice(t, queryObj["stats"], "stats")
@@ -201,7 +260,7 @@ func TestBuySimilarWithDefenceRange(t *testing.T) {
 	filters := &compareBuySimilarFilters{
 		ArmourMin: 800,
 	}
-	tradeURL := buildTradeURLWithFilters(srv, "Belly", "Standard", filters)
+	tradeURL := buildTradeURLWithFilters(srv, "Belly", "Standard", filters, GamePoE)
 	q := decodeTradeQueryFromURL(t, tradeURL)
 	queryObj := mustMap(t, q["query"], "query")
 	queryFilters := mustMap(t, queryObj["filters"], "query.filters")
@@ -223,7 +282,7 @@ func TestBuySimilarWithItemLevelRange(t *testing.T) {
 		IlvlMin: 84,
 		IlvlMax: 86,
 	}
-	tradeURL := buildTradeURLWithFilters(srv, "X", "Standard", filters)
+	tradeURL := buildTradeURLWithFilters(srv, "X", "Standard", filters, GamePoE)
 	q := decodeTradeQueryFromURL(t, tradeURL)
 	queryFilters := mustMap(t, mustMap(t, q["query"], "query")["filters"], "query.filters")
 	miscGroup := mustMap(t, queryFilters["misc_filters"], "misc_filters")
@@ -238,7 +297,7 @@ func TestBuySimilarWithItemLevelRange(t *testing.T) {
 func TestBuySimilarRealmAndListed(t *testing.T) {
 	srv := newTestServer(t)
 	filters := &compareBuySimilarFilters{Realm: "sony", Listed: "any"}
-	tradeURL := buildTradeURLWithFilters(srv, "X", "Standard", filters)
+	tradeURL := buildTradeURLWithFilters(srv, "X", "Standard", filters, GamePoE)
 	if !strings.Contains(tradeURL, "/trade/search/sony/Standard") {
 		t.Errorf("URL missing realm path /trade/search/sony/Standard; got %s", tradeURL)
 	}

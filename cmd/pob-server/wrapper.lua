@@ -18,6 +18,16 @@
 -- setting up package.path and locating HeadlessWrapper.
 local pobDir = os.getenv("POB_DIR") or "."
 
+-- Which Path of Building fork this process is running: "poe" (PathOfBuilding)
+-- or "poe2" (PathOfBuilding-PoE2). Set by the Go supervisor per per-game pool
+-- (see process.go's SpawnProcess). Everything else in HeadlessWrapper.lua,
+-- loadBuildFromXML, and loadBuildFromJSON resolves correctly per-process just
+-- by virtue of pobDir pointing at the right game's source tree — POB_GAME
+-- exists only for the one place that DOESN'T self-resolve: PoE2 renamed
+-- Classes/CompareTradeHelpers.lua to Classes/TradeHelpers.lua (same exported
+-- API — modLineTemplate et al. — just a different file path for LoadModule).
+local pobGame = os.getenv("POB_GAME") or "poe"
+
 -- Set up package path for PoB's runtime Lua libraries
 package.path = pobDir .. "/?.lua;"
 	.. pobDir .. "/?/init.lua;"
@@ -201,8 +211,14 @@ end
 -- Go side via the dump_query_mods request type — closes the v1 mod-ID gap so
 -- buy-similar resolves common mods even when the trade-stats cache is empty.
 -- Loaded eagerly so any missing-dependency failure surfaces at startup.
+--
+-- PoE2 renamed this module Classes/TradeHelpers.lua (same exported API,
+-- including modLineTemplate) — confirmed against PathOfBuildingCommunity/
+-- PathOfBuilding-PoE2's dev branch. Every other LoadModule path here is
+-- identical between the two source trees.
+local tradeHelpersModule = (pobGame == "poe2") and "Classes/TradeHelpers" or "Classes/CompareTradeHelpers"
 local compareCalcsHelpers = LoadModule("Classes/CompareCalcsHelpers")
-local compareTradeHelpers = LoadModule("Classes/CompareTradeHelpers")
+local compareTradeHelpers = LoadModule(tradeHelpersModule)
 local queryModsData = LoadModule("Data/QueryMods")
 log("Compare helpers loaded: calcsHelpers=%s tradeHelpers=%s queryMods=%s",
 	type(compareCalcsHelpers), type(compareTradeHelpers), type(queryModsData))

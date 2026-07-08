@@ -260,11 +260,13 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	proc, ok := srv.acquirePoolProcess(writer, req.BuildID)
+	game := detectBuildGameOrDefault(xml)
+
+	proc, ok := srv.acquirePoolProcess(writer, game, req.BuildID)
 	if !ok {
 		return
 	}
-	defer srv.pool.Release(proc)
+	defer srv.releasePoolProcess(proc)
 
 	extractEnvelope, ok := srv.runAuditExtract(writer, proc, xml, req.Scope)
 	if !ok {
@@ -275,7 +277,7 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 	// Pin, /audit was the odd one out — /resolve, /modify, /compare all
 	// pin after a successful calc, but /audit only set last-loaded.
 	proc.SetLastLoadedBuildID(req.BuildID)
-	srv.pool.Pin(proc, req.BuildID)
+	srv.pinPoolProcess(proc, req.BuildID)
 
 	// Per-scope segmentation. Each scope's branches are independent and get
 	// their own evaluation budget (branch_limit + node_limit apply per scope).
@@ -641,11 +643,17 @@ func (srv *Server) fetchAuditBuildXML(writer http.ResponseWriter, buildID string
 	return "", false
 }
 
-// acquirePoolProcess pulls a PoB process from the pool, preferring the process
-// pinned to buildID when one exists. Writes the appropriate HTTP error and
-// returns ok=false on failure. Pass buildID="" for build-agnostic acquires.
-func (srv *Server) acquirePoolProcess(writer http.ResponseWriter, buildID string) (*Process, bool) {
-	proc, err := srv.pool.AcquireForBuild(buildID)
+// acquirePoolProcess pulls a PoB process from the game's pool, preferring
+// the process pinned to buildID when one exists. Writes the appropriate
+// HTTP error and returns ok=false on failure. Pass buildID="" for
+// build-agnostic acquires.
+func (srv *Server) acquirePoolProcess(writer http.ResponseWriter, game, buildID string) (*Process, bool) {
+	pool, err := srv.poolFor(game)
+	if err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return nil, false
+	}
+	proc, err := pool.AcquireForBuild(buildID)
 	if err == nil {
 		return proc, true
 	}

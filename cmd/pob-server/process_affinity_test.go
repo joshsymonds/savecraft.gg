@@ -26,7 +26,15 @@ import (
 // idleTimeout is fixed at 5 minutes — all affinity tests use the same value
 // because the pool's affinity logic is the focus, not idle eviction.
 func newAffinityTestPool(poolMax int, affinityTTL time.Duration, affinityMaxPins int) *Pool {
-	pool := NewPool(poolMax, 5*time.Minute, "cat", "/dev/stdin", ".", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	pool := NewPool(
+		poolMax,
+		5*time.Minute,
+		"cat",
+		"/dev/stdin",
+		".",
+		GamePoE,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
 	pool.affinityTTL = affinityTTL
 	pool.affinityMaxPins = affinityMaxPins
 	return pool
@@ -403,7 +411,8 @@ func TestAffinityShutdownClean(t *testing.T) {
 	if idle != 0 || busy != 0 {
 		t.Fatalf("after shutdown: expected 0/0, got %d/%d", idle, busy)
 	}
-	if pool.LookupAffinity("a") != nil || pool.LookupAffinity("b") != nil || pool.LookupAffinity("c") != nil {
+	if pool.LookupAffinity("a") != nil || pool.LookupAffinity("b") != nil ||
+		pool.LookupAffinity("c") != nil {
 		t.Fatalf("all pins should be cleared after shutdown")
 	}
 }

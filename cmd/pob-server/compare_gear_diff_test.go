@@ -255,7 +255,7 @@ func TestCompareGearDiffN3Mixed(t *testing.T) {
 	idB := srv.cache.Put("<B/>")
 	idC := srv.cache.Put("<C/>")
 	for _, id := range []string{idA, idB, idC} {
-		_ = srv.cache.store.Put(id, "<x/>", "", "", "")
+		_ = srv.cache.store.Put(id, "<x/>", "", "", "", GamePoE)
 	}
 
 	body := `{"builds":["` + idA + `","` + idB + `","` + idC + `"]}`
@@ -299,7 +299,7 @@ func TestCompareGearDiffOmittedWhenSingleSuccess(t *testing.T) {
 	srv.cache.store = newInMemoryStoreForTest(t)
 
 	idA := srv.cache.Put("<A/>")
-	_ = srv.cache.store.Put(idA, "<A/>", "", "", "")
+	_ = srv.cache.store.Put(idA, "<A/>", "", "", "", GamePoE)
 
 	body := `{"builds":["` + idA + `","00000000000000000000000000000000"]}`
 	rec := httptest.NewRecorder()

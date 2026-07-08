@@ -24,7 +24,7 @@ func newMockModifyServer(t *testing.T, mockScript string) (*Server, string) {
 		t.Skip("bash not available")
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), GamePoE, logger)
 	t.Cleanup(pool.Shutdown)
 
 	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
@@ -43,7 +43,7 @@ func newMockModifyServer(t *testing.T, mockScript string) (*Server, string) {
 	}
 	origXML := "<PathOfBuilding/>"
 	origID := cache.Put(origXML)
-	_ = store.Put(origID, origXML, "{}", "", "")
+	_ = store.Put(origID, origXML, "{}", "", "", GamePoE)
 	return &Server{pool: pool, cache: cache, log: logger}, origID
 }
 
@@ -89,7 +89,7 @@ func TestModifyHandlerRejectsEmptyOps(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, "{}", "", "")
+	_ = srv.cache.store.Put(id, xml, "{}", "", "", GamePoE)
 
 	body := `{"buildId":"` + id + `","operations":[]}`
 	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
@@ -121,7 +121,7 @@ func TestModifyHandlerRejectsSetItemMissingRequiredFields(t *testing.T) {
 	srv := newTestServer(t)
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, "{}", "", "")
+	_ = srv.cache.store.Put(id, xml, "{}", "", "", GamePoE)
 
 	cases := []struct {
 		name       string
@@ -169,7 +169,7 @@ func TestModifyHandlerRejectsSetItemMagicRarity(t *testing.T) {
 	srv := newTestServer(t)
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, "{}", "", "")
+	_ = srv.cache.store.Put(id, xml, "{}", "", "", GamePoE)
 
 	body := `{"buildId":"` + id + `","operations":[{"op":"set_item","slot":"Weapon 1","rarity":"Magic","name":"X","base":"Y"}]}`
 	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
@@ -361,7 +361,7 @@ echo '{"type":"result","data":{"character":{"class":"Templar","ascendancy":"Hier
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), GamePoE, logger)
 	defer pool.Shutdown()
 
 	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
@@ -381,7 +381,7 @@ echo '{"type":"result","data":{"character":{"class":"Templar","ascendancy":"Hier
 
 	origXML := "<PathOfBuilding/>"
 	origID := cache.Put(origXML)
-	_ = store.Put(origID, origXML, `{"summary":{"Life":20854}}`, "", "")
+	_ = store.Put(origID, origXML, `{"summary":{"Life":20854}}`, "", "", GamePoE)
 
 	srv := &Server{pool: pool, cache: cache, log: logger}
 
@@ -450,7 +450,7 @@ echo '{"type":"result","data":{"character":{"class":"Marauder","ascendancy":"Chi
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), GamePoE, logger)
 	defer pool.Shutdown()
 
 	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
@@ -471,7 +471,7 @@ echo '{"type":"result","data":{"character":{"class":"Marauder","ascendancy":"Chi
 	// Seed a build to modify
 	origXML := "<PathOfBuilding><Build level=\"90\"/></PathOfBuilding>"
 	origID := cache.Put(origXML)
-	_ = store.Put(origID, origXML, `{"stats":{"Life":5000}}`, "", "")
+	_ = store.Put(origID, origXML, `{"stats":{"Life":5000}}`, "", "", GamePoE)
 
 	srv := &Server{pool: pool, cache: cache, log: logger}
 

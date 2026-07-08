@@ -4,10 +4,68 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/base64"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"strings"
 )
+
+// GamePoE and GamePoE2 identify which Path of Building fork a build
+// belongs to. Every pob-server request that touches a LuaJIT process
+// routes through one of these — see DetectBuildGame and Server.poolFor.
+const (
+	GamePoE  = "poe"
+	GamePoE2 = "poe2"
+)
+
+// DetectBuildGame inspects a decoded build XML document's root element to
+// determine which game it belongs to. PoE1 build codes root at
+// <PathOfBuilding>; PoE2 (Path of Building 2) build codes root at
+// <PathOfBuilding2> — confirmed against PathOfBuildingCommunity/PathOfBuilding-PoE2
+// (Modules/Build.lua's LoadBuildFromXML, which errors on any other root).
+// Returns an error for any other root element or malformed XML.
+func DetectBuildGame(xmlText string) (string, error) {
+	decoder := xml.NewDecoder(strings.NewReader(xmlText))
+	for {
+		tok, err := decoder.Token()
+		if err != nil {
+			return "", fmt.Errorf("reading build XML root element: %w", err)
+		}
+		start, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		switch start.Name.Local {
+		case "PathOfBuilding":
+			return GamePoE, nil
+		case "PathOfBuilding2":
+			return GamePoE2, nil
+		default:
+			return "", fmt.Errorf("unrecognized build root element %q", start.Name.Local)
+		}
+	}
+}
+
+// detectBuildGameOrDefault is DetectBuildGame with a GamePoE fallback for
+// XML whose root element isn't recognized. Used at call sites that read
+// already-stored/cached build XML (modify, nearby, audit, compare,
+// /resolve's internal-URL path) rather than freshly-supplied external
+// input. Those rows were already validated at creation time (they went
+// through the strict path in handleCalc or resolveExternal to get
+// stored), so a row that somehow doesn't parse as either root — most
+// commonly a test's synthetic placeholder XML like "<A/>", never a real
+// production build — defaults to poe1 instead of turning a previously
+// working request into a new failure mode. Call sites that validate
+// freshly supplied XML (handleCalc, resolveExternal) use the strict
+// DetectBuildGame instead, so genuinely malformed input is still
+// rejected with a clear error before ever reaching a LuaJIT process.
+func detectBuildGameOrDefault(xmlText string) string {
+	game, err := DetectBuildGame(xmlText)
+	if err != nil {
+		return GamePoE
+	}
+	return game
+}
 
 // DecodeBuildCode decodes a PoB build code (URL-safe base64 of zlib-compressed XML).
 func DecodeBuildCode(code string) (string, error) {

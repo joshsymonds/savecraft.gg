@@ -58,6 +58,40 @@ func TestHandleImportRejectsEmptyBody(t *testing.T) {
 	assertErrorEnvelope(t, recorder.Body.Bytes())
 }
 
+// /import needs an explicit game before any PoB process is touched — the
+// caller (poe or poe2 adapter) knows which one it is; pob-server can't
+// infer it from a GGG character object the way /resolve infers it from
+// build XML. Missing/invalid game is pure input validation, so it's
+// checked before the transform step and importTestServer (no pool)
+// suffices.
+func TestHandleImportRejectsMissingGame(t *testing.T) {
+	srv := importTestServer()
+
+	body := `{"character":{"name":"X","class":"Witch","level":1}}`
+	req := httptest.NewRequest(http.MethodPost, "/import", strings.NewReader(body))
+	recorder := httptest.NewRecorder()
+	srv.handleImport(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	assertErrorEnvelope(t, recorder.Body.Bytes())
+}
+
+func TestHandleImportRejectsInvalidGame(t *testing.T) {
+	srv := importTestServer()
+
+	body := `{"character":{"name":"X","class":"Witch","level":1},"game":"diablo4"}`
+	req := httptest.NewRequest(http.MethodPost, "/import", strings.NewReader(body))
+	recorder := httptest.NewRecorder()
+	srv.handleImport(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	assertErrorEnvelope(t, recorder.Body.Bytes())
+}
+
 // A JSON-valid character whose class can't be mapped fails in the Go
 // transform, before any PoB process is touched — so importTestServer
 // (no pool) is sufficient and the error is a 422, mirroring
@@ -175,7 +209,11 @@ func TestHandleImportDeterministic(t *testing.T) {
 
 func postImport(t *testing.T, baseURL string, character json.RawMessage) *http.Response {
 	t.Helper()
-	body, err := json.Marshal(map[string]json.RawMessage{"character": character})
+	gameJSON, err := json.Marshal(GamePoE)
+	if err != nil {
+		t.Fatalf("marshal game: %v", err)
+	}
+	body, err := json.Marshal(map[string]json.RawMessage{"character": character, "game": gameJSON})
 	if err != nil {
 		t.Fatalf("marshal request: %v", err)
 	}

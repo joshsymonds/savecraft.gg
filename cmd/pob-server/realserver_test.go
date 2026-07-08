@@ -47,7 +47,7 @@ func setupRealServer(t *testing.T) *Server {
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, "luajit", wrapperPath, pobDir, logger)
+	pool := NewPool(1, 5*time.Minute, "luajit", wrapperPath, pobDir, GamePoE, logger)
 	t.Cleanup(pool.Shutdown)
 
 	cache := NewBuildCache(10*time.Minute, 100)

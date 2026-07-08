@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { poeAdapter } from "../../plugins/poe/adapter";
 import characterFixture from "../../plugins/poe/testdata/ggg-character-full.json";
@@ -158,6 +158,42 @@ describe("poeAdapter.fetchState", () => {
     expect(state.identity.extra!.pobXml).toBe("<PathOfBuilding>snapshot</PathOfBuilding>");
     // Raw XML must never appear in a section payload.
     expect(JSON.stringify(state.sections)).not.toContain("<PathOfBuilding>");
+  });
+
+  it("sends game:\"poe\" in the pob-server /import request body", async () => {
+    mockGgg();
+    mockFetch
+      .get(POB)
+      .intercept({ path: "/import", method: "POST" })
+      .reply(
+        200,
+        JSON.stringify({
+          buildId: "deadbeefcafe",
+          data: { summary: {} },
+          xml: "<PathOfBuilding>snapshot</PathOfBuilding>",
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+
+    // mockFetch.activate() (inside mockGgg()) already installed its own
+    // globalThis.fetch replacement; spy on top of it so requests still
+    // resolve via the mock while we capture the actual call args — the
+    // shared MockFetch helper has no built-in body-capture support.
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    await poeAdapter.fetchState(params(), { ...env, POB_URL: POB } as unknown as Env);
+
+    const importCall = fetchSpy.mock.calls.find(([input]) => {
+      const url = typeof input === "string" ? input : input.toString();
+      return url.includes("/import");
+    });
+    expect(importCall).toBeDefined();
+    const [, init] = importCall!;
+    const body = JSON.parse(init!.body as string) as { game?: string; character?: unknown };
+    expect(body.game).toBe("poe");
+    expect(body.character).toBeTruthy();
+
+    fetchSpy.mockRestore();
   });
 
   it("partial_failure: pob-server down → raw sections kept, no pob_build, no throw", async () => {

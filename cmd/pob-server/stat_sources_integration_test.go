@@ -46,7 +46,7 @@ func TestStatSourcesLifeAgainstRealBuild(t *testing.T) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, luajitPath, wrapperPath, pobDir, logger)
+	pool := NewPool(1, 5*time.Minute, luajitPath, wrapperPath, pobDir, GamePoE, logger)
 	defer pool.Shutdown()
 
 	proc, err := pool.Acquire()

@@ -15,7 +15,7 @@ func TestAuditRejectsUnknownCategory(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, `{}`, "", "")
+	_ = srv.cache.store.Put(id, xml, `{}`, "", "", GamePoE)
 
 	body := `{"buildId":"` + id + `","metrics":["Life"],"categories":["Bogus"]}`
 	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))

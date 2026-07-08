@@ -8,6 +8,36 @@ import (
 	"time"
 )
 
+// TestBuildStorePutRecordsGame verifies Put stamps the game column so a
+// future reader (admin tooling, or a routing path that wants ground
+// truth without re-parsing XML) can tell PoE1 and PoE2 builds apart.
+// Queried directly via SQL since BuildStore.Get intentionally doesn't
+// expose it — every current caller already has the build XML on hand
+// before it needs to route to a pool, and DetectBuildGame(xml) is the
+// authoritative, always-in-sync source for that decision.
+func TestBuildStorePutRecordsGame(t *testing.T) {
+	store, err := NewBuildStore(tempDBPath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	xml := "<PathOfBuilding2><Build level=\"1\"/></PathOfBuilding2>"
+	id := contentHash(xml)
+
+	if err := store.Put(id, xml, `{}`, "", "", GamePoE2); err != nil {
+		t.Fatal(err)
+	}
+
+	var game string
+	if err := store.db.QueryRow("SELECT game FROM builds WHERE id = ?", id).Scan(&game); err != nil {
+		t.Fatalf("querying game column: %v", err)
+	}
+	if game != GamePoE2 {
+		t.Fatalf("game mismatch: got %q, want %q", game, GamePoE2)
+	}
+}
+
 func tempDBPath(t *testing.T) string {
 	t.Helper()
 	return filepath.Join(t.TempDir(), "test.db")
@@ -23,7 +53,7 @@ func TestBuildStorePutAndGet(t *testing.T) {
 	xml := "<PathOfBuilding><Build level=\"99\"/></PathOfBuilding>"
 	id := contentHash(xml)
 
-	if err := store.Put(id, xml, `{"stats":{}}`, "", ""); err != nil {
+	if err := store.Put(id, xml, `{"stats":{}}`, "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 
@@ -61,11 +91,11 @@ func TestBuildStoreUpsert(t *testing.T) {
 
 	id := contentHash("<build/>")
 
-	if err := store.Put(id, "<build/>", `{"v":1}`, "", ""); err != nil {
+	if err := store.Put(id, "<build/>", `{"v":1}`, "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 	// Same ID, updated summary
-	if err := store.Put(id, "<build/>", `{"v":2}`, "", ""); err != nil {
+	if err := store.Put(id, "<build/>", `{"v":2}`, "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 
@@ -88,10 +118,10 @@ func TestBuildStoreParentID(t *testing.T) {
 	parentID := contentHash("<parent/>")
 	childID := contentHash("<child/>")
 
-	if err := store.Put(parentID, "<parent/>", "{}", "", ""); err != nil {
+	if err := store.Put(parentID, "<parent/>", "{}", "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Put(childID, "<child/>", "{}", "", parentID); err != nil {
+	if err := store.Put(childID, "<child/>", "{}", "", parentID, GamePoE); err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,7 +142,7 @@ func TestBuildStoreCleanup(t *testing.T) {
 	defer store.Close()
 
 	id := contentHash("<old/>")
-	if err := store.Put(id, "<old/>", "{}", "", ""); err != nil {
+	if err := store.Put(id, "<old/>", "{}", "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 
@@ -145,7 +175,7 @@ func TestBuildStoreCleanupKeepsRecent(t *testing.T) {
 	defer store.Close()
 
 	id := contentHash("<recent/>")
-	if err := store.Put(id, "<recent/>", "{}", "", ""); err != nil {
+	if err := store.Put(id, "<recent/>", "{}", "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 
@@ -175,7 +205,7 @@ func TestBuildStorePersistsAcrossReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := contentHash("<persist/>")
-	if err := store1.Put(id, "<persist/>", `{"ok":true}`, "https://pobb.in/abc", ""); err != nil {
+	if err := store1.Put(id, "<persist/>", `{"ok":true}`, "https://pobb.in/abc", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 	store1.Close()
@@ -215,7 +245,7 @@ func TestBuildStoreGetUpdatesAccessedAt(t *testing.T) {
 	defer store.Close()
 
 	id := contentHash("<access/>")
-	if err := store.Put(id, "<access/>", "{}", "", ""); err != nil {
+	if err := store.Put(id, "<access/>", "{}", "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 

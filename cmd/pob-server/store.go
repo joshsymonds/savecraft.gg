@@ -78,7 +78,8 @@ CREATE TABLE IF NOT EXISTS builds (
 	parent_id   TEXT NOT NULL DEFAULT '',
 	created_at  INTEGER NOT NULL,
 	accessed_at INTEGER NOT NULL,
-	wrapper_schema_version INTEGER NOT NULL DEFAULT 0
+	wrapper_schema_version INTEGER NOT NULL DEFAULT 0,
+	game        TEXT NOT NULL DEFAULT ''
 );
 
 -- Delta cache for per-node perturbation results. Keyed by
@@ -141,9 +142,21 @@ func NewBuildStore(dbPath string) (*BuildStore, error) {
 	// wrapper_schema_version column added. PRAGMA table_info introspects
 	// the live schema; ALTER TABLE ADD COLUMN with a NOT NULL DEFAULT is
 	// atomic in SQLite and back-fills existing rows with the default.
-	if err := ensureWrapperSchemaVersionColumn(db); err != nil {
+	if err := ensureColumn(db, "wrapper_schema_version",
+		"ALTER TABLE builds ADD COLUMN wrapper_schema_version INTEGER NOT NULL DEFAULT 0"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("ensuring wrapper_schema_version column: %w", err)
+	}
+
+	// Same idempotent pattern for the game column (added for PoE2 support).
+	// Pre-existing rows back-fill to '' — they predate multi-game support
+	// and are all PoE1 builds, but leaving the default empty rather than
+	// guessing "poe" keeps the column an honest record of what Put actually
+	// wrote, not a retrofit.
+	if err := ensureColumn(db, "game",
+		"ALTER TABLE builds ADD COLUMN game TEXT NOT NULL DEFAULT ''"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("ensuring game column: %w", err)
 	}
 
 	return &BuildStore{
@@ -152,12 +165,11 @@ func NewBuildStore(dbPath string) (*BuildStore, error) {
 	}, nil
 }
 
-// ensureWrapperSchemaVersionColumn adds the wrapper_schema_version
-// column to the builds table if it's missing. Idempotent — safe to call
-// on every startup; no-op when the column already exists. Existing rows
-// receive the default value (0), which auto-invalidates against any
-// current wrapperSchemaVersion >= 1.
-func ensureWrapperSchemaVersionColumn(db *sql.DB) error {
+// ensureColumn adds a column to the builds table if it's missing, via the
+// given ALTER TABLE statement. Idempotent — safe to call on every startup;
+// no-op when the column already exists. Shared by the wrapper_schema_version
+// and game column migrations (see their call sites in NewBuildStore).
+func ensureColumn(db *sql.DB, columnName, alterSQL string) error {
 	rows, err := db.QueryContext(context.Background(), "PRAGMA table_info(builds)")
 	if err != nil {
 		return fmt.Errorf("PRAGMA table_info: %w", err)
@@ -175,16 +187,14 @@ func ensureWrapperSchemaVersionColumn(db *sql.DB) error {
 		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &primaryKey); err != nil {
 			return fmt.Errorf("scan column info: %w", err)
 		}
-		if name == "wrapper_schema_version" {
+		if name == columnName {
 			return nil
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterate column info: %w", err)
 	}
-	if _, err := db.ExecContext(context.Background(),
-		"ALTER TABLE builds ADD COLUMN wrapper_schema_version INTEGER NOT NULL DEFAULT 0",
-	); err != nil {
+	if _, err := db.ExecContext(context.Background(), alterSQL); err != nil {
 		return fmt.Errorf("ALTER TABLE: %w", err)
 	}
 	return nil
@@ -198,18 +208,30 @@ func tradeStatsMemKey(category, strippedText string) string {
 // Put stores a build. If the ID already exists, summary/source_url/parent_id
 // and wrapper_schema_version are updated. Always stamps the row with the
 // current wrapperSchemaVersion so re-storing a stale row upgrades it.
-func (s *BuildStore) Put(id, xml, summary, sourceURL, parentID string) error {
+//
+// game ("poe" or "poe2", from DetectBuildGame or the caller's known game)
+// is recorded for admin/debug visibility. It is NOT read back by any
+// routing path — every caller that needs to pick a per-game pool already
+// has the build XML on hand and derives game from it directly (see
+// Server.poolFor), so this column can't drift out of sync with the XML
+// it was computed from. Every production caller always passes a
+// non-empty game (there is no "unknown game" caller), so — unlike
+// source_url/parent_id, which legitimately have optional callers —
+// game is overwritten unconditionally on conflict rather than
+// preserved when empty.
+func (s *BuildStore) Put(id, xml, summary, sourceURL, parentID, game string) error {
 	now := time.Now().Unix()
 	_, err := s.db.ExecContext(context.Background(), `
-		INSERT INTO builds (id, xml, summary, source_url, parent_id, created_at, accessed_at, wrapper_schema_version)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO builds (id, xml, summary, source_url, parent_id, created_at, accessed_at, wrapper_schema_version, game)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			summary = excluded.summary,
 			source_url = CASE WHEN excluded.source_url = '' THEN builds.source_url ELSE excluded.source_url END,
 			parent_id = CASE WHEN excluded.parent_id = '' THEN builds.parent_id ELSE excluded.parent_id END,
 			accessed_at = excluded.accessed_at,
-			wrapper_schema_version = excluded.wrapper_schema_version
-	`, id, xml, summary, sourceURL, parentID, now, now, wrapperSchemaVersion)
+			wrapper_schema_version = excluded.wrapper_schema_version,
+			game = excluded.game
+	`, id, xml, summary, sourceURL, parentID, now, now, wrapperSchemaVersion, game)
 	if err != nil {
 		return fmt.Errorf("storing build %s: %w", id, err)
 	}

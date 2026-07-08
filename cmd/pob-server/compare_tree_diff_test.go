@@ -142,7 +142,7 @@ func TestCompareTreeDiffN3(t *testing.T) {
 	idB := srv.cache.Put(xmlB)
 	idC := srv.cache.Put(xmlC)
 	for id, xml := range map[string]string{idA: xmlA, idB: xmlB, idC: xmlC} {
-		_ = srv.cache.store.Put(id, xml, "", "", "")
+		_ = srv.cache.store.Put(id, xml, "", "", "", GamePoE)
 	}
 
 	body := `{"builds":["` + idA + `","` + idB + `","` + idC + `"]}`
@@ -320,8 +320,8 @@ func TestCompareTreeDiffFailedBuildSlotIsEmpty(t *testing.T) {
 	xmlC := "<C/>"
 	idA := srv.cache.Put(xmlA)
 	idC := srv.cache.Put(xmlC)
-	_ = srv.cache.store.Put(idA, xmlA, "", "", "")
-	_ = srv.cache.store.Put(idC, xmlC, "", "", "")
+	_ = srv.cache.store.Put(idA, xmlA, "", "", "", GamePoE)
+	_ = srv.cache.store.Put(idC, xmlC, "", "", "", GamePoE)
 
 	// Three slots; middle one is bogus → builds[1] errors out, builds[0]
 	// and builds[2] resolve normally.

@@ -19,6 +19,11 @@ type resolveResult struct {
 	summary   string // calc summary JSON (only set for cached builds)
 	sourceURL string // original URL
 	cached    bool   // true if resolved from internal store (no calc needed)
+	// game ("poe" or "poe2") is detected from xml's root element — see
+	// DetectBuildGame. Callers that fall through to calcAndRespond
+	// (cache miss, or a statSources request on a cached build) need it
+	// to pick the right pool.
+	game string
 }
 
 // maxResolveBody limits fetched build code responses to 1 MB.
@@ -215,11 +220,14 @@ func resolveInternal(
 		return nil, err
 	}
 
+	game := detectBuildGameOrDefault(xml)
+
 	return &resolveResult{
 		xml:     xml,
 		buildID: id,
 		summary: summary,
 		cached:  true,
+		game:    game,
 	}, nil
 }
 
@@ -261,10 +269,16 @@ func resolveExternal(
 		return nil, fmt.Errorf("decoding build code from %s: %w", rawURL, err)
 	}
 
+	game, err := DetectBuildGame(xml)
+	if err != nil {
+		return nil, fmt.Errorf("build from %s: %w", rawURL, err)
+	}
+
 	return &resolveResult{
 		xml:       xml,
 		buildID:   contentHash(xml),
 		sourceURL: rawURL,
 		cached:    false,
+		game:      game,
 	}, nil
 }

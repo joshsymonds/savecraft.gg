@@ -202,7 +202,7 @@ func auditTwoSendMockServer(t *testing.T, extractResp, perturbResp string) (*Ser
 		t.Skip("bash not available")
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), GamePoE, logger)
 	t.Cleanup(pool.Shutdown)
 
 	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
@@ -221,7 +221,7 @@ func auditTwoSendMockServer(t *testing.T, extractResp, perturbResp string) (*Ser
 	}
 	xml := "<PathOfBuilding/>"
 	buildID := cache.Put(xml)
-	_ = store.Put(buildID, xml, `{}`, "", "")
+	_ = store.Put(buildID, xml, `{}`, "", "", GamePoE)
 	return &Server{pool: pool, cache: cache, log: logger}, buildID
 }
 

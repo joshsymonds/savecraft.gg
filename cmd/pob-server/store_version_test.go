@@ -16,7 +16,7 @@ func TestBuildStoreVersionFilterRejectsStaleEntries(t *testing.T) {
 	store := newBuildStoreInTempDir(t)
 
 	// Stale entry: version 0 (pre-migration default).
-	if err := store.Put("stale", "<xml/>", `{"v":"old"}`, "", ""); err != nil {
+	if err := store.Put("stale", "<xml/>", `{"v":"old"}`, "", "", GamePoE); err != nil {
 		t.Fatalf("seed put: %v", err)
 	}
 	setBuildSchemaVersionForTest(t, store, "stale")
@@ -31,7 +31,7 @@ func TestBuildStoreVersionFilterRejectsStaleEntries(t *testing.T) {
 func TestBuildStoreVersionFilterAcceptsCurrentEntries(t *testing.T) {
 	store := newBuildStoreInTempDir(t)
 
-	if err := store.Put("fresh", "<xml/>", `{"v":"new"}`, "", ""); err != nil {
+	if err := store.Put("fresh", "<xml/>", `{"v":"new"}`, "", "", GamePoE); err != nil {
 		t.Fatalf("put: %v", err)
 	}
 	xml, summary, err := store.Get("fresh")
@@ -54,12 +54,12 @@ func TestBuildStoreVersionFilterAcceptsCurrentEntries(t *testing.T) {
 func TestBuildStoreVersionRewriteOnPut(t *testing.T) {
 	store := newBuildStoreInTempDir(t)
 
-	if err := store.Put("rewrite", "<xml/>", `{}`, "", ""); err != nil {
+	if err := store.Put("rewrite", "<xml/>", `{}`, "", "", GamePoE); err != nil {
 		t.Fatalf("first put: %v", err)
 	}
 	setBuildSchemaVersionForTest(t, store, "rewrite")
 
-	if err := store.Put("rewrite", "<xml/>", `{"v":"updated"}`, "", ""); err != nil {
+	if err := store.Put("rewrite", "<xml/>", `{"v":"updated"}`, "", "", GamePoE); err != nil {
 		t.Fatalf("second put: %v", err)
 	}
 	if got := readBuildSchemaVersionForTest(t, store, "rewrite"); got != wrapperSchemaVersion {
@@ -118,8 +118,9 @@ func TestEnsureWrapperSchemaVersionColumnAddsToLegacyDB(t *testing.T) {
 	}
 
 	// Run the migration.
-	if err := ensureWrapperSchemaVersionColumn(db); err != nil {
-		t.Fatalf("ensureWrapperSchemaVersionColumn: %v", err)
+	if err := ensureColumn(db, "wrapper_schema_version",
+		"ALTER TABLE builds ADD COLUMN wrapper_schema_version INTEGER NOT NULL DEFAULT 0"); err != nil {
+		t.Fatalf("ensureColumn(wrapper_schema_version): %v", err)
 	}
 
 	// Column now exists.
@@ -142,8 +143,70 @@ func TestEnsureWrapperSchemaVersionColumnAddsToLegacyDB(t *testing.T) {
 	}
 
 	// Idempotent: second call is a no-op (no error, no duplicate column).
-	if err := ensureWrapperSchemaVersionColumn(db); err != nil {
-		t.Fatalf("second ensureWrapperSchemaVersionColumn call failed: %v", err)
+	if err := ensureColumn(db, "wrapper_schema_version",
+		"ALTER TABLE builds ADD COLUMN wrapper_schema_version INTEGER NOT NULL DEFAULT 0"); err != nil {
+		t.Fatalf("second ensureColumn(wrapper_schema_version) call failed: %v", err)
+	}
+}
+
+// TestEnsureColumnAddsGameColumnToLegacyDB mirrors
+// TestEnsureWrapperSchemaVersionColumnAddsToLegacyDB for the game column
+// added alongside PoE2 support — a DB created before multi-game support
+// shipped has no game column at all, and NewBuildStore's CREATE TABLE IF
+// NOT EXISTS is a no-op against it (the table already exists), so
+// ensureColumn's ALTER branch is the only code path that adds it.
+func TestEnsureColumnAddsGameColumnToLegacyDB(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "legacy-game.db")
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	// Pre-game-column schema literal — has wrapper_schema_version (from
+	// an earlier migration) but no game column.
+	if _, err := db.ExecContext(ctx, `
+		CREATE TABLE builds (
+			id          TEXT PRIMARY KEY,
+			xml         TEXT NOT NULL,
+			summary     TEXT NOT NULL DEFAULT '{}',
+			source_url  TEXT NOT NULL DEFAULT '',
+			parent_id   TEXT NOT NULL DEFAULT '',
+			created_at  INTEGER NOT NULL,
+			accessed_at INTEGER NOT NULL,
+			wrapper_schema_version INTEGER NOT NULL DEFAULT 0
+		)
+	`); err != nil {
+		t.Fatalf("create legacy schema: %v", err)
+	}
+
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO builds (id, xml, created_at, accessed_at) VALUES (?, ?, ?, ?)`,
+		"legacy", "<x/>", 0, 0,
+	); err != nil {
+		t.Fatalf("seed legacy row: %v", err)
+	}
+
+	if err := ensureColumn(db, "game", "ALTER TABLE builds ADD COLUMN game TEXT NOT NULL DEFAULT ''"); err != nil {
+		t.Fatalf("ensureColumn(game): %v", err)
+	}
+
+	if !columnExists(t, db, "builds", "game") {
+		t.Fatalf("expected game column to exist after migration")
+	}
+
+	var game string
+	if err := db.QueryRowContext(ctx, "SELECT game FROM builds WHERE id = ?", "legacy").Scan(&game); err != nil {
+		t.Fatalf("read game: %v", err)
+	}
+	if game != "" {
+		t.Errorf("expected legacy row's game to default to \"\", got %q", game)
+	}
+
+	// Idempotent: second call is a no-op (no error, no duplicate column).
+	if err := ensureColumn(db, "game", "ALTER TABLE builds ADD COLUMN game TEXT NOT NULL DEFAULT ''"); err != nil {
+		t.Fatalf("second ensureColumn(game) call failed: %v", err)
 	}
 }
 

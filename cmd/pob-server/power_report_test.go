@@ -278,7 +278,7 @@ func TestResolveNearbyCategoriesFiltersInlinePowerReport(t *testing.T) {
 	// Seed a build so /resolve's URL flow can hit the cache directly.
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	if err := srv.cache.store.Put(id, xml, "", "https://pob.savecraft.gg/"+id, ""); err != nil {
+	if err := srv.cache.store.Put(id, xml, "", "https://pob.savecraft.gg/"+id, "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 
@@ -344,7 +344,7 @@ func TestModifyNearbyCategoriesFiltersInlinePowerReport(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	if err := srv.cache.store.Put(id, xml, `{}`, "", ""); err != nil {
+	if err := srv.cache.store.Put(id, xml, `{}`, "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 

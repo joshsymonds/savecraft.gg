@@ -17,7 +17,8 @@ const pobRespTypeError = "error"
 
 // Server is the PoB HTTP server.
 type Server struct {
-	pool       *Pool
+	pool       *Pool // PoE1 process pool
+	pool2      *Pool // PoE2 process pool; nil disables PoE2 support (see poolFor)
 	cache      *BuildCache
 	apiKey     string
 	client     *http.Client // for outbound requests (URL resolution); nil uses DefaultClient
@@ -65,6 +66,84 @@ type Server struct {
 	queryMods   map[string]string
 }
 
+// poolFor returns the LuaJIT process pool for the given game ("poe" or
+// "poe2"), used at every pool-touching request's acquire time — before
+// any process exists — to decide which pool to draw from. "" is treated
+// as "poe" so call sites that predate multi-game support (tests, mostly)
+// keep working unchanged. Returns an error for an unrecognized game, or
+// for "poe2" when srv.pool2 isn't configured (PoE2 support disabled).
+func (srv *Server) poolFor(game string) (*Pool, error) {
+	switch game {
+	case "", GamePoE:
+		return srv.pool, nil
+	case GamePoE2:
+		if srv.pool2 == nil {
+			return nil, errors.New("poe2 support is not configured on this server")
+		}
+		return srv.pool2, nil
+	default:
+		return nil, fmt.Errorf("unknown game %q", game)
+	}
+}
+
+// poolForProc returns the pool that spawned proc, using the game tag
+// SpawnProcess stamped onto it at acquire time. Used by every
+// Release/Pin/SwapAffinity/LookupAffinity call site once a process is
+// already in hand, so callers don't need to re-thread a game string
+// alongside the process through the rest of a request's lifetime.
+func (srv *Server) poolForProc(proc *Process) *Pool {
+	if proc.game == GamePoE2 {
+		return srv.pool2
+	}
+	return srv.pool
+}
+
+// acquireGenericProcess resolves game to a pool and acquires a
+// build-agnostic process from it (Pool.Acquire — no affinity match).
+// Writes the appropriate HTTP error and returns ok=false on failure;
+// otherwise returns the pool (so the caller can Release/Pin against it)
+// alongside the process.
+func (srv *Server) acquireGenericProcess(writer http.ResponseWriter, game string) (*Pool, *Process, bool) {
+	pool, err := srv.poolFor(game)
+	if err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return nil, nil, false
+	}
+	proc, err := pool.Acquire()
+	if err != nil {
+		if errors.Is(err, ErrPoolExhausted) {
+			jsonError(writer, "all PoB processes are busy, try again later", http.StatusServiceUnavailable)
+			return nil, nil, false
+		}
+		srv.log.Error("pool acquire error", "err", err)
+		jsonError(writer, "failed to acquire PoB process", http.StatusInternalServerError)
+		return nil, nil, false
+	}
+	return pool, proc, true
+}
+
+// releasePoolProcess returns proc to the pool that spawned it.
+func (srv *Server) releasePoolProcess(proc *Process) {
+	srv.poolForProc(proc).Release(proc)
+}
+
+// pinPoolProcess pins proc (in the pool that spawned it) to buildID.
+func (srv *Server) pinPoolProcess(proc *Process, buildID string) {
+	srv.poolForProc(proc).Pin(proc, buildID)
+}
+
+// totalPoolCapacity sums maxSize across every configured pool. Used by
+// /compare's fan-out concurrency cap, which reserves headroom across the
+// server's total LuaJIT capacity (not just poe1's) so a mixed-game
+// compare request can't starve other endpoints.
+func (srv *Server) totalPoolCapacity() int {
+	total := srv.pool.maxSize
+	if srv.pool2 != nil {
+		total += srv.pool2.maxSize
+	}
+	return total
+}
+
 // CalcRequest is the JSON body for POST /calc.
 type CalcRequest struct {
 	BuildCode string `json:"buildCode"` // base64 PoB build code
@@ -104,7 +183,10 @@ const modSourcesMaxLimit = 50
 // fields and returns a calcLuaStatSourcesField ready to forward to
 // wrapper.lua. Returns (nil, nil) when the user didn't ask for sources.
 // Returns (nil, error) when the request is invalid (limit out of range).
-func validateAndBuildStatSourcesField(modSources []string, modSourcesLimit int) (*calcLuaStatSourcesField, error) {
+func validateAndBuildStatSourcesField(
+	modSources []string,
+	modSourcesLimit int,
+) (*calcLuaStatSourcesField, error) {
 	if len(modSources) == 0 {
 		if modSourcesLimit > 0 {
 			return nil, errors.New(
@@ -117,7 +199,11 @@ func validateAndBuildStatSourcesField(modSources []string, modSourcesLimit int) 
 		return nil, errors.New("modSourcesLimit must be >= 0")
 	}
 	if modSourcesLimit > modSourcesMaxLimit {
-		return nil, fmt.Errorf("modSourcesLimit %d exceeds cap %d", modSourcesLimit, modSourcesMaxLimit)
+		return nil, fmt.Errorf(
+			"modSourcesLimit %d exceeds cap %d",
+			modSourcesLimit,
+			modSourcesMaxLimit,
+		)
 	}
 	limit := modSourcesLimit
 	if limit == 0 {
@@ -199,13 +285,18 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	srv.calcAndRespond(writer, request, xml, "", "", nil, nil, false)
+	game, err := DetectBuildGame(xml)
+	if err != nil {
+		jsonError(writer, "unrecognized build XML: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	srv.calcAndRespond(writer, request, xml, "", "", game, nil, nil, false)
 }
 
 func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
 	idle, busy, poolMax := srv.pool.Stats()
-	writer.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(writer).Encode(map[string]any{
+	resp := map[string]any{
 		"status": "ok",
 		"pool": map[string]int{
 			"idle": idle,
@@ -213,7 +304,21 @@ func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
 			"max":  poolMax,
 		},
 		"cacheSize": srv.cache.Len(),
-	})
+	}
+	// pool2 is omitted entirely (not emitted as null/zero) when PoE2
+	// support isn't configured on this server — its presence is how a
+	// caller distinguishes "poe2 disabled" from "poe2 configured but
+	// idle".
+	if srv.pool2 != nil {
+		idle2, busy2, poolMax2 := srv.pool2.Stats()
+		resp["pool2"] = map[string]int{
+			"idle": idle2,
+			"busy": busy2,
+			"max":  poolMax2,
+		}
+	}
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(resp)
 }
 
 // ResolveRequest is the JSON body for POST /resolve.
@@ -289,7 +394,17 @@ func (srv *Server) handleResolve(
 
 	// External URL — or cached internal URL with a statSources request:
 	// calc through PoB, persist, return.
-	srv.calcAndRespond(writer, request, result.xml, result.sourceURL, "", statSources, allowedCategories, false)
+	srv.calcAndRespond(
+		writer,
+		request,
+		result.xml,
+		result.sourceURL,
+		"",
+		result.game,
+		statSources,
+		allowedCategories,
+		false,
+	)
 }
 
 // writeResolveError maps resolveBuildURL errors to user-facing JSON
@@ -333,6 +448,11 @@ func (srv *Server) writeResolveCachedSummary(
 
 // calcAndRespond acquires a PoB process, runs calc, persists, and writes the JSON response.
 //
+// game ("poe" or "poe2") selects which per-game pool to acquire the process
+// from — see Server.poolFor. Callers derive it from the build XML's root
+// element (DetectBuildGame) or, for /import, from the caller-supplied
+// game/realm parameter.
+//
 // /resolve has no buildID at acquire time (the content-hash is computed after
 // the calc completes), so this uses generic Acquire and pins the process to
 // the resulting buildID before release. Subsequent calls on the same buildID
@@ -340,26 +460,16 @@ func (srv *Server) writeResolveCachedSummary(
 func (srv *Server) calcAndRespond(
 	writer http.ResponseWriter,
 	request *http.Request,
-	xml, sourceURL, parentID string,
+	xml, sourceURL, parentID, game string,
 	statSources *calcLuaStatSourcesField,
 	allowedCategories map[string]bool,
 	includeXML bool,
 ) {
-	proc, err := srv.pool.Acquire()
-	if err != nil {
-		if errors.Is(err, ErrPoolExhausted) {
-			jsonError(
-				writer,
-				"all PoB processes are busy, try again later",
-				http.StatusServiceUnavailable,
-			)
-			return
-		}
-		srv.log.Error("pool acquire error", "err", err)
-		jsonError(writer, "failed to acquire PoB process", http.StatusInternalServerError)
+	pool, proc, ok := srv.acquireGenericProcess(writer, game)
+	if !ok {
 		return
 	}
-	defer srv.pool.Release(proc)
+	defer pool.Release(proc)
 
 	response, err := proc.Send(calcLuaRequest{
 		Type:          "calc",
@@ -402,7 +512,7 @@ func (srv *Server) calcAndRespond(
 	if srv.cache.store != nil {
 		// Store full unfiltered data in SQLite
 		if err := srv.cache.store.Put(
-			buildID, xml, string(pobResp.Data), sourceURL, parentID,
+			buildID, xml, string(pobResp.Data), sourceURL, parentID, game,
 		); err != nil {
 			srv.log.Warn("store put failed", "id", buildID, "err", err)
 		}
@@ -410,7 +520,7 @@ func (srv *Server) calcAndRespond(
 
 	// Pin the process to this buildID so follow-up calls (modify, nearby,
 	// audit, compare) hit affinity instead of paying a cold load.
-	srv.pool.Pin(proc, buildID)
+	pool.Pin(proc, buildID)
 	// Record what's loaded so the next request on this process can skip
 	// the XML reload via the loadedBuildId protocol field.
 	proc.SetLastLoadedBuildID(buildID)
@@ -429,7 +539,13 @@ func (srv *Server) calcAndRespond(
 	// to nil; never fails the parent response.
 	var powerReport *powerReportResult
 	if powerReportNeeded(sections) {
-		powerReport = srv.attachPowerReport(proc, buildID, xml, extractSummaryFloats(pobResp.Data), allowedCategories)
+		powerReport = srv.attachPowerReport(
+			proc,
+			buildID,
+			xml,
+			extractSummaryFloats(pobResp.Data),
+			allowedCategories,
+		)
 	}
 
 	resp := calcResponse{
@@ -557,6 +673,8 @@ func (srv *Server) handleModify(
 		return
 	}
 
+	game := detectBuildGameOrDefault(xml)
+
 	// Extract the stored summary for delta computation. This avoids a
 	// redundant PoB calc pass in the Lua wrapper — the pre-modify summary
 	// is passed in instead of being recomputed.
@@ -567,7 +685,17 @@ func (srv *Server) handleModify(
 		}
 	}
 
-	srv.modifyAndRespond(writer, request, xml, req.BuildID, req.Operations, preSummary, statSources, allowedCategories)
+	srv.modifyAndRespond(
+		writer,
+		request,
+		xml,
+		req.BuildID,
+		game,
+		req.Operations,
+		preSummary,
+		statSources,
+		allowedCategories,
+	)
 }
 
 // extractSummary pulls the "summary" object from a stored PoB data JSON blob.
@@ -592,17 +720,17 @@ func extractSummary(data []byte) json.RawMessage {
 func (srv *Server) modifyAndRespond(
 	writer http.ResponseWriter,
 	request *http.Request,
-	xml, parentID string,
+	xml, parentID, game string,
 	operations []json.RawMessage,
 	preSummary json.RawMessage,
 	statSources *calcLuaStatSourcesField,
 	allowedCategories map[string]bool,
 ) {
-	proc, ok := srv.acquirePoolProcess(writer, parentID)
+	proc, ok := srv.acquirePoolProcess(writer, game, parentID)
 	if !ok {
 		return
 	}
-	defer srv.pool.Release(proc)
+	defer srv.releasePoolProcess(proc)
 
 	pobResp, ok := srv.runModifyLua(writer, proc, runModifyLuaInput{
 		xml:         xml,
@@ -681,7 +809,11 @@ func (srv *Server) runModifyLua(
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
-		jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
+		jsonError(
+			writer,
+			"PoB process error — check server logs for details",
+			http.StatusInternalServerError,
+		)
 		return zero, false
 	}
 	var pobResp modifyLuaResponse
@@ -715,15 +847,23 @@ func (srv *Server) persistModifiedBuild(
 ) string {
 	newID := srv.cache.Put(modifiedXML)
 	if srv.cache.store != nil {
-		if err := srv.cache.store.Put(newID, modifiedXML, string(data), "", parentID); err != nil {
+		if err := srv.cache.store.Put(
+			newID,
+			modifiedXML,
+			string(data),
+			"",
+			parentID,
+			proc.game,
+		); err != nil {
 			srv.log.Warn("store put failed", "id", newID, "err", err)
 		}
 	}
 	if newID != parentID {
-		if srv.pool.LookupAffinity(parentID) == proc {
-			srv.pool.SwapAffinity(parentID, newID)
+		pool := srv.poolForProc(proc)
+		if pool.LookupAffinity(parentID) == proc {
+			pool.SwapAffinity(parentID, newID)
 		} else {
-			srv.pool.Pin(proc, newID)
+			pool.Pin(proc, newID)
 		}
 	}
 	proc.SetLastLoadedBuildID(newID)
@@ -912,17 +1052,13 @@ func (srv *Server) handleNearby(
 		return
 	}
 
-	proc, err := srv.pool.AcquireForBuild(req.BuildID)
-	if err != nil {
-		if errors.Is(err, ErrPoolExhausted) {
-			jsonError(writer, "all PoB processes are busy, try again later", http.StatusServiceUnavailable)
-			return
-		}
-		srv.log.Error("pool acquire error", "err", err)
-		jsonError(writer, "failed to acquire PoB process", http.StatusInternalServerError)
+	game := detectBuildGameOrDefault(xml)
+
+	proc, ok := srv.acquirePoolProcess(writer, game, req.BuildID)
+	if !ok {
 		return
 	}
-	defer srv.pool.Release(proc)
+	defer srv.releasePoolProcess(proc)
 
 	// Stat keys for both baseline (Send 1) and perturb deltas (Send 2).
 	// collectStatKeys deduplicates metrics + deltaStats while preserving
@@ -989,7 +1125,11 @@ func (srv *Server) runNearbyExtract(
 	})
 	if sendErr != nil {
 		srv.log.Error("process send error", "err", sendErr)
-		jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
+		jsonError(
+			writer,
+			"PoB process error — check server logs for details",
+			http.StatusInternalServerError,
+		)
 		return envelope, false
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
@@ -1077,7 +1217,11 @@ func (srv *Server) runPerturbBatch(
 	})
 	if sendErr != nil {
 		srv.log.Error("process send error", "err", sendErr)
-		jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
+		jsonError(
+			writer,
+			"PoB process error — check server logs for details",
+			http.StatusInternalServerError,
+		)
 		return nil, false
 	}
 	var envelope nearbyPerturbEnvelope
@@ -1105,7 +1249,10 @@ func (srv *Server) runPerturbBatch(
 // or the leading metric is derived/unknown, all candidates pass through.
 // The leading metric is the rank metric; downstream stats are reported as
 // context but don't drive ranking, so over-filtering on the lead is OK.
-func (srv *Server) filterByModIndex(passing []*nearbyCandidate, statKeys []string) []*nearbyCandidate {
+func (srv *Server) filterByModIndex(
+	passing []*nearbyCandidate,
+	statKeys []string,
+) []*nearbyCandidate {
 	if srv.modIndex == nil || len(statKeys) == 0 {
 		return passing
 	}
@@ -1256,7 +1403,11 @@ func (srv *Server) handleGetBuild(
 	}
 
 	if wantSummary {
-		filtered, written := srv.applySectionFilter(writer, json.RawMessage(summary), parseSections(request))
+		filtered, written := srv.applySectionFilter(
+			writer,
+			json.RawMessage(summary),
+			parseSections(request),
+		)
 		if written {
 			return
 		}
@@ -1790,7 +1941,13 @@ func (srv *Server) ensureQueryModsLoaded() {
 		return
 	}
 	if parsed.Type != "result" {
-		srv.log.Warn("queryMods load: non-result response", "type", parsed.Type, "msg", parsed.Message)
+		srv.log.Warn(
+			"queryMods load: non-result response",
+			"type",
+			parsed.Type,
+			"msg",
+			parsed.Message,
+		)
 		return
 	}
 

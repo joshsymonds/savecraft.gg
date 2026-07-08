@@ -12,8 +12,15 @@ import (
 // PoB-import path (driven through wrapper.lua) receives exactly what GGG
 // returned — Go does not reshape it. Mirrors ResolveRequest's role: the
 // minimal request envelope around the build's source of truth.
+//
+// Game ("poe" or "poe2") selects which per-game PoB pool processes the
+// import. Unlike /resolve, pob-server can't infer this from the request
+// body — a GGG character object doesn't carry a game/root-element signal
+// the way build XML does — so the caller (the poe or poe2 adapter, which
+// already knows which GGG realm it queried) must say explicitly.
 type ImportRequest struct {
 	Character json.RawMessage `json:"character"`
+	Game      string          `json:"game"`
 }
 
 // importLuaRequest is the wrapper.lua request for the "import" type.
@@ -69,25 +76,30 @@ func (srv *Server) handleImport(
 		return
 	}
 
+	if req.Game != GamePoE && req.Game != GamePoE2 {
+		jsonError(writer, `game must be "poe" or "poe2"`, http.StatusBadRequest)
+		return
+	}
+
 	// League feeds the headless charSelectLeague stub in wrapper.lua.
 	var meta struct {
 		League string `json:"league"`
 	}
 	_ = json.Unmarshal(req.Character, &meta)
 
-	proc, ok := srv.acquirePoolProcess(writer, "")
+	proc, ok := srv.acquirePoolProcess(writer, req.Game, "")
 	if !ok {
 		return
 	}
 	xml, ok := srv.runImportLua(writer, proc, getItems, getPassives, meta.League)
 	// Release before calcAndRespond, which acquires its own process —
 	// holding this one would deadlock a size-1 pool.
-	srv.pool.Release(proc)
+	srv.releasePoolProcess(proc)
 	if !ok {
 		return
 	}
 
-	srv.calcAndRespond(writer, request, xml, "", "", nil, nil, true)
+	srv.calcAndRespond(writer, request, xml, "", "", req.Game, nil, nil, true)
 }
 
 // runImportLua sends one import request to wrapper.lua and returns the

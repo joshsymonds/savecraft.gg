@@ -21,7 +21,7 @@ func TestResolveInternalURL(t *testing.T) {
 	xml := "<PathOfBuilding><Build level=\"95\"/></PathOfBuilding>"
 	id := contentHash(xml)
 	summary := `{"character":{"class":"Witch"}}`
-	if err := store.Put(id, xml, summary, "", ""); err != nil {
+	if err := store.Put(id, xml, summary, "", "", GamePoE); err != nil {
 		t.Fatal(err)
 	}
 
@@ -387,7 +387,7 @@ func TestResolveHandlerIntegration(t *testing.T) {
 	xml := "<PathOfBuilding><Build level=\"88\"/></PathOfBuilding>"
 	id := srv.cache.Put(xml)
 	summary := `{"stats":{"Life":5000}}`
-	_ = srv.cache.store.Put(id, xml, summary, "", "")
+	_ = srv.cache.store.Put(id, xml, summary, "", "", GamePoE)
 
 	body := `{"url":"https://pob.savecraft.gg/` + id + `"}`
 	req := httptest.NewRequest(

@@ -1,15 +1,20 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
 
 func newTestPool(poolMax int, idleTimeout time.Duration) *Pool {
-	return NewPool(poolMax, idleTimeout, "cat", "", ".", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	return NewPool(poolMax, idleTimeout, "cat", "", ".", GamePoE, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
 // TestPoolAcquireSpawns tests that Acquire spawns a process using a simple cat process.
@@ -88,6 +93,54 @@ func TestPoolIdleTimeout(t *testing.T) {
 	idle, busy, _ := pool.Stats()
 	if idle != 0 || busy != 0 {
 		t.Fatalf("expected 0/0 after idle timeout, got %d/%d", idle, busy)
+	}
+}
+
+// TestPoolStampsGameOnSpawnedProcess verifies a Pool constructed for a
+// given game tags every process it spawns with that game, so
+// GamePool-level Release/Pin/SwapAffinity can route back to the correct
+// underlying Pool without a separate lookup.
+func TestPoolStampsGameOnSpawnedProcess(t *testing.T) {
+	pool := NewPool(2, 5*time.Minute, "cat", "", ".", GamePoE2, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	proc, err := pool.Acquire()
+	if err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	defer proc.Kill()
+
+	if proc.game != GamePoE2 {
+		t.Fatalf("expected process game %q, got %q", GamePoE2, proc.game)
+	}
+}
+
+// TestSpawnProcessSetsPobGameEnv verifies SpawnProcess exports POB_GAME
+// into the subprocess environment — wrapper.lua reads this to select the
+// per-game module path for the (renamed, in PoE2) trade-helpers module.
+func TestSpawnProcessSetsPobGameEnv(t *testing.T) {
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	mockScript := filepath.Join(t.TempDir(), "echo-game.sh")
+	script := "#!/bin/sh\nread line\necho \"{\\\"type\\\":\\\"result\\\",\\\"data\\\":{\\\"game\\\":\\\"$POB_GAME\\\"}}\"\n"
+	if err := os.WriteFile(mockScript, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	proc, err := SpawnProcess(context.Background(), bashPath, mockScript, ".", GamePoE2)
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	defer proc.Kill()
+
+	resp, err := proc.Send(map[string]string{"type": "ping"})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if !strings.Contains(string(resp), `"game":"poe2"`) {
+		t.Fatalf("expected POB_GAME=poe2 to reach the subprocess, got: %s", resp)
 	}
 }
 

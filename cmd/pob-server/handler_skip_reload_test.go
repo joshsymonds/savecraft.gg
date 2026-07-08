@@ -51,7 +51,7 @@ done
 		t.Skip("bash not available")
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(2, 5*time.Minute, bashPath, scriptPath, dir, logger)
+	pool := NewPool(2, 5*time.Minute, bashPath, scriptPath, dir, GamePoE, logger)
 
 	return pool, func() []map[string]any {
 		raw, err := os.ReadFile(capturePath)

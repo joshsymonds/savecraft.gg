@@ -55,3 +55,56 @@ func TestDecodeBuildCodeHandlesPadding(t *testing.T) {
 		t.Fatalf("mismatch: %q != %q", decoded, xml)
 	}
 }
+
+func TestDetectBuildGamePoE1(t *testing.T) {
+	xml := `<?xml version="1.0" encoding="UTF-8"?><PathOfBuilding><Build level="99" className="Witch"/></PathOfBuilding>`
+	game, err := DetectBuildGame(xml)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if game != GamePoE {
+		t.Fatalf("expected game %q, got %q", GamePoE, game)
+	}
+}
+
+func TestDetectBuildGamePoE2(t *testing.T) {
+	xml := `<?xml version="1.0" encoding="UTF-8"?><PathOfBuilding2><Build level="1" className="Monk"/></PathOfBuilding2>`
+	game, err := DetectBuildGame(xml)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if game != GamePoE2 {
+		t.Fatalf("expected game %q, got %q", GamePoE2, game)
+	}
+}
+
+func TestDetectBuildGameUnrecognizedRoot(t *testing.T) {
+	xml := `<?xml version="1.0" encoding="UTF-8"?><SomethingElse/>`
+	_, err := DetectBuildGame(xml)
+	if err == nil {
+		t.Fatal("expected error for unrecognized root element")
+	}
+}
+
+func TestDetectBuildGameMalformedXML(t *testing.T) {
+	_, err := DetectBuildGame("not xml at all")
+	if err == nil {
+		t.Fatal("expected error for malformed XML")
+	}
+}
+
+func TestDetectBuildGameOrDefaultFallsBackToPoE(t *testing.T) {
+	// Synthetic placeholder XML, as used throughout the existing test
+	// suite for builds whose content doesn't matter (the mocked Lua
+	// process ignores it) — must default to poe1, not error.
+	if game := detectBuildGameOrDefault("<A/>"); game != GamePoE {
+		t.Fatalf("expected fallback to %q, got %q", GamePoE, game)
+	}
+}
+
+func TestDetectBuildGameOrDefaultRecognizesPoE2(t *testing.T) {
+	xml := `<?xml version="1.0" encoding="UTF-8"?><PathOfBuilding2><Build level="1"/></PathOfBuilding2>`
+	if game := detectBuildGameOrDefault(xml); game != GamePoE2 {
+		t.Fatalf("expected %q, got %q", GamePoE2, game)
+	}
+}

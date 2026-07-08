@@ -95,7 +95,7 @@ func TestCompareSummaryDiffN3(t *testing.T) {
 	idB := srv.cache.Put(xmlB)
 	idC := srv.cache.Put(xmlC)
 	for id, xml := range map[string]string{idA: xmlA, idB: xmlB, idC: xmlC} {
-		_ = srv.cache.store.Put(id, xml, "", "", "")
+		_ = srv.cache.store.Put(id, xml, "", "", "", GamePoE)
 	}
 
 	body := `{"builds":["` + idA + `","` + idB + `","` + idC + `"]}`
@@ -170,7 +170,7 @@ func TestCompareSummaryDiffOmitsErroredSlots(t *testing.T) {
 
 	xmlA := "<PathOfBuilding/>"
 	idA := srv.cache.Put(xmlA)
-	_ = srv.cache.store.Put(idA, xmlA, "", "", "")
+	_ = srv.cache.store.Put(idA, xmlA, "", "", "", GamePoE)
 
 	// Second build is an unknown ID — produces an Error slot.
 	body := `{"builds":["` + idA + `","00000000000000000000000000000000"]}`
@@ -204,8 +204,8 @@ func TestCompareSummaryDiffSubsetSucceeds(t *testing.T) {
 	xmlB := "<B/>"
 	idA := srv.cache.Put(xmlA)
 	idB := srv.cache.Put(xmlB)
-	_ = srv.cache.store.Put(idA, xmlA, "", "", "")
-	_ = srv.cache.store.Put(idB, xmlB, "", "", "")
+	_ = srv.cache.store.Put(idA, xmlA, "", "", "", GamePoE)
+	_ = srv.cache.store.Put(idB, xmlB, "", "", "", GamePoE)
 
 	// Three builds; the middle one is bogus → error slot at index 1.
 	body := `{"builds":["` + idA + `","00000000000000000000000000000000","` + idB + `"]}`
