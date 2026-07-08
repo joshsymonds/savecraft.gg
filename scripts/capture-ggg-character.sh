@@ -109,9 +109,11 @@ fi
 cd "${REPO_ROOT}/worker"
 
 # Pull the token straight into a variable — no echo, no temp file.
+# sed strips wrangler's non-JSON stdout preamble (e.g. the agent-skills
+# promo line it prints even with --json) so jq sees only the JSON array.
 TOKEN="$(npx wrangler d1 execute "${D1_DB}" --env "${ENV_TARGET}" --remote --json \
   --command "SELECT access_token FROM provider_credentials WHERE user_uuid='${USER_UUID}' AND provider='ggg'" \
-  2>/dev/null | jq -r '.[0].results[0].access_token // empty')"
+  2>/dev/null | sed -n '/^\[/,$p' | jq -r '.[0].results[0].access_token // empty')"
 
 if [ -z "${TOKEN}" ]; then
   echo "No PoE access token for ${USER_UUID} on ${ENV_TARGET}." >&2
