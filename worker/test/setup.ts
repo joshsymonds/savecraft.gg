@@ -779,6 +779,13 @@ const statements = [
     hash UNINDEXED, name, stats, ascendancy_name,
     tokenize='porter unicode61'
   )`,
+  // migration 0062 — PoE2 per-character Path of Building (PoB2) snapshot
+  `CREATE TABLE IF NOT EXISTS poe2_build_snapshot (
+    save_uuid TEXT PRIMARY KEY,
+    pob_build_id TEXT NOT NULL,
+    pob_xml TEXT NOT NULL,
+    imported_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
 ];
 
 for (const sql of statements) {

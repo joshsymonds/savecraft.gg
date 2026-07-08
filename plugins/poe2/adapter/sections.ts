@@ -5,8 +5,7 @@
  *
  * No inventory mapper: GGG's PoE2 character API does not return
  * unequipped items (the epic anti-pattern this plugin deliberately
- * avoids). No pob_build mapper either — PoB2 enrichment is a separate,
- * future epic.
+ * avoids).
  */
 
 import type { GameStateSection } from "../../../worker/src/adapters/adapter";
@@ -128,5 +127,24 @@ export function mapPassives(char: Poe2Character): GameStateSection {
       specialisationHashes,
       quest_stats: p?.quest_stats ?? {},
     },
+  };
+}
+
+/**
+ * The AI-visible build section: the content-addressed pob-server
+ * build_id plus PoB2's computed summary (DPS/Life/resists/…). The raw
+ * PoB2 XML is NEVER included here — it lives only in
+ * poe2_build_snapshot. Mirrors plugins/poe/adapter/sections.ts's
+ * buildPobSection.
+ */
+export function buildPobSection(
+  buildId: string,
+  summary: Record<string, unknown>,
+): GameStateSection {
+  return {
+    description:
+      "Path of Building 2 analysis of the imported character. build_id can be " +
+      "passed to the build_planner reference module for deeper analysis.",
+    data: { build_id: buildId, ...summary },
   };
 }

@@ -21,6 +21,7 @@ export const CLEANUP_TABLES = [
   "linked_characters",
   "provider_credentials",
   "poe_build_snapshot",
+  "poe2_build_snapshot",
   "saves",
   "sources",
   "magic_interactions_fts",

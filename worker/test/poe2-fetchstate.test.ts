@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { poe2Adapter } from "../../plugins/poe2/adapter";
 import characterFixture from "../../plugins/poe2/testdata/ggg-poe2-character-full.json";
@@ -10,6 +10,7 @@ import type { Env } from "../src/types";
 import { cleanAll, mockFetch } from "./helpers";
 
 const GGG_API = "https://api.pathofexile.com";
+const POB = "https://pob.savecraft.gg";
 
 function params(overrides: Partial<FetchParams> = {}): FetchParams {
   return {
@@ -74,8 +75,10 @@ describe("poe2Adapter.fetchState", () => {
     expect(state.sections.passives!.data.allocated as number).toBeGreaterThan(0);
     expect(state.sections.passives!.data.specialisations).toEqual({ set1: 3, set2: 2 });
 
-    // Epic anti-pattern guards: no inventory (GGG doesn't return it for
-    // PoE2), no pob_build (PoB2 enrichment is a separate future epic).
+    // Epic anti-pattern guard: no inventory (GGG doesn't return it for
+    // PoE2). No POB_URL is configured for this call (see the pob_build
+    // describe block below for that behavior), so pob_build stays absent
+    // and the raw sections are unaffected.
     expect(state.sections.inventory).toBeUndefined();
     expect(state.sections.pob_build).toBeUndefined();
     expect(Object.keys(state.sections).toSorted((a, b) => a.localeCompare(b))).toEqual([
@@ -119,6 +122,140 @@ describe("poe2Adapter.fetchState", () => {
       refreshToken: "new-ref",
       expiresAt: expect.any(String),
     });
+  });
+
+  it("maps sections, attaches pob_build, and stashes snapshot data in identity.extra", async () => {
+    mockGgg();
+    mockFetch
+      .get(POB)
+      .intercept({ path: "/import", method: "POST" })
+      .reply(
+        200,
+        JSON.stringify({
+          buildId: "poe2-deadbeef",
+          data: { summary: { Life: 4800, CombinedDPS: 900_000 } },
+          xml: "<PathOfBuilding>poe2-snapshot</PathOfBuilding>",
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+
+    const state = await poe2Adapter.fetchState(params(), {
+      ...env,
+      POB_URL: POB,
+    } as unknown as Env);
+
+    expect(state.sections.character_overview!.data.name).toBe("InfernalConcoction");
+    expect(state.sections.pob_build!.data.build_id).toBe("poe2-deadbeef");
+    expect(state.sections.pob_build!.data.Life).toBe(4800);
+    expect(state.identity.extra!.pobBuildId).toBe("poe2-deadbeef");
+    expect(state.identity.extra!.pobXml).toBe("<PathOfBuilding>poe2-snapshot</PathOfBuilding>");
+    // Raw XML must never appear in a section payload.
+    expect(JSON.stringify(state.sections)).not.toContain("<PathOfBuilding>");
+  });
+
+  it('sends game:"poe2" in the pob-server /import request body', async () => {
+    mockGgg();
+    mockFetch
+      .get(POB)
+      .intercept({ path: "/import", method: "POST" })
+      .reply(
+        200,
+        JSON.stringify({
+          buildId: "poe2-deadbeef",
+          data: { summary: {} },
+          xml: "<PathOfBuilding>poe2-snapshot</PathOfBuilding>",
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+
+    // mockFetch.activate() (inside mockGgg()) already installed its own
+    // globalThis.fetch replacement; spy on top of it so requests still
+    // resolve via the mock while we capture the actual call args — the
+    // shared MockFetch helper has no built-in body-capture support.
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    await poe2Adapter.fetchState(params(), { ...env, POB_URL: POB } as unknown as Env);
+
+    const importCall = fetchSpy.mock.calls.find(([input]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      return url.includes("/import");
+    });
+    expect(importCall).toBeDefined();
+    const [, init] = importCall!;
+    const body = JSON.parse(init!.body as string) as { game?: string; character?: unknown };
+    expect(body.game).toBe("poe2");
+    expect(body.character).toBeTruthy();
+
+    fetchSpy.mockRestore();
+  });
+
+  it("partial_failure: pob-server down → raw sections kept, no pob_build, no throw", async () => {
+    mockGgg();
+    mockFetch.get(POB).intercept({ path: "/import", method: "POST" }).reply(503, "unavailable");
+
+    const state = await poe2Adapter.fetchState(params(), {
+      ...env,
+      POB_URL: POB,
+    } as unknown as Env);
+
+    expect(state.sections.character_overview).toBeTruthy();
+    expect(state.sections.gear).toBeTruthy();
+    expect(state.sections.pob_build).toBeUndefined();
+    expect(state.identity.extra?.pobXml).toBeUndefined();
+    const enrich = state.sections.character_overview!.enrichment;
+    expect(enrich?.[0]?.source).toBe("path-of-building");
+    expect(enrich?.[0]?.available).toBe(false);
+  });
+});
+
+describe("storePush poe2 snapshot persistence", () => {
+  beforeEach(cleanAll);
+
+  async function seedSave(): Promise<string> {
+    const sourceUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+    )
+      .bind(sourceUuid, "poe2-user", `h-${sourceUuid}`)
+      .run();
+    return sourceUuid;
+  }
+
+  it("upserts poe2_build_snapshot and keeps XML out of sections/FTS", async () => {
+    const sourceUuid = await seedSave();
+    const { saveUuid } = await storePush(
+      env as unknown as Env,
+      "poe2-user",
+      sourceUuid,
+      "poe2",
+      "InfernalConcoction",
+      "InfernalConcoction, Level 87 Chronomancer",
+      new Date().toISOString(),
+      { pob_build: { description: "PoB", data: { build_id: "bid1" } } },
+      undefined,
+      { pobBuildId: "bid1", pobXml: "<PathOfBuilding>x</PathOfBuilding>" },
+    );
+
+    const snap = await env.DB.prepare(
+      "SELECT pob_build_id, pob_xml FROM poe2_build_snapshot WHERE save_uuid = ?",
+    )
+      .bind(saveUuid)
+      .first<{ pob_build_id: string; pob_xml: string }>();
+    expect(snap!.pob_build_id).toBe("bid1");
+    expect(snap!.pob_xml).toBe("<PathOfBuilding>x</PathOfBuilding>");
+
+    const secs = await env.DB.prepare("SELECT data FROM sections WHERE save_uuid = ?")
+      .bind(saveUuid)
+      .all<{ data: string }>();
+    for (const row of secs.results) {
+      expect(row.data).not.toContain("<PathOfBuilding>");
+    }
+    const fts = await env.DB.prepare("SELECT content FROM search_index WHERE save_id = ?")
+      .bind(saveUuid)
+      .all<{ content: string }>();
+    for (const row of fts.results) {
+      expect(row.content).not.toContain("<PathOfBuilding>");
+    }
   });
 });
 

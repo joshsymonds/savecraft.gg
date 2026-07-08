@@ -75,12 +75,13 @@ interface RefreshedProviderCreds {
 
 /**
  * Persist adapter refresh side effects that must not live in a section:
- * PoE's content-addressed PoB build snapshot (raw XML, re-fed to
- * pob-server /calc on eviction — PoE-only, PoE2 has no PoB2 enrichment
- * yet) and any provider tokens refreshed in-adapter during fetchState,
- * for ANY adapter game (poe, poe2, and future ones) — persisted into
- * the shared provider_credentials row via providerForGame(gameId), so
- * a rotation from either game keeps the row current for its siblings.
+ * PoE's and PoE2's content-addressed PoB/PoB2 build snapshots (raw XML,
+ * re-fed to pob-server /calc on eviction — one table per game, mirroring
+ * the poe_passive_nodes/poe2_passive_nodes convention) and any provider
+ * tokens refreshed in-adapter during fetchState, for ANY adapter game
+ * (poe, poe2, and future ones) — persisted into the shared
+ * provider_credentials row via providerForGame(gameId), so a rotation
+ * from either game keeps the row current for its siblings.
  */
 async function persistAdapterRefreshArtifacts(
   db: D1Database,
@@ -96,6 +97,20 @@ async function persistAdapterRefreshArtifacts(
       await db
         .prepare(
           `INSERT OR REPLACE INTO poe_build_snapshot (save_uuid, pob_build_id, pob_xml, imported_at)
+           VALUES (?, ?, ?, datetime('now'))`,
+        )
+        .bind(saveUuid, buildId, xml)
+        .run();
+    }
+  }
+
+  if (gameId === "poe2") {
+    const buildId = extra.pobBuildId;
+    const xml = extra.pobXml;
+    if (typeof buildId === "string" && typeof xml === "string") {
+      await db
+        .prepare(
+          `INSERT OR REPLACE INTO poe2_build_snapshot (save_uuid, pob_build_id, pob_xml, imported_at)
            VALUES (?, ?, ?, datetime('now'))`,
         )
         .bind(saveUuid, buildId, xml)
