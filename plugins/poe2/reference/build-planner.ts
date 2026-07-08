@@ -1,13 +1,22 @@
 /**
- * PoE build_planner — native reference module.
+ * PoE2 build_planner — native reference module.
  *
- * PoE1 configuration for the shared build_planner core (see
+ * PoE2 configuration for the shared build_planner core (see
  * worker/src/reference/pob-planner.ts for the game-agnostic plumbing:
  * pobFetch/auth, /resolve /modify /nearby /audit /compare /build/{id}/summary,
  * recoveryXml re-feed, and connected-character snapshot resolution). This
- * file supplies poe1-specific metadata: module id/description/parameters,
- * the poe_build_snapshot table, and buy_similar support (pob-server's
- * QueryMods/trade enrichment is poe1-only).
+ * file supplies poe2-specific metadata: module id/description/parameters,
+ * the poe2_build_snapshot table, and no buy_similar support — pob-server's
+ * QueryMods/trade-mod lookup is dumped exclusively from the poe1 process
+ * pool (see cmd/pob-server/compare.go's lookupQueryModsLeg), so a poe2
+ * caller passing buy_similar gets a clear error rather than a silently
+ * best-effort (or empty) trade URL.
+ *
+ * The operations list also excludes set_bandit/set_pantheon — Path of
+ * Exile 2 has no bandit quest or pantheon system, so those ops are simply
+ * absent from the documented op set (mirroring build-planner's existing
+ * idiom: individual op names are never validated client-side; pob-server /
+ * PoB2 rejects unrecognised ops itself).
  */
 
 import { URLS } from "../../../shared/content/facts";
@@ -18,40 +27,41 @@ export const buildPlannerModule: NativeReferenceModule = {
   id: "build_planner",
   name: "Build Planner",
   description:
-    "Analyze, modify, or explore a Path of Exile build via Path of Building. " +
-    "First call returns a compact summary (DPS, life, resists, attributes), character info (class, ascendancy, bandit, pantheon), and a section_index listing available detail sections. " +
+    "Analyze, modify, or explore a Path of Exile 2 build via Path of Building 2. " +
+    "First call returns a compact summary (DPS, life, resists, attributes), character info (class, ascendancy, specialisations), and a section_index listing available detail sections. " +
     "The summary includes per-element damage breakdown (PhysicalHitAverage, FireHitAverage, ColdHitAverage, LightningHitAverage, ChaosHitAverage) showing the actual damage type split after all conversion and 'gain as extra' mechanics — " +
     "check these BEFORE recommending element-specific gem or support changes. A skill tagged 'Fire' may deal significant chaos damage via gear conversion. " +
     "The items section includes mod text for rare/magic items — use these to understand gear-based conversion, added-as-extra, and other build-defining mechanics. Unique item mods are not shown (use unique_search to look them up by name). " +
     "Request sections='config' to see active configuration overrides (combat conditions, enemy settings, Wither stacks, etc.). " +
-    "To determine Low Life status, check config for conditionLowLife — do NOT rely on LifeUnreservedPercent, which reflects static reservations only, not combat-conditional effects like Dissolution of the Flesh. " +
+    "To determine Low Life status, check config for conditionLowLife — do NOT rely on LifeUnreservedPercent, which reflects static reservations only, not combat-conditional effects. " +
     "To drill deeper, call again with the buildId and sections parameter (e.g. sections='offense,defense'). " +
     "Stat sections return curated key stats plus _extra_keys listing other available stats — use stat_keys to request specific extras. " +
     "For modifications, pass buildId + operations. The response includes a changes object with {before, after, delta} for every summary stat that changed — " +
     "present the delta to the player, not the full stat dump. " +
     "For tree exploration, pass buildId + nearby_metrics to find the highest-impact nearby nodes ranked by real calc deltas. " +
     "For tree pruning, pass buildId + audit_allocated to find weak branches in the CURRENT allocated tree — ranked by what the player would lose by removing them, with a dead_weight bucket of zero-contribution nodes. Pairs naturally with nearby_metrics: audit identifies underperforming branches, nearby finds replacement directions, you propose the swap. " +
-    "To drill into WHY a stat has its value (which item, tree node, skill, or pantheon contributes), pass mod_sources with the stat names. The response carries data.statSources keyed by stat with top-N source rows. " +
-    "Decomposable stats (return real per-mod rows): Life, EnergyShield, Mana, Armour, Evasion, Strength, Dexterity, Intelligence, resistances, BlockChance, SpellSuppressionChance, LifeRegen, ManaRegen, CritChance, ailment-chance/effect stats, hit-damage component stats — anything stored as a mod against the player's actor. " +
+    "To drill into WHY a stat has its value (which item, tree node, skill, or specialisation contributes), pass mod_sources with the stat names. The response carries data.statSources keyed by stat with top-N source rows. " +
+    "Decomposable stats (return real per-mod rows): Life, EnergyShield, Mana, Spirit, Armour, Evasion, Strength, Dexterity, Intelligence, resistances, BlockChance, SpellSuppressionChance, LifeRegen, ManaRegen, CritChance, ailment-chance/effect stats, hit-damage component stats — anything stored as a mod against the player's actor. " +
     "Non-decomposable stats (return empty arrays — calc-aggregate / derived): CombinedDPS, TotalDPS, FullDPS, AverageHit, Speed, EHP, MaximumHitTaken variants. PoB computes these from other stats; there is no per-mod attribution to walk. " +
-    'When a player asks why two builds diverge on a damage stat, request the underlying decomposable inputs (crit components, hit-damage adders, conversion mods, gear-source life-as-extra-mana, etc.) — NOT CombinedDPS, which will return []. Aggregate stats serve as quick "is this build behaving fundamentally differently?" tells, not as source-decomposable answers. After identifying the divergent mods, re-call compare with buy_similar=true and buy_similar_filters populated from those mods to find replacement gear. ' +
+    'When a player asks why two builds diverge on a damage stat, request the underlying decomposable inputs (crit components, hit-damage adders, conversion mods, gear-source life-as-extra-mana, etc.) — NOT CombinedDPS, which will return []. Aggregate stats serve as quick "is this build behaving fundamentally differently?" tells, not as source-decomposable answers. ' +
     'Use nearby_categories on a /resolve or /modify call to focus the inline power_report on a specific node type (e.g. nearby_categories=["Keystone"] when the player asks "any keystone I should grab?") — pair with audit_categories on a follow-up audit_allocated call to get symmetric remove/add suggestions confined to the same category axis. ' +
     "When narrating /compare gear diffs, filter to slots where modsSame is false — modsSame:true means no mechanical divergence even when nameSame:false (rare reroll, RELIC/UNIQUE foil flag), so those slots add noise without insight. " +
     'Each compared socket group carries mainGemLinkCount (link count of the main gem\'s socket), hostItemMaxLink (largest link on the host item), and hostItemName — read these directly to answer "is this skill 6-linked?" instead of re-correlating with sections.gear.items by slot. ' +
     "diffs.tree.allocatedOnlyIn is an array indexed parallel to builds[]; failed builds get [] at their index — index by build position, not buildId. " +
-    "Config keys prefixed multiplier (e.g. multiplierRage, multiplierWitheredStackCount, multiplierFrenzyCharges) are user-set knobs the calc reads as inputs; the resulting runtime stats live in offense/defense (Rage, WitherEffect, FrenzyCharges) and may be cap-clamped against gear-derived maxima. Read the runtime stat in offense/defense for the post-calc effect — the config value is what was requested, not what's being applied. " +
+    "Config keys prefixed multiplier (e.g. multiplierRage, multiplierWitheredStackCount, multiplierFrenzyCharges) are user-set knobs the calc reads as inputs; the resulting runtime stats live in offense/defense and may be cap-clamped against gear-derived maxima. Read the runtime stat in offense/defense for the post-calc effect — the config value is what was requested, not what's being applied. " +
     "Every response includes a buildId for follow-up calls. " +
-    "If the player has connected their Path of Exile account to Savecraft, pass `character:\"current\"` (their most-recently-played character) or `character:\"<name>\"` instead of a build URL — Savecraft analyzes their live imported character with no copy-paste. The `build` URL remains the fallback for builds that aren't theirs or for players who haven't connected an account.",
+    "If the player has connected their Path of Exile 2 account to Savecraft, pass `character:\"current\"` (their most-recently-played character) or `character:\"<name>\"` instead of a build URL — Savecraft analyzes their live imported character with no copy-paste. The `build` URL remains the fallback for builds that aren't theirs or for players who haven't connected an account. " +
+    "PoE2 has no bandit quest and no pantheon system — the operations list has no set_bandit/set_pantheon ops, and there is no bandit/pantheon field in character info. buy_similar trade-search enrichment (available for PoE1 builds) is not supported for PoE2 — pob-server's trade-mod lookup is poe1-only.",
   parameters: {
     character: {
       type: "string",
       description:
-        `Analyze the player's own connected Path of Exile character — no URL needed. Pass "current" for their most-recently-played character, or the exact character name. Requires the player to have connected their PoE account at ${URLS.app} and run refresh_save for that character. Preferred over \`build\` whenever the player asks about THEIR character/build. Mutually exclusive with \`build\`; ignored if \`build\` or \`build_id\` is also given.`,
+        `Analyze the player's own connected Path of Exile 2 character — no URL needed. Pass "current" for their most-recently-played character, or the exact character name. Requires the player to have connected their PoE2 account at ${URLS.app} and run refresh_save for that character. Preferred over \`build\` whenever the player asks about THEIR character/build. Mutually exclusive with \`build\`; ignored if \`build\` or \`build_id\` is also given.`,
     },
     build: {
       type: "string",
       description:
-        "URL to a PoB build (pobb.in, pastebin, pob.savecraft.gg link). Use for builds that are NOT the player's own connected character (e.g. a guide/build they want to inspect). For the player's own character prefer `character`. Omit when modifying an existing build by buildId.",
+        "URL to a PoB2 build (pobb.in, pastebin, pob.savecraft.gg link). Use for builds that are NOT the player's own connected character (e.g. a guide/build they want to inspect). For the player's own character prefer `character`. Omit when modifying an existing build by buildId.",
     },
     build_id: {
       type: "string",
@@ -73,9 +83,8 @@ export const buildPlannerModule: NativeReferenceModule = {
         '- {"op":"equip_unique","name":"Abyssus","slot":"Helmet"} — Equip a unique item by name. Slots: Weapon 1, Weapon 2, Helmet, Body Armour, Gloves, Boots, Belt, Ring 1, Ring 2, Amulet. For flasks, use equip_flask instead.\n' +
         '- {"op":"equip_flask","name":"Taste of Hate","slot":"Flask 2"} — Equip a unique flask by name and activate it. Slots: Flask 1, Flask 2, Flask 3, Flask 4, Flask 5. The flask is automatically toggled active so its stats are included in calculations.\n' +
         '- {"op":"set_item","slot":"Body Armour","rarity":"Rare","name":"Bramble Song","base":"Astral Plate","mods":["+80 to maximum Life","80% increased Armour"]} — Equip a rare custom item. Required fields: slot (any equipment slot except flask slots), rarity ("Rare" only — use equip_unique for Unique items), name (the rare\'s display name, e.g. "Bramble Song"), base (the base type, e.g. "Astral Plate", "Kinetic Wand"). Optional: mods (array of modifier strings as PoB displays them in-tooltip, e.g. "+80 to maximum Life", "38% increased Critical Strike Chance"). The server constructs PoB\'s item text from these fields — do not pass a "text" field; do not hand-format the PoB skeleton yourself. Magic/Normal rarities are not currently supported by set_item.\n' +
-        '- {"op":"set_config","var":"multiplierWitheredStackCount","value":15} — Set any PoB config override. Common vars: multiplierWitheredStackCount, conditionLowLife, conditionStationary, conditionFullLife, resistancePenalty, enemyIsBoss (Sirus/Shaper/etc).\n' +
-        '- {"op":"set_bandit","bandit":"None"} — Set bandit quest reward. Values: None (Kill All), Oak, Kraityn, Alira.\n' +
-        '- {"op":"set_pantheon","major":"Arakaali","minor":"Ralakesh"} — Set pantheon gods. Major: None, TheBrineKing, Lunaris, Solaris, Arakaali. Minor: None, Gruthkul, Yugul, Abberath, Tukohama, Garukhan, Ralakesh, Ryslatha, Shakari. Can set one or both.',
+        '- {"op":"set_config","var":"multiplierWitheredStackCount","value":15} — Set any PoB config override. Common vars: multiplierWitheredStackCount, conditionLowLife, conditionStationary, conditionFullLife, resistancePenalty, enemyIsBoss.\n' +
+        "PoE2 has no bandit quest and no pantheon system — there are no set_bandit/set_pantheon ops.",
     },
     sections: {
       type: "string",
@@ -86,7 +95,7 @@ export const buildPlannerModule: NativeReferenceModule = {
         "- offense: hit damage, DPS, ailments (bleed/poison/ignite), minion offense, charges, limits.\n" +
         "- defense: armour, evasion, energy shield, resistances, EHP, recovery, minion defense.\n" +
         "- gear: equipped items by slot (gear.items) and skill socket groups (gear.socket_groups).\n" +
-        "- tree: allocated passive points (allocated_nodes, available_points = level_points + quest_points (23, all acts) + extra_points), tree.version, plus tree.keystones.\n" +
+        "- tree: allocated passive points (allocated_nodes, available_points = level_points + quest_points + extra_points), tree.version, plus tree.keystones.\n" +
         "- config: active configuration overrides (conditions, enemy settings, combat state).\n" +
         "- summary: same shape returned at the top level when sections is omitted; explicitly request it as part of a multi-section call.\n" +
         "Stat sections (offense, defense) return curated key stats by default plus an _extra_keys array listing other available stat names. " +
@@ -229,39 +238,8 @@ export const buildPlannerModule: NativeReferenceModule = {
         "enemyIsBoss). Each diff entry uses perBuild arrays so the response shape is identical " +
         "at N=2 and N=3+. The primary (build or build_id) is iterated alongside compare_with — " +
         "pass at least one additional build here. Compare mode takes precedence over " +
-        "modify/nearby/audit when compare_with is set.",
-    },
-    buy_similar: {
-      type: "boolean",
-      description:
-        "When true alongside compare_with, response includes a buySimilar array with " +
-        "pathofexile.com/trade URLs pre-filled to find each item that one build has and " +
-        "another lacks (or has a different one in the same slot). Useful for 'how do I match " +
-        "this build?' workflows. Defaults to false.",
-    },
-    league: {
-      type: "string",
-      description:
-        "League name for buy_similar trade URLs (e.g. 'Standard', 'Mirage', 'Mirage Hardcore'). " +
-        "Defaults to 'Standard'. Only used when buy_similar is true.",
-    },
-    buy_similar_filters: {
-      type: "object",
-      description:
-        "Constrain the buy_similar trade-search URLs by per-mod thresholds, " +
-        "defence ranges, item-level, realm, and listed status. Use when the " +
-        "player wants gear matching specific numbers, not just the same name — " +
-        'e.g. "find me a Belly with at least 90 Life" → ' +
-        "{mods: [{mod_text: '+# to maximum Life', mod_type: 'Explicit', min: 90}]}. " +
-        'Or "a high-armour chest, ilvl 84+" → ' +
-        "{armour_min: 800, ilvl_min: 84}. Filter shape: " +
-        "{mods: [{mod_text, mod_type, min, max}], armour_min, evasion_min, " +
-        "energy_shield_min, ward_min, ilvl_min, ilvl_max, realm, listed}. " +
-        "Realm: pc/sony/xbox (default pc). Listed: available/securable/online/any " +
-        "(default available). Mod IDs are resolved from the cached PoE trade-API " +
-        "dictionary; mods without a cached ID are silently dropped (URL still emits " +
-        "the name + non-mod filters). REQUIRES buy_similar=true — passing filters " +
-        "without that flag returns an error rather than silently ignoring them.",
+        "modify/nearby/audit when compare_with is set. Note: buy_similar trade-search " +
+        "enrichment is NOT available for PoE2 builds (poe1-only).",
     },
     mod_sources: {
       type: "array",
@@ -273,10 +251,10 @@ export const buildPlannerModule: NativeReferenceModule = {
         '\'walk me through this build\'s defenses\' → pass ["Armour","Evasion","EnergyShield","Life"]. ' +
         "Each requested stat returns a top-N list of modifier rows under " +
         "data.statSources[statName], where each row carries source_type " +
-        "(Item/Tree/Skill/Pantheon/Spectre/Class/Base), source_name (the " +
+        "(Item/Tree/Skill/Spectre/Class/Base), source_name (the " +
         "actual item / passive node / gem / etc. that contributes), mod_name, " +
         "mod_type (BASE/INC/MORE/FLAG/OVERRIDE), and value. " +
-        "DECOMPOSABLE stats (mod-backed; return real rows): Life, EnergyShield, Mana, " +
+        "DECOMPOSABLE stats (mod-backed; return real rows): Life, EnergyShield, Mana, Spirit, " +
         "Armour, Evasion, Strength, Dexterity, Intelligence, FireResist, ColdResist, " +
         "LightningResist, ChaosResist, BlockChance, SpellSuppressionChance, LifeRegen, " +
         "ManaRegen, CritChance, plus most ailment-chance/effect and hit-damage component " +
@@ -304,10 +282,10 @@ export const buildPlannerModule: NativeReferenceModule = {
   },
 
   execute: createBuildPlannerExecute({
-    gameId: "poe",
-    snapshotTable: "poe_build_snapshot",
-    gameLabel: "Path of Exile",
-    gameAbbrev: "PoE",
-    supportsBuySimilar: true,
+    gameId: "poe2",
+    snapshotTable: "poe2_build_snapshot",
+    gameLabel: "Path of Exile 2",
+    gameAbbrev: "PoE2",
+    supportsBuySimilar: false,
   }),
 };

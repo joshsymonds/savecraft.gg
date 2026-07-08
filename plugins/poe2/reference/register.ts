@@ -4,8 +4,10 @@
  */
 
 import { registerNativeModule } from "../../../worker/src/reference/registry";
+import { buildPlannerModule } from "./build-planner";
 import { economyModule } from "./economy";
 import { passiveTreeModule } from "./passive-tree";
 
+registerNativeModule("poe2", buildPlannerModule);
 registerNativeModule("poe2", economyModule);
 registerNativeModule("poe2", passiveTreeModule);
