@@ -1,8 +1,8 @@
 # Pinned PathOfBuilding-PoE2 source — the single source-of-truth for the
-# revision used by the production NixOS module (`nix/pob-server.nix`),
-# its sole consumer. Bumping this revision is the only knob. The dev
-# shell (`devenv.nix`) does not import this yet — dev-shell PoE2
-# integration is a future task.
+# revision used by the production NixOS module (`nix/pob-server.nix`) AND
+# the dev shell (`devenv.nix`, which exports it as POB2_DIR). Bumping this
+# revision is the only knob; both consumers import from here so dev/CI/prod
+# can never drift.
 #
 # dev branch @ 2026-07-02 — first revision verified end-to-end against
 # wrapper.lua (see cmd/pob-server/wrapper.lua's POB_GAME switch): boots

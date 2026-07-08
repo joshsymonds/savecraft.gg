@@ -20,7 +20,7 @@ func loadGGGFixture(t *testing.T) json.RawMessage {
 // The get-items body PoB's ImportItemsAndSkills consumes:
 // { character: {...}, items: [...] }.
 func TestTransformToImportJSON_ItemsBody(t *testing.T) {
-	getItems, _, err := transformToImportJSON(loadGGGFixture(t))
+	getItems, _, err := transformToImportJSON(loadGGGFixture(t), GamePoE)
 	if err != nil {
 		t.Fatalf("transform: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestTransformToImportJSON_ItemsBody(t *testing.T) {
 
 // The get-passive-skills body PoB's ImportPassiveTreeAndJewels consumes.
 func TestTransformToImportJSON_PassivesBody(t *testing.T) {
-	_, getPassives, err := transformToImportJSON(loadGGGFixture(t))
+	_, getPassives, err := transformToImportJSON(loadGGGFixture(t), GamePoE)
 	if err != nil {
 		t.Fatalf("transform: %v", err)
 	}
@@ -116,11 +116,11 @@ func TestTransformToImportJSON_PassivesBody(t *testing.T) {
 
 func TestTransformToImportJSON_Deterministic(t *testing.T) {
 	fixture := loadGGGFixture(t)
-	i1, p1, err := transformToImportJSON(fixture)
+	i1, p1, err := transformToImportJSON(fixture, GamePoE)
 	if err != nil {
 		t.Fatalf("transform #1: %v", err)
 	}
-	i2, p2, err := transformToImportJSON(fixture)
+	i2, p2, err := transformToImportJSON(fixture, GamePoE)
 	if err != nil {
 		t.Fatalf("transform #2: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestTransformToImportJSON_RejectsBadInput(t *testing.T) {
 					t.Fatalf("panicked on %s input: %v", name, r)
 				}
 			}()
-			if _, _, err := transformToImportJSON(in); err == nil {
+			if _, _, err := transformToImportJSON(in, GamePoE); err == nil {
 				t.Fatalf("expected error for %s input, got nil", name)
 			}
 		})

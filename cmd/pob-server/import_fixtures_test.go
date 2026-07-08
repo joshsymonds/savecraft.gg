@@ -84,7 +84,7 @@ func TestImportMultiLeagueRealPoB(t *testing.T) {
 // PoB consumes — the buildId differs from Standard only because this
 // field flows through. Always runs (no PoB needed).
 func TestImportMultiLeagueTransformCarriesLeague(t *testing.T) {
-	getItems, _, err := transformToImportJSON(loadFixture(t, "ggg_character_settlers.json"))
+	getItems, _, err := transformToImportJSON(loadFixture(t, "ggg_character_settlers.json"), GamePoE)
 	if err != nil {
 		t.Fatalf("transform: %v", err)
 	}
@@ -108,11 +108,11 @@ func TestImportMultiLeagueTransformCarriesLeague(t *testing.T) {
 func TestImportClusterJewelTransformPassthroughDeterministic(t *testing.T) {
 	fixture := loadFixture(t, "ggg_character_cluster.json")
 
-	i1, p1, err := transformToImportJSON(fixture)
+	i1, p1, err := transformToImportJSON(fixture, GamePoE)
 	if err != nil {
 		t.Fatalf("transform #1: %v", err)
 	}
-	i2, p2, err := transformToImportJSON(fixture)
+	i2, p2, err := transformToImportJSON(fixture, GamePoE)
 	if err != nil {
 		t.Fatalf("transform #2: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestImportTransformNegativePaths(t *testing.T) {
 					t.Fatalf("panicked on %s: %v", tc.name, r)
 				}
 			}()
-			getItems, getPassives, err := transformToImportJSON(json.RawMessage(tc.character))
+			getItems, getPassives, err := transformToImportJSON(json.RawMessage(tc.character), GamePoE)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error for %s, got nil", tc.name)
@@ -259,7 +259,7 @@ func TestImportTransformNegativePaths(t *testing.T) {
 func TestImportRealCharacterJewelsTransformPassthrough(t *testing.T) {
 	fixture := loadFixture(t, "ggg_character_real_chalith.json")
 
-	_, passives, err := transformToImportJSON(fixture)
+	_, passives, err := transformToImportJSON(fixture, GamePoE)
 	if err != nil {
 		t.Fatalf("transform: %v", err)
 	}

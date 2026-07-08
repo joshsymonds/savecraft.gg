@@ -2047,11 +2047,22 @@ local function handleNearbyPerturb(request)
 end
 
 -- Import a GGG account character. getItemsJson / getPassiveSkillsJson
--- are the two legacy-shaped bodies built Go-side by
--- transformToImportJSON; loadBuildFromJSON (HeadlessWrapper) feeds them
--- into PoB's own account-import (ImportItemsAndSkills +
--- ImportPassiveTreeAndJewels). No mapping/algorithm here — pure PoB
--- API access; SaveDB serializes the resulting build to a build code.
+-- are the two bodies built Go-side by transformToImportJSON;
+-- loadBuildFromJSON (HeadlessWrapper) feeds them into PoB's own
+-- account-import (ImportItemsAndSkills + ImportPassiveTreeAndJewels).
+-- No mapping/algorithm here — pure PoB API access; SaveDB serializes
+-- the resulting build to a build code.
+--
+-- PoE1 vs PoE2 divergence (beyond the CompareTradeHelpers/TradeHelpers
+-- rename POB_GAME already exists for): PoE1's ImportTabClass methods
+-- decode the JSON text themselves via self:ProcessJSON, so PoE1's
+-- HeadlessWrapper.loadBuildFromJSON forwards the raw strings untouched.
+-- PoE2's ImportTabClass methods index their argument directly
+-- (charData.equipment, charData.passives, ...) with no decode step, and
+-- PoE2's HeadlessWrapper.loadBuildFromJSON forwards its arguments
+-- untouched too — so for POB_GAME=poe2 this function must decode the
+-- JSON text into Lua tables itself before calling loadBuildFromJSON, or
+-- PoB2's ImportTab crashes indexing a string.
 local function handleImport(request)
 	local getItemsJson = request.getItemsJson
 	local getPassiveSkillsJson = request.getPassiveSkillsJson
@@ -2062,13 +2073,14 @@ local function handleImport(request)
 		return { type = "error", message = "missing 'getPassiveSkillsJson' field" }
 	end
 
-	-- ImportPassiveTreeAndJewels (ImportTab.lua:769-771) reads the
-	-- UI-only global `charSelectLeague`, which HeadlessWrapper does not
-	-- stub — nil headless, so loadBuildFromJSON crashes there. Provide
-	-- the minimal UI stub PoB's headless harness omits, returning the
-	-- league Go already parsed from the character. This is headless
-	-- glue (same kind HeadlessWrapper itself provides), not algorithm:
-	-- no GGG→PoB logic lives here.
+	-- ImportPassiveTreeAndJewels (ImportTab.lua) reads the UI-only
+	-- global `charSelectLeague`, which HeadlessWrapper does not stub —
+	-- nil headless, so loadBuildFromJSON crashes there (PoE1) or the
+	-- lastLeague fallback silently no-ops (PoE2). Provide the minimal UI
+	-- stub PoB's headless harness omits, returning the league Go already
+	-- parsed from the character. This is headless glue (same kind
+	-- HeadlessWrapper itself provides), not algorithm: no GGG→PoB logic
+	-- lives here.
 	local importLeague = request.league
 	if not importLeague or importLeague == "" then
 		importLeague = "Standard"
@@ -2077,7 +2089,19 @@ local function handleImport(request)
 		GetSelValueByKey = function() return importLeague end,
 	}
 
-	loadBuildFromJSON(getItemsJson, getPassiveSkillsJson)
+	if pobGame == "poe2" then
+		local itemsData, _, itemsErr = dkjson.decode(getItemsJson)
+		if itemsErr then
+			return { type = "error", message = "failed to decode getItemsJson: " .. tostring(itemsErr) }
+		end
+		local passivesData, _, passivesErr = dkjson.decode(getPassiveSkillsJson)
+		if passivesErr then
+			return { type = "error", message = "failed to decode getPassiveSkillsJson: " .. tostring(passivesErr) }
+		end
+		loadBuildFromJSON(itemsData, passivesData)
+	else
+		loadBuildFromJSON(getItemsJson, getPassiveSkillsJson)
+	end
 
 	-- A fresh build is now in memory but did not go through
 	-- ensureBuildLoaded, so clear the affinity hint and the modify

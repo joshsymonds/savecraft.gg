@@ -69,7 +69,7 @@ func (srv *Server) handleImport(
 		return
 	}
 
-	getItems, getPassives, err := transformToImportJSON(req.Character)
+	getItems, getPassives, err := transformToImportJSON(req.Character, req.Game)
 	if err != nil {
 		srv.log.Error("import transform error", "err", err)
 		jsonError(writer, "could not import character: "+err.Error(), http.StatusUnprocessableEntity)
