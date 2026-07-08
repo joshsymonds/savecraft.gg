@@ -133,16 +133,23 @@ func TestHandleImportMissingGameDefaultsToPoE1Pool(t *testing.T) {
 	}
 }
 
+// The explicit-invalid-game check must run BEFORE transformToImportJSON:
+// an invalid game still falls through to the poe1 transform leg (the
+// function's own default), so if the transform ran first, a
+// poe1-unmappable character (here, "Huntress" — a PoE2-only class not
+// in poeClasses) would surface as a misleading 422 from the poe1 leg
+// instead of the clear 400 game error. Asserting 400 (not 422) here
+// proves the ordering, not just that some error comes back.
 func TestHandleImportRejectsInvalidGame(t *testing.T) {
 	srv := importTestServer()
 
-	body := `{"character":{"name":"X","class":"Witch","level":1},"game":"diablo4"}`
+	body := `{"character":{"name":"X","class":"Huntress","level":90},"game":"poe3"}`
 	req := httptest.NewRequest(http.MethodPost, "/import", strings.NewReader(body))
 	recorder := httptest.NewRecorder()
 	srv.handleImport(recorder, req)
 
 	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", recorder.Code, recorder.Body.String())
+		t.Fatalf("expected 400 (game check before transform), got %d: %s", recorder.Code, recorder.Body.String())
 	}
 	assertErrorEnvelope(t, recorder.Body.Bytes())
 }

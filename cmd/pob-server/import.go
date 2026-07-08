@@ -81,15 +81,15 @@ func (srv *Server) handleImport(
 		req.Game = GamePoE
 	}
 
+	if req.Game != GamePoE && req.Game != GamePoE2 {
+		jsonError(writer, `game must be "poe" or "poe2"`, http.StatusBadRequest)
+		return
+	}
+
 	getItems, getPassives, err := transformToImportJSON(req.Character, req.Game)
 	if err != nil {
 		srv.log.Error("import transform error", "err", err)
 		jsonError(writer, "could not import character: "+err.Error(), http.StatusUnprocessableEntity)
-		return
-	}
-
-	if req.Game != GamePoE && req.Game != GamePoE2 {
-		jsonError(writer, `game must be "poe" or "poe2"`, http.StatusBadRequest)
 		return
 	}
 

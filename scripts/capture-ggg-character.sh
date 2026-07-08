@@ -158,8 +158,24 @@ fi
 # Poe2Character by the adapter's unit tests). The poe path is left in
 # its previously-captured shape (see cmd/pob-server/testdata/README.md)
 # and only redacted, not reshaped.
+#
+# poe2 additionally scrubs GGG's stable identifiers — the character's
+# own .id plus every .equipment[].id and .jewels[].id — since those are
+# durable account-linked ids, not gameplay data. Arrays are handled with
+# `// []` so a capture with no jewels/equipment doesn't fail the filter.
+# Per-item placeholders are index-suffixed (REDACTED-EQUIP-<n> /
+# REDACTED-JEWEL-<n>), not a single shared "REDACTED" string: PoB2's
+# item loading resolves items by id, so giving every item the identical
+# id collides them (verified — collapses socket-group/skill resolution
+# and silently zeroes the imported character's DPS in
+# TestPoE2ImportRealCharacterProducesDPS). Unique-but-redacted keeps
+# items distinguishable without leaking the real GGG id.
 if [ "${GAME}" = "poe2" ]; then
-  JQ_FILTER='.character | .name = "REDACTED_CHAR"'
+  JQ_FILTER='.character
+    | .name = "REDACTED_CHAR"
+    | .id = "REDACTED"
+    | .equipment = ((.equipment // []) | to_entries | map(.value.id = "REDACTED-EQUIP-\(.key)") | map(.value))
+    | .jewels = ((.jewels // []) | to_entries | map(.value.id = "REDACTED-JEWEL-\(.key)") | map(.value))'
 else
   JQ_FILTER='if has("character") then .character.name = "REDACTED_CHAR" else .name = "REDACTED_CHAR" end'
 fi
