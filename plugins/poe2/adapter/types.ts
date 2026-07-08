@@ -89,13 +89,16 @@ export interface Poe2Item {
   // arrays rather than merged — see mapGear. Corroborated against GGG's
   // developer changelog (https://www.pathofexile.com/developer/docs/reference,
   // /developer/docs/changelog) and PathOfBuilding-PoE2's item importer
-  // (src/Classes/ImportTab.lua, dev branch), which reads all six of
+  // (src/Classes/ImportTab.lua, dev branch), which reads all seven of
   // these off real captured PoE2 character payloads.
   enchantMods?: string[];
   fracturedMods?: string[];
   craftedMods?: string[];
   /** GGG docs: "PoE1: Foulborn Unique mods, PoE2: Vaal Unique mods". */
   mutatedMods?: string[];
+  /** GGG docs: flask/charm utility mods (e.g. "Recovers X Life over Y
+   *  Seconds"). Corroborated the same way as the six siblings above. */
+  utilityMods?: string[];
 
   // PoE2-only fields (absent on PoE1's Item shape).
   /** Skill-gem loadouts: name + pages, only present on `skills` entries. */

@@ -39,6 +39,7 @@ export function mapGear(char: Poe2Character): GameStateSection {
     const fracturedMods = item.fracturedMods ?? [];
     const craftedMods = item.craftedMods ?? [];
     const mutatedMods = item.mutatedMods ?? [];
+    const utilityMods = item.utilityMods ?? [];
     return {
       slot: item.inventoryId ?? "",
       name: item.name || item.typeLine || item.baseType || "",
@@ -59,12 +60,13 @@ export function mapGear(char: Poe2Character): GameStateSection {
       ...(fracturedMods.length > 0 ? { fracturedMods } : {}),
       ...(craftedMods.length > 0 ? { craftedMods } : {}),
       ...(mutatedMods.length > 0 ? { mutatedMods } : {}),
+      ...(utilityMods.length > 0 ? { utilityMods } : {}),
     };
   });
   return {
     description:
       "Equipped items by slot, with rune/jewel socket types, and mods by provenance " +
-      "(implicit, explicit, rune, desecrated, bonded, enchant, fractured, crafted, mutated).",
+      "(implicit, explicit, rune, desecrated, bonded, enchant, fractured, crafted, mutated, utility).",
     data: { items },
   };
 }

@@ -10,6 +10,7 @@ import {
 import type { Poe2Character } from "../../plugins/poe2/adapter/types";
 import characterFixture from "../../plugins/poe2/testdata/ggg-poe2-character-full.json";
 import characterListFixture from "../../plugins/poe2/testdata/ggg-poe2-character-list.json";
+import realCharacterFixture from "../../plugins/poe2/testdata/ggg-poe2-character-real.json";
 import { AdapterError } from "../src/adapters/adapter";
 import { adapters } from "../src/adapters/registry";
 import type { Env } from "../src/types";
@@ -17,7 +18,15 @@ import type { Env } from "../src/types";
 import { mockFetch } from "./helpers";
 
 const char = characterFixture as unknown as Poe2Character;
+const realChar = realCharacterFixture as unknown as Poe2Character;
 const env = { GGG_CLIENT_ID: "test-client" } as unknown as Env;
+
+/** GGG's shared Item type declares an open set of "<provenance>Mods"
+ *  string-array fields (implicitMods, explicitMods, runeMods,
+ *  desecratedMods, utilityMods, ...). */
+function isModArrayKey(key: string): boolean {
+  return key.endsWith("Mods");
+}
 
 describe("PoE2 adapter identity", () => {
   it("is registered as 'poe2' and implements ApiAdapter identity", () => {
@@ -216,6 +225,78 @@ describe("PoE2 section mappers", () => {
     expect(weapon).not.toHaveProperty("fracturedMods");
     expect(weapon).not.toHaveProperty("craftedMods");
     expect(weapon).not.toHaveProperty("mutatedMods");
+  });
+
+  it("mapGear surfaces desecratedMods on the real fixture's Boots item (live reproduction of the original production bug)", () => {
+    // Regression fixture: an anonymized real production capture
+    // (ggg-poe2-character-real.json) that surfaced a GGG mod-array field
+    // the adapter was still dropping.
+    const s = mapGear(realChar);
+    const items = s.data.items as Record<string, unknown>[];
+
+    const boots = items.find((it) => it.slot === "Boots")!;
+    expect(boots).toBeTruthy();
+    expect(boots.name).toBe("Brimstone Tread");
+    expect(boots.desecratedMods).toEqual([
+      "+49 to [Evasion] Rating",
+      "+18 to maximum [EnergyShield|Energy Shield]",
+      "97% increased [Evasion] and [EnergyShield|Energy Shield]",
+      "+41% to [Resistances|Fire Resistance]",
+      "+42% to [Resistances|Lightning Resistance]",
+      "Gain [Deflect|Deflection Rating] equal to 19% of [Evasion|Evasion Rating]",
+      "+85 to [StunThreshold|Stun Threshold]",
+    ]);
+  });
+
+  it("mapGear surfaces utilityMods on the real fixture's flask/charm items", () => {
+    const s = mapGear(realChar);
+    const items = s.data.items as Record<string, unknown>[];
+
+    const withUtilityMods = items.filter(
+      (it) => Array.isArray(it.utilityMods) && (it.utilityMods as unknown[]).length > 0,
+    );
+    expect(withUtilityMods.length).toBeGreaterThan(0);
+
+    const antidote = items.find((it) => it.name === "Arakaali's Gift")!;
+    expect(antidote).toBeTruthy();
+    expect(antidote.utilityMods).toEqual(["Grants Immunity to [Poison|Poison]"]);
+  });
+
+  it("maps every non-empty '*Mods' field on every real fixture equipment item into the gear output (field-drop guard)", () => {
+    // For every equipment item in the real production capture, and every
+    // key on it that matches GGG's "<provenance>Mods" naming convention
+    // with a non-empty array value, the mapped gear item must carry those
+    // mod strings under some key. This catches any FUTURE unmapped mod
+    // field the moment a fixture capture carries one — the same class of
+    // defect utilityMods was.
+    const s = mapGear(realChar);
+    const items = s.data.items as Record<string, unknown>[];
+    const equipment = realChar.equipment ?? [];
+    expect(items.length).toBe(equipment.length);
+
+    for (const [index, rawItem] of equipment.entries()) {
+      const item = rawItem as unknown as Record<string, unknown>;
+      const mapped = items[index]!;
+      const mappedValues = new Set(
+        Object.values(mapped).flatMap((v) => (Array.isArray(v) ? v : [])),
+      );
+
+      for (const [key, value] of Object.entries(item)) {
+        if (!isModArrayKey(key)) continue;
+        if (!Array.isArray(value) || value.length === 0) continue;
+
+        // Asserted as "missing mods" (rather than raw array equality) so a
+        // failing diff names exactly which mod string(s) got dropped for
+        // this field/item.
+        const missing = (value as unknown[]).filter((mod) => !mappedValues.has(mod));
+        expect({ key, slot: item.inventoryId, index, missing }).toEqual({
+          key,
+          slot: item.inventoryId,
+          index,
+          missing: [],
+        });
+      }
+    }
   });
 
   it("mapSkills surfaces gem/skill names from gemTabs + gemSockets", () => {
