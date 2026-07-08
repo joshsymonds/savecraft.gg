@@ -270,6 +270,117 @@ func TestPoE2ImportProducesBuild(t *testing.T) {
 	}
 }
 
+// TestPoE2ImportRealCharacterProducesDPS drives /import against a REAL
+// current-league PoE2 character (plugins/poe2/testdata/ggg-poe2-character-real.json —
+// a level 96 Huntress, league "Runes of Aldur", captured from the live GGG
+// API by the adapter owner; read-only fixture, not modified here) and
+// asserts the resulting calc summary carries a nonzero DPS-family stat.
+//
+// Regression coverage for a mainSocketGroup selection bug: PoB's own
+// HeadlessWrapper.loadBuildFromJSON admits "You now have a build without
+// a correct main skill selected" in its doc comment. The reason —
+// confirmed by instrumenting a live wrapper.lua process against this
+// fixture — is that ImportTabClass:ImportItemsAndSkills only calls its
+// own GuessMainSocketGroup (pick the socket group with the most gems)
+// when socketGroupList is empty on entry. But loadBuildFromJSON calls
+// ImportPassiveTreeAndJewels (which triggers a full recalc via
+// calcsTab:BuildOutput) BEFORE ImportItemsAndSkills, and that recalc
+// auto-creates a one-gem socket group for every tree-notable-granted
+// skill (CalcSetup.lua's env.grantedSkills handling, shared identically
+// between PoE1 and PoE2). This fixture's Huntress has three allocated
+// tree notables that grant skills (Primal Bounty, Wild Protector, Vivid
+// Stampede), so socketGroupList is already non-empty by the time
+// ImportItemsAndSkills runs — the guess never fires, and
+// build.mainSocketGroup is left at its default of 1: the first
+// tree-granted single-gem group, not the character's actual linked
+// attack (a 6-gem "Twister"/"Whirling Slash"/spear-throw group). The
+// player's own calc output then has no hit-damage keys at all (the
+// "main skill" grants no damage), so CombinedDPS/TotalDPS stay at 0.
+// PoE1 rarely allocates skill-granting tree notables, so the same latent
+// bug in shared PoB import code rarely surfaces there.
+func TestPoE2ImportRealCharacterProducesDPS(t *testing.T) {
+	pool, proc := newPoE2Wrapper(t)
+	defer pool.Shutdown()
+	defer pool.Release(proc)
+
+	fixturePath := filepath.Join("..", "..", "plugins", "poe2", "testdata", "ggg-poe2-character-real.json")
+	fixture, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("read poe2 character fixture: %v", err)
+	}
+
+	getItems, getPassives, err := transformToImportJSON(json.RawMessage(fixture), GamePoE2)
+	if err != nil {
+		t.Fatalf("transformToImportJSON: %v", err)
+	}
+
+	importResp, err := proc.Send(importLuaRequest{
+		Type:                 "import",
+		GetItemsJSON:         string(getItems),
+		GetPassiveSkillsJSON: string(getPassives),
+		League:               "Runes of Aldur",
+	})
+	if err != nil {
+		t.Fatalf("import send failed: %v", err)
+	}
+	var importParsed struct {
+		Type    string `json:"type"`
+		XML     string `json:"xml"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(importResp, &importParsed); err != nil {
+		t.Fatalf("import response not JSON: %v (raw: %s)", err, importResp)
+	}
+	if importParsed.Type != "result" {
+		t.Fatalf("expected import type=result, got type=%q message=%q", importParsed.Type, importParsed.Message)
+	}
+	if importParsed.XML == "" {
+		t.Fatal("import produced empty XML")
+	}
+
+	calcResp, err := proc.Send(map[string]any{
+		"type": "calc",
+		"xml":  importParsed.XML,
+	})
+	if err != nil {
+		t.Fatalf("calc send failed: %v", err)
+	}
+	var calcParsed struct {
+		Type string `json:"type"`
+		Data struct {
+			Character struct {
+				Class      string `json:"class"`
+				Ascendancy string `json:"ascendancy"`
+				Level      int    `json:"level"`
+			} `json:"character"`
+			Summary map[string]any `json:"summary"`
+		} `json:"data"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(calcResp, &calcParsed); err != nil {
+		t.Fatalf("calc response not JSON: %v (raw: %s)", err, calcResp)
+	}
+	if calcParsed.Type != "result" {
+		t.Fatalf("expected calc type=result, got type=%q message=%q", calcParsed.Type, calcParsed.Message)
+	}
+
+	if calcParsed.Data.Character.Class != "Huntress" {
+		t.Errorf("character.class = %q, want Huntress", calcParsed.Data.Character.Class)
+	}
+	if calcParsed.Data.Character.Level != 96 {
+		t.Errorf("character.level = %d, want 96 (fixture level)", calcParsed.Data.Character.Level)
+	}
+
+	combinedDPS, ok := calcParsed.Data.Summary["CombinedDPS"].(float64)
+	if !ok {
+		t.Fatalf("expected numeric summary.CombinedDPS, got %T (%v); summary=%+v",
+			calcParsed.Data.Summary["CombinedDPS"], calcParsed.Data.Summary["CombinedDPS"], calcParsed.Data.Summary)
+	}
+	if combinedDPS <= 0 {
+		t.Errorf("summary.CombinedDPS = %v, want > 0 — a level 96 character with linked attack gems should deal damage", combinedDPS)
+	}
+}
+
 // TestPoE2CharacterExcludesBanditAndPantheon verifies that a PoE2
 // build's serialized character object carries no bandit or pantheon
 // fields — neither mechanic exists in PoE2, and the poe2 build_planner

@@ -2052,6 +2052,58 @@ local function handleNearbyPerturb(request)
 	}
 end
 
+-- isDamageDealingGem reports whether gemInstance is a directly-castable
+-- Attack/Spell skill gem — a candidate for the build's "main" (headline
+-- DPS) skill — as opposed to a Support gem, a Buff/Aura (reservation
+-- skills like Purity of Fire), a Companion/Minion summon (its damage is
+-- tracked in the separate Minion output section, not the player's own),
+-- or an auto-triggered proc (Triggered/InbuiltTrigger — fires off other
+-- skills, was never meant to be cast on its own). gemType (Data/Gems.lua)
+-- and skillTypes (Data/Skills/*.lua) are static PoB data already resolved
+-- onto the gem instance by SkillsTab:ProcessSocketGroup at import time —
+-- no calc pass required to read them.
+local function isDamageDealingGem(gemInstance)
+	local gemData = gemInstance.gemData
+	if not gemData or (gemData.gemType ~= "Attack" and gemData.gemType ~= "Spell") then
+		return false
+	end
+	-- SkillsTab:ProcessSocketGroup only populates gemInstance.grantedEffect
+	-- directly for the item/skillId-granted-skill path; gemId-based gems
+	-- (every skill imported here, via funcGetGemInstance's gemId field)
+	-- carry their granted-effect data at gemData.grantedEffect instead —
+	-- the same fallback ProcessSocketGroup itself uses internally.
+	local grantedEffect = gemInstance.grantedEffect or gemData.grantedEffect
+	local skillTypes = grantedEffect and grantedEffect.skillTypes
+	if skillTypes and (skillTypes[SkillType.Triggered] or skillTypes[SkillType.InbuiltTrigger]) then
+		return false
+	end
+	return true
+end
+
+-- pickMainSocketGroup selects the socket group to use as the build's
+-- main skill: the largest (most-linked) group whose active gem is a
+-- direct damage-dealer per isDamageDealingGem, mirroring
+-- ImportTabClass:GuessMainSocketGroup's own "largest group" heuristic
+-- but restricted to candidates that can actually produce a DPS number.
+-- Falls back to GuessMainSocketGroup verbatim when no group qualifies
+-- (e.g. a totem- or warcry-only loadout with no gem of its own) so
+-- mainSocketGroup is never left unset.
+local function pickMainSocketGroup(importTabInstance)
+	local groups = importTabInstance.build.skillsTab.socketGroupList
+	local bestIndex, bestSize
+	for i, group in ipairs(groups) do
+		for _, gem in ipairs(group.gemList) do
+			if isDamageDealingGem(gem) then
+				if not bestSize or #group.gemList > bestSize then
+					bestIndex, bestSize = i, #group.gemList
+				end
+				break
+			end
+		end
+	end
+	return bestIndex or importTabInstance:GuessMainSocketGroup()
+end
+
 -- Import a GGG account character. getItemsJson / getPassiveSkillsJson
 -- are the two bodies built Go-side by transformToImportJSON;
 -- loadBuildFromJSON (HeadlessWrapper) feeds them into PoB's own
@@ -2108,6 +2160,39 @@ local function handleImport(request)
 	else
 		loadBuildFromJSON(getItemsJson, getPassiveSkillsJson)
 	end
+
+	-- HeadlessWrapper.loadBuildFromJSON's own comment admits the gap:
+	-- "You now have a build without a correct main skill selected". The
+	-- reason: ImportItemsAndSkills only calls ImportTab's own
+	-- GuessMainSocketGroup (pick the socket group with the most gems)
+	-- when it sees an EMPTY socketGroupList on entry — a "first import
+	-- vs. reimport into an already-configured build" distinction that
+	-- makes sense for PoB's interactive UI. But loadBuildFromJSON calls
+	-- ImportPassiveTreeAndJewels (which triggers a full recalc via
+	-- calcsTab:BuildOutput) BEFORE ImportItemsAndSkills, and that recalc
+	-- auto-creates a socket group for every tree-notable- and
+	-- item-granted skill (CalcSetup.lua's env.grantedSkills handling —
+	-- shared, unmodified code between PoE1 and PoE2). Any character with
+	-- an allocated skill-granting notable — routine in PoE2's tree, rare
+	-- in PoE1's — already has a non-empty socketGroupList by the time
+	-- ImportItemsAndSkills runs, so the guess never fires and
+	-- build.mainSocketGroup is left at its default of 1: whichever
+	-- granted-skill group happened to be created first, not the
+	-- character's actual linked attack/spell.
+	--
+	-- Even when the guess DOES run, "largest group" alone isn't a
+	-- reliable proxy for "the character's main damage skill": PoE2
+	-- characters routinely link several supports onto a Companion/Minion
+	-- summon (its own supports are minion-scoped, e.g. Wild Protector +
+	-- Meat Shield/Elemental Army) or a reservation Aura (Purity of Fire),
+	-- either of which can tie or beat a real attack's support count —
+	-- and neither produces a player-DPS number at all. pickMainSocketGroup
+	-- (above) applies GuessMainSocketGroup's own size heuristic but
+	-- restricted to groups that can actually deal damage. Since every
+	-- headless import here starts from a blank build (never a reimport
+	-- into existing state), always overriding the selection after the
+	-- full import is safe.
+	build.mainSocketGroup = pickMainSocketGroup(build.importTab)
 
 	-- A fresh build is now in memory but did not go through
 	-- ensureBuildLoaded, so clear the affinity hint and the modify
