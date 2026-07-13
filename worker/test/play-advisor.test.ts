@@ -42,9 +42,17 @@ const realGameSection = {
   matchId: REAL_MATCH_ID,
   tn: [
     { ap: 0, pl: [{ l: 25, s: 2 }], t: 0 },
-    { ap: 2, ph: "begin", pl: [{ l: 25, s: 1 }, { l: 25, s: 2 }], t: 1 },
     {
-      a: [{ move: { c: 80401, mt: "play_land" }, p: 2 }],
+      ap: 2,
+      ph: "begin",
+      pl: [
+        { l: 25, s: 1 },
+        { l: 25, s: 2 },
+      ],
+      t: 1,
+    },
+    {
+      a: [{ move: { c: 80_401, mt: "play_land" }, p: 2 }],
       ap: 2,
       ph: "main1",
       t: 1,
@@ -52,9 +60,17 @@ const realGameSection = {
     { ap: 2, ph: "combat", t: 1 },
     { ap: 2, ph: "main2", t: 1 },
     { ap: 2, ph: "end", t: 1 },
-    { ap: 1, ph: "begin", pl: [{ l: 25, s: 1 }, { l: 25, s: 2 }], t: 2 },
     {
-      a: [{ move: { c: 96179, mt: "play_land" }, p: 1 }],
+      ap: 1,
+      ph: "begin",
+      pl: [
+        { l: 25, s: 1 },
+        { l: 25, s: 2 },
+      ],
+      t: 2,
+    },
+    {
+      a: [{ move: { c: 96_179, mt: "play_land" }, p: 1 }],
       ap: 1,
       ph: "main1",
       t: 2,
@@ -64,28 +80,37 @@ const realGameSection = {
     { ap: 1, ph: "end", t: 2 },
     {
       a: [
-        { p: 2, tap: { c: 80401, td: false } },
-        { move: { c: 58415, mt: "draw" }, p: 2 },
+        { p: 2, tap: { c: 80_401, td: false } },
+        { move: { c: 58_415, mt: "draw" }, p: 2 },
       ],
       ap: 2,
       ph: "begin",
-      pl: [{ l: 25, s: 1 }, { l: 25, s: 2 }],
+      pl: [
+        { l: 25, s: 1 },
+        { l: 25, s: 2 },
+      ],
       t: 3,
     },
     {
       a: [
-        { move: { c: 79417, mt: "play_land" }, p: 2 },
+        { move: { c: 79_417, mt: "play_land" }, p: 2 },
         {
-          cast: { c: 97824, m: [{ k: "W", n: 1 }, { k: "W", n: 1 }] },
+          cast: {
+            c: 97_824,
+            m: [
+              { k: "W", n: 1 },
+              { k: "W", n: 1 },
+            ],
+          },
           p: 2,
         },
-        { ability: { at: "triggered", c: 80401 }, p: 2 },
-        { p: 2, tap: { c: 80401, td: true } },
-        { ability: { at: "triggered", c: 79417 }, p: 2 },
-        { p: 2, tap: { c: 79417, td: true } },
-        { p: 2, resolve: { c: 97824 } },
-        { move: { c: 97824, mt: "move" }, p: 2 },
-        { ability: { at: "triggered", c: 97824 }, p: 2 },
+        { ability: { at: "triggered", c: 80_401 }, p: 2 },
+        { p: 2, tap: { c: 80_401, td: true } },
+        { ability: { at: "triggered", c: 79_417 }, p: 2 },
+        { p: 2, tap: { c: 79_417, td: true } },
+        { p: 2, resolve: { c: 97_824 } },
+        { move: { c: 97_824, mt: "move" }, p: 2 },
+        { ability: { at: "triggered", c: 97_824 }, p: 2 },
       ],
       ap: 2,
       ph: "main1",
@@ -96,7 +121,7 @@ const realGameSection = {
     { ap: 2, ph: "end", t: 3 },
     { ap: 1, ph: "begin", pl: [{ l: 25, s: 1 }], t: 4 },
     {
-      a: [{ move: { c: 79708, mt: "play_land" }, p: 1 }],
+      a: [{ move: { c: 79_708, mt: "play_land" }, p: 1 }],
       ap: 1,
       ph: "main1",
       t: 4,
@@ -106,37 +131,40 @@ const realGameSection = {
     { ap: 1, ph: "end", t: 4 },
     {
       a: [
-        { p: 2, tap: { c: 80401, td: false } },
-        { p: 2, tap: { c: 79417, td: false } },
-        { move: { c: 71320, mt: "draw" }, p: 2 },
+        { p: 2, tap: { c: 80_401, td: false } },
+        { p: 2, tap: { c: 79_417, td: false } },
+        { move: { c: 71_320, mt: "draw" }, p: 2 },
       ],
       ap: 2,
       ph: "begin",
-      pl: [{ l: 25, s: 1 }, { l: 25, s: 2 }],
+      pl: [
+        { l: 25, s: 1 },
+        { l: 25, s: 2 },
+      ],
       t: 5,
     },
     {
-      a: [{ move: { c: 75024, mt: "play_land" }, p: 2 }],
+      a: [{ move: { c: 75_024, mt: "play_land" }, p: 2 }],
       ap: 2,
       ph: "main1",
       t: 5,
     },
     {
       a: [
-        { p: 2, tap: { c: 97824, td: true } },
-        { p: 2, tap: { c: 104847, td: true } },
+        { p: 2, tap: { c: 97_824, td: true } },
+        { p: 2, tap: { c: 104_847, td: true } },
         {
           damage: {
             am: 0,
             ic: true,
-            sid: 97824,
+            sid: 97_824,
             src: "Surris, Spidersilk Innovator",
             target: "player",
           },
           p: 2,
         },
         {
-          damage: { am: 2, ic: true, sid: 104847, src: "", target: "player" },
+          damage: { am: 2, ic: true, sid: 104_847, src: "", target: "player" },
           p: 2,
         },
       ],
@@ -148,16 +176,22 @@ const realGameSection = {
     {
       a: [
         {
-          cast: { c: 97960, m: [{ k: "R", n: 1 }, { k: "G", n: 1 }] },
+          cast: {
+            c: 97_960,
+            m: [
+              { k: "R", n: 1 },
+              { k: "G", n: 1 },
+            ],
+          },
           p: 2,
         },
-        { p: 2, tap: { c: 75024, td: true } },
-        { ability: { at: "triggered", c: 80401 }, p: 2 },
-        { p: 2, tap: { c: 80401, td: true } },
-        { move: { c: 97960, mt: "move" }, p: 2 },
-        { p: 2, resolve: { c: 97960 } },
-        { move: { c: 97960, mt: "move" }, p: 2 },
-        { p: 2, statMod: { c: 97960, pw: 2, tf: 2 } },
+        { p: 2, tap: { c: 75_024, td: true } },
+        { ability: { at: "triggered", c: 80_401 }, p: 2 },
+        { p: 2, tap: { c: 80_401, td: true } },
+        { move: { c: 97_960, mt: "move" }, p: 2 },
+        { p: 2, resolve: { c: 97_960 } },
+        { move: { c: 97_960, mt: "move" }, p: 2 },
+        { p: 2, statMod: { c: 97_960, pw: 2, tf: 2 } },
       ],
       ap: 2,
       ph: "main2",
@@ -166,14 +200,20 @@ const realGameSection = {
     {
       a: [
         {
-          cast: { c: 90889, m: [{ k: "W", n: 1 }, { k: "W", n: 1 }] },
+          cast: {
+            c: 90_889,
+            m: [
+              { k: "W", n: 1 },
+              { k: "W", n: 1 },
+            ],
+          },
           p: 1,
         },
-        { p: 1, tap: { c: 96179, td: true } },
-        { ability: { at: "triggered", c: 79708 }, p: 1 },
-        { p: 1, tap: { c: 79708, td: true } },
-        { p: 1, resolve: { c: 90889 } },
-        { move: { c: 90889, mt: "move" }, p: 1 },
+        { p: 1, tap: { c: 96_179, td: true } },
+        { ability: { at: "triggered", c: 79_708 }, p: 1 },
+        { p: 1, tap: { c: 79_708, td: true } },
+        { p: 1, resolve: { c: 90_889 } },
+        { move: { c: 90_889, mt: "move" }, p: 1 },
       ],
       ap: 2,
       ph: "end",
@@ -181,33 +221,36 @@ const realGameSection = {
     },
     {
       a: [
-        { p: 1, tap: { c: 96179, td: false } },
-        { p: 1, tap: { c: 79708, td: false } },
+        { p: 1, tap: { c: 96_179, td: false } },
+        { p: 1, tap: { c: 79_708, td: false } },
       ],
       ap: 1,
       ph: "begin",
-      pl: [{ l: 23, s: 1 }, { l: 25, s: 2 }],
+      pl: [
+        { l: 23, s: 1 },
+        { l: 25, s: 2 },
+      ],
       t: 6,
     },
     {
       a: [
-        { cast: { c: 36682, m: [{ k: "W", n: 1 }] }, p: 1 },
+        { cast: { c: 36_682, m: [{ k: "W", n: 1 }] }, p: 1 },
         { p: 1, target: { tgs: ["Oust"] } },
-        { p: 1, tap: { c: 96179, td: true } },
-        { move: { c: 36682, mt: "put" }, p: 1 },
-        { p: 1, resolve: { c: 36682 } },
-        { move: { c: 36682, mt: "move" }, p: 1 },
-        { move: { c: 97139, mt: "play_land" }, p: 1 },
-        { ability: { at: "triggered", c: 97139 }, p: 1 },
-        { p: 1, tap: { c: 97139, td: true } },
-        { move: { c: 97139, mt: "move" }, p: 1 },
-        { move: { c: 79417, mt: "destroy" }, p: 2 },
-        { cast: { c: 86087, m: [{ k: "W", n: 1 }] }, p: 1 },
-        { ability: { at: "triggered", c: 79708 }, p: 1 },
-        { p: 1, tap: { c: 79708, td: true } },
-        { p: 1, resolve: { c: 86087 } },
-        { move: { c: 86087, mt: "move" }, p: 1 },
-        { ability: { at: "triggered", c: 86087 }, p: 1 },
+        { p: 1, tap: { c: 96_179, td: true } },
+        { move: { c: 36_682, mt: "put" }, p: 1 },
+        { p: 1, resolve: { c: 36_682 } },
+        { move: { c: 36_682, mt: "move" }, p: 1 },
+        { move: { c: 97_139, mt: "play_land" }, p: 1 },
+        { ability: { at: "triggered", c: 97_139 }, p: 1 },
+        { p: 1, tap: { c: 97_139, td: true } },
+        { move: { c: 97_139, mt: "move" }, p: 1 },
+        { move: { c: 79_417, mt: "destroy" }, p: 2 },
+        { cast: { c: 86_087, m: [{ k: "W", n: 1 }] }, p: 1 },
+        { ability: { at: "triggered", c: 79_708 }, p: 1 },
+        { p: 1, tap: { c: 79_708, td: true } },
+        { p: 1, resolve: { c: 86_087 } },
+        { move: { c: 86_087, mt: "move" }, p: 1 },
+        { ability: { at: "triggered", c: 86_087 }, p: 1 },
       ],
       ap: 1,
       ph: "main1",
@@ -215,20 +258,20 @@ const realGameSection = {
         {
           battlefield: [
             {
-              c: 75024,
+              c: 75_024,
               ct: ["CardType_Land"],
               st: ["SubType_Mountain"],
               tdb: true,
             },
-            { c: 79417, ct: ["CardType_Land"] },
+            { c: 79_417, ct: ["CardType_Land"] },
             {
-              c: 80401,
+              c: 80_401,
               ct: ["CardType_Land"],
               st: ["SubType_Mountain", "SubType_Forest", "SubType_Plains"],
               tdb: true,
             },
             {
-              c: 104847,
+              c: 104_847,
               ct: ["CardType_Creature"],
               pw: 2,
               st: ["SubType_Spider"],
@@ -244,14 +287,14 @@ const realGameSection = {
     },
     {
       a: [
-        { p: 1, tap: { c: 90889, td: true } },
-        { ability: { at: "triggered", c: 90889 }, p: 1 },
-        { move: { c: 86087, mt: "exile" }, p: 1 },
+        { p: 1, tap: { c: 90_889, td: true } },
+        { ability: { at: "triggered", c: 90_889 }, p: 1 },
+        { move: { c: 86_087, mt: "exile" }, p: 1 },
         {
           damage: {
             am: 2,
             ic: true,
-            sid: 90889,
+            sid: 90_889,
             src: "Phelia, Exuberant Shepherd",
             target: "player",
           },
@@ -266,10 +309,10 @@ const realGameSection = {
     { ap: 1, ph: "main2", t: 6 },
     {
       a: [
-        { ability: { at: "triggered", c: 90889 }, p: 1 },
-        { move: { c: 86087, mt: "move" }, p: 1 },
-        { ability: { at: "triggered", c: 86087 }, p: 1 },
-        { p: 1, statMod: { c: 90889, pw: 1, tf: 1 } },
+        { ability: { at: "triggered", c: 90_889 }, p: 1 },
+        { move: { c: 86_087, mt: "move" }, p: 1 },
+        { ability: { at: "triggered", c: 86_087 }, p: 1 },
+        { p: 1, statMod: { c: 90_889, pw: 1, tf: 1 } },
       ],
       ap: 1,
       ph: "end",
@@ -277,29 +320,38 @@ const realGameSection = {
     },
     {
       a: [
-        { p: 2, tap: { c: 80401, td: false } },
-        { p: 2, tap: { c: 104847, td: false } },
-        { p: 2, tap: { c: 75024, td: false } },
-        { move: { c: 71315, mt: "draw" }, p: 2 },
+        { p: 2, tap: { c: 80_401, td: false } },
+        { p: 2, tap: { c: 104_847, td: false } },
+        { p: 2, tap: { c: 75_024, td: false } },
+        { move: { c: 71_315, mt: "draw" }, p: 2 },
       ],
       ap: 2,
       ph: "begin",
-      pl: [{ l: 23, s: 1 }, { l: 26, s: 2 }],
+      pl: [
+        { l: 23, s: 1 },
+        { l: 26, s: 2 },
+      ],
       t: 7,
     },
     {
       a: [
-        { move: { c: 71320, mt: "play_land" }, p: 2 },
+        { move: { c: 71_320, mt: "play_land" }, p: 2 },
         {
-          cast: { c: 97824, m: [{ k: "R", n: 1 }, { k: "W", n: 1 }] },
+          cast: {
+            c: 97_824,
+            m: [
+              { k: "R", n: 1 },
+              { k: "W", n: 1 },
+            ],
+          },
           p: 2,
         },
-        { p: 2, tap: { c: 75024, td: true } },
-        { ability: { at: "triggered", c: 80401 }, p: 2 },
-        { p: 2, tap: { c: 80401, td: true } },
-        { p: 2, resolve: { c: 97824 } },
-        { move: { c: 97824, mt: "move" }, p: 2 },
-        { ability: { at: "triggered", c: 97824 }, p: 2 },
+        { p: 2, tap: { c: 75_024, td: true } },
+        { ability: { at: "triggered", c: 80_401 }, p: 2 },
+        { p: 2, tap: { c: 80_401, td: true } },
+        { p: 2, resolve: { c: 97_824 } },
+        { move: { c: 97_824, mt: "move" }, p: 2 },
+        { ability: { at: "triggered", c: 97_824 }, p: 2 },
       ],
       ap: 2,
       ph: "main1",
@@ -310,32 +362,39 @@ const realGameSection = {
     { ap: 2, ph: "end", t: 7 },
     {
       a: [
-        { p: 1, tap: { c: 96179, td: false } },
-        { p: 1, tap: { c: 79708, td: false } },
-        { p: 1, tap: { c: 90889, td: false } },
+        { p: 1, tap: { c: 96_179, td: false } },
+        { p: 1, tap: { c: 79_708, td: false } },
+        { p: 1, tap: { c: 90_889, td: false } },
       ],
       ap: 1,
       ph: "begin",
-      pl: [{ l: 23, s: 1 }, { l: 26, s: 2 }],
+      pl: [
+        { l: 23, s: 1 },
+        { l: 26, s: 2 },
+      ],
       t: 8,
     },
     {
       a: [
-        { move: { c: 96179, mt: "play_land" }, p: 1 },
+        { move: { c: 96_179, mt: "play_land" }, p: 1 },
         {
           cast: {
-            c: 29970,
-            m: [{ k: "W", n: 1 }, { k: "W", n: 1 }, { k: "W", n: 1 }],
+            c: 29_970,
+            m: [
+              { k: "W", n: 1 },
+              { k: "W", n: 1 },
+              { k: "W", n: 1 },
+            ],
           },
           p: 1,
         },
-        { p: 1, tap: { c: 96179, td: true } },
-        { ability: { at: "triggered", c: 79708 }, p: 1 },
-        { p: 1, tap: { c: 79708, td: true } },
-        { p: 1, tap: { c: 96179, td: true } },
-        { p: 1, resolve: { c: 29970 } },
-        { move: { c: 29970, mt: "move" }, p: 1 },
-        { ability: { at: "triggered", c: 29970 }, p: 1 },
+        { p: 1, tap: { c: 96_179, td: true } },
+        { ability: { at: "triggered", c: 79_708 }, p: 1 },
+        { p: 1, tap: { c: 79_708, td: true } },
+        { p: 1, tap: { c: 96_179, td: true } },
+        { p: 1, resolve: { c: 29_970 } },
+        { move: { c: 29_970, mt: "move" }, p: 1 },
+        { ability: { at: "triggered", c: 29_970 }, p: 1 },
       ],
       ap: 1,
       ph: "main1",
@@ -343,15 +402,15 @@ const realGameSection = {
     },
     {
       a: [
-        { p: 1, tap: { c: 90889, td: true } },
-        { p: 1, tap: { c: 86087, td: true } },
-        { ability: { at: "triggered", c: 90889 }, p: 1 },
-        { move: { c: 29970, mt: "exile" }, p: 1 },
+        { p: 1, tap: { c: 90_889, td: true } },
+        { p: 1, tap: { c: 86_087, td: true } },
+        { ability: { at: "triggered", c: 90_889 }, p: 1 },
+        { move: { c: 29_970, mt: "exile" }, p: 1 },
         {
           damage: {
             am: 3,
             ic: true,
-            sid: 90889,
+            sid: 90_889,
             src: "Phelia, Exuberant Shepherd",
             target: "player",
           },
@@ -361,7 +420,7 @@ const realGameSection = {
           damage: {
             am: 1,
             ic: true,
-            sid: 86087,
+            sid: 86_087,
             src: "Thraben Inspector",
             target: "player",
           },
@@ -376,12 +435,15 @@ const realGameSection = {
     { ap: 1, ph: "main2", t: 8 },
     {
       a: [
-        { ability: { at: "triggered", c: 29970 }, p: 1 },
-        { ability: { at: "triggered", c: 90889 }, p: 1 },
+        { ability: { at: "triggered", c: 29_970 }, p: 1 },
+        { ability: { at: "triggered", c: 90_889 }, p: 1 },
       ],
       ap: 1,
       ph: "end",
-      pl: [{ l: 23, s: 1 }, { l: 22, s: 2 }],
+      pl: [
+        { l: 23, s: 1 },
+        { l: 22, s: 2 },
+      ],
       t: 8,
     },
   ],
@@ -394,14 +456,14 @@ const realMatchSection = {
   matchId: REAL_MATCH_ID,
   opponent: {
     cardsSeen: [
-      { arenaId: 90889, name: "Phelia, Exuberant Shepherd" },
-      { arenaId: 96179, name: "Plains" },
-      { arenaId: 79708, name: "Eiganjo, Seat of the Empire" },
-      { arenaId: 36682, name: "Oust" },
-      { arenaId: 97139, name: "Strip Mine" },
-      { arenaId: 86087, name: "Thraben Inspector" },
-      { arenaId: 86369, name: "" },
-      { arenaId: 29970, name: "Flickerwisp" },
+      { arenaId: 90_889, name: "Phelia, Exuberant Shepherd" },
+      { arenaId: 96_179, name: "Plains" },
+      { arenaId: 79_708, name: "Eiganjo, Seat of the Empire" },
+      { arenaId: 36_682, name: "Oust" },
+      { arenaId: 97_139, name: "Strip Mine" },
+      { arenaId: 86_087, name: "Thraben Inspector" },
+      { arenaId: 86_369, name: "" },
+      { arenaId: 29_970, name: "Flickerwisp" },
     ],
     name: "WilmerVelches",
     seat: 1,
@@ -1041,9 +1103,7 @@ describe("play_advisor reference module", () => {
           ph: "main1",
           pl: [
             {
-              battlefield: [
-                { c: 93_965, ct: ["CardType_Creature"], pw: 0, tf: 4 },
-              ],
+              battlefield: [{ c: 93_965, ct: ["CardType_Creature"], pw: 0, tf: 4 }],
               l: 20,
               s: 1,
             },
@@ -1063,9 +1123,7 @@ describe("play_advisor reference module", () => {
           ph: "main1",
           pl: [
             {
-              battlefield: [
-                { c: 93_965, ct: ["CardType_Creature"], pw: 0, tf: 4 },
-              ],
+              battlefield: [{ c: 93_965, ct: ["CardType_Creature"], pw: 0, tf: 4 }],
               l: 20,
               s: 1,
             },
@@ -1158,18 +1216,12 @@ describe("play_advisor reference module", () => {
       const turn3 = turns.find((t) => t.turn === 3);
       expect(turn3).toBeDefined();
       expect(turn3!.mana_spent).toBe(2);
-      expect(turn3!.cards_played).toEqual([
-        "Command Tower",
-        "Surris, Spidersilk Innovator",
-      ]);
+      expect(turn3!.cards_played).toEqual(["Command Tower", "Surris, Spidersilk Innovator"]);
 
       const turn7 = turns.find((t) => t.turn === 7);
       expect(turn7).toBeDefined();
       expect(turn7!.mana_spent).toBe(2);
-      expect(turn7!.cards_played).toEqual([
-        "Savai Triome",
-        "Surris, Spidersilk Innovator",
-      ]);
+      expect(turn7!.cards_played).toEqual(["Savai Triome", "Surris, Spidersilk Innovator"]);
     });
 
     it("excludes basic-land play_land moves from cards_played", () => {
@@ -1256,23 +1308,13 @@ describe("play_advisor reference module", () => {
     await env.DB.prepare(
       "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
     )
-      .bind(
-        saveUuid,
-        `game:${REAL_MATCH_ID}`,
-        "Game log",
-        JSON.stringify(realGameSection),
-      )
+      .bind(saveUuid, `game:${REAL_MATCH_ID}`, "Game log", JSON.stringify(realGameSection))
       .run();
 
     await env.DB.prepare(
       "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
     )
-      .bind(
-        saveUuid,
-        `match:${REAL_MATCH_ID}`,
-        "Match summary",
-        JSON.stringify(realMatchSection),
-      )
+      .bind(saveUuid, `match:${REAL_MATCH_ID}`, "Match summary", JSON.stringify(realMatchSection))
       .run();
 
     // "Borys, the Spider Rider" is cast only by seat 2 (the reporter) in
@@ -1330,9 +1372,7 @@ describe("play_advisor reference module", () => {
     const content = (result as { type: "text"; content: string }).content;
     expect(content).toContain("Failed to parse game section data for malformed-match");
     // The underlying JSON.parse error text must be included, not swallowed.
-    expect(content).not.toBe(
-      "Error: Failed to parse game section data for malformed-match.",
-    );
+    expect(content).not.toBe("Error: Failed to parse game section data for malformed-match.");
   });
 
   it("includes the underlying parse error when the match section data is malformed, attributed to the match section", async () => {
@@ -1347,12 +1387,7 @@ describe("play_advisor reference module", () => {
     await env.DB.prepare(
       "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
     )
-      .bind(
-        saveUuid,
-        `game:${REAL_MATCH_ID}`,
-        "Game log",
-        JSON.stringify(realGameSection),
-      )
+      .bind(saveUuid, `game:${REAL_MATCH_ID}`, "Game log", JSON.stringify(realGameSection))
       .run();
 
     await env.DB.prepare(
