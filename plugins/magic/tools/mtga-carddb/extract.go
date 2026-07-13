@@ -95,11 +95,6 @@ func extractFullCards(cardDBPath string) ([]FullCard, error) {
 			return nil, fmt.Errorf("scanning row: %w", err)
 		}
 
-		// Skip tokens.
-		if isToken {
-			continue
-		}
-
 		name = stripMarkup(name)
 		if name == "" {
 			continue

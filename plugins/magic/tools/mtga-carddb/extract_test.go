@@ -151,8 +151,37 @@ func TestExtractFullCards_CountIsReasonable(t *testing.T) {
 		t.Fatalf("extractFullCards: %v", err)
 	}
 
-	// The MTGA client has ~18000+ non-token cards.
-	if len(cards) < 15000 {
-		t.Errorf("Expected at least 15000 cards, got %d", len(cards))
+	// The MTGA client has ~18000+ non-token cards, plus 1000+ tokens.
+	if len(cards) < 16000 {
+		t.Errorf("Expected at least 16000 cards, got %d", len(cards))
+	}
+}
+
+func TestExtractFullCards_IncludesTokens(t *testing.T) {
+	skipIfNoCardDB(t)
+
+	cards, err := extractFullCards(testCardDBPath)
+	if err != nil {
+		t.Fatalf("extractFullCards: %v", err)
+	}
+
+	// Spider token (AFR) — a 2/1 Spider token that appears in game logs as a
+	// battlefield permanent and combat-damage source. Tokens were previously
+	// skipped entirely, so parsers emitted blank names for them.
+	c := findCard(cards, 77373)
+	if c == nil {
+		t.Fatal("Spider token (77373) not found — tokens must not be skipped")
+	}
+	if c.Name != "Spider" {
+		t.Errorf("Name = %q, want %q", c.Name, "Spider")
+	}
+	if c.Rarity != "token" {
+		t.Errorf("Rarity = %q, want %q", c.Rarity, "token")
+	}
+	if c.Power != "2" {
+		t.Errorf("Power = %q, want %q", c.Power, "2")
+	}
+	if c.Toughness != "1" {
+		t.Errorf("Toughness = %q, want %q", c.Toughness, "1")
 	}
 }
