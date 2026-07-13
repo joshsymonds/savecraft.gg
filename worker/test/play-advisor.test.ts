@@ -1,10 +1,419 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { playAdvisorModule } from "../../plugins/magic/reference/play-advisor";
+import {
+  extractTurnsFromSection,
+  playAdvisorModule,
+} from "../../plugins/magic/reference/play-advisor";
 import { registerNativeModule } from "../src/reference/registry";
 
 import { cleanAll } from "./helpers";
+
+// ── Real production v3b game/match section fixture ─────────────
+//
+// Copied from a genuine reporter export (match
+// b7d8b134-b502-4909-a11e-c59b7f976c35, player seat 2, 8 real turns / 41 tn
+// snapshots) to exercise extractTurnsFromSection against the actual v3b
+// compressed shape the Go parser emits, not a hand-rolled approximation.
+// See plugins/magic/parser/game_section_v3b.go for the shape's source of
+// truth.
+
+const REAL_MATCH_ID = "b7d8b134-b502-4909-a11e-c59b7f976c35";
+
+const realGameSection = {
+  cd: {
+    "29970": "Flickerwisp",
+    "36682": "Oust",
+    "58415": "Polluted Delta",
+    "71315": "Indatha Triome",
+    "71320": "Savai Triome",
+    "75024": "Mountain",
+    "79417": "Command Tower",
+    "79708": "Eiganjo, Seat of the Empire",
+    "80401": "Jetmir's Garden",
+    "86087": "Thraben Inspector",
+    "90889": "Phelia, Exuberant Shepherd",
+    "96179": "Plains",
+    "97139": "Strip Mine",
+    "97824": "Surris, Spidersilk Innovator",
+    "97960": "Borys, the Spider Rider",
+    "104847": "",
+  },
+  matchId: REAL_MATCH_ID,
+  tn: [
+    { ap: 0, pl: [{ l: 25, s: 2 }], t: 0 },
+    { ap: 2, ph: "begin", pl: [{ l: 25, s: 1 }, { l: 25, s: 2 }], t: 1 },
+    {
+      a: [{ move: { c: 80401, mt: "play_land" }, p: 2 }],
+      ap: 2,
+      ph: "main1",
+      t: 1,
+    },
+    { ap: 2, ph: "combat", t: 1 },
+    { ap: 2, ph: "main2", t: 1 },
+    { ap: 2, ph: "end", t: 1 },
+    { ap: 1, ph: "begin", pl: [{ l: 25, s: 1 }, { l: 25, s: 2 }], t: 2 },
+    {
+      a: [{ move: { c: 96179, mt: "play_land" }, p: 1 }],
+      ap: 1,
+      ph: "main1",
+      t: 2,
+    },
+    { ap: 1, ph: "combat", t: 2 },
+    { ap: 1, ph: "main2", t: 2 },
+    { ap: 1, ph: "end", t: 2 },
+    {
+      a: [
+        { p: 2, tap: { c: 80401, td: false } },
+        { move: { c: 58415, mt: "draw" }, p: 2 },
+      ],
+      ap: 2,
+      ph: "begin",
+      pl: [{ l: 25, s: 1 }, { l: 25, s: 2 }],
+      t: 3,
+    },
+    {
+      a: [
+        { move: { c: 79417, mt: "play_land" }, p: 2 },
+        {
+          cast: { c: 97824, m: [{ k: "W", n: 1 }, { k: "W", n: 1 }] },
+          p: 2,
+        },
+        { ability: { at: "triggered", c: 80401 }, p: 2 },
+        { p: 2, tap: { c: 80401, td: true } },
+        { ability: { at: "triggered", c: 79417 }, p: 2 },
+        { p: 2, tap: { c: 79417, td: true } },
+        { p: 2, resolve: { c: 97824 } },
+        { move: { c: 97824, mt: "move" }, p: 2 },
+        { ability: { at: "triggered", c: 97824 }, p: 2 },
+      ],
+      ap: 2,
+      ph: "main1",
+      t: 3,
+    },
+    { ap: 2, ph: "combat", t: 3 },
+    { ap: 2, ph: "main2", t: 3 },
+    { ap: 2, ph: "end", t: 3 },
+    { ap: 1, ph: "begin", pl: [{ l: 25, s: 1 }], t: 4 },
+    {
+      a: [{ move: { c: 79708, mt: "play_land" }, p: 1 }],
+      ap: 1,
+      ph: "main1",
+      t: 4,
+    },
+    { ap: 1, ph: "combat", t: 4 },
+    { ap: 1, ph: "main2", t: 4 },
+    { ap: 1, ph: "end", t: 4 },
+    {
+      a: [
+        { p: 2, tap: { c: 80401, td: false } },
+        { p: 2, tap: { c: 79417, td: false } },
+        { move: { c: 71320, mt: "draw" }, p: 2 },
+      ],
+      ap: 2,
+      ph: "begin",
+      pl: [{ l: 25, s: 1 }, { l: 25, s: 2 }],
+      t: 5,
+    },
+    {
+      a: [{ move: { c: 75024, mt: "play_land" }, p: 2 }],
+      ap: 2,
+      ph: "main1",
+      t: 5,
+    },
+    {
+      a: [
+        { p: 2, tap: { c: 97824, td: true } },
+        { p: 2, tap: { c: 104847, td: true } },
+        {
+          damage: {
+            am: 0,
+            ic: true,
+            sid: 97824,
+            src: "Surris, Spidersilk Innovator",
+            target: "player",
+          },
+          p: 2,
+        },
+        {
+          damage: { am: 2, ic: true, sid: 104847, src: "", target: "player" },
+          p: 2,
+        },
+      ],
+      ap: 2,
+      ph: "combat",
+      pl: [{ l: 23, s: 1 }],
+      t: 5,
+    },
+    {
+      a: [
+        {
+          cast: { c: 97960, m: [{ k: "R", n: 1 }, { k: "G", n: 1 }] },
+          p: 2,
+        },
+        { p: 2, tap: { c: 75024, td: true } },
+        { ability: { at: "triggered", c: 80401 }, p: 2 },
+        { p: 2, tap: { c: 80401, td: true } },
+        { move: { c: 97960, mt: "move" }, p: 2 },
+        { p: 2, resolve: { c: 97960 } },
+        { move: { c: 97960, mt: "move" }, p: 2 },
+        { p: 2, statMod: { c: 97960, pw: 2, tf: 2 } },
+      ],
+      ap: 2,
+      ph: "main2",
+      t: 5,
+    },
+    {
+      a: [
+        {
+          cast: { c: 90889, m: [{ k: "W", n: 1 }, { k: "W", n: 1 }] },
+          p: 1,
+        },
+        { p: 1, tap: { c: 96179, td: true } },
+        { ability: { at: "triggered", c: 79708 }, p: 1 },
+        { p: 1, tap: { c: 79708, td: true } },
+        { p: 1, resolve: { c: 90889 } },
+        { move: { c: 90889, mt: "move" }, p: 1 },
+      ],
+      ap: 2,
+      ph: "end",
+      t: 5,
+    },
+    {
+      a: [
+        { p: 1, tap: { c: 96179, td: false } },
+        { p: 1, tap: { c: 79708, td: false } },
+      ],
+      ap: 1,
+      ph: "begin",
+      pl: [{ l: 23, s: 1 }, { l: 25, s: 2 }],
+      t: 6,
+    },
+    {
+      a: [
+        { cast: { c: 36682, m: [{ k: "W", n: 1 }] }, p: 1 },
+        { p: 1, target: { tgs: ["Oust"] } },
+        { p: 1, tap: { c: 96179, td: true } },
+        { move: { c: 36682, mt: "put" }, p: 1 },
+        { p: 1, resolve: { c: 36682 } },
+        { move: { c: 36682, mt: "move" }, p: 1 },
+        { move: { c: 97139, mt: "play_land" }, p: 1 },
+        { ability: { at: "triggered", c: 97139 }, p: 1 },
+        { p: 1, tap: { c: 97139, td: true } },
+        { move: { c: 97139, mt: "move" }, p: 1 },
+        { move: { c: 79417, mt: "destroy" }, p: 2 },
+        { cast: { c: 86087, m: [{ k: "W", n: 1 }] }, p: 1 },
+        { ability: { at: "triggered", c: 79708 }, p: 1 },
+        { p: 1, tap: { c: 79708, td: true } },
+        { p: 1, resolve: { c: 86087 } },
+        { move: { c: 86087, mt: "move" }, p: 1 },
+        { ability: { at: "triggered", c: 86087 }, p: 1 },
+      ],
+      ap: 1,
+      ph: "main1",
+      pl: [
+        {
+          battlefield: [
+            {
+              c: 75024,
+              ct: ["CardType_Land"],
+              st: ["SubType_Mountain"],
+              tdb: true,
+            },
+            { c: 79417, ct: ["CardType_Land"] },
+            {
+              c: 80401,
+              ct: ["CardType_Land"],
+              st: ["SubType_Mountain", "SubType_Forest", "SubType_Plains"],
+              tdb: true,
+            },
+            {
+              c: 104847,
+              ct: ["CardType_Creature"],
+              pw: 2,
+              st: ["SubType_Spider"],
+              tdb: true,
+              tf: 1,
+            },
+          ],
+          l: 28,
+          s: 2,
+        },
+      ],
+      t: 6,
+    },
+    {
+      a: [
+        { p: 1, tap: { c: 90889, td: true } },
+        { ability: { at: "triggered", c: 90889 }, p: 1 },
+        { move: { c: 86087, mt: "exile" }, p: 1 },
+        {
+          damage: {
+            am: 2,
+            ic: true,
+            sid: 90889,
+            src: "Phelia, Exuberant Shepherd",
+            target: "player",
+          },
+          p: 1,
+        },
+      ],
+      ap: 1,
+      ph: "combat",
+      pl: [{ l: 26, s: 2 }],
+      t: 6,
+    },
+    { ap: 1, ph: "main2", t: 6 },
+    {
+      a: [
+        { ability: { at: "triggered", c: 90889 }, p: 1 },
+        { move: { c: 86087, mt: "move" }, p: 1 },
+        { ability: { at: "triggered", c: 86087 }, p: 1 },
+        { p: 1, statMod: { c: 90889, pw: 1, tf: 1 } },
+      ],
+      ap: 1,
+      ph: "end",
+      t: 6,
+    },
+    {
+      a: [
+        { p: 2, tap: { c: 80401, td: false } },
+        { p: 2, tap: { c: 104847, td: false } },
+        { p: 2, tap: { c: 75024, td: false } },
+        { move: { c: 71315, mt: "draw" }, p: 2 },
+      ],
+      ap: 2,
+      ph: "begin",
+      pl: [{ l: 23, s: 1 }, { l: 26, s: 2 }],
+      t: 7,
+    },
+    {
+      a: [
+        { move: { c: 71320, mt: "play_land" }, p: 2 },
+        {
+          cast: { c: 97824, m: [{ k: "R", n: 1 }, { k: "W", n: 1 }] },
+          p: 2,
+        },
+        { p: 2, tap: { c: 75024, td: true } },
+        { ability: { at: "triggered", c: 80401 }, p: 2 },
+        { p: 2, tap: { c: 80401, td: true } },
+        { p: 2, resolve: { c: 97824 } },
+        { move: { c: 97824, mt: "move" }, p: 2 },
+        { ability: { at: "triggered", c: 97824 }, p: 2 },
+      ],
+      ap: 2,
+      ph: "main1",
+      t: 7,
+    },
+    { ap: 2, ph: "combat", t: 7 },
+    { ap: 2, ph: "main2", t: 7 },
+    { ap: 2, ph: "end", t: 7 },
+    {
+      a: [
+        { p: 1, tap: { c: 96179, td: false } },
+        { p: 1, tap: { c: 79708, td: false } },
+        { p: 1, tap: { c: 90889, td: false } },
+      ],
+      ap: 1,
+      ph: "begin",
+      pl: [{ l: 23, s: 1 }, { l: 26, s: 2 }],
+      t: 8,
+    },
+    {
+      a: [
+        { move: { c: 96179, mt: "play_land" }, p: 1 },
+        {
+          cast: {
+            c: 29970,
+            m: [{ k: "W", n: 1 }, { k: "W", n: 1 }, { k: "W", n: 1 }],
+          },
+          p: 1,
+        },
+        { p: 1, tap: { c: 96179, td: true } },
+        { ability: { at: "triggered", c: 79708 }, p: 1 },
+        { p: 1, tap: { c: 79708, td: true } },
+        { p: 1, tap: { c: 96179, td: true } },
+        { p: 1, resolve: { c: 29970 } },
+        { move: { c: 29970, mt: "move" }, p: 1 },
+        { ability: { at: "triggered", c: 29970 }, p: 1 },
+      ],
+      ap: 1,
+      ph: "main1",
+      t: 8,
+    },
+    {
+      a: [
+        { p: 1, tap: { c: 90889, td: true } },
+        { p: 1, tap: { c: 86087, td: true } },
+        { ability: { at: "triggered", c: 90889 }, p: 1 },
+        { move: { c: 29970, mt: "exile" }, p: 1 },
+        {
+          damage: {
+            am: 3,
+            ic: true,
+            sid: 90889,
+            src: "Phelia, Exuberant Shepherd",
+            target: "player",
+          },
+          p: 1,
+        },
+        {
+          damage: {
+            am: 1,
+            ic: true,
+            sid: 86087,
+            src: "Thraben Inspector",
+            target: "player",
+          },
+          p: 1,
+        },
+      ],
+      ap: 1,
+      ph: "combat",
+      pl: [{ l: 22, s: 2 }],
+      t: 8,
+    },
+    { ap: 1, ph: "main2", t: 8 },
+    {
+      a: [
+        { ability: { at: "triggered", c: 29970 }, p: 1 },
+        { ability: { at: "triggered", c: 90889 }, p: 1 },
+      ],
+      ap: 1,
+      ph: "end",
+      pl: [{ l: 23, s: 1 }, { l: 22, s: 2 }],
+      t: 8,
+    },
+  ],
+};
+
+const realMatchSection = {
+  date: "2026-07-13T00:45:41Z",
+  eventId: "Brawl_Ladder",
+  games: [{ gameNumber: 1, winningSeat: 1 }],
+  matchId: REAL_MATCH_ID,
+  opponent: {
+    cardsSeen: [
+      { arenaId: 90889, name: "Phelia, Exuberant Shepherd" },
+      { arenaId: 96179, name: "Plains" },
+      { arenaId: 79708, name: "Eiganjo, Seat of the Empire" },
+      { arenaId: 36682, name: "Oust" },
+      { arenaId: 97139, name: "Strip Mine" },
+      { arenaId: 86087, name: "Thraben Inspector" },
+      { arenaId: 86369, name: "" },
+      { arenaId: 29970, name: "Flickerwisp" },
+    ],
+    name: "WilmerVelches",
+    seat: 1,
+    userId: "YFDFDQOI7FERNABVL2D7Z2Z4X4",
+  },
+  player: {
+    name: "Aure Silvershield",
+    seat: 2,
+    userId: "47BADBEB1045E08A",
+  },
+  result: "loss",
+};
 
 // ── Seed helpers ─────────────────────────────────────────────
 
@@ -605,124 +1014,92 @@ describe("play_advisor reference module", () => {
       .run();
 
     const gameSection = JSON.stringify({
+      cd: {
+        "93757": "Kaito, Cunning Infiltrator",
+        "93848": "Ajani's Pridemate",
+        "93963": "Burnished Hart",
+        "93965": "Gleaming Barrier",
+        "95194": "Island",
+      },
       matchId: "match-abc-123",
-      turns: [
+      tn: [
         {
-          turnNumber: 1,
-          activePlayer: 1,
-          phase: "Phase_Main1",
-          players: [
-            { seat: 1, lifeTotal: 20, battlefield: [] },
-            { seat: 2, lifeTotal: 20, battlefield: [] },
-          ],
-          actions: [
-            {
-              player: 1,
-              type: "move",
-              move: { cardName: "Island", cardId: 95_194, moveType: "play_land" },
-            },
-          ],
+          a: [{ move: { c: 95_194, mt: "play_land" }, p: 1 }],
+          ap: 1,
+          ph: "main1",
+          t: 1,
         },
         {
-          turnNumber: 2,
-          activePlayer: 1,
-          phase: "Phase_Main1",
-          players: [
+          a: [
+            { move: { c: 95_194, mt: "play_land" }, p: 1 },
             {
-              seat: 1,
-              lifeTotal: 20,
+              cast: { c: 93_965, m: [{ k: "Colorless", n: 2 }] },
+              p: 1,
+            },
+          ],
+          ap: 1,
+          ph: "main1",
+          pl: [
+            {
               battlefield: [
-                {
-                  cardName: "Gleaming Barrier",
-                  cardId: 93_965,
-                  cardTypes: ["CardType_Creature"],
-                  power: 0,
-                  toughness: 4,
-                },
+                { c: 93_965, ct: ["CardType_Creature"], pw: 0, tf: 4 },
               ],
+              l: 20,
+              s: 1,
             },
-            { seat: 2, lifeTotal: 20, battlefield: [] },
+            { l: 20, s: 2 },
           ],
-          actions: [
-            {
-              player: 1,
-              type: "move",
-              move: { cardName: "Island", cardId: 95_194, moveType: "play_land" },
-            },
-            {
-              player: 1,
-              type: "cast",
-              cast: {
-                cardName: "Gleaming Barrier",
-                cardId: 93_965,
-                manaPaid: [{ color: "Colorless", count: 2 }],
-              },
-            },
-          ],
+          t: 2,
         },
         {
-          turnNumber: 3,
-          activePlayer: 1,
-          phase: "Phase_Main1",
-          players: [
+          a: [
+            { move: { c: 95_194, mt: "play_land" }, p: 1 },
             {
-              seat: 1,
-              lifeTotal: 20,
-              battlefield: [
-                {
-                  cardName: "Gleaming Barrier",
-                  cardId: 93_965,
-                  cardTypes: ["CardType_Creature"],
-                  power: 0,
-                  toughness: 4,
-                },
-              ],
-            },
-            {
-              seat: 2,
-              lifeTotal: 20,
-              battlefield: [
-                {
-                  cardName: "Ajani's Pridemate",
-                  cardId: 93_848,
-                  cardTypes: ["CardType_Creature"],
-                  power: 2,
-                  toughness: 2,
-                },
-                {
-                  cardName: "Burnished Hart",
-                  cardId: 93_963,
-                  cardTypes: ["CardType_Creature"],
-                  power: 2,
-                  toughness: 2,
-                },
-              ],
+              cast: { c: 93_757, m: [{ k: "Blue", n: 3 }] },
+              p: 1,
             },
           ],
-          actions: [
+          ap: 1,
+          ph: "main1",
+          pl: [
             {
-              player: 1,
-              type: "move",
-              move: { cardName: "Island", cardId: 95_194, moveType: "play_land" },
+              battlefield: [
+                { c: 93_965, ct: ["CardType_Creature"], pw: 0, tf: 4 },
+              ],
+              l: 20,
+              s: 1,
             },
             {
-              player: 1,
-              type: "cast",
-              cast: {
-                cardName: "Kaito, Cunning Infiltrator",
-                cardId: 93_757,
-                manaPaid: [{ color: "Blue", count: 3 }],
-              },
+              battlefield: [
+                { c: 93_848, ct: ["CardType_Creature"], pw: 2, tf: 2 },
+                { c: 93_963, ct: ["CardType_Creature"], pw: 2, tf: 2 },
+              ],
+              l: 20,
+              s: 2,
             },
           ],
+          t: 3,
         },
       ],
+    });
+
+    const matchSection = JSON.stringify({
+      matchId: "match-abc-123",
+      opponent: { seat: 2 },
+      player: { seat: 1 },
+      result: "win",
     });
 
     await env.DB.prepare(
       "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
     )
       .bind(saveUuid, "game:match-abc-123", "Game log", gameSection)
+      .run();
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, "match:match-abc-123", "Match summary", matchSection)
       .run();
 
     const result = await playAdvisorModule.execute(
@@ -764,5 +1141,197 @@ describe("play_advisor reference module", () => {
     const result = await playAdvisorModule.execute({ mode: "unknown_mode" }, env);
     const content = (result as { type: "text"; content: string }).content;
     expect(content).toContain("Unknown mode");
+  });
+
+  // ── extractTurnsFromSection: v3b compressed shape ─────────────
+
+  describe("extractTurnsFromSection (v3b)", () => {
+    it("extracts real turn numbers from a v3b game section, aggregating per-phase snapshots", () => {
+      const turns = extractTurnsFromSection(realGameSection, 2);
+      // t=0 is the pre-game/mulligan snapshot, not a real turn; real turns
+      // are 1 through 8 (the max in this fixture).
+      expect(turns.map((t) => t.turn)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    });
+
+    it("resolves cards_played names via the cd dictionary and sums mana_spent from cast.m", () => {
+      const turns = extractTurnsFromSection(realGameSection, 2);
+      const turn3 = turns.find((t) => t.turn === 3);
+      expect(turn3).toBeDefined();
+      expect(turn3!.mana_spent).toBe(2);
+      expect(turn3!.cards_played).toEqual([
+        "Command Tower",
+        "Surris, Spidersilk Innovator",
+      ]);
+
+      const turn7 = turns.find((t) => t.turn === 7);
+      expect(turn7).toBeDefined();
+      expect(turn7!.mana_spent).toBe(2);
+      expect(turn7!.cards_played).toEqual([
+        "Savai Triome",
+        "Surris, Spidersilk Innovator",
+      ]);
+    });
+
+    it("excludes basic-land play_land moves from cards_played", () => {
+      const turns = extractTurnsFromSection(realGameSection, 2);
+      const turn5 = turns.find((t) => t.turn === 5);
+      expect(turn5).toBeDefined();
+      // Turn 5 plays a Mountain (basic, excluded) and casts Borys (included).
+      expect(turn5!.cards_played).toEqual(["Borys, the Spider Rider"]);
+    });
+
+    it("never emits a blank card name for creatures_attacked, even when the cd/src name is empty", () => {
+      const turns = extractTurnsFromSection(realGameSection, 2);
+      const turn5 = turns.find((t) => t.turn === 5);
+      expect(turn5).toBeDefined();
+      // Turn 5 combat has two damage actions for seat 2: one with am=0
+      // (excluded) and one with a blank src name (card 104847, cd[""]).
+      // Neither should appear in creatures_attacked.
+      expect(turn5!.creatures_attacked).toEqual([]);
+      for (const turn of turns) {
+        expect(turn.creatures_attacked).not.toContain("");
+        expect(turn.cards_played).not.toContain("");
+      }
+    });
+
+    it("extracts the correct player's actions by seat, not the opponent's", () => {
+      const seat2Turns = extractTurnsFromSection(realGameSection, 2);
+      const seat1Turns = extractTurnsFromSection(realGameSection, 1);
+
+      const seat2Turn3 = seat2Turns.find((t) => t.turn === 3);
+      const seat1Turn3 = seat1Turns.find((t) => t.turn === 3);
+      // Turn 3's actions all belong to seat 2 (the reporter) in this real
+      // fixture — seat 1 played nothing that turn.
+      expect(seat2Turn3!.cards_played!.length).toBeGreaterThan(0);
+      expect(seat1Turn3!.cards_played).toEqual([]);
+
+      const seat2Turn8 = seat2Turns.find((t) => t.turn === 8);
+      const seat1Turn8 = seat1Turns.find((t) => t.turn === 8);
+      // Turn 8's actions all belong to seat 1 in this fixture.
+      expect(seat1Turn8!.cards_played!.length).toBeGreaterThan(0);
+      expect(seat2Turn8!.cards_played).toEqual([]);
+    });
+
+    it("derives user/oppo creature counts from pl[].battlefield entries, carrying forward across phase snapshots with no battlefield key", () => {
+      const turns = extractTurnsFromSection(realGameSection, 2);
+      const turn6 = turns.find((t) => t.turn === 6);
+      expect(turn6).toBeDefined();
+      // Turn 6 main1 gives seat 2 a battlefield snapshot with 1 creature
+      // (card 104847) among 3 lands; the later combat sub-entry for turn 6
+      // only carries a life-total change (no battlefield key) and must not
+      // reset the count back to 0.
+      expect(turn6!.user_creatures).toBe(1);
+    });
+
+    it("does not emit a card name resolved from a blank cd entry for cast or play_land moves", () => {
+      const synthetic = {
+        cd: { "1": "", "2": "Real Card" },
+        matchId: "synthetic",
+        tn: [
+          {
+            a: [
+              { cast: { c: 1 }, p: 1 },
+              { move: { c: 1, mt: "play_land" }, p: 1 },
+              { cast: { c: 2 }, p: 1 },
+            ],
+            ap: 1,
+            t: 1,
+          },
+        ],
+      };
+      const turns = extractTurnsFromSection(synthetic, 1);
+      expect(turns[0]!.cards_played).toEqual(["Real Card"]);
+    });
+  });
+
+  it("game_review resolves the player seat from the match section, not a hardcoded default", async () => {
+    const saveUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(saveUuid, "user-seat-test", "magic", "magic", "TestPlayer", "test")
+      .run();
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(
+        saveUuid,
+        `game:${REAL_MATCH_ID}`,
+        "Game log",
+        JSON.stringify(realGameSection),
+      )
+      .run();
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(
+        saveUuid,
+        `match:${REAL_MATCH_ID}`,
+        "Match summary",
+        JSON.stringify(realMatchSection),
+      )
+      .run();
+
+    // "Borys, the Spider Rider" is cast only by seat 2 (the reporter) in
+    // this fixture. If loadTurnsFromMatchId still hardcoded playerSeat=1
+    // instead of reading match.player.seat=2, Borys would never appear in
+    // cards_played and coverage.found would be 0.
+    await env.DB.prepare(
+      `INSERT INTO magic_play_card_timing (set_code, card_name, archetype, turn_number, times_deployed, games_won, total_games)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind("FDN", "Borys, the Spider Rider", "ALL", 5, 10, 5, 10)
+      .run();
+
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "game_review",
+        set: "FDN",
+        match_id: REAL_MATCH_ID,
+        user_id: "user-seat-test",
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const coverage = result.data.coverage as { found: number; total: number };
+    expect(coverage.found).toBe(1);
+  });
+
+  it("includes the underlying parse error when the game section data is malformed", async () => {
+    const saveUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(saveUuid, "user-malformed", "magic", "magic", "TestPlayer", "test")
+      .run();
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, "game:malformed-match", "Game log", "{not valid json")
+      .run();
+
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "game_review",
+        set: "FDN",
+        match_id: "malformed-match",
+        user_id: "user-malformed",
+      },
+      env,
+    );
+
+    const content = (result as { type: "text"; content: string }).content;
+    expect(content).toContain("Failed to parse game section data for malformed-match");
+    // The underlying JSON.parse error text must be included, not swallowed.
+    expect(content).not.toBe(
+      "Error: Failed to parse game section data for malformed-match.",
+    );
   });
 });

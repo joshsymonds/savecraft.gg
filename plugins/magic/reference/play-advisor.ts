@@ -549,59 +549,129 @@ async function mulligan(
 }
 
 // ── Section lookup: convert game section to TurnInput[] ──────
+//
+// `game:<matchId>` sections are stored in the "v3b compressed" shape
+// (plugins/magic/parser/game_section_v3b.go is the source of truth):
+//   - `cd`: cardId (stringified int) → cardName dictionary. Names may be ""
+//     for cards the client never resolved a name for — always skip those
+//     rather than emitting an empty-string card name.
+//   - `tn`: turn snapshots. MTGA emits one snapshot per phase transition, so
+//     several `tn` entries can share the same turn number `t` — they must be
+//     aggregated into one logical turn.
+//   - Action kind is whichever single inner key (cast/tap/move/ability/
+//     damage/resolve/statMod/target) is present; there is no `type`
+//     discriminator field.
+
+interface GameSectionCastAction {
+  c: number;
+  m?: { k: string; n: number }[];
+}
+
+interface GameSectionMoveAction {
+  c: number;
+  mt: string;
+  zoneFrom?: string;
+  zoneTo?: string;
+}
+
+interface GameSectionDamageAction {
+  src: string;
+  sid: number;
+  target: string;
+  am: number;
+  ic: boolean;
+}
+
+interface GameSectionTapAction {
+  c: number;
+  td: boolean;
+}
+
+interface GameSectionAbilityAction {
+  c: number;
+  at: string;
+}
+
+interface GameSectionResolveAction {
+  c: number;
+}
+
+interface GameSectionStatModAction {
+  c: number;
+  pw: number;
+  tf: number;
+}
+
+interface GameSectionTargetAction {
+  tgs: string[];
+  c?: number;
+}
 
 interface GameSectionAction {
-  player: number;
-  type: string;
-  cast?: {
-    cardName: string;
-    cardId: number;
-    manaPaid?: { color: string; count: number }[];
-  };
-  move?: { cardName: string; cardId: number; moveType: string };
-  damage?: {
-    source: string;
-    sourceId: number;
-    target: string;
-    amount: number;
-    isCombat: boolean;
-  };
+  p: number;
+  cast?: GameSectionCastAction;
+  move?: GameSectionMoveAction;
+  damage?: GameSectionDamageAction;
+  tap?: GameSectionTapAction;
+  ability?: GameSectionAbilityAction;
+  resolve?: GameSectionResolveAction;
+  statMod?: GameSectionStatModAction;
+  target?: GameSectionTargetAction;
 }
 
 interface GameSectionPermanent {
-  cardName: string;
-  cardId: number;
-  cardTypes: string[];
-  power?: number;
-  toughness?: number;
-  isTapped?: boolean;
+  c: number;
+  ct?: string[];
+  st?: string[];
+  pw?: number;
+  tf?: number;
+  tdb?: boolean;
   damage?: number;
 }
 
 interface GameSectionPlayer {
-  seat: number;
-  lifeTotal: number;
-  manaPool?: { color: string; count: number }[];
+  s: number;
+  l: number;
+  manaPool?: { k: string; n: number }[];
+  handCards?: unknown[];
   battlefield?: GameSectionPermanent[];
 }
 
 interface GameSectionTurn {
-  turnNumber: number;
-  activePlayer: number;
-  phase: string;
-  players?: GameSectionPlayer[];
-  actions: GameSectionAction[];
+  t: number;
+  ap: number;
+  ph?: string;
+  pl?: GameSectionPlayer[];
+  a?: GameSectionAction[];
 }
 
 interface GameSectionData {
   matchId: string;
-  turns: GameSectionTurn[];
+  cd: Record<string, string>;
+  tn: GameSectionTurn[];
+  end?: { w: number; r?: string; d?: string };
 }
 
-function extractTurnsFromSection(
+/** Basic land names (matches plugins/magic/parser/game_section_v3b.go's basicLandNames). */
+const BASIC_LAND_NAMES = new Set([
+  "Plains",
+  "Island",
+  "Swamp",
+  "Mountain",
+  "Forest",
+  "Wastes",
+]);
+
+export function extractTurnsFromSection(
   section: GameSectionData,
   playerSeat: number,
 ): TurnInput[] {
+  const cd = section.cd ?? {};
+  const resolveName = (cardId: number): string | undefined => {
+    const name = cd[String(cardId)];
+    return name ? name : undefined;
+  };
+
   const turnMap = new Map<
     number,
     {
@@ -612,62 +682,57 @@ function extractTurnsFromSection(
       oppoCreatures: number;
     }
   >();
-  const landNames = new Set([
-    "Plains",
-    "Island",
-    "Swamp",
-    "Mountain",
-    "Forest",
-  ]);
 
-  for (const turn of section.turns) {
-    const existing = turnMap.get(turn.turnNumber) ?? {
+  for (const turn of section.tn) {
+    if (turn.t < 1) continue; // t=0 is the pre-game/mulligan snapshot, not a real turn.
+
+    const existing = turnMap.get(turn.t) ?? {
       manaSpent: 0,
       cardsPlayed: [],
       creaturesAttacked: [],
       userCreatures: 0,
       oppoCreatures: 0,
     };
-    for (const action of turn.actions) {
-      if (action.player !== playerSeat) continue;
-      if (action.type === "cast" && action.cast) {
-        existing.cardsPlayed.push(action.cast.cardName);
-        if (action.cast.manaPaid) {
-          for (const mana of action.cast.manaPaid)
-            existing.manaSpent += mana.count;
+
+    for (const action of turn.a ?? []) {
+      if (action.p !== playerSeat) continue;
+
+      if (action.cast) {
+        const name = resolveName(action.cast.c);
+        if (name) existing.cardsPlayed.push(name);
+        if (action.cast.m) {
+          for (const mana of action.cast.m) existing.manaSpent += mana.n;
         }
       }
-      if (
-        action.type === "move" &&
-        action.move &&
-        action.move.moveType === "play_land" &&
-        !landNames.has(action.move.cardName)
-      ) {
-        existing.cardsPlayed.push(action.move.cardName);
+
+      if (action.move?.mt === "play_land") {
+        const name = resolveName(action.move.c);
+        if (name && !BASIC_LAND_NAMES.has(name)) {
+          existing.cardsPlayed.push(name);
+        }
       }
-      if (
-        action.type === "damage" &&
-        action.damage?.isCombat &&
-        action.damage.amount > 0
-      ) {
-        existing.creaturesAttacked.push(action.damage.source);
+
+      if (action.damage?.ic && action.damage.am > 0 && action.damage.src) {
+        existing.creaturesAttacked.push(action.damage.src);
       }
     }
 
-    if (turn.players) {
-      for (const p of turn.players) {
-        const creatures = (p.battlefield ?? []).filter((perm) =>
-          perm.cardTypes?.includes("CardType_Creature"),
-        ).length;
-        if (p.seat === playerSeat) {
-          existing.userCreatures = creatures;
-        } else {
-          existing.oppoCreatures = creatures;
-        }
+    for (const p of turn.pl ?? []) {
+      // A `pl` snapshot without `battlefield` means only life/mana changed —
+      // the Go compressor drops empty collections, so an omitted field here
+      // means "unchanged", not "reset to zero permanents".
+      if (!p.battlefield) continue;
+      const creatures = p.battlefield.filter((perm) =>
+        perm.ct?.includes("CardType_Creature"),
+      ).length;
+      if (p.s === playerSeat) {
+        existing.userCreatures = creatures;
+      } else {
+        existing.oppoCreatures = creatures;
       }
     }
 
-    turnMap.set(turn.turnNumber, existing);
+    turnMap.set(turn.t, existing);
   }
 
   return [...turnMap.entries()]
@@ -687,24 +752,43 @@ async function loadTurnsFromMatchId(
   userId: string,
   env: Env,
 ): Promise<TurnInput[] | string> {
-  const sectionName = `game:${matchId}`;
-  const row = await env.DB.prepare(
+  const gameSectionName = `game:${matchId}`;
+  const matchSectionName = `match:${matchId}`;
+
+  const gameRow = await env.DB.prepare(
     `SELECT sec.data FROM sections sec
      JOIN saves sv ON sv.uuid = sec.save_uuid
      WHERE sv.user_uuid = ? AND sv.game_id = 'magic' AND sec.name = ?
      LIMIT 1`,
   )
-    .bind(userId, sectionName)
+    .bind(userId, gameSectionName)
     .first<{ data: string }>();
 
-  if (!row) {
-    return `Game section "${sectionName}" not found in any MTGA save.`;
+  if (!gameRow) {
+    return `Game section "${gameSectionName}" not found in any MTGA save.`;
   }
 
+  const matchRow = await env.DB.prepare(
+    `SELECT sec.data FROM sections sec
+     JOIN saves sv ON sv.uuid = sec.save_uuid
+     WHERE sv.user_uuid = ? AND sv.game_id = 'magic' AND sec.name = ?
+     LIMIT 1`,
+  )
+    .bind(userId, matchSectionName)
+    .first<{ data: string }>();
+
   try {
-    return extractTurnsFromSection(JSON.parse(row.data) as GameSectionData, 1);
-  } catch {
-    return `Failed to parse game section data for ${matchId}.`;
+    const playerSeat = matchRow
+      ? ((JSON.parse(matchRow.data) as { player?: { seat?: number } })
+          .player?.seat ?? 1)
+      : 1;
+    return extractTurnsFromSection(
+      JSON.parse(gameRow.data) as GameSectionData,
+      playerSeat,
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return `Failed to parse game section data for ${matchId}: ${message}`;
   }
 }
 
