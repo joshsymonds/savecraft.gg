@@ -60,7 +60,7 @@ func extractFullCards(cardDBPath string) ([]FullCard, error) {
 		       c.OldSchoolManaText, c.Colors, c.ColorIdentity,
 		       c.Supertypes, c.Types, c.Subtypes,
 		       c.Power, c.Toughness, c.AbilityIds,
-		       c.IsPrimaryCard, c.IsToken
+		       c.IsPrimaryCard
 		FROM Cards c
 		JOIN Localizations_enUS l ON l.LocId = c.TitleId AND l.Formatted = 1
 		WHERE l.Loc IS NOT NULL AND l.Loc != ''
@@ -73,24 +73,24 @@ func extractFullCards(cardDBPath string) ([]FullCard, error) {
 	var cards []FullCard
 	for rows.Next() {
 		var (
-			grpID, rarity      int
-			isPrimary, isToken bool
-			name, set          string
-			manaCostRaw        string
-			colorsCSV          string
-			colorIdentCSV      string
-			supertypesCSV      string
-			typesCSV           string
-			subtypesCSV        string
-			power, toughness   string
-			abilityIDs         string
+			grpID, rarity    int
+			isPrimary        bool
+			name, set        string
+			manaCostRaw      string
+			colorsCSV        string
+			colorIdentCSV    string
+			supertypesCSV    string
+			typesCSV         string
+			subtypesCSV      string
+			power, toughness string
+			abilityIDs       string
 		)
 		if err := rows.Scan(
 			&grpID, &name, &set, &rarity,
 			&manaCostRaw, &colorsCSV, &colorIdentCSV,
 			&supertypesCSV, &typesCSV, &subtypesCSV,
 			&power, &toughness, &abilityIDs,
-			&isPrimary, &isToken,
+			&isPrimary,
 		); err != nil {
 			return nil, fmt.Errorf("scanning row: %w", err)
 		}

@@ -755,33 +755,42 @@ async function loadTurnsFromMatchId(
   const gameSectionName = `game:${matchId}`;
   const matchSectionName = `match:${matchId}`;
 
-  const gameRow = await env.DB.prepare(
-    `SELECT sec.data FROM sections sec
-     JOIN saves sv ON sv.uuid = sec.save_uuid
-     WHERE sv.user_uuid = ? AND sv.game_id = 'magic' AND sec.name = ?
-     LIMIT 1`,
-  )
-    .bind(userId, gameSectionName)
-    .first<{ data: string }>();
+  const [gameRow, matchRow] = await Promise.all([
+    env.DB.prepare(
+      `SELECT sec.data FROM sections sec
+       JOIN saves sv ON sv.uuid = sec.save_uuid
+       WHERE sv.user_uuid = ? AND sv.game_id = 'magic' AND sec.name = ?
+       LIMIT 1`,
+    )
+      .bind(userId, gameSectionName)
+      .first<{ data: string }>(),
+    env.DB.prepare(
+      `SELECT sec.data FROM sections sec
+       JOIN saves sv ON sv.uuid = sec.save_uuid
+       WHERE sv.user_uuid = ? AND sv.game_id = 'magic' AND sec.name = ?
+       LIMIT 1`,
+    )
+      .bind(userId, matchSectionName)
+      .first<{ data: string }>(),
+  ]);
 
   if (!gameRow) {
     return `Game section "${gameSectionName}" not found in any MTGA save.`;
   }
 
-  const matchRow = await env.DB.prepare(
-    `SELECT sec.data FROM sections sec
-     JOIN saves sv ON sv.uuid = sec.save_uuid
-     WHERE sv.user_uuid = ? AND sv.game_id = 'magic' AND sec.name = ?
-     LIMIT 1`,
-  )
-    .bind(userId, matchSectionName)
-    .first<{ data: string }>();
+  let playerSeat = 1;
+  if (matchRow) {
+    try {
+      playerSeat =
+        (JSON.parse(matchRow.data) as { player?: { seat?: number } }).player
+          ?.seat ?? 1;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return `Failed to parse match section data for ${matchId}: ${message}`;
+    }
+  }
 
   try {
-    const playerSeat = matchRow
-      ? ((JSON.parse(matchRow.data) as { player?: { seat?: number } })
-          .player?.seat ?? 1)
-      : 1;
     return extractTurnsFromSection(
       JSON.parse(gameRow.data) as GameSectionData,
       playerSeat,

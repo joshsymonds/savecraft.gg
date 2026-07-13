@@ -1334,4 +1334,45 @@ describe("play_advisor reference module", () => {
       "Error: Failed to parse game section data for malformed-match.",
     );
   });
+
+  it("includes the underlying parse error when the match section data is malformed, attributed to the match section", async () => {
+    const saveUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(saveUuid, "user-malformed-match", "magic", "magic", "TestPlayer", "test")
+      .run();
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(
+        saveUuid,
+        `game:${REAL_MATCH_ID}`,
+        "Game log",
+        JSON.stringify(realGameSection),
+      )
+      .run();
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, `match:${REAL_MATCH_ID}`, "Match summary", "{not valid json")
+      .run();
+
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "game_review",
+        set: "FDN",
+        match_id: REAL_MATCH_ID,
+        user_id: "user-malformed-match",
+      },
+      env,
+    );
+
+    const content = (result as { type: "text"; content: string }).content;
+    expect(content).toContain(`Failed to parse match section data for ${REAL_MATCH_ID}`);
+    expect(content).not.toContain("Failed to parse game section data");
+  });
 });
