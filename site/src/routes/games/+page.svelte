@@ -142,6 +142,11 @@
         </article>
       {/each}
     </div>
+
+    <p class="requests-cta">
+      Don&rsquo;t see your game?
+      <a href="/requests" class="requests-cta-link">See what others have requested &rarr;</a>
+    </p>
   </main>
 </div>
 
@@ -442,6 +447,26 @@
     height: 5px;
     background: rgba(74, 90, 173, 0.4);
     border-radius: 1px;
+  }
+
+  /* -- Requests CTA --------------------------------------------- */
+  .requests-cta {
+    margin-top: 32px;
+    text-align: center;
+    font-family: var(--font-heading);
+    font-size: 15px;
+    color: var(--color-text-dim);
+  }
+
+  .requests-cta-link {
+    color: var(--color-gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(200, 168, 78, 0.3);
+    transition: border-color 0.2s;
+  }
+
+  .requests-cta-link:hover {
+    border-color: var(--color-gold);
   }
 
   /* -- Responsive --------------------------------------------- */

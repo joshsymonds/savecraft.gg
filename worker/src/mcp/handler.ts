@@ -28,6 +28,7 @@ import {
   listGames,
   queryReference,
   refreshSave,
+  requestGame,
   resolveIconUrl,
   searchSaves,
   type ToolResult,
@@ -564,6 +565,34 @@ const TOOLS: ToolDefinition[] = [
       openWorldHint: false,
     },
   },
+  // ── Game Requests ─────────────────────────────────────────
+  {
+    name: "request_game",
+    title: "Request a Game",
+    description:
+      "Log a player's request for a game Savecraft doesn't support yet. Use when the player wants a game not in the supported list (check list_games first). Pass the game's OFFICIAL FULL TITLE as game_name. Ask the player what they'd want Savecraft to do for that game and pass it as details. Requests are deduplicated per player and tallied publicly at savecraft.gg/requests.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        game_name: {
+          type: "string",
+          description: "The game's official full title, e.g. 'Hollow Knight: Silksong'.",
+        },
+        details: {
+          type: "string",
+          description:
+            "What the player would want Savecraft to do for this game — track a save, provide reference data, etc. Ask before omitting.",
+        },
+      },
+      required: ["game_name"],
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  },
 ];
 
 /** Map show_* tool names to their view bundle slugs. */
@@ -726,6 +755,8 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   show_games: (env, userUuid, args) => dispatchShowGames(env, userUuid, args),
   show_save: (env, userUuid, _args, saveId) => dispatchShowSave(env, userUuid, saveId),
   setup_help: (env, userUuid, args) => handleGetInfo(env, userUuid, args),
+  request_game: (env, userUuid, args) =>
+    requestGame(env.DB, userUuid, args.game_name as string, args.details as string | undefined),
 };
 /* eslint-enable @typescript-eslint/naming-convention */
 

@@ -125,4 +125,10 @@ export const cards = [
     title: "Support",
     screenshot: "images/factorio/factorio1.jpg",
   },
+  {
+    slug: "requests",
+    eyebrow: "A LIVE, PUBLIC TALLY",
+    title: "Requested Games",
+    screenshot: "images/factorio/factorio2.jpg",
+  },
 ];

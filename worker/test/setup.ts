@@ -789,6 +789,21 @@ const statements = [
     pob_xml TEXT NOT NULL,
     imported_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  // migration 0063 — player-driven requests for unsupported games
+  `CREATE TABLE IF NOT EXISTS game_requests (
+    user_uuid TEXT NOT NULL,
+    game_slug TEXT NOT NULL,
+    game_name TEXT NOT NULL,
+    details TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_uuid, game_slug)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_game_requests_slug ON game_requests(game_slug)`,
+  `CREATE TABLE IF NOT EXISTS game_request_blocks (
+    game_slug TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
 ];
 
 for (const sql of statements) {

@@ -306,6 +306,9 @@ async function routePublicEndpoints(
   if (url.pathname === "/api/v1/plugins/manifest" && request.method === "GET") {
     return handlePluginManifest(env);
   }
+  if (url.pathname === "/api/v1/game-requests" && request.method === "GET") {
+    return handleGameRequestTally(env);
+  }
   const downloadResponse = routeDownload(request, url, env);
   if (downloadResponse) return downloadResponse;
   const referenceMatch = /^\/api\/v1\/reference\/([^/]+)\/query$/.exec(url.pathname);
@@ -1259,6 +1262,35 @@ async function handlePluginManifest(env: Env): Promise<Response> {
 
   return Response.json(
     { plugins },
+    {
+      headers: { "Cache-Control": "public, max-age=300" },
+    },
+  );
+}
+
+/**
+ * Public tally of player-requested unsupported games, deduplicated per
+ * distinct player. Never exposes `details` or `user_uuid` (privacy
+ * requirement) and excludes any slug an admin has blocked via
+ * POST /admin/game-requests/block.
+ */
+async function handleGameRequestTally(env: Env): Promise<Response> {
+  const result = await env.DB.prepare(
+    `SELECT
+       gr.game_slug AS slug,
+       (SELECT gr2.game_name FROM game_requests gr2
+          WHERE gr2.game_slug = gr.game_slug
+          ORDER BY gr2.updated_at DESC LIMIT 1) AS name,
+       COUNT(*) AS count
+     FROM game_requests gr
+     WHERE gr.game_slug NOT IN (SELECT game_slug FROM game_request_blocks)
+     GROUP BY gr.game_slug
+     ORDER BY count DESC, name ASC
+     LIMIT 200`,
+  ).all<{ slug: string; name: string; count: number }>();
+
+  return Response.json(
+    { requests: result.results },
     {
       headers: { "Cache-Control": "public, max-age=300" },
     },

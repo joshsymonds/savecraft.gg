@@ -1,6 +1,7 @@
 import { cleanupSource } from "../source-cleanup";
 import type { Env } from "../types";
 
+import { handleBlockGameRequest } from "./game-requests";
 import { handleSeedCharacter } from "./seed-character";
 import { handleSeedSave } from "./seed-save";
 import { handleSeedSource } from "./seed-source";
@@ -109,6 +110,7 @@ const postRoutes = new Map<string, AdminHandler>([
   ["/admin/seed-source", (req, env) => handleSeedSource(req, env)],
   ["/admin/seed-note", (req, env) => handleSeedNote(req, env)],
   ["/admin/clean-user", (req, env) => handleCleanUser(req, env)],
+  ["/admin/game-requests/block", (req, env) => handleBlockGameRequest(req, env)],
 ]);
 
 const getRoutes = new Map<string, AdminHandler>([

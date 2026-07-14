@@ -21,6 +21,18 @@ function adminFetch(path: string, key?: string): Promise<Response> {
   return SELF.fetch(`https://test-host${path}`, { headers });
 }
 
+function adminPost(path: string, body: Record<string, unknown>, key?: string): Promise<Response> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (key) {
+    headers.Authorization = `Bearer ${key}`;
+  }
+  return SELF.fetch(`https://test-host${path}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+}
+
 describe("Admin API", () => {
   beforeEach(cleanAll);
 
@@ -277,6 +289,56 @@ describe("Admin API", () => {
     it("returns 404 for unknown admin path", async () => {
       const response = await adminFetch("/admin/nonexistent", ADMIN_KEY);
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /admin/game-requests/block", () => {
+    it("returns 401 without the admin key", async () => {
+      const resp = await adminPost("/admin/game-requests/block", { game_slug: "elden-ring" });
+      expect(resp.status).toBe(401);
+    });
+
+    it("returns 400 when game_slug is missing", async () => {
+      const resp = await adminPost("/admin/game-requests/block", {}, ADMIN_KEY);
+      expect(resp.status).toBe(400);
+    });
+
+    it("returns 400 when game_slug is empty", async () => {
+      const resp = await adminPost("/admin/game-requests/block", { game_slug: "" }, ADMIN_KEY);
+      expect(resp.status).toBe(400);
+    });
+
+    it("blocks a slug", async () => {
+      const resp = await adminPost(
+        "/admin/game-requests/block",
+        { game_slug: "elden-ring" },
+        ADMIN_KEY,
+      );
+      expect(resp.status).toBe(200);
+      expect(await resp.json()).toEqual({ blocked: "elden-ring" });
+
+      const row = await env.DB.prepare("SELECT game_slug FROM game_request_blocks WHERE game_slug = ?")
+        .bind("elden-ring")
+        .first<{ game_slug: string }>();
+      expect(row?.game_slug).toBe("elden-ring");
+    });
+
+    it("is idempotent when blocking the same slug twice", async () => {
+      await adminPost("/admin/game-requests/block", { game_slug: "elden-ring" }, ADMIN_KEY);
+      const resp = await adminPost(
+        "/admin/game-requests/block",
+        { game_slug: "elden-ring" },
+        ADMIN_KEY,
+      );
+      expect(resp.status).toBe(200);
+      expect(await resp.json()).toEqual({ blocked: "elden-ring" });
+
+      const count = await env.DB.prepare(
+        "SELECT COUNT(*) as c FROM game_request_blocks WHERE game_slug = ?",
+      )
+        .bind("elden-ring")
+        .first<{ c: number }>();
+      expect(count?.c).toBe(1);
     });
   });
 });

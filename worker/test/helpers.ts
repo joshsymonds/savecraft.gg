@@ -22,6 +22,8 @@ export const CLEANUP_TABLES = [
   "provider_credentials",
   "poe_build_snapshot",
   "poe2_build_snapshot",
+  "game_requests",
+  "game_request_blocks",
   "saves",
   "sources",
   "magic_interactions_fts",
