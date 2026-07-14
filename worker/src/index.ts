@@ -24,7 +24,7 @@ import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
 import { generatePkcePair } from "./oauth-pkce";
 import { Message } from "./proto/savecraft/v1/protocol";
 import { cleanupSource } from "./source-cleanup";
-import { reconcileOrphanSaves, storePush } from "./store";
+import { persistProviderCredentials, reconcileOrphanSaves, storePush } from "./store";
 import type { Env } from "./types";
 
 export { SourceHub } from "./hub";
@@ -1130,6 +1130,8 @@ async function handleAdapterRefresh(
         region: ctxResult.region,
         metadata: ctxResult.metadata,
         credentials,
+        persistCredentials: (rotated) =>
+          persistProviderCredentials(env.DB, userUuid, gameId, rotated),
       },
       env,
     );

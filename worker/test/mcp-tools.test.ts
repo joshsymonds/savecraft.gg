@@ -1,7 +1,12 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { ApiAdapter, FetchParams, GameState } from "../src/adapters/adapter";
+import {
+  AdapterError,
+  type ApiAdapter,
+  type FetchParams,
+  type GameState,
+} from "../src/adapters/adapter";
 import { providerForGame } from "../src/adapters/providers";
 import { adapters } from "../src/adapters/registry";
 import type { ToolResult, ViewToolResult } from "../src/mcp/tools";
@@ -1437,6 +1442,98 @@ describe("MCP Tools", () => {
           "SELECT data FROM sections WHERE save_uuid = 'save-fakeok' AND name = 'overview'",
         ).first<{ data: string }>();
         expect(section).toBeTruthy();
+      });
+    });
+
+    // GGG invalidates the old refresh token the moment a refresh
+    // succeeds, so rotated credentials must be durably persisted via
+    // params.persistCredentials even when fetchState subsequently
+    // throws — otherwise the account wedges until manual re-auth.
+    describe("credential rotation durability", () => {
+      const rotatedCreds = {
+        accessToken: "rotated-acc",
+        refreshToken: "rotated-ref",
+        expiresAt: "2099-01-01T00:00:00Z",
+      };
+      const rotateThenFailAdapter: ApiAdapter = {
+        gameId: "fakegame",
+        gameName: "Fake Game",
+        getOAuthConfig() {
+          return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+        },
+        discoverSaves() {
+          return Promise.resolve([]);
+        },
+        async fetchState(params: FetchParams): Promise<GameState> {
+          // Simulates GGG: the token exchange succeeded (old refresh
+          // token now invalid upstream), then a later API call failed.
+          await params.persistCredentials(rotatedCreds);
+          throw new AdapterError("character_not_found", "character gone after rotation");
+        },
+      };
+
+      beforeEach(() => {
+        adapters.fakegame = rotateThenFailAdapter;
+      });
+      afterEach(() => {
+        delete adapters.fakegame;
+      });
+
+      it("persists rotated credentials even when fetchState throws after the refresh", async () => {
+        const sourceUuid = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+        )
+          .bind(sourceUuid, USER_A, `hash-fakerot-${USER_A}`)
+          .run();
+        await env.DB.prepare(
+          "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+          .bind(
+            "save-rotate-fail",
+            USER_A,
+            "fakegame",
+            "Fake Game",
+            "Dratnos-testrealm-US",
+            "",
+            "2020-01-01T00:00:00Z",
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+           VALUES (?, 'fakegame', ?, ?, ?, ?, 1)`,
+        )
+          .bind(
+            USER_A,
+            "char-id-xyz",
+            "Dratnos",
+            JSON.stringify({ realm_slug: "testrealm", region: "us" }),
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
+           VALUES (?, ?, 'stale-acc', 'stale-ref', '2000-01-01T00:00:00Z')`,
+        )
+          .bind(USER_A, providerForGame("fakegame"))
+          .run();
+
+        const result = await refreshSave(env, USER_A, "save-rotate-fail");
+
+        // The fetch itself still fails and surfaces the adapter error…
+        expect(result.isError).toBe(true);
+        expect(result.content[0]!.text).toContain("not found");
+
+        // …but the rotated credentials survived the failure.
+        const cred = await env.DB.prepare(
+          "SELECT access_token, refresh_token, expires_at FROM provider_credentials WHERE user_uuid = ? AND provider = ?",
+        )
+          .bind(USER_A, providerForGame("fakegame"))
+          .first<{ access_token: string; refresh_token: string; expires_at: string }>();
+        expect(cred!.access_token).toBe("rotated-acc");
+        expect(cred!.refresh_token).toBe("rotated-ref");
+        expect(cred!.expires_at).toBe("2099-01-01T00:00:00Z");
       });
     });
   });

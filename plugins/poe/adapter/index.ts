@@ -94,9 +94,12 @@ export const poeAdapter: ApiAdapter = {
   },
 
   async fetchState(params: FetchParams, env: Env): Promise<GameState> {
-    const { accessToken, refreshed } = await ensureGggAccessToken(
+    // A rotated token is durably persisted inside ensureGggAccessToken
+    // (via params.persistCredentials) before any call below can fail.
+    const accessToken = await ensureGggAccessToken(
       params.credentials,
       env,
+      params.persistCredentials,
     );
 
     // /profile validates the (possibly refreshed) token and is the
@@ -119,7 +122,6 @@ export const poeAdapter: ApiAdapter = {
     };
 
     const extra: Record<string, unknown> = {};
-    if (refreshed) extra.refreshedCreds = refreshed;
 
     await attachPobBuild(character, sections, extra, env);
 

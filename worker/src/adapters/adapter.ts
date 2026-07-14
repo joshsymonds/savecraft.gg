@@ -153,6 +153,16 @@ export interface FetchParams {
   /** Parsed linked_characters.metadata — each adapter reads what its API needs. */
   metadata: Record<string, unknown>;
   credentials: GameCredentials;
+  /**
+   * Durably persist rotated credentials for this save's (user, provider)
+   * pair. Providers like GGG invalidate the old refresh token the moment
+   * a refresh succeeds, so implementations MUST await this immediately
+   * after a successful token refresh — before any subsequent API call
+   * can fail. A fetch that refreshes and then throws would otherwise
+   * discard the only valid refresh token and wedge the account until
+   * the user re-authorizes.
+   */
+  persistCredentials: (creds: GameCredentials) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------

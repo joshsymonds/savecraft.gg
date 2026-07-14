@@ -1,6 +1,6 @@
 import { AdapterError, type GameState } from "../adapters/adapter";
 import { adapters } from "../adapters/registry";
-import { storePush } from "../store";
+import { persistProviderCredentials, storePush } from "../store";
 import type { Env } from "../types";
 
 /** Timeout for external adapter API calls (30s). */
@@ -137,6 +137,8 @@ export async function handleSeedCharacter(request: Request, env: Env): Promise<R
           region: input.region,
           metadata: { realm_slug: input.realmSlug, region: input.region },
           credentials: { accessToken: "" },
+          persistCredentials: (rotated) =>
+            persistProviderCredentials(env.DB, input.userUuid, input.gameId, rotated),
         },
         env,
       ),

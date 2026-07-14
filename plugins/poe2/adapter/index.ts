@@ -19,12 +19,11 @@
  * GGG OAuth grant's token exchange (worker/src/index.ts's
  * handleAdapterCallback) discovers + reconciles characters for both
  * games under a single adapter source, since one credential row backs
- * every game the provider serves. fetchState returns any refreshed GGG
- * token in identity.extra exactly like poe's does (see the comment at
- * its call site below); worker/src/store.ts's postPushHooks persists it
- * into the shared provider_credentials row via
- * persistAdapterRefreshArtifacts, keyed by providerForGame("poe2") ===
- * "ggg", the same as poe's refresh.
+ * every game the provider serves. A GGG token rotated during
+ * fetchState is durably persisted via params.persistCredentials the
+ * moment the refresh succeeds (inside ensureGggAccessToken), exactly
+ * like poe's — the caller's closure writes the shared
+ * provider_credentials row keyed by providerForGame("poe2") === "ggg".
  *
  * No inventory section: GGG's PoE2 character API does not return
  * unequipped items. pob_build enrichment mirrors PoE1's exactly (see
@@ -110,9 +109,12 @@ export const poe2Adapter: ApiAdapter = {
   },
 
   async fetchState(params: FetchParams, env: Env): Promise<GameState> {
-    const { accessToken, refreshed } = await ensureGggAccessToken(
+    // A rotated token is durably persisted inside ensureGggAccessToken
+    // (via params.persistCredentials) before any call below can fail.
+    const accessToken = await ensureGggAccessToken(
       params.credentials,
       env,
+      params.persistCredentials,
     );
 
     // /profile validates the (possibly refreshed) token and is the
@@ -133,10 +135,7 @@ export const poe2Adapter: ApiAdapter = {
       passives: mapPassives(character),
     };
 
-    // Returned exactly like poe's fetchState; persisted into the shared
-    // ggg provider_credentials row by storePush (see header comment).
     const extra: Record<string, unknown> = {};
-    if (refreshed) extra.refreshedCreds = refreshed;
 
     await attachPobBuild(character, sections, extra, env);
 

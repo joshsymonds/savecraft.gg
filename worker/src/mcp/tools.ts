@@ -20,15 +20,19 @@ import {
 import {
   ADAPTER_REFRESH_COOLDOWN_SEC,
   AdapterError,
+  type FetchParams,
   reconnectAdapterAction,
 } from "../adapters/adapter";
 import { gamesForProvider, providerForGame } from "../adapters/providers";
 import { adapters } from "../adapters/registry";
-import { resolveAdapterCharacter } from "../adapters/resolve-character";
+import {
+  resolveAdapterCharacter,
+  type ResolvedCharacter,
+} from "../adapters/resolve-character";
 import { normalizeGameId } from "../gameid";
 import { getNativeGameIds, getNativeModule, getNativeModules } from "../reference/registry";
 import type { ListedReferenceModule, NativeReferenceModule } from "../reference/types";
-import { storePush } from "../store";
+import { persistProviderCredentials, storePush } from "../store";
 import type { Env } from "../types";
 
 import { MANIFEST_LIST, MANIFESTS } from "./manifests.gen.js";
@@ -999,6 +1003,28 @@ function handleAdapterError(error: {
   return errorResult(`Game API error: ${error.message}`);
 }
 
+/**
+ * Assemble the FetchParams for an adapter refresh, wiring
+ * persistCredentials so a token rotation is durably persisted the
+ * moment it succeeds — even when the rest of the fetch later fails.
+ */
+function adapterFetchParams(
+  env: Env,
+  userUuid: string,
+  gameId: string,
+  resolved: ResolvedCharacter,
+  creds: CredentialRow | null,
+): FetchParams {
+  return {
+    characterId: resolved.characterId,
+    characterName: resolved.characterName,
+    region: resolved.region,
+    metadata: resolved.metadata,
+    credentials: buildCredentials(creds),
+    persistCredentials: (rotated) => persistProviderCredentials(env.DB, userUuid, gameId, rotated),
+  };
+}
+
 async function refreshAdapterSave(
   env: Env,
   userUuid: string,
@@ -1039,13 +1065,7 @@ async function refreshAdapterSave(
 
   try {
     const gameState = await adapter.fetchState(
-      {
-        characterId: resolved.characterId,
-        characterName: resolved.characterName,
-        region: resolved.region,
-        metadata: resolved.metadata,
-        credentials: buildCredentials(creds),
-      },
+      adapterFetchParams(env, userUuid, save.game_id, resolved, creds),
       env,
     );
 

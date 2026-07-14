@@ -4,6 +4,7 @@
  * storePush upserts a save in D1 (metadata + sections) and indexes sections in FTS.
  */
 
+import type { GameCredentials } from "./adapters/adapter";
 import { providerForGame } from "./adapters/providers";
 import { ingestMatchHistory } from "./magic/ingest";
 import { MANIFESTS } from "./mcp/manifests.gen.js";
@@ -47,9 +48,9 @@ function buildSectionStatements(
  * Run game-specific post-push hooks. Called from BOTH the insert and
  * update paths after the save + sections are committed (so `saveUuid`
  * exists for FK-bound side tables). `extra` carries adapter-only,
- * out-of-section data (e.g. PoE's PoB XML + refreshed GGG tokens)
- * threaded from gameState.identity.extra — it never enters a section
- * or the FTS index.
+ * out-of-section data (e.g. PoE's PoB XML) threaded from
+ * gameState.identity.extra — it never enters a section or the FTS
+ * index.
  */
 async function postPushHooks(
   db: D1Database,
@@ -63,30 +64,23 @@ async function postPushHooks(
     await ingestMatchHistory(db, userUuid, sections);
   }
   if (extra) {
-    await persistAdapterRefreshArtifacts(db, gameId, userUuid, saveUuid, extra);
+    await persistAdapterRefreshArtifacts(db, gameId, saveUuid, extra);
   }
-}
-
-interface RefreshedProviderCreds {
-  accessToken: string;
-  refreshToken: string | null;
-  expiresAt: string | null;
 }
 
 /**
  * Persist adapter refresh side effects that must not live in a section:
  * PoE's and PoE2's content-addressed PoB/PoB2 build snapshots (raw XML,
  * re-fed to pob-server /calc on eviction — one table per game, mirroring
- * the poe_passive_nodes/poe2_passive_nodes convention) and any provider
- * tokens refreshed in-adapter during fetchState, for ANY adapter game
- * (poe, poe2, and future ones) — persisted into the shared
- * provider_credentials row via providerForGame(gameId), so a rotation
- * from either game keeps the row current for its siblings.
+ * the poe_passive_nodes/poe2_passive_nodes convention). Provider tokens
+ * rotated during fetchState are NOT persisted here — they go through
+ * FetchParams.persistCredentials at refresh time (see
+ * persistProviderCredentials), so a rotation survives even when the
+ * rest of the fetch fails before the push.
  */
 async function persistAdapterRefreshArtifacts(
   db: D1Database,
   gameId: string,
-  userUuid: string | null,
   saveUuid: string,
   extra: Record<string, unknown>,
 ): Promise<void> {
@@ -117,24 +111,36 @@ async function persistAdapterRefreshArtifacts(
         .run();
     }
   }
+}
 
-  const refreshed = extra.refreshedCreds as RefreshedProviderCreds | undefined;
-  if (refreshed && userUuid) {
-    await db
-      .prepare(
-        `UPDATE provider_credentials
-         SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = datetime('now')
-         WHERE user_uuid = ? AND provider = ?`,
-      )
-      .bind(
-        refreshed.accessToken,
-        refreshed.refreshToken,
-        refreshed.expiresAt,
-        userUuid,
-        providerForGame(gameId),
-      )
-      .run();
-  }
+/**
+ * Durably update the shared provider_credentials row for a game's OAuth
+ * provider (via providerForGame, so a rotation from either poe or poe2
+ * keeps the row current for its siblings). Callers thread this into
+ * FetchParams.persistCredentials so an adapter can persist a token
+ * rotation the moment it succeeds — even when the rest of the fetch
+ * later fails.
+ */
+export async function persistProviderCredentials(
+  db: D1Database,
+  userUuid: string,
+  gameId: string,
+  creds: GameCredentials,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE provider_credentials
+       SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = datetime('now')
+       WHERE user_uuid = ? AND provider = ?`,
+    )
+    .bind(
+      creds.accessToken,
+      creds.refreshToken ?? null,
+      creds.expiresAt ?? null,
+      userUuid,
+      providerForGame(gameId),
+    )
+    .run();
 }
 
 export async function storePush(
