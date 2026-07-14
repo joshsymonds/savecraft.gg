@@ -24,6 +24,7 @@ import {
   indexSaveSections,
   listGames,
   refreshSave,
+  requestGame,
   searchSaves,
   updateNote,
   viewResult,
@@ -1232,6 +1233,99 @@ describe("MCP Tools", () => {
       // Verify deletion
       const getResult = await getNote(env.DB, USER_A, "save-note-del", "note-del-1");
       expect(getResult.isError).toBe(true);
+    });
+  });
+
+  // ── request_game ────────────────────────────────────────────
+
+  describe("requestGame", () => {
+    it("logs a new request and returns requested_by_players: 1 with the public note", async () => {
+      const result = await requestGame(
+        env.DB,
+        USER_A,
+        "Hollow Knight: Silksong",
+        "Track achievements",
+      );
+      expect(result.isError).toBeUndefined();
+      const data = parseResult(result) as {
+        logged: boolean;
+        game: string;
+        requested_by_players: number;
+        note: string;
+      };
+      expect(data.logged).toBe(true);
+      expect(data.game).toBe("Hollow Knight: Silksong");
+      expect(data.requested_by_players).toBe(1);
+      expect(data.note).toContain("savecraft.gg/requests");
+    });
+
+    it("keeps count at 1 and updates details when the same user requests the same game with different capitalization/punctuation", async () => {
+      await requestGame(env.DB, USER_A, "Hollow Knight: Silksong", "Track achievements");
+      const result = await requestGame(
+        env.DB,
+        USER_A,
+        "hollow knight silksong!",
+        "Track boss fights",
+      );
+      const data = parseResult(result) as { requested_by_players: number };
+      expect(data.requested_by_players).toBe(1);
+
+      const row = await env.DB.prepare(
+        "SELECT * FROM game_requests WHERE user_uuid = ? AND game_slug = ?",
+      )
+        .bind(USER_A, "hollow-knight-silksong")
+        .first<{ game_name: string; details: string }>();
+      expect(row).toBeTruthy();
+      expect(row?.game_name).toBe("hollow knight silksong!");
+      expect(row?.details).toBe("Track boss fights");
+    });
+
+    it("keeps the earlier details when a later request omits details (COALESCE)", async () => {
+      await requestGame(env.DB, USER_A, "Hollow Knight: Silksong", "Track achievements");
+      await requestGame(env.DB, USER_A, "Hollow Knight: Silksong");
+
+      const row = await env.DB.prepare(
+        "SELECT details FROM game_requests WHERE user_uuid = ? AND game_slug = ?",
+      )
+        .bind(USER_A, "hollow-knight-silksong")
+        .first<{ details: string }>();
+      expect(row?.details).toBe("Track achievements");
+    });
+
+    it("tallies distinct players — two different users requesting the same game gives count 2", async () => {
+      await requestGame(env.DB, USER_A, "Hollow Knight: Silksong");
+      const result = await requestGame(env.DB, USER_B, "Hollow Knight: Silksong");
+      const data = parseResult(result) as { requested_by_players: number };
+      expect(data.requested_by_players).toBe(2);
+    });
+
+    it("returns already_supported for a manifest game matched by display name, without inserting a row", async () => {
+      const result = await requestGame(env.DB, USER_A, "Magic: The Gathering");
+      const data = parseResult(result) as { already_supported: boolean; game_id: string };
+      expect(data.already_supported).toBe(true);
+      expect(data.game_id).toBe("magic");
+
+      const count = await env.DB.prepare("SELECT COUNT(*) as count FROM game_requests").first<{
+        count: number;
+      }>();
+      expect(count?.count).toBe(0);
+    });
+
+    it("returns already_supported for an adapter game matched by display name, without inserting a row", async () => {
+      const result = await requestGame(env.DB, USER_A, "Path of Exile 2");
+      const data = parseResult(result) as { already_supported: boolean; game_id: string };
+      expect(data.already_supported).toBe(true);
+      expect(data.game_id).toBe("poe2");
+
+      const count = await env.DB.prepare("SELECT COUNT(*) as count FROM game_requests").first<{
+        count: number;
+      }>();
+      expect(count?.count).toBe(0);
+    });
+
+    it("returns an error for an empty/garbage game name", async () => {
+      const result = await requestGame(env.DB, USER_A, "!!!");
+      expect(result.isError).toBe(true);
     });
   });
 

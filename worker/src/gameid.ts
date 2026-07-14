@@ -21,3 +21,20 @@ const ALIASES: Record<string, string> = Object.freeze(
 export function normalizeGameId(gameId: string): string {
   return ALIASES[gameId] ?? gameId;
 }
+
+/**
+ * Slugify a free-text game title into a URL/DB-safe identifier: lowercase,
+ * diacritics stripped, every run of non-alphanumeric characters collapsed
+ * to a single hyphen, leading/trailing hyphens trimmed.
+ *
+ * "Hollow Knight: Silksong" → "hollow-knight-silksong"
+ */
+export function slugifyGameName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replaceAll(/[\u0300-\u036F]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .filter(Boolean)
+    .join("-");
+}

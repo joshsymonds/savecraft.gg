@@ -25,7 +25,7 @@ import {
 import { gamesForProvider, providerForGame } from "../adapters/providers";
 import { adapters } from "../adapters/registry";
 import { resolveAdapterCharacter } from "../adapters/resolve-character";
-import { normalizeGameId } from "../gameid";
+import { normalizeGameId, slugifyGameName } from "../gameid";
 import { getNativeGameIds, getNativeModule, getNativeModules } from "../reference/registry";
 import type { ListedReferenceModule, NativeReferenceModule } from "../reference/types";
 import { storePush } from "../store";
@@ -382,10 +382,98 @@ export async function listGames(
   const games = [...gameMap.values()];
   if (filter && games.length === 0) {
     return errorResult(
-      `No games matching "${filter}". Try without a filter to see all available games.`,
+      `No games matching "${filter}". Try without a filter to see all available games. If the player wants a game Savecraft doesn't support, use request_game to log their interest.`,
     );
   }
-  return textResult({ games });
+  return textResult({
+    games,
+    request_hint:
+      "Game not listed? Use request_game to log the player's interest — requests are tallied publicly at savecraft.gg/requests.",
+  });
+}
+
+/** A game already covered by a manifest, native reference module, or API adapter. */
+interface SupportedGameCandidate {
+  gameId: string;
+  displayName: string;
+}
+
+/** Every game Savecraft already supports, from all three catalog sources. */
+function collectSupportedGames(): SupportedGameCandidate[] {
+  const candidates: SupportedGameCandidate[] = [];
+  for (const data of MANIFEST_LIST) {
+    candidates.push({ gameId: data.game_id, displayName: data.name ?? data.game_id });
+  }
+  for (const gameId of getNativeGameIds()) {
+    candidates.push({ gameId, displayName: gameId });
+  }
+  for (const [gameId, adapter] of Object.entries(adapters)) {
+    candidates.push({ gameId, displayName: adapter.gameName });
+  }
+  return candidates;
+}
+
+/** Match a slugified game name against the supported-game catalog, by game_id (with alias normalization) or by slugified display name. */
+function findSupportedGame(slug: string): SupportedGameCandidate | undefined {
+  const normalizedSlug = normalizeGameId(slug);
+  return collectSupportedGames().find(
+    (candidate) =>
+      slug === candidate.gameId ||
+      normalizedSlug === candidate.gameId ||
+      slug === slugifyGameName(candidate.displayName),
+  );
+}
+
+/**
+ * Log a player's request for an unsupported game. Deduplicated per
+ * (user, game_slug) so the tally counts distinct players, not messages.
+ * Supported games insert nothing — the model is pointed at list_games instead.
+ */
+export async function requestGame(
+  db: D1Database,
+  userUuid: string,
+  gameName: string,
+  details?: string,
+): Promise<ToolResult> {
+  const slug = slugifyGameName(gameName);
+  if (!slug) {
+    return errorResult(
+      `"${gameName}" doesn't look like a real game title. Ask the player for the game's actual name and try again.`,
+    );
+  }
+
+  const supported = findSupportedGame(slug);
+  if (supported) {
+    return textResult({
+      already_supported: true,
+      game_id: supported.gameId,
+      message: `${supported.displayName} is already supported — use list_games to see it and its reference modules.`,
+    });
+  }
+
+  await db
+    .prepare(
+      `INSERT INTO game_requests (user_uuid, game_slug, game_name, details)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT (user_uuid, game_slug) DO UPDATE SET
+         game_name = excluded.game_name,
+         details = COALESCE(excluded.details, game_requests.details),
+         updated_at = datetime('now')`,
+    )
+    .bind(userUuid, slug, gameName, details ?? null)
+    .run();
+
+  const tally = await db
+    .prepare("SELECT COUNT(*) AS count FROM game_requests WHERE game_slug = ?")
+    .bind(slug)
+    .first<{ count: number }>();
+
+  return textResult({
+    logged: true,
+    game: gameName,
+    requested_by_players: tally?.count ?? 1,
+    note: "Requests are tallied publicly at https://savecraft.gg/requests",
+  });
 }
 
 const OVERVIEW_SECTION_NAMES = ["character_overview", "player_summary", "overview", "summary"];
