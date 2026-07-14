@@ -20,8 +20,9 @@ import {
 import {
   ADAPTER_REFRESH_COOLDOWN_SEC,
   AdapterError,
+  adapterErrorMessage,
   type FetchParams,
-  reconnectAdapterAction,
+  truncateRefreshError,
 } from "../adapters/adapter";
 import { gamesForProvider, providerForGame } from "../adapters/providers";
 import { adapters } from "../adapters/registry";
@@ -993,28 +994,8 @@ function buildCredentials(creds: CredentialRow | null): {
   };
 }
 
-function handleAdapterError(error: {
-  code: string;
-  message: string;
-  userAction?: string;
-  retryAfter?: number;
-}): ToolResult {
-  if (error.code === "token_expired") {
-    return errorResult(
-      `Account token expired. ${error.userAction ?? reconnectAdapterAction("the game")}`,
-    );
-  }
-  if (error.code === "rate_limited") {
-    return errorResult(
-      `The game's API is rate limited. Try again in ${String(error.retryAfter ?? 60)} seconds.`,
-    );
-  }
-  if (error.code === "character_not_found") {
-    return errorResult(
-      "Character not found on the game's servers. It may have been deleted or transferred.",
-    );
-  }
-  return errorResult(`Game API error: ${error.message}`);
+function handleAdapterError(error: AdapterError): ToolResult {
+  return errorResult(adapterErrorMessage(error));
 }
 
 /**
@@ -1122,7 +1103,7 @@ async function refreshAdapterSave(
       await env.DB.prepare(
         "UPDATE saves SET refresh_status = 'error', refresh_error = ?, last_refresh_at = datetime('now') WHERE uuid = ?",
       )
-        .bind(message.length > 500 ? `${message.slice(0, 497)}...` : message, save.uuid)
+        .bind(truncateRefreshError(message), save.uuid)
         .run();
       return result;
     }

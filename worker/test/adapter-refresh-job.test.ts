@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { ApiAdapter, FetchParams, GameState } from "../src/adapters/adapter";
-import { AdapterError } from "../src/adapters/adapter";
+import { AdapterError, reconnectAdapterAction } from "../src/adapters/adapter";
 import { providerForGame } from "../src/adapters/providers";
 import { adapters } from "../src/adapters/registry";
 import { sha256Hex } from "../src/auth";
@@ -202,7 +202,44 @@ describe("Adapter Refresh Job", () => {
       .bind(saveUuid)
       .first<{ refresh_status: string | null; refresh_error: string | null }>();
     expect(save!.refresh_status).toBe("error");
-    expect(save!.refresh_error).toContain("token_expired");
+    expect(save!.refresh_error).toContain("Account token expired");
+  });
+
+  // Regression for the cron path stamping a weak "code: message" string with
+  // no reconnect userAction (pre-Task-05 behavior) — a user whose most recent
+  // failure came from cron would see that weak message echoed through the
+  // MCP-path cooldown (the echo mechanism landed in commit 6a293ffc). The
+  // cron catch block must map AdapterError through the same
+  // adapterErrorMessage() the MCP path uses, so a token_expired failure with
+  // a userAction stamps the full reconnect text, not "token_expired: ...".
+  it("stamps the reconnect userAction text (not 'token_expired:') on a cron-path token_expired failure", async () => {
+    const sourceUuid = await seedAdapterSource(USER_UUID);
+    const saveUuid = await seedAdapterSave(
+      USER_UUID,
+      sourceUuid,
+      "fakegame",
+      "Testchar-testrealm-US",
+    );
+    await seedLinkedCharacter(USER_UUID, sourceUuid, "fakegame", "Testchar", {
+      realm_slug: "testrealm",
+      region: "us",
+    });
+    await seedGameCredentials(USER_UUID, "fakegame", "expired-token");
+
+    fetchStateError = new AdapterError("token_expired", "PoE token expired", {
+      userAction: reconnectAdapterAction("Path of Exile"),
+    });
+
+    await refreshAdapterSources(env);
+
+    const save = await env.DB.prepare(
+      "SELECT refresh_status, refresh_error FROM saves WHERE uuid = ?",
+    )
+      .bind(saveUuid)
+      .first<{ refresh_status: string | null; refresh_error: string | null }>();
+    expect(save!.refresh_status).toBe("error");
+    expect(save!.refresh_error).toContain("Reconnect your Path of Exile account");
+    expect(save!.refresh_error).not.toContain("token_expired:");
   });
 
   it("skips saves refreshed within cooldown window", async () => {

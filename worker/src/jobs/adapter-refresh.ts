@@ -9,7 +9,9 @@
 import {
   ADAPTER_REFRESH_COOLDOWN_SEC,
   AdapterError,
+  adapterErrorMessage,
   type FetchParams,
+  truncateRefreshError,
 } from "../adapters/adapter";
 import { OAUTH_PROVIDERS } from "../adapters/providers";
 import { adapters } from "../adapters/registry";
@@ -216,13 +218,17 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
   } catch (error) {
     let message = "Unknown error";
     if (error instanceof AdapterError) {
-      message = `${error.code}: ${error.message}`;
+      // Same user-facing mapping the MCP refresh_save path uses, so a
+      // cron-path failure (e.g. token_expired) stamps the full actionable
+      // text — including any reconnect userAction — instead of a bare
+      // "code: message" string.
+      message = adapterErrorMessage(error);
     } else if (error instanceof Error) {
       message = error.message;
     }
 
     // Truncate to prevent unbounded third-party error messages in D1/MCP responses
-    const truncated = message.length > 500 ? `${message.slice(0, 497)}...` : message;
+    const truncated = truncateRefreshError(message);
 
     // Honor GGG's Retry-After (Req 4). The cron re-selects a row once
     // last_refresh_at is older than the cooldown, so to defer a
