@@ -998,8 +998,15 @@ function checkAdapterCooldown(save: SaveRow): ToolResult | null {
       const minutesSuffix = elapsedMinutes === 1 ? "" : "s";
       const relative =
         elapsedMinutes < 1 ? "under a minute" : `${String(elapsedMinutes)} minute${minutesSuffix}`;
+      // Not every stored refresh_error is guaranteed to end in terminal
+      // punctuation (e.g. adapterErrorMessage's `Game API error: ${message}`
+      // fallback, or a raw non-AdapterError message from the cron path) —
+      // normalize here so the appended retry sentence doesn't run on.
+      const storedError = /[.!?]$/.test(save.refresh_error)
+        ? save.refresh_error
+        : `${save.refresh_error}.`;
       return errorResult(
-        `Refresh failed ${relative} ago: ${save.refresh_error} Next attempt available in ${String(retryAfter)} seconds.`,
+        `Refresh failed ${relative} ago: ${storedError} Next attempt available in ${String(retryAfter)} seconds.`,
       );
     }
     return errorResult(

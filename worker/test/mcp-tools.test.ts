@@ -1456,6 +1456,23 @@ describe("MCP Tools", () => {
         },
       };
 
+      // adapterErrorMessage's fallback branch (`Game API error: ${message}`)
+      // doesn't guarantee terminal punctuation on the wrapped message, so
+      // this exercises the run-on-sentence guard in checkAdapterCooldown.
+      const unpunctuatedFailingAdapter: ApiAdapter = {
+        gameId: "fakegame",
+        gameName: "Fake Game",
+        getOAuthConfig() {
+          return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+        },
+        discoverSaves() {
+          return Promise.resolve([]);
+        },
+        fetchState(): Promise<GameState> {
+          return Promise.reject(new AdapterError("api_unavailable", "rate limit exceeded"));
+        },
+      };
+
       afterEach(() => {
         delete adapters.fakegame;
       });
@@ -1515,6 +1532,20 @@ describe("MCP Tools", () => {
         expect(second.content[0]!.text).toMatch(/Refresh failed .* ago:/);
         expect(second.content[0]!.text).toContain("Account token expired");
         expect(second.content[0]!.text).toMatch(/available in \d+ seconds/);
+      });
+
+      it("inserts terminal punctuation before the retry sentence when the stored error lacks it", async () => {
+        adapters.fakegame = unpunctuatedFailingAdapter;
+        await seedAdapterCharacter("save-cooldown-fail-unpunctuated");
+
+        const first = await refreshSave(env, USER_A, "save-cooldown-fail-unpunctuated");
+        expect(first.isError).toBe(true);
+        expect(first.content[0]!.text).toBe("Game API error: rate limit exceeded");
+
+        const second = await refreshSave(env, USER_A, "save-cooldown-fail-unpunctuated");
+        expect(second.isError).toBe(true);
+        expect(second.content[0]!.text).toContain("rate limit exceeded. Next attempt");
+        expect(second.content[0]!.text).not.toContain("rate limit exceeded Next attempt");
       });
 
       it("keeps the plain cooldown message on an immediate retry after a successful refresh", async () => {
