@@ -317,7 +317,9 @@ describe("Admin API", () => {
       expect(resp.status).toBe(200);
       expect(await resp.json()).toEqual({ blocked: "elden-ring" });
 
-      const row = await env.DB.prepare("SELECT game_slug FROM game_request_blocks WHERE game_slug = ?")
+      const row = await env.DB.prepare(
+        "SELECT game_slug FROM game_request_blocks WHERE game_slug = ?",
+      )
         .bind("elden-ring")
         .first<{ game_slug: string }>();
       expect(row?.game_slug).toBe("elden-ring");

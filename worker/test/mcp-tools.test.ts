@@ -1362,12 +1362,7 @@ describe("MCP Tools", () => {
     });
 
     it("rejects details over 2048 bytes and inserts nothing", async () => {
-      const result = await requestGame(
-        env.DB,
-        USER_A,
-        "Hollow Knight: Silksong",
-        "x".repeat(2049),
-      );
+      const result = await requestGame(env.DB, USER_A, "Hollow Knight: Silksong", "x".repeat(2049));
       expect(result.isError).toBe(true);
 
       const count = await env.DB.prepare("SELECT COUNT(*) as count FROM game_requests").first<{
@@ -1377,12 +1372,7 @@ describe("MCP Tools", () => {
     });
 
     it("accepts details of exactly 2048 bytes", async () => {
-      const result = await requestGame(
-        env.DB,
-        USER_A,
-        "Hollow Knight: Silksong",
-        "x".repeat(2048),
-      );
+      const result = await requestGame(env.DB, USER_A, "Hollow Knight: Silksong", "x".repeat(2048));
       expect(result.isError).toBeUndefined();
 
       const count = await env.DB.prepare("SELECT COUNT(*) as count FROM game_requests").first<{
