@@ -416,6 +416,9 @@ const statements = [
     total_games INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (set_code, card_name, archetype, turn_number)
   )`,
+  // Cross-set card_timing lookup index (migration 0063)
+  `CREATE INDEX IF NOT EXISTS idx_magic_play_card_timing_card
+    ON magic_play_card_timing(card_name, archetype, set_code, turn_number)`,
   `CREATE TABLE IF NOT EXISTS magic_play_tempo (
     set_code TEXT NOT NULL,
     archetype TEXT NOT NULL,

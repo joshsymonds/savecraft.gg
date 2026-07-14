@@ -131,6 +131,21 @@ type SetResolution =
   | { set: string; source: "explicit" | "event" | "fallback" }
   | { error: string };
 
+// The fallback set (most total_games in magic_play_turn_baselines) only
+// changes on a data reimport (monthly), but resolveSet's fallback branch is
+// a full-table aggregation hit on every request across all five modes that
+// omit `set`. Cache the positive result per isolate with a short TTL —
+// negative results (no baseline data loaded at all) are never cached, since
+// D1 starts empty in tests/fresh deploys and callers must see the real
+// error once data lands rather than a stale cached failure.
+const FALLBACK_SET_TTL_MS = 5 * 60 * 1000;
+let fallbackSetCache: { value: string; expiresAt: number } | null = null;
+
+/** Test-only reset seam for fallbackSetCache. */
+export function resetPlayAdvisorCaches(): void {
+  fallbackSetCache = null;
+}
+
 async function resolveSet(
   env: Env,
   explicitSet: string | undefined,
@@ -154,6 +169,10 @@ async function resolveSet(
     }
   }
 
+  if (fallbackSetCache && fallbackSetCache.expiresAt > Date.now()) {
+    return { set: fallbackSetCache.value, source: "fallback" };
+  }
+
   const fallback = await env.DB.prepare(
     `SELECT set_code FROM magic_play_turn_baselines
      GROUP BY set_code ORDER BY SUM(total_games) DESC LIMIT 1`,
@@ -166,6 +185,10 @@ async function resolveSet(
     };
   }
 
+  fallbackSetCache = {
+    value: fallback.set_code,
+    expiresAt: Date.now() + FALLBACK_SET_TTL_MS,
+  };
   return { set: fallback.set_code, source: "fallback" };
 }
 
@@ -253,6 +276,11 @@ async function cardTiming(
     ? await crossSetCardTiming(env, rawCards)
     : undefined;
 
+  // crossSetCardTiming hardcodes archetype = 'ALL' — reported below as
+  // effective_archetype so a caller passing a specific archetype (e.g. "UB")
+  // on the cross-set path can tell it silently got ALL-archetype data.
+  let effectiveArchetype = "ALL";
+
   if (!useCrossSet) {
     const arch = await resolveArchetype(
       env,
@@ -260,6 +288,7 @@ async function cardTiming(
       set,
       archetype,
     );
+    effectiveArchetype = arch;
     const placeholders = rawCards.map(() => "?").join(", ");
     const rows = await env.DB.prepare(
       `SELECT card_name, turn_number, times_deployed, games_won, total_games
@@ -317,6 +346,7 @@ async function cardTiming(
       disclaimer: disclaimerText(format),
       baseline_set: set,
       set_source: setSource,
+      effective_archetype: effectiveArchetype,
       cards,
       coverage: { found: cardsWithData.size, total: rawCards.length },
     },
@@ -1096,6 +1126,10 @@ async function gameReview(
   // Constructed/Brawl decks span many sets — a single-set lookup returns
   // near-zero coverage when the baseline set wasn't explicitly chosen.
   const useCrossSet = setSource !== "explicit";
+  // crossSetCardTiming hardcodes archetype = 'ALL' — reported below as
+  // effective_archetype so a caller passing a specific archetype on the
+  // cross-set path can tell it silently got ALL-archetype data.
+  const effectiveArchetype = useCrossSet ? "ALL" : arch;
   const cardTimingMap = new Map<string, CardTimingRow[]>();
   if (allPlayedCards.size > 0) {
     const cardList = [...allPlayedCards];
@@ -1208,6 +1242,7 @@ async function gameReview(
       disclaimer: disclaimerText(format),
       baseline_set: set,
       set_source: setSource,
+      effective_archetype: effectiveArchetype,
       findings: findings.slice(0, 5).map((f) => ({
         turn: f.turn,
         category: f.category,

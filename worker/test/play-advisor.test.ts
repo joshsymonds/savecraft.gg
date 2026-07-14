@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   extractTurnsFromSection,
   playAdvisorModule,
+  resetPlayAdvisorCaches,
 } from "../../plugins/magic/reference/play-advisor";
 import { registerNativeModule } from "../src/reference/registry";
 
@@ -840,6 +841,7 @@ async function seedAll(): Promise<void> {
 describe("play_advisor reference module", () => {
   beforeEach(async () => {
     await cleanAll();
+    resetPlayAdvisorCaches();
     registerNativeModule("magic", playAdvisorModule);
     await seedAll();
   });
@@ -874,6 +876,9 @@ describe("play_advisor reference module", () => {
     // Explicit set is passed through unchanged, with source "explicit".
     expect(result.data.baseline_set).toBe("FDN");
     expect(result.data.set_source).toBe("explicit");
+    // Explicit-set path resolves per-archetype data (seeded for UB), so the
+    // effective archetype used for the lookup is UB, not ALL.
+    expect(result.data.effective_archetype).toBe("UB");
   });
 
   it("reports coverage for missing cards", async () => {
@@ -1021,6 +1026,9 @@ describe("play_advisor reference module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
     expect(result.data).toHaveProperty("findings");
     expect(result.data).toHaveProperty("coverage");
+    // Explicit-set path resolves per-archetype data (seeded for UB), so the
+    // effective archetype used for the lookup is UB, not ALL.
+    expect(result.data.effective_archetype).toBe("UB");
   });
 
   it("includes disclaimer for non-draft format", async () => {
@@ -1336,13 +1344,28 @@ describe("play_advisor reference module", () => {
       },
     ];
 
+    const resultsByMode: Record<string, Awaited<ReturnType<typeof playAdvisorModule.execute>>> =
+      {};
     for (const c of cases) {
       const result = await playAdvisorModule.execute({ mode: c.mode, ...c.query }, env);
       expect(result.type, `${c.mode} result type`).toBe("structured");
       if (result.type !== "structured") throw new Error("unexpected type");
       expect(result.data.baseline_set, `${c.mode} baseline_set`).toBe("FDN");
       expect(result.data.set_source, `${c.mode} set_source`).toBe("fallback");
+      resultsByMode[c.mode] = result;
     }
+
+    // card_timing and game_review both requested archetype "UB" above, but
+    // the cross-set path (triggered whenever set isn't explicit) hardcodes
+    // archetype ALL — effective_archetype must surface that so a caller
+    // never silently thinks it got UB-specific data.
+    const cardTimingResult = resultsByMode.card_timing;
+    if (cardTimingResult?.type !== "structured") throw new Error("unexpected type");
+    expect(cardTimingResult.data.effective_archetype).toBe("ALL");
+
+    const gameReviewResult = resultsByMode.game_review;
+    if (gameReviewResult?.type !== "structured") throw new Error("unexpected type");
+    expect(gameReviewResult.data.effective_archetype).toBe("ALL");
   });
 
   it("returns a text error when set is omitted and no baseline data is loaded", async () => {
@@ -1355,6 +1378,42 @@ describe("play_advisor reference module", () => {
     expect(result.type).toBe("text");
     if (result.type !== "text") throw new Error("unexpected type");
     expect(result.content.toLowerCase()).toContain("play statistics");
+  });
+
+  it("caches the fallback set resolution across requests within the TTL, until reset", async () => {
+    const first = await playAdvisorModule.execute(
+      { mode: "mulligan", archetype: "UB", on_play: true, hand: ["Island"] },
+      env,
+    );
+    expect(first.type).toBe("structured");
+    if (first.type !== "structured") throw new Error("unexpected type");
+    expect(first.data.baseline_set).toBe("FDN");
+    expect(first.data.set_source).toBe("fallback");
+
+    // Delete the underlying baseline rows directly — a cached fallback set
+    // resolution should still be served from memory, not recomputed.
+    await env.DB.prepare("DELETE FROM magic_play_turn_baselines").run();
+
+    const second = await playAdvisorModule.execute(
+      { mode: "mulligan", archetype: "UB", on_play: true, hand: ["Island"] },
+      env,
+    );
+    expect(second.type).toBe("structured");
+    if (second.type !== "structured") throw new Error("unexpected type");
+    expect(second.data.baseline_set).toBe("FDN");
+    expect(second.data.set_source).toBe("fallback");
+
+    // Resetting the cache seam forces recomputation, which now sees the
+    // deleted rows and errors out as it would with a cold cache.
+    resetPlayAdvisorCaches();
+
+    const third = await playAdvisorModule.execute(
+      { mode: "mulligan", archetype: "UB", on_play: true, hand: ["Island"] },
+      env,
+    );
+    expect(third.type).toBe("text");
+    if (third.type !== "text") throw new Error("unexpected type");
+    expect(third.content.toLowerCase()).toContain("play statistics");
   });
 
   it("derives the baseline set from a Limited match's eventId when it has baseline data (source: event)", async () => {
