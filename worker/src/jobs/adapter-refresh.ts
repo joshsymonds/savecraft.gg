@@ -6,12 +6,18 @@
  * via cron trigger.
  */
 
-import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError } from "../adapters/adapter";
+import {
+  ADAPTER_REFRESH_COOLDOWN_SEC,
+  AdapterError,
+  adapterErrorMessage,
+  type FetchParams,
+  truncateRefreshError,
+} from "../adapters/adapter";
 import { OAUTH_PROVIDERS } from "../adapters/providers";
 import { adapters } from "../adapters/registry";
-import { resolveAdapterCharacter } from "../adapters/resolve-character";
+import { resolveAdapterCharacter, type ResolvedCharacter } from "../adapters/resolve-character";
 import { pushGameStatus } from "../index";
-import { storePush } from "../store";
+import { persistProviderCredentials, storePush } from "../store";
 import type { Env } from "../types";
 
 const BATCH_LIMIT = 50;
@@ -140,6 +146,27 @@ async function runWithConcurrency<T>(
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => lane()));
 }
 
+/**
+ * Assemble the FetchParams for a cron refresh row, wiring
+ * persistCredentials so a token rotation is durably persisted the
+ * moment it succeeds — even when the rest of the fetch later fails.
+ */
+function fetchParamsForRow(env: Env, row: RefreshRow, resolved: ResolvedCharacter): FetchParams {
+  return {
+    characterId: resolved.characterId,
+    characterName: resolved.characterName,
+    region: resolved.region,
+    metadata: resolved.metadata,
+    credentials: {
+      accessToken: row.access_token,
+      refreshToken: row.refresh_token ?? undefined,
+      expiresAt: row.expires_at ?? undefined,
+    },
+    persistCredentials: (rotated) =>
+      persistProviderCredentials(env.DB, row.user_uuid, row.game_id, rotated),
+  };
+}
+
 async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
   const adapter = adapters[row.game_id];
   if (!adapter) return;
@@ -152,20 +179,7 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
   if (!resolved) return;
 
   try {
-    const gameState = await adapter.fetchState(
-      {
-        characterId: resolved.characterId,
-        characterName: resolved.characterName,
-        region: resolved.region,
-        metadata: resolved.metadata,
-        credentials: {
-          accessToken: row.access_token,
-          refreshToken: row.refresh_token ?? undefined,
-          expiresAt: row.expires_at ?? undefined,
-        },
-      },
-      env,
-    );
+    const gameState = await adapter.fetchState(fetchParamsForRow(env, row, resolved), env);
 
     const parsedAt = new Date().toISOString();
 
@@ -180,6 +194,7 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
       gameState.sections,
       undefined,
       gameState.identity.extra,
+      gameState.identity.displayName,
     );
 
     // Record success
@@ -201,13 +216,17 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
   } catch (error) {
     let message = "Unknown error";
     if (error instanceof AdapterError) {
-      message = `${error.code}: ${error.message}`;
+      // Same user-facing mapping the MCP refresh_save path uses, so a
+      // cron-path failure (e.g. token_expired) stamps the full actionable
+      // text — including any reconnect userAction — instead of a bare
+      // "code: message" string.
+      message = adapterErrorMessage(error);
     } else if (error instanceof Error) {
       message = error.message;
     }
 
     // Truncate to prevent unbounded third-party error messages in D1/MCP responses
-    const truncated = message.length > 500 ? `${message.slice(0, 497)}...` : message;
+    const truncated = truncateRefreshError(message);
 
     // Honor GGG's Retry-After (Req 4). The cron re-selects a row once
     // last_refresh_at is older than the cooldown, so to defer a

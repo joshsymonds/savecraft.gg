@@ -1,4 +1,4 @@
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { cleanAll, seedPush, seedSource } from "./helpers";
@@ -159,6 +159,46 @@ describe("Saves REST API", () => {
     expect(first.game_id).toBe("d2r");
     expect(first.summary).toBe("Level 89 Paladin");
     expect(second.save_name).toBe("Frostbite");
+  });
+
+  it("labels a magic save with no display_name as MTG Arena Player", async () => {
+    await seedPush(
+      TEST_USER,
+      SOURCE_UUID,
+      "magic",
+      "player",
+      "MTGA player",
+      "2026-02-25T21:00:00Z",
+      DEFAULT_SECTIONS,
+    );
+
+    const listResp = await SELF.fetch(getSaves());
+    const listBody = await listResp.json<{ saves: { save_name: string }[] }>();
+    expect(listBody.saves).toHaveLength(1);
+    expect(listBody.saves[0]!.save_name).toBe("MTG Arena Player");
+  });
+
+  it("labels a magic save with a display_name using the display_name", async () => {
+    const saveUuid = await seedPush(
+      TEST_USER,
+      SOURCE_UUID,
+      "magic",
+      "player",
+      "MTGA player",
+      "2026-02-25T21:00:00Z",
+      DEFAULT_SECTIONS,
+    );
+    await env.DB.prepare("UPDATE saves SET display_name = ? WHERE uuid = ?")
+      .bind("Aure Silvershield", saveUuid)
+      .run();
+
+    const listResp = await SELF.fetch(getSaves());
+    const listBody = await listResp.json<{ saves: { save_name: string }[] }>();
+    expect(listBody.saves[0]!.save_name).toBe("Aure Silvershield");
+
+    const getResp = await SELF.fetch(getSave(saveUuid));
+    const getBody = await getResp.json<{ save_name: string }>();
+    expect(getBody.save_name).toBe("Aure Silvershield");
   });
 
   it("gets a single save with sections", async () => {

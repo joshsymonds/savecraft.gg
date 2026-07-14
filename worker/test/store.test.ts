@@ -213,4 +213,121 @@ describe("storePush", () => {
       .first();
     expect(orphanSection).toBeNull();
   });
+
+  describe("display_name", () => {
+    it("stores display_name on first push", async () => {
+      const { sourceUuid } = await seedSource(null);
+      const sections: Record<string, SectionInput> = {
+        overview: { description: "Overview", data: { level: 1 } },
+      };
+
+      const { saveUuid } = await storePush(
+        env,
+        null,
+        sourceUuid,
+        "magic",
+        "Player1234",
+        "Player One",
+        "2026-01-01T00:00:00Z",
+        sections,
+        undefined,
+        undefined,
+        "Player One",
+      );
+
+      const save = await env.DB.prepare("SELECT display_name FROM saves WHERE uuid = ?")
+        .bind(saveUuid)
+        .first<{ display_name: string | null }>();
+      expect(save!.display_name).toBe("Player One");
+    });
+
+    it("updates display_name in place on the same (source, game_id, save_name) row", async () => {
+      const { sourceUuid } = await seedSource(null);
+      const sections: Record<string, SectionInput> = {
+        overview: { description: "Overview", data: { level: 1 } },
+      };
+
+      const first = await storePush(
+        env,
+        null,
+        sourceUuid,
+        "magic",
+        "Player1234",
+        "Player One",
+        "2026-01-01T00:00:00Z",
+        sections,
+        undefined,
+        undefined,
+        "Player One",
+      );
+
+      const second = await storePush(
+        env,
+        null,
+        sourceUuid,
+        "magic",
+        "Player1234",
+        "Player Two",
+        "2026-01-02T00:00:00Z",
+        sections,
+        undefined,
+        undefined,
+        "Player Two",
+      );
+
+      expect(second.saveUuid).toBe(first.saveUuid);
+
+      const count = await env.DB.prepare(
+        "SELECT COUNT(*) as n FROM saves WHERE game_id = ? AND save_name = ?",
+      )
+        .bind("magic", "Player1234")
+        .first<{ n: number }>();
+      expect(count!.n).toBe(1);
+
+      const save = await env.DB.prepare("SELECT display_name FROM saves WHERE uuid = ?")
+        .bind(first.saveUuid)
+        .first<{ display_name: string | null }>();
+      expect(save!.display_name).toBe("Player Two");
+    });
+
+    it("keeps the previous display_name when a later push has an empty display name", async () => {
+      const { sourceUuid } = await seedSource(null);
+      const sections: Record<string, SectionInput> = {
+        overview: { description: "Overview", data: { level: 1 } },
+      };
+
+      const first = await storePush(
+        env,
+        null,
+        sourceUuid,
+        "magic",
+        "Player1234",
+        "Player One",
+        "2026-01-01T00:00:00Z",
+        sections,
+        undefined,
+        undefined,
+        "Player One",
+      );
+
+      await storePush(
+        env,
+        null,
+        sourceUuid,
+        "magic",
+        "Player1234",
+        "Player One (unparsed)",
+        "2026-01-02T00:00:00Z",
+        sections,
+        undefined,
+        undefined,
+        "",
+      );
+
+      const save = await env.DB.prepare("SELECT display_name FROM saves WHERE uuid = ?")
+        .bind(first.saveUuid)
+        .first<{ display_name: string | null }>();
+      expect(save!.display_name).toBe("Player One");
+    });
+  });
 });

@@ -51,6 +51,7 @@ describe("connect-guidance copy (epic Req 14)", () => {
       await ensureGggAccessToken(
         { accessToken: "old", expiresAt: "2000-01-01T00:00:00Z" },
         {} as unknown as Env,
+        () => Promise.resolve(),
       );
     } catch (error) {
       thrown = error;

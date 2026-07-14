@@ -4,6 +4,7 @@
  * storePush upserts a save in D1 (metadata + sections) and indexes sections in FTS.
  */
 
+import type { GameCredentials } from "./adapters/adapter";
 import { providerForGame } from "./adapters/providers";
 import { ingestMatchHistory } from "./magic/ingest";
 import { MANIFESTS } from "./mcp/manifests.gen.js";
@@ -47,9 +48,9 @@ function buildSectionStatements(
  * Run game-specific post-push hooks. Called from BOTH the insert and
  * update paths after the save + sections are committed (so `saveUuid`
  * exists for FK-bound side tables). `extra` carries adapter-only,
- * out-of-section data (e.g. PoE's PoB XML + refreshed GGG tokens)
- * threaded from gameState.identity.extra — it never enters a section
- * or the FTS index.
+ * out-of-section data (e.g. PoE's PoB XML) threaded from
+ * gameState.identity.extra — it never enters a section or the FTS
+ * index.
  */
 async function postPushHooks(
   db: D1Database,
@@ -63,30 +64,23 @@ async function postPushHooks(
     await ingestMatchHistory(db, userUuid, sections);
   }
   if (extra) {
-    await persistAdapterRefreshArtifacts(db, gameId, userUuid, saveUuid, extra);
+    await persistAdapterRefreshArtifacts(db, gameId, saveUuid, extra);
   }
-}
-
-interface RefreshedProviderCreds {
-  accessToken: string;
-  refreshToken: string | null;
-  expiresAt: string | null;
 }
 
 /**
  * Persist adapter refresh side effects that must not live in a section:
  * PoE's and PoE2's content-addressed PoB/PoB2 build snapshots (raw XML,
  * re-fed to pob-server /calc on eviction — one table per game, mirroring
- * the poe_passive_nodes/poe2_passive_nodes convention) and any provider
- * tokens refreshed in-adapter during fetchState, for ANY adapter game
- * (poe, poe2, and future ones) — persisted into the shared
- * provider_credentials row via providerForGame(gameId), so a rotation
- * from either game keeps the row current for its siblings.
+ * the poe_passive_nodes/poe2_passive_nodes convention). Provider tokens
+ * rotated during fetchState are NOT persisted here — they go through
+ * FetchParams.persistCredentials at refresh time (see
+ * persistProviderCredentials), so a rotation survives even when the
+ * rest of the fetch fails before the push.
  */
 async function persistAdapterRefreshArtifacts(
   db: D1Database,
   gameId: string,
-  userUuid: string | null,
   saveUuid: string,
   extra: Record<string, unknown>,
 ): Promise<void> {
@@ -117,24 +111,83 @@ async function persistAdapterRefreshArtifacts(
         .run();
     }
   }
+}
 
-  const refreshed = extra.refreshedCreds as RefreshedProviderCreds | undefined;
-  if (refreshed && userUuid) {
-    await db
-      .prepare(
-        `UPDATE provider_credentials
-         SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = datetime('now')
-         WHERE user_uuid = ? AND provider = ?`,
-      )
-      .bind(
-        refreshed.accessToken,
-        refreshed.refreshToken,
-        refreshed.expiresAt,
-        userUuid,
-        providerForGame(gameId),
-      )
-      .run();
+/**
+ * Durably update the shared provider_credentials row for a game's OAuth
+ * provider (via providerForGame, so a rotation from either poe or poe2
+ * keeps the row current for its siblings). Callers thread this into
+ * FetchParams.persistCredentials so an adapter can persist a token
+ * rotation the moment it succeeds — even when the rest of the fetch
+ * later fails.
+ */
+export async function persistProviderCredentials(
+  db: D1Database,
+  userUuid: string,
+  gameId: string,
+  creds: GameCredentials,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE provider_credentials
+       SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = datetime('now')
+       WHERE user_uuid = ? AND provider = ?`,
+    )
+    .bind(
+      creds.accessToken,
+      creds.refreshToken ?? null,
+      creds.expiresAt ?? null,
+      userUuid,
+      providerForGame(gameId),
+    )
+    .run();
+}
+
+/** Empty/undefined display names are stored as NULL, never an empty string. */
+function normalizeDisplayName(displayName?: string): string | null {
+  if (!displayName) {
+    return null;
   }
+  return displayName;
+}
+
+async function insertNewSave(
+  env: Env,
+  userUuid: string | null,
+  sourceUuid: string,
+  gameId: string,
+  saveName: string,
+  summary: string,
+  parsedAt: string,
+  sections: Record<string, SectionInput>,
+  extra: Record<string, unknown> | undefined,
+  displayName: string | undefined,
+): Promise<{ saveUuid: string; changed: boolean }> {
+  const saveUuid = crypto.randomUUID();
+  const gameName = resolveGameName(gameId);
+  await env.DB.prepare(
+    "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid, display_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      saveUuid,
+      userUuid,
+      gameId,
+      gameName,
+      saveName,
+      summary,
+      parsedAt,
+      sourceUuid,
+      normalizeDisplayName(displayName),
+    )
+    .run();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?").bind(
+      sourceUuid,
+    ),
+    ...buildSectionStatements(env.DB, saveUuid, saveName, sections),
+  ]);
+  await postPushHooks(env.DB, gameId, userUuid, sections, saveUuid, extra);
+  return { saveUuid, changed: true };
 }
 
 export async function storePush(
@@ -148,6 +201,7 @@ export async function storePush(
   sections: Record<string, SectionInput>,
   allSectionNames?: string[],
   extra?: Record<string, unknown>,
+  displayName?: string,
 ): Promise<{ saveUuid: string; changed: boolean }> {
   // Linked sources dedup by (user_uuid, game_id, save_name).
   // Unlinked sources dedup by (last_source_uuid, game_id, save_name) where user_uuid IS NULL.
@@ -164,21 +218,18 @@ export async function storePush(
         .first<{ uuid: string; last_updated: string; summary: string }>();
 
   if (!existingSave) {
-    const saveUuid = crypto.randomUUID();
-    const gameName = resolveGameName(gameId);
-    await env.DB.prepare(
-      "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    )
-      .bind(saveUuid, userUuid, gameId, gameName, saveName, summary, parsedAt, sourceUuid)
-      .run();
-    await env.DB.batch([
-      env.DB.prepare(
-        "UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?",
-      ).bind(sourceUuid),
-      ...buildSectionStatements(env.DB, saveUuid, saveName, sections),
-    ]);
-    await postPushHooks(env.DB, gameId, userUuid, sections, saveUuid, extra);
-    return { saveUuid, changed: true };
+    return insertNewSave(
+      env,
+      userUuid,
+      sourceUuid,
+      gameId,
+      saveName,
+      summary,
+      parsedAt,
+      sections,
+      extra,
+      displayName,
+    );
   }
 
   const saveUuid = existingSave.uuid;
@@ -202,8 +253,12 @@ export async function storePush(
 
   const batch: D1PreparedStatement[] = [
     env.DB.prepare(
-      "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
-    ).bind(summary, parsedAt, sourceUuid, saveUuid),
+      // display_name is updated in place on every push; an existing
+      // non-null display_name is not overwritten by an empty incoming
+      // one (a plugin that failed to parse the name this run must not
+      // erase a previously-learned name).
+      "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ?, display_name = COALESCE(NULLIF(?, ''), display_name) WHERE uuid = ?",
+    ).bind(summary, parsedAt, sourceUuid, displayName ?? "", saveUuid),
     env.DB.prepare("UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?").bind(
       sourceUuid,
     ),

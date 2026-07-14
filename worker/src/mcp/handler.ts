@@ -226,7 +226,7 @@ const TOOLS: ToolDefinition[] = [
         sections: {
           type: "array",
           description:
-            "Section names from the save's section listing. Pass one name or several. Available sections vary by game.",
+            "Section names from the save's section listing — call get_save to enumerate them. Pass one name or several. Available sections vary by game.",
           items: { type: "string" },
         },
       },

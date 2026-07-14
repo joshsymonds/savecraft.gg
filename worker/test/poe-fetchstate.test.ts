@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { poeAdapter } from "../../plugins/poe/adapter";
 import characterFixture from "../../plugins/poe/testdata/ggg-character-full.json";
-import { AdapterError, type FetchParams } from "../src/adapters/adapter";
+import { AdapterError, type FetchParams, type GameCredentials } from "../src/adapters/adapter";
 import { ensureGggAccessToken } from "../src/adapters/ggg";
 import { storePush } from "../src/store";
 import type { Env } from "../src/types";
@@ -22,7 +22,23 @@ function params(overrides: Partial<FetchParams> = {}): FetchParams {
     region: "pc",
     metadata: {},
     credentials: { accessToken: "valid-token" },
+    persistCredentials: () => Promise.resolve(),
     ...overrides,
+  };
+}
+
+/** Hand-written capture for the persistCredentials callback. */
+function credentialSink(): {
+  persisted: GameCredentials[];
+  persist: (creds: GameCredentials) => Promise<void>;
+} {
+  const persisted: GameCredentials[] = [];
+  return {
+    persisted,
+    persist: (creds: GameCredentials) => {
+      persisted.push(creds);
+      return Promise.resolve();
+    },
   };
 }
 
@@ -32,16 +48,18 @@ describe("ensureGggAccessToken", () => {
   });
 
   it("passes through a still-valid token without a refresh call", async () => {
+    const sink = credentialSink();
     const future = new Date(Date.now() + 86_400_000).toISOString();
-    const r = await ensureGggAccessToken(
+    const accessToken = await ensureGggAccessToken(
       { accessToken: "tok", refreshToken: "rt", expiresAt: future },
       {} as unknown as Env,
+      sink.persist,
     );
-    expect(r.accessToken).toBe("tok");
-    expect(r.refreshed).toBeUndefined();
+    expect(accessToken).toBe("tok");
+    expect(sink.persisted).toEqual([]);
   });
 
-  it("refreshes an expired token and returns the new tokens", async () => {
+  it("refreshes an expired token and persists the rotated credentials before returning", async () => {
     mockFetch.activate();
     mockFetch
       .get(GGG_OAUTH)
@@ -51,16 +69,35 @@ describe("ensureGggAccessToken", () => {
         JSON.stringify({ access_token: "new-acc", refresh_token: "new-ref", expires_in: 3600 }),
         { headers: { "content-type": "application/json" } },
       );
-    const r = await ensureGggAccessToken(
+    const sink = credentialSink();
+    const accessToken = await ensureGggAccessToken(
       { accessToken: "old", refreshToken: "rt", expiresAt: "2000-01-01T00:00:00Z" },
       { GGG_CLIENT_ID: "c", GGG_CLIENT_SECRET: "s" } as unknown as Env,
+      sink.persist,
     );
-    expect(r.accessToken).toBe("new-acc");
-    expect(r.refreshed).toEqual({
-      accessToken: "new-acc",
-      refreshToken: "new-ref",
-      expiresAt: expect.any(String),
-    });
+    expect(accessToken).toBe("new-acc");
+    // GGG invalidated the old refresh token the moment the exchange
+    // succeeded — the rotated pair must be persisted before return.
+    expect(sink.persisted).toEqual([
+      { accessToken: "new-acc", refreshToken: "new-ref", expiresAt: expect.any(String) },
+    ]);
+  });
+
+  it("keeps the old refresh token when the exchange response omits one", async () => {
+    mockFetch.activate();
+    mockFetch
+      .get(GGG_OAUTH)
+      .intercept({ path: "/oauth/token", method: "POST" })
+      .reply(200, JSON.stringify({ access_token: "new-acc", expires_in: 3600 }), {
+        headers: { "content-type": "application/json" },
+      });
+    const sink = credentialSink();
+    await ensureGggAccessToken(
+      { accessToken: "old", refreshToken: "rt", expiresAt: "2000-01-01T00:00:00Z" },
+      { GGG_CLIENT_ID: "c", GGG_CLIENT_SECRET: "s" } as unknown as Env,
+      sink.persist,
+    );
+    expect(sink.persisted[0]!.refreshToken).toBe("rt");
   });
 
   it("throws api_unavailable when a refresh is needed but GGG credentials are unset", async () => {
@@ -68,6 +105,7 @@ describe("ensureGggAccessToken", () => {
       ensureGggAccessToken(
         { accessToken: "old", refreshToken: "rt", expiresAt: "2000-01-01T00:00:00Z" },
         {} as unknown as Env,
+        () => Promise.resolve(),
       ),
     ).rejects.toSatisfy(
       (error: unknown) => error instanceof AdapterError && error.code === "api_unavailable",
@@ -79,6 +117,7 @@ describe("ensureGggAccessToken", () => {
       ensureGggAccessToken(
         { accessToken: "old", expiresAt: "2000-01-01T00:00:00Z" },
         {} as unknown as Env,
+        () => Promise.resolve(),
       ),
     ).rejects.toSatisfy(
       (error: unknown) => error instanceof AdapterError && error.code === "token_expired",
@@ -88,14 +127,17 @@ describe("ensureGggAccessToken", () => {
   it("throws token_expired when the refresh request fails", async () => {
     mockFetch.activate();
     mockFetch.get(GGG_OAUTH).intercept({ path: "/oauth/token", method: "POST" }).reply(400, "bad");
+    const sink = credentialSink();
     await expect(
       ensureGggAccessToken(
         { accessToken: "old", refreshToken: "rt", expiresAt: "2000-01-01T00:00:00Z" },
         { GGG_CLIENT_ID: "c", GGG_CLIENT_SECRET: "s" } as unknown as Env,
+        sink.persist,
       ),
     ).rejects.toSatisfy(
       (error: unknown) => error instanceof AdapterError && error.code === "token_expired",
     );
+    expect(sink.persisted).toEqual([]);
   });
 });
 
@@ -262,13 +304,16 @@ describe("storePush poe snapshot persistence", () => {
     }
   });
 
-  it("persists refreshed GGG credentials", async () => {
+  it("ignores a stale refreshedCreds-shaped extra key — credentials persist only via persistCredentials", async () => {
     const sourceUuid = await seedSave();
     await env.DB.prepare(
       `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
        VALUES ('poe-user', 'ggg', 'old-acc', 'old-ref', '2000-01-01T00:00:00Z')`,
     ).run();
 
+    // Rotated tokens are persisted at refresh time through
+    // FetchParams.persistCredentials, never post-push — a GameState
+    // smuggling the legacy extra key must not touch provider_credentials.
     await storePush(
       env,
       "poe-user",
@@ -281,8 +326,8 @@ describe("storePush poe snapshot persistence", () => {
       undefined,
       {
         refreshedCreds: {
-          accessToken: "fresh-acc",
-          refreshToken: "fresh-ref",
+          accessToken: "smuggled-acc",
+          refreshToken: "smuggled-ref",
           expiresAt: "2099-01-01T00:00:00Z",
         },
       },
@@ -291,7 +336,7 @@ describe("storePush poe snapshot persistence", () => {
     const cred = await env.DB.prepare(
       "SELECT access_token, refresh_token FROM provider_credentials WHERE user_uuid = 'poe-user' AND provider = 'ggg'",
     ).first<{ access_token: string; refresh_token: string }>();
-    expect(cred!.access_token).toBe("fresh-acc");
-    expect(cred!.refresh_token).toBe("fresh-ref");
+    expect(cred!.access_token).toBe("old-acc");
+    expect(cred!.refresh_token).toBe("old-ref");
   });
 });

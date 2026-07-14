@@ -608,7 +608,14 @@ export interface SaveIdentity {
    * Game-specific display metadata. e.g. {"class": "Paladin", "level": 89}
    * Uses Struct to preserve value types (numbers, strings, bools).
    */
-  extra: { [key: string]: any } | undefined;
+  extra:
+    | { [key: string]: any }
+    | undefined;
+  /**
+   * Mutable display label, updated in place on every push. `name` remains
+   * the immutable identity key.
+   */
+  displayName: string;
 }
 
 function createBaseMessage(): Message {
@@ -6561,7 +6568,7 @@ export const DeregisterSource: MessageFns<DeregisterSource> = {
 };
 
 function createBaseSaveIdentity(): SaveIdentity {
-  return { name: "", extra: undefined };
+  return { name: "", extra: undefined, displayName: "" };
 }
 
 export const SaveIdentity: MessageFns<SaveIdentity> = {
@@ -6571,6 +6578,9 @@ export const SaveIdentity: MessageFns<SaveIdentity> = {
     }
     if (message.extra !== undefined) {
       Struct.encode(Struct.wrap(message.extra), writer.uint32(18).fork()).join();
+    }
+    if (message.displayName !== "") {
+      writer.uint32(26).string(message.displayName);
     }
     return writer;
   },
@@ -6598,6 +6608,14 @@ export const SaveIdentity: MessageFns<SaveIdentity> = {
           message.extra = Struct.unwrap(Struct.decode(reader, reader.uint32()));
           continue;
         }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.displayName = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -6611,6 +6629,11 @@ export const SaveIdentity: MessageFns<SaveIdentity> = {
     return {
       name: isSet(object.name) ? globalThis.String(object.name) : "",
       extra: isObject(object.extra) ? object.extra : undefined,
+      displayName: isSet(object.displayName)
+        ? globalThis.String(object.displayName)
+        : isSet(object.display_name)
+        ? globalThis.String(object.display_name)
+        : "",
     };
   },
 
@@ -6622,6 +6645,9 @@ export const SaveIdentity: MessageFns<SaveIdentity> = {
     if (message.extra !== undefined) {
       obj.extra = message.extra;
     }
+    if (message.displayName !== "") {
+      obj.displayName = message.displayName;
+    }
     return obj;
   },
 
@@ -6632,6 +6658,7 @@ export const SaveIdentity: MessageFns<SaveIdentity> = {
     const message = createBaseSaveIdentity();
     message.name = object.name ?? "";
     message.extra = object.extra ?? undefined;
+    message.displayName = object.displayName ?? "";
     return message;
   },
 };

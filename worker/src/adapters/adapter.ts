@@ -69,6 +69,38 @@ export function connectAdapterGuidance(game: string): string {
   );
 }
 
+/**
+ * Map an AdapterError to the exact user-facing text shown for a failed
+ * refresh. Single source of truth for both refresh failure paths — the
+ * MCP refresh_save tool (worker/src/mcp/tools.ts) and the cron adapter
+ * refresh job (worker/src/jobs/adapter-refresh.ts) — so a user sees the
+ * same actionable message regardless of which path produced the
+ * failure. When token_expired arrives without a userAction, falls back
+ * to a generic reconnect prompt rather than omitting guidance.
+ */
+export function adapterErrorMessage(error: AdapterError): string {
+  if (error.code === "token_expired") {
+    return `Account token expired. ${error.userAction ?? reconnectAdapterAction("the game")}`;
+  }
+  if (error.code === "rate_limited") {
+    return `The game's API is rate limited. Try again in ${String(error.retryAfter ?? 60)} seconds.`;
+  }
+  if (error.code === "character_not_found") {
+    return "Character not found on the game's servers. It may have been deleted or transferred.";
+  }
+  return `Game API error: ${error.message}`;
+}
+
+/** Max chars stored in saves.refresh_error before truncation (unbounded third-party error text otherwise). */
+const REFRESH_ERROR_MAX_LEN = 500;
+
+/** Truncate a refresh failure message to the shared D1/MCP response budget. */
+export function truncateRefreshError(message: string): string {
+  return message.length > REFRESH_ERROR_MAX_LEN
+    ? `${message.slice(0, REFRESH_ERROR_MAX_LEN - 3)}...`
+    : message;
+}
+
 // ---------------------------------------------------------------------------
 // GameState types
 // ---------------------------------------------------------------------------
@@ -96,6 +128,11 @@ export interface GameState {
     saveName: string;
     gameId: string;
     extra?: Record<string, unknown>;
+    /**
+     * Mutable display label, updated in place on every push. `saveName`
+     * remains the immutable identity key. Optional — adapters may omit it.
+     */
+    displayName?: string;
   };
   summary: string;
   sections: Record<string, GameStateSection>;
@@ -153,6 +190,16 @@ export interface FetchParams {
   /** Parsed linked_characters.metadata — each adapter reads what its API needs. */
   metadata: Record<string, unknown>;
   credentials: GameCredentials;
+  /**
+   * Durably persist rotated credentials for this save's (user, provider)
+   * pair. Providers like GGG invalidate the old refresh token the moment
+   * a refresh succeeds, so implementations MUST await this immediately
+   * after a successful token refresh — before any subsequent API call
+   * can fail. A fetch that refreshes and then throws would otherwise
+   * discard the only valid refresh token and wedge the account until
+   * the user re-authorizes.
+   */
+  persistCredentials: (creds: GameCredentials) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------

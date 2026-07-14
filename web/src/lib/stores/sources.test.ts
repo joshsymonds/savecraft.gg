@@ -26,7 +26,11 @@ function sourceStateMsg(
       gameId: string;
       gameName?: string;
       status?: GameStatusEnum;
-      saves?: { saveUuid: string; identity?: { name: string }; summary: string }[];
+      saves?: {
+        saveUuid: string;
+        identity?: { name: string; displayName?: string };
+        summary: string;
+      }[];
       path?: string;
     }[];
   }[],
@@ -52,7 +56,13 @@ function sourceStateMsg(
           status: g.status ?? GameStatusEnum.GAME_STATUS_ENUM_WATCHING,
           saves: (g.saves ?? []).map((sv) => ({
             saveUuid: sv.saveUuid,
-            identity: sv.identity ? { ...sv.identity, extra: undefined } : undefined,
+            identity: sv.identity
+              ? {
+                  name: sv.identity.name,
+                  displayName: sv.identity.displayName ?? "",
+                  extra: undefined,
+                }
+              : undefined,
             summary: sv.summary,
             lastUpdated: undefined,
           })),
@@ -98,6 +108,73 @@ describe("sources store", () => {
       expect(srcs[0]!.games[0]!.saves[0]!.saveName).toBe("Hammerdin");
     });
 
+    it("prefers identity.displayName over identity.name when both are present", () => {
+      dispatchToSources(
+        "src-1",
+        sourceStateMsg([
+          {
+            sourceId: "src-1",
+            games: [
+              {
+                gameId: "magic",
+                saves: [
+                  {
+                    saveUuid: "s1",
+                    identity: { name: "player", displayName: "Aure Silvershield" },
+                    summary: "MTGA player",
+                  },
+                ],
+              },
+            ],
+          },
+        ]),
+      );
+
+      const srcs = get(sources);
+      expect(srcs[0]!.games[0]!.saves[0]!.saveName).toBe("Aure Silvershield");
+    });
+
+    it("falls back to identity.name when displayName is empty", () => {
+      dispatchToSources(
+        "src-1",
+        sourceStateMsg([
+          {
+            sourceId: "src-1",
+            games: [
+              {
+                gameId: "d2r",
+                saves: [
+                  {
+                    saveUuid: "s1",
+                    identity: { name: "Hammerdin", displayName: "" },
+                    summary: "Level 89",
+                  },
+                ],
+              },
+            ],
+          },
+        ]),
+      );
+
+      const srcs = get(sources);
+      expect(srcs[0]!.games[0]!.saves[0]!.saveName).toBe("Hammerdin");
+    });
+
+    it("falls back to Unknown when identity is entirely absent", () => {
+      dispatchToSources(
+        "src-1",
+        sourceStateMsg([
+          {
+            sourceId: "src-1",
+            games: [{ gameId: "d2r", saves: [{ saveUuid: "s1", summary: "Level 89" }] }],
+          },
+        ]),
+      );
+
+      const srcs = get(sources);
+      expect(srcs[0]!.games[0]!.saves[0]!.saveName).toBe("Unknown");
+    });
+
     it("replaces entire state on each sourceState message", () => {
       dispatchToSources("", sourceStateMsg([{ sourceId: "src-1", games: [{ gameId: "d2r" }] }]));
       expect(get(sources)).toHaveLength(1);
@@ -139,7 +216,7 @@ describe("sources store", () => {
             gameId: "d2r",
             saveUuid: "s1",
             summary: "Level 89",
-            identity: { name: "Hammerdin", extra: undefined },
+            identity: { name: "Hammerdin", extra: undefined, displayName: "" },
             durationMs: 0,
             snapshotSizeBytes: 0,
           },

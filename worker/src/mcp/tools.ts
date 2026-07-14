@@ -20,15 +20,18 @@ import {
 import {
   ADAPTER_REFRESH_COOLDOWN_SEC,
   AdapterError,
-  reconnectAdapterAction,
+  adapterErrorMessage,
+  type FetchParams,
+  truncateRefreshError,
 } from "../adapters/adapter";
 import { gamesForProvider, providerForGame } from "../adapters/providers";
 import { adapters } from "../adapters/registry";
-import { resolveAdapterCharacter } from "../adapters/resolve-character";
+import { resolveAdapterCharacter, type ResolvedCharacter } from "../adapters/resolve-character";
 import { normalizeGameId, slugifyGameName } from "../gameid";
 import { getNativeGameIds, getNativeModule, getNativeModules } from "../reference/registry";
 import type { ListedReferenceModule, NativeReferenceModule } from "../reference/types";
-import { storePush } from "../store";
+import { saveLabel } from "../save-label";
+import { persistProviderCredentials, storePush } from "../store";
 import type { Env } from "../types";
 
 import { MANIFEST_LIST, MANIFESTS } from "./manifests.gen.js";
@@ -60,6 +63,7 @@ interface SaveRow {
   refresh_status: string | null;
   refresh_error: string | null;
   last_refresh_at: string | null;
+  display_name: string | null;
 }
 
 /** Maximum bytes for a single section's JSON before we reject it (~20K tokens). */
@@ -345,10 +349,10 @@ export async function listGames(
     fetchNotesBySave(db, userUuid),
     db
       .prepare(
-        `SELECT game_id, save_name FROM saves WHERE user_uuid = ? AND removed_at IS NOT NULL LIMIT 500`,
+        `SELECT game_id, save_name, display_name FROM saves WHERE user_uuid = ? AND removed_at IS NOT NULL LIMIT 500`,
       )
       .bind(userUuid)
-      .all<{ game_id: string; save_name: string }>(),
+      .all<{ game_id: string; save_name: string; display_name: string | null }>(),
   ]);
 
   // Attach saves to their game entries
@@ -363,7 +367,7 @@ export async function listGames(
     }
     game.saves.push({
       save_id: row.uuid,
-      name: row.save_name,
+      name: saveLabel(row.game_id, row.save_name, row.display_name),
       summary: row.summary,
       last_updated: relativeTime(row.last_updated),
       notes: notesBySave.get(row.uuid) ?? [],
@@ -375,7 +379,7 @@ export async function listGames(
     const game = gameMap.get(row.game_id);
     if (game) {
       game.removed_saves ??= [];
-      game.removed_saves.push(row.save_name);
+      game.removed_saves.push(saveLabel(row.game_id, row.save_name, row.display_name));
     }
   }
 
@@ -494,11 +498,12 @@ async function checkRemovedSave(
 ): Promise<string | null> {
   const removed = await db
     .prepare(
-      "SELECT save_name FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NOT NULL",
+      "SELECT game_id, save_name, display_name FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NOT NULL",
     )
     .bind(saveId, userUuid)
-    .first<{ save_name: string }>();
-  return removed?.save_name ?? null;
+    .first<{ game_id: string; save_name: string; display_name: string | null }>();
+  if (!removed) return null;
+  return saveLabel(removed.game_id, removed.save_name, removed.display_name);
 }
 
 export async function getSave(
@@ -562,7 +567,7 @@ export async function getSave(
     save_id: saveId,
     game_id: save.game_id,
     game_name: save.game_name,
-    name: save.save_name,
+    name: saveLabel(save.game_id, save.save_name, save.display_name),
     summary: save.summary,
     overview,
     sections,
@@ -623,7 +628,7 @@ async function handleSectionMiss(
     );
     if (suggestions.length > 0) {
       return errorResult(
-        `Section '${firstDeckMiss}' not found. Did you mean: ${suggestions.join(", ")}?`,
+        `Section '${firstDeckMiss}' not found. Did you mean: ${suggestions.join(", ")}? Available sections for this save: ${names.join(", ")}.`,
       );
     }
   }
@@ -981,7 +986,23 @@ export async function deleteNote(
 
 // ── Refresh ──────────────────────────────────────────────────
 
-export async function refreshSave(env: Env, userUuid: string, saveId: string): Promise<ToolResult> {
+/**
+ * Max time to wait for the SourceHub DO's /rescan response. handleRescan is
+ * fire-and-forget by design (it queues a proto message on the daemon
+ * WebSocket and returns immediately) so this should resolve almost
+ * instantly — but a hung DO or a dead-but-not-yet-evicted WebSocket can
+ * otherwise stall the request until the platform kills the subrequest
+ * (observed in production at ~95s). Bounding it here gives the LLM a fast,
+ * honest answer instead of a platform-timeout crash.
+ */
+const RESCAN_TIMEOUT_MS = 10_000;
+
+export async function refreshSave(
+  env: Env,
+  userUuid: string,
+  saveId: string,
+  rescanTimeoutMs = RESCAN_TIMEOUT_MS,
+): Promise<ToolResult> {
   const save = await lookupSave(env.DB, userUuid, saveId);
   if (!save)
     return errorResult("Save not found. Check the game listing for available saves and their IDs.");
@@ -1001,15 +1022,29 @@ export async function refreshSave(env: Env, userUuid: string, saveId: string): P
     return refreshAdapterSave(env, userUuid, save, save.last_source_uuid);
   }
 
-  // Daemon-backed: send rescan via SourceHub
+  // Daemon-backed: send rescan via SourceHub. handleRescan is fire-and-forget
+  // (queues a proto message, doesn't wait for the daemon), so this call
+  // should return almost instantly — but bound it anyway in case the DO or
+  // WebSocket is hung, rather than letting the platform kill the subrequest.
   const id = env.SOURCE_HUB.idFromName(save.last_source_uuid);
   const stub = env.SOURCE_HUB.get(id);
-  const resp = await stub.fetch(
-    new Request("https://do/rescan", {
-      method: "POST",
-      body: JSON.stringify({ gameId: save.game_id }),
-    }),
-  );
+  let resp: Response;
+  try {
+    resp = await stub.fetch(
+      new Request("https://do/rescan", {
+        method: "POST",
+        body: JSON.stringify({ gameId: save.game_id }),
+        signal: AbortSignal.timeout(rescanTimeoutMs),
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      return errorResult(
+        "The rescan could not be confirmed — the player's daemon connection is unresponsive. The last-known data is still available via get_section.",
+      );
+    }
+    throw error;
+  }
 
   const result = await resp.json<{ sent: boolean; daemon_online?: boolean }>();
 
@@ -1021,7 +1056,8 @@ export async function refreshSave(env: Env, userUuid: string, saveId: string): P
 
   return textResult({
     save_id: saveId,
-    refreshed: true,
+    rescan_requested: true,
+    note: "The rescan was queued on the player's daemon. Fresh data arrives asynchronously once the daemon processes it — fetch sections again in a moment to see the update.",
     timestamp: new Date().toISOString(),
   });
 }
@@ -1051,8 +1087,28 @@ function checkAdapterCooldown(save: SaveRow): ToolResult | null {
   const lastRefreshAt = new Date(iso).getTime();
   const cooldownMs = ADAPTER_REFRESH_COOLDOWN_SEC * 1000;
   const now = Date.now();
-  if (now - lastRefreshAt < cooldownMs) {
-    const retryAfter = Math.ceil((cooldownMs - (now - lastRefreshAt)) / 1000);
+  const elapsedMs = now - lastRefreshAt;
+  if (elapsedMs < cooldownMs) {
+    const retryAfter = Math.ceil((cooldownMs - elapsedMs) / 1000);
+    // If the prior attempt failed, echo the real actionable error instead
+    // of the generic message — masking it behind "refreshed recently" was
+    // driving retry-mashing (users repeating a doomed call up to 9x/min).
+    if (save.refresh_status === "error" && save.refresh_error) {
+      const elapsedMinutes = Math.floor(elapsedMs / 1000 / 60);
+      const minutesSuffix = elapsedMinutes === 1 ? "" : "s";
+      const relative =
+        elapsedMinutes < 1 ? "under a minute" : `${String(elapsedMinutes)} minute${minutesSuffix}`;
+      // Not every stored refresh_error is guaranteed to end in terminal
+      // punctuation (e.g. adapterErrorMessage's `Game API error: ${message}`
+      // fallback, or a raw non-AdapterError message from the cron path) —
+      // normalize here so the appended retry sentence doesn't run on.
+      const storedError = /[.!?]$/.test(save.refresh_error)
+        ? save.refresh_error
+        : `${save.refresh_error}.`;
+      return errorResult(
+        `Refresh failed ${relative} ago: ${storedError} Next attempt available in ${String(retryAfter)} seconds.`,
+      );
+    }
     return errorResult(
       `This character was refreshed recently. Try again in ${String(retryAfter)} seconds.`,
     );
@@ -1072,28 +1128,30 @@ function buildCredentials(creds: CredentialRow | null): {
   };
 }
 
-function handleAdapterError(error: {
-  code: string;
-  message: string;
-  userAction?: string;
-  retryAfter?: number;
-}): ToolResult {
-  if (error.code === "token_expired") {
-    return errorResult(
-      `Account token expired. ${error.userAction ?? reconnectAdapterAction("the game")}`,
-    );
-  }
-  if (error.code === "rate_limited") {
-    return errorResult(
-      `The game's API is rate limited. Try again in ${String(error.retryAfter ?? 60)} seconds.`,
-    );
-  }
-  if (error.code === "character_not_found") {
-    return errorResult(
-      "Character not found on the game's servers. It may have been deleted or transferred.",
-    );
-  }
-  return errorResult(`Game API error: ${error.message}`);
+function handleAdapterError(error: AdapterError): ToolResult {
+  return errorResult(adapterErrorMessage(error));
+}
+
+/**
+ * Assemble the FetchParams for an adapter refresh, wiring
+ * persistCredentials so a token rotation is durably persisted the
+ * moment it succeeds — even when the rest of the fetch later fails.
+ */
+function adapterFetchParams(
+  env: Env,
+  userUuid: string,
+  gameId: string,
+  resolved: ResolvedCharacter,
+  creds: CredentialRow | null,
+): FetchParams {
+  return {
+    characterId: resolved.characterId,
+    characterName: resolved.characterName,
+    region: resolved.region,
+    metadata: resolved.metadata,
+    credentials: buildCredentials(creds),
+    persistCredentials: (rotated) => persistProviderCredentials(env.DB, userUuid, gameId, rotated),
+  };
 }
 
 async function refreshAdapterSave(
@@ -1136,13 +1194,7 @@ async function refreshAdapterSave(
 
   try {
     const gameState = await adapter.fetchState(
-      {
-        characterId: resolved.characterId,
-        characterName: resolved.characterName,
-        region: resolved.region,
-        metadata: resolved.metadata,
-        credentials: buildCredentials(creds),
-      },
+      adapterFetchParams(env, userUuid, save.game_id, resolved, creds),
       env,
     );
 
@@ -1159,6 +1211,7 @@ async function refreshAdapterSave(
       gameState.sections,
       undefined,
       gameState.identity.extra,
+      gameState.identity.displayName,
     );
 
     await env.DB.prepare(
@@ -1175,15 +1228,19 @@ async function refreshAdapterSave(
     });
   } catch (error) {
     if (error instanceof AdapterError) {
+      const result = handleAdapterError(error);
       // Stamp the attempt so a failed fetch (e.g. rate_limited) still
       // starts the cooldown — don't let the AI hammer the upstream API.
-      const message = `${error.code}: ${error.message}`;
+      // Store the exact user-facing message (not just `code: message`) so
+      // a cooldown-blocked retry can echo the full actionable error (e.g.
+      // token_expired's reconnect instructions) instead of masking it.
+      const message = result.content[0]?.text ?? `${error.code}: ${error.message}`;
       await env.DB.prepare(
         "UPDATE saves SET refresh_status = 'error', refresh_error = ?, last_refresh_at = datetime('now') WHERE uuid = ?",
       )
-        .bind(message.length > 500 ? `${message.slice(0, 497)}...` : message, save.uuid)
+        .bind(truncateRefreshError(message), save.uuid)
         .run();
-      return handleAdapterError(error);
+      return result;
     }
     throw error;
   }
@@ -1198,6 +1255,8 @@ interface SearchRow {
   ref_id: string;
   ref_title: string;
   content: string;
+  display_name: string | null;
+  game_id: string | null;
 }
 
 export async function searchSaves(
@@ -1216,18 +1275,26 @@ export async function searchSaves(
   const params: string[] = [];
 
   if (saveId) {
-    sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
+    sql = `SELECT search_index.save_id as save_id, search_index.save_name as save_name, search_index.type as type,
+                  search_index.ref_id as ref_id, search_index.ref_title as ref_title,
+                  saves.display_name as display_name, saves.game_id as game_id,
+                  snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
-           WHERE search_index MATCH ? AND save_id = ?
-             AND save_id IN (SELECT uuid FROM saves WHERE user_uuid = ? AND removed_at IS NULL)
+           LEFT JOIN saves ON search_index.save_id = saves.uuid
+           WHERE search_index MATCH ? AND search_index.save_id = ?
+             AND search_index.save_id IN (SELECT uuid FROM saves WHERE user_uuid = ? AND removed_at IS NULL)
            ORDER BY rank
            LIMIT 20`;
     params.push(saveId, userUuid);
   } else {
-    sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
+    sql = `SELECT search_index.save_id as save_id, search_index.save_name as save_name, search_index.type as type,
+                  search_index.ref_id as ref_id, search_index.ref_title as ref_title,
+                  saves.display_name as display_name, saves.game_id as game_id,
+                  snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
+           LEFT JOIN saves ON search_index.save_id = saves.uuid
            WHERE search_index MATCH ?
-             AND save_id IN (SELECT uuid FROM saves WHERE user_uuid = ? AND removed_at IS NULL)
+             AND search_index.save_id IN (SELECT uuid FROM saves WHERE user_uuid = ? AND removed_at IS NULL)
            ORDER BY rank
            LIMIT 20`;
     params.push(userUuid);
@@ -1243,7 +1310,7 @@ export async function searchSaves(
     results: rows.results.map((row) => ({
       type: row.type,
       save_id: row.save_id,
-      save_name: row.save_name,
+      save_name: saveLabel(row.game_id ?? "", row.save_name, row.display_name),
       ref_id: row.ref_id,
       ref_title: row.ref_title,
       snippet: row.snippet,

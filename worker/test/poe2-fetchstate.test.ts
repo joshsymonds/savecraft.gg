@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { poe2Adapter } from "../../plugins/poe2/adapter";
 import characterFixture from "../../plugins/poe2/testdata/ggg-poe2-character-full.json";
-import type { FetchParams } from "../src/adapters/adapter";
+import type { FetchParams, GameCredentials } from "../src/adapters/adapter";
 import { storePush } from "../src/store";
 import type { Env } from "../src/types";
 
@@ -19,6 +19,7 @@ function params(overrides: Partial<FetchParams> = {}): FetchParams {
     region: "poe2",
     metadata: {},
     credentials: { accessToken: "valid-token" },
+    persistCredentials: () => Promise.resolve(),
     ...overrides,
   };
 }
@@ -89,7 +90,7 @@ describe("poe2Adapter.fetchState", () => {
     ]);
   });
 
-  it("returns refreshed GGG creds in identity.extra when the token was expired", async () => {
+  it("persists rotated GGG creds via persistCredentials when the token was expired", async () => {
     // mockGgg() calls mockFetch.activate() (which clears any queued
     // replies) — queue the token-refresh reply AFTER it, not before.
     mockGgg();
@@ -102,6 +103,7 @@ describe("poe2Adapter.fetchState", () => {
         { headers: { "content-type": "application/json" } },
       );
 
+    const persisted: GameCredentials[] = [];
     const state = await poe2Adapter.fetchState(
       params({
         credentials: {
@@ -109,19 +111,22 @@ describe("poe2Adapter.fetchState", () => {
           refreshToken: "rt",
           expiresAt: "2000-01-01T00:00:00Z",
         },
+        persistCredentials: (creds) => {
+          persisted.push(creds);
+          return Promise.resolve();
+        },
       }),
       { ...env, GGG_CLIENT_ID: "c", GGG_CLIENT_SECRET: "s" } as unknown as Env,
     );
 
-    // fetchState surfaces refreshed creds in identity.extra exactly like
-    // poe's does; storePush's postPushHooks persists it into the shared
-    // ggg provider_credentials row for ANY adapter game (see the
-    // "storePush poe2 credential persistence" describe block below).
-    expect(state.identity.extra?.refreshedCreds).toEqual({
-      accessToken: "new-acc",
-      refreshToken: "new-ref",
-      expiresAt: expect.any(String),
-    });
+    // GGG invalidated the old refresh token the moment the exchange
+    // succeeded — fetchState must hand the rotated pair to the caller's
+    // persistCredentials right away (exactly like poe's), never smuggle
+    // it through identity.extra for post-push persistence.
+    expect(persisted).toEqual([
+      { accessToken: "new-acc", refreshToken: "new-ref", expiresAt: expect.any(String) },
+    ]);
+    expect(state.identity.extra).toBeUndefined();
   });
 
   it("maps sections, attaches pob_build, and stashes snapshot data in identity.extra", async () => {
@@ -259,10 +264,10 @@ describe("storePush poe2 snapshot persistence", () => {
   });
 });
 
-describe("storePush poe2 credential persistence", () => {
+describe("storePush poe2 credential isolation", () => {
   beforeEach(cleanAll);
 
-  it("persists refreshed GGG credentials pushed from poe2 into the shared ggg row", async () => {
+  it("ignores a stale refreshedCreds-shaped extra key from a poe2 push", async () => {
     const sourceUuid = crypto.randomUUID();
     await env.DB.prepare(
       "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
@@ -274,6 +279,10 @@ describe("storePush poe2 credential persistence", () => {
        VALUES ('poe2-user', 'ggg', 'old-acc', 'old-ref', '2000-01-01T00:00:00Z')`,
     ).run();
 
+    // Rotated tokens are persisted at refresh time through
+    // FetchParams.persistCredentials, never post-push — a GameState
+    // smuggling the legacy extra key must not touch the shared ggg
+    // provider_credentials row.
     await storePush(
       env as unknown as Env,
       "poe2-user",
@@ -286,8 +295,8 @@ describe("storePush poe2 credential persistence", () => {
       undefined,
       {
         refreshedCreds: {
-          accessToken: "fresh-acc-2",
-          refreshToken: "fresh-ref-2",
+          accessToken: "smuggled-acc-2",
+          refreshToken: "smuggled-ref-2",
           expiresAt: "2099-01-01T00:00:00Z",
         },
       },
@@ -296,7 +305,7 @@ describe("storePush poe2 credential persistence", () => {
     const cred = await env.DB.prepare(
       "SELECT access_token, refresh_token FROM provider_credentials WHERE user_uuid = 'poe2-user' AND provider = 'ggg'",
     ).first<{ access_token: string; refresh_token: string }>();
-    expect(cred!.access_token).toBe("fresh-acc-2");
-    expect(cred!.refresh_token).toBe("fresh-ref-2");
+    expect(cred!.access_token).toBe("old-acc");
+    expect(cred!.refresh_token).toBe("old-ref");
   });
 });

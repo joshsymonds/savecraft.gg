@@ -77,29 +77,24 @@ export const GGG_TOKEN_URL = "https://www.pathofexile.com/oauth/token";
 // case-sensitive character sub-endpoints.
 export const GGG_SCOPES = ["account:characters", "account:profile"];
 
-/** Refreshed GGG tokens to persist back to provider_credentials. */
-export interface RefreshedCreds {
-  accessToken: string;
-  refreshToken: string | null;
-  expiresAt: string | null;
-}
-
 /**
  * Return a usable access token, refreshing in-adapter (confidential
  * client) when the stored one has expired. WoW-style: no global
- * refresher. When a refresh happens, `refreshed` carries the new
- * tokens so the caller (via identity.extra → postPushHooks) can
- * persist them to provider_credentials.
+ * refresher. GGG rotates the refresh token on every use, so a
+ * successful exchange is handed to `persistCredentials` and awaited
+ * BEFORE this function returns — a failure later in the fetch must
+ * never discard the only valid refresh token.
  *
  * @throws {AdapterError} token_expired when expired and unrefreshable.
  */
 export async function ensureGggAccessToken(
   creds: GameCredentials,
   env: Env,
-): Promise<{ accessToken: string; refreshed?: RefreshedCreds }> {
+  persistCredentials: (creds: GameCredentials) => Promise<void>,
+): Promise<string> {
   const stillValid = !creds.expiresAt || new Date(creds.expiresAt).getTime() > Date.now();
   if (stillValid) {
-    return { accessToken: creds.accessToken };
+    return creds.accessToken;
   }
   if (!creds.refreshToken) {
     throw new AdapterError("token_expired", "GGG token expired", {
@@ -142,15 +137,15 @@ export async function ensureGggAccessToken(
   if (!tok.access_token) {
     throw new AdapterError("token_expired", "GGG refresh response missing access_token");
   }
-  const expiresAt = tok.expires_in
-    ? new Date(Date.now() + tok.expires_in * 1000).toISOString()
-    : null;
-  return {
+  const rotated: GameCredentials = {
     accessToken: tok.access_token,
-    refreshed: {
-      accessToken: tok.access_token,
-      refreshToken: tok.refresh_token ?? creds.refreshToken,
-      expiresAt,
-    },
+    refreshToken: tok.refresh_token ?? creds.refreshToken,
+    expiresAt: tok.expires_in
+      ? new Date(Date.now() + tok.expires_in * 1000).toISOString()
+      : undefined,
   };
+  // GGG invalidated the old refresh token the moment the exchange
+  // succeeded — persist the rotated pair before anything else can fail.
+  await persistCredentials(rotated);
+  return rotated.accessToken;
 }

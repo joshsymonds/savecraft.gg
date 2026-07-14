@@ -1,7 +1,12 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { ApiAdapter, FetchParams, GameState } from "../src/adapters/adapter";
+import {
+  AdapterError,
+  type ApiAdapter,
+  type FetchParams,
+  type GameState,
+} from "../src/adapters/adapter";
 import { providerForGame } from "../src/adapters/providers";
 import { adapters } from "../src/adapters/registry";
 import type { ToolResult, ViewToolResult } from "../src/mcp/tools";
@@ -31,7 +36,14 @@ import {
 } from "../src/mcp/tools";
 import type { Env } from "../src/types";
 
-import { cleanAll } from "./helpers";
+import {
+  cleanAll,
+  closeWs,
+  connectDaemonWs,
+  seedSource,
+  sendProto,
+  waitForProtoMessage,
+} from "./helpers";
 
 const USER_A = "mcp-user-a";
 const USER_B = "mcp-user-b";
@@ -84,6 +96,7 @@ async function seedSave(options: {
   summary: string;
   lastUpdated?: string;
   gameState?: typeof sampleGameState;
+  displayName?: string | null;
 }): Promise<void> {
   const lastUpdated = options.lastUpdated ?? "2026-02-25T21:30:00Z";
   const gameName = options.gameName ?? options.gameId;
@@ -92,7 +105,7 @@ async function seedSave(options: {
   await ensureSource(options.userUuid);
 
   await env.DB.prepare(
-    "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid, display_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       options.saveUuid,
@@ -103,6 +116,7 @@ async function seedSave(options: {
       options.summary,
       lastUpdated,
       sourceUuid,
+      options.displayName ?? null,
     )
     .run();
 
@@ -118,6 +132,30 @@ async function seedSave(options: {
   if (sectionBatch.length > 0) {
     await env.DB.batch(sectionBatch);
   }
+}
+
+/**
+ * Hand-written fake SourceHub namespace whose /rescan fetch never resolves
+ * on its own — simulates a healthy DO with an unresponsive daemon connection.
+ * Honors the AbortSignal passed via the Request init (as a real Workers
+ * subrequest would when the platform or an explicit timeout cancels it), so
+ * refreshSave's timeout path can be exercised without a real 10s wait.
+ */
+function fakeHungSourceHub(): DurableObjectNamespace {
+  const stub = {
+    fetch: (input: RequestInfo | URL) => {
+      const request = input instanceof Request ? input : new Request(input);
+      return new Promise<Response>((_resolve, reject) => {
+        request.signal.addEventListener("abort", () => {
+          reject(new DOMException("The operation timed out.", "TimeoutError"));
+        });
+      });
+    },
+  } as unknown as DurableObjectStub;
+  return {
+    idFromName: () => ({}) as unknown as DurableObjectId,
+    get: () => stub,
+  } as unknown as DurableObjectNamespace;
 }
 
 function parseResult(result: ToolResult | ViewToolResult): unknown {
@@ -450,6 +488,58 @@ describe("MCP Tools", () => {
       expect(result.isError).toBe(true);
       expect(result.content[0]!.text).toContain("request_game");
     });
+
+    it("labels a magic save with no display_name as MTG Arena Player", async () => {
+      await seedSave({
+        saveUuid: "save-magic-no-name",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: null,
+      });
+
+      const result = await listGames(env.DB, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      const magic = data.games.find((g) => g.game_id === "magic")!;
+      expect(magic.saves.find((s) => s.save_id === "save-magic-no-name")!.name).toBe(
+        "MTG Arena Player",
+      );
+    });
+
+    it("labels a magic save with a display_name using the display_name", async () => {
+      await seedSave({
+        saveUuid: "save-magic-named",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: "Aure Silvershield",
+      });
+
+      const result = await listGames(env.DB, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      const magic = data.games.find((g) => g.game_id === "magic")!;
+      expect(magic.saves.find((s) => s.save_id === "save-magic-named")!.name).toBe(
+        "Aure Silvershield",
+      );
+    });
+
+    it("labels a non-magic save with no display_name using save_name", async () => {
+      await seedSave({
+        saveUuid: "save-d2r-no-name",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Hammerdin",
+        summary: "Paladin",
+        displayName: null,
+      });
+
+      const result = await listGames(env.DB, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      const d2r = data.games.find((g) => g.game_id === "d2r")!;
+      expect(d2r.saves.find((s) => s.save_id === "save-d2r-no-name")!.name).toBe("Hammerdin");
+    });
   });
 
   // ── viewResult format ──────────────────────────────────────
@@ -631,6 +721,7 @@ describe("MCP Tools", () => {
       expect(result.isError).toBe(true);
       const text = result.content[0]?.type === "text" ? result.content[0].text : "";
       expect(text).toContain("deck:[HB] Slivers");
+      expect(text).toContain("Available sections for this save:");
     });
 
     it("does not suggest deck matches for non-deck section misses", async () => {
@@ -996,6 +1087,51 @@ describe("MCP Tools", () => {
       expect(data.notes).toBeDefined();
     });
 
+    it("labels a magic save with no display_name as MTG Arena Player", async () => {
+      await seedSave({
+        saveUuid: "save-magic-get-no-name",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: null,
+      });
+
+      const result = await getSave(env.DB, USER_A, "save-magic-get-no-name");
+      const data = parseResult(result) as { name: string };
+      expect(data.name).toBe("MTG Arena Player");
+    });
+
+    it("labels a magic save with a display_name using the display_name", async () => {
+      await seedSave({
+        saveUuid: "save-magic-get-named",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: "Aure Silvershield",
+      });
+
+      const result = await getSave(env.DB, USER_A, "save-magic-get-named");
+      const data = parseResult(result) as { name: string };
+      expect(data.name).toBe("Aure Silvershield");
+    });
+
+    it("labels a non-magic save with no display_name using save_name", async () => {
+      await seedSave({
+        saveUuid: "save-d2r-get-no-name",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Hammerdin",
+        summary: "Paladin",
+        displayName: null,
+      });
+
+      const result = await getSave(env.DB, USER_A, "save-d2r-get-no-name");
+      const data = parseResult(result) as { name: string };
+      expect(data.name).toBe("Hammerdin");
+    });
+
     it("includes icon_url when plugins and serverUrl are provided", async () => {
       await seedSave({
         saveUuid: "save-icon-get",
@@ -1119,6 +1255,40 @@ describe("MCP Tools", () => {
       // content carries JSON data for model reasoning
       expect(viewResult.content).toHaveLength(1);
       expect(viewResult.content[0]!.text).toContain("Hammerdin");
+    });
+
+    it("labels magic search results using the save's display_name", async () => {
+      await seedSave({
+        saveUuid: "save-fts-magic-named",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: "Aure Silvershield",
+      });
+      await indexSaveSections(env.DB, "save-fts-magic-named", "player", sampleGameState.sections);
+
+      const result = await searchSaves(env.DB, USER_A, "Hammerdin");
+      const data = parseResult(result) as { results: { save_id: string; save_name: string }[] };
+      const match = data.results.find((r) => r.save_id === "save-fts-magic-named")!;
+      expect(match.save_name).toBe("Aure Silvershield");
+    });
+
+    it("labels magic search results with no display_name as MTG Arena Player", async () => {
+      await seedSave({
+        saveUuid: "save-fts-magic-unnamed",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: null,
+      });
+      await indexSaveSections(env.DB, "save-fts-magic-unnamed", "player", sampleGameState.sections);
+
+      const result = await searchSaves(env.DB, USER_A, "Hammerdin");
+      const data = parseResult(result) as { results: { save_id: string; save_name: string }[] };
+      const match = data.results.find((r) => r.save_id === "save-fts-magic-unnamed")!;
+      expect(match.save_name).toBe("MTG Arena Player");
     });
   });
 
@@ -1404,6 +1574,71 @@ describe("MCP Tools", () => {
       expect(result.content[0]!.text).toContain("daemon is offline");
     });
 
+    it("returns an unresponsive-daemon error when the DO rescan fetch never resolves (times out)", async () => {
+      await seedSave({
+        saveUuid: "save-refresh-hung",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "HungChar",
+        summary: "Level 89",
+      });
+
+      const hungEnv = { ...env, SOURCE_HUB: fakeHungSourceHub() } as unknown as Env;
+      // Inject a short timeout so the test doesn't wait the real 10s default.
+      const result = await refreshSave(hungEnv, USER_A, "save-refresh-hung", 20);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0]!.text).toContain("unresponsive");
+      expect(result.content[0]!.text).toContain("get_section");
+      // Must be distinct from the daemon-offline message (different failure mode).
+      expect(result.content[0]!.text).not.toContain("daemon is offline");
+    });
+
+    it("daemon rescan success returns rescan_requested + note, not refreshed", async () => {
+      const { sourceUuid, sourceToken } = await seedSource(USER_A);
+      const daemonWs = await connectDaemonWs(sourceToken);
+      sendProto(daemonWs, {
+        payload: {
+          $case: "sourceOnline",
+          sourceOnline: {
+            version: "0.1.0",
+            platform: "",
+            os: "",
+            arch: "",
+            hostname: "",
+            device: "",
+          },
+        },
+      });
+      await waitForProtoMessage(daemonWs);
+
+      await env.DB.prepare(
+        "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+        .bind(
+          "save-rescan-success",
+          USER_A,
+          "d2r",
+          "Diablo II: Resurrected",
+          "Hammerdin",
+          "Level 89",
+          "2026-02-25T21:30:00Z",
+          sourceUuid,
+        )
+        .run();
+
+      const result = await refreshSave(env, USER_A, "save-rescan-success");
+      expect(result.isError).toBeUndefined();
+      const parsed = parseResult(result) as Record<string, unknown>;
+      expect(parsed.rescan_requested).toBe(true);
+      expect(parsed).not.toHaveProperty("refreshed");
+      expect(parsed.save_id).toBe("save-rescan-success");
+      expect(typeof parsed.note).toBe("string");
+      expect(parsed.note).toMatch(/fetch sections again/i);
+
+      closeWs(daemonWs);
+    });
+
     it("rate limits adapter-backed saves", async () => {
       // Create adapter source
       const sourceUuid = crypto.randomUUID();
@@ -1466,6 +1701,145 @@ describe("MCP Tools", () => {
       // It will fail later (no credentials/linked char in this test), but it
       // must get PAST the cooldown gate — never "refreshed recently".
       expect(result.content[0]!.text).not.toContain("refreshed recently");
+    });
+
+    describe("cooldown message reflects prior refresh outcome", () => {
+      const failingAdapter: ApiAdapter = {
+        gameId: "fakegame",
+        gameName: "Fake Game",
+        getOAuthConfig() {
+          return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+        },
+        discoverSaves() {
+          return Promise.resolve([]);
+        },
+        fetchState(): Promise<GameState> {
+          return Promise.reject(new AdapterError("token_expired", "Token has expired"));
+        },
+      };
+
+      const succeedingAdapter: ApiAdapter = {
+        gameId: "fakegame",
+        gameName: "Fake Game",
+        getOAuthConfig() {
+          return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+        },
+        discoverSaves() {
+          return Promise.resolve([]);
+        },
+        fetchState(): Promise<GameState> {
+          return Promise.resolve({
+            identity: { saveName: "Dratnos-testrealm-US", gameId: "fakegame" },
+            summary: "Refreshed",
+            sections: { overview: { description: "Overview", data: { level: 90 } } },
+          });
+        },
+      };
+
+      // adapterErrorMessage's fallback branch (`Game API error: ${message}`)
+      // doesn't guarantee terminal punctuation on the wrapped message, so
+      // this exercises the run-on-sentence guard in checkAdapterCooldown.
+      const unpunctuatedFailingAdapter: ApiAdapter = {
+        gameId: "fakegame",
+        gameName: "Fake Game",
+        getOAuthConfig() {
+          return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+        },
+        discoverSaves() {
+          return Promise.resolve([]);
+        },
+        fetchState(): Promise<GameState> {
+          return Promise.reject(new AdapterError("api_unavailable", "rate limit exceeded"));
+        },
+      };
+
+      afterEach(() => {
+        delete adapters.fakegame;
+      });
+
+      async function seedAdapterCharacter(saveUuid: string): Promise<void> {
+        const sourceUuid = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+        )
+          .bind(sourceUuid, USER_A, `hash-${saveUuid}`)
+          .run();
+        await env.DB.prepare(
+          "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+          .bind(
+            saveUuid,
+            USER_A,
+            "fakegame",
+            "Fake Game",
+            "Dratnos-testrealm-US",
+            "",
+            "2020-01-01T00:00:00Z",
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+           VALUES (?, 'fakegame', ?, ?, ?, ?, 1)`,
+        )
+          .bind(
+            USER_A,
+            "char-id-cooldown",
+            "Dratnos",
+            JSON.stringify({ realm_slug: "testrealm", region: "us" }),
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
+           VALUES (?, ?, 'acc-tok', NULL, NULL)`,
+        )
+          .bind(USER_A, providerForGame("fakegame"))
+          .run();
+      }
+
+      it("echoes the stored failure message and remaining wait on an immediate retry after a failed refresh", async () => {
+        adapters.fakegame = failingAdapter;
+        await seedAdapterCharacter("save-cooldown-fail");
+
+        const first = await refreshSave(env, USER_A, "save-cooldown-fail");
+        expect(first.isError).toBe(true);
+        expect(first.content[0]!.text).toContain("Account token expired");
+
+        const second = await refreshSave(env, USER_A, "save-cooldown-fail");
+        expect(second.isError).toBe(true);
+        expect(second.content[0]!.text).not.toContain("refreshed recently");
+        expect(second.content[0]!.text).toMatch(/Refresh failed .* ago:/);
+        expect(second.content[0]!.text).toContain("Account token expired");
+        expect(second.content[0]!.text).toMatch(/available in \d+ seconds/);
+      });
+
+      it("inserts terminal punctuation before the retry sentence when the stored error lacks it", async () => {
+        adapters.fakegame = unpunctuatedFailingAdapter;
+        await seedAdapterCharacter("save-cooldown-fail-unpunctuated");
+
+        const first = await refreshSave(env, USER_A, "save-cooldown-fail-unpunctuated");
+        expect(first.isError).toBe(true);
+        expect(first.content[0]!.text).toBe("Game API error: rate limit exceeded");
+
+        const second = await refreshSave(env, USER_A, "save-cooldown-fail-unpunctuated");
+        expect(second.isError).toBe(true);
+        expect(second.content[0]!.text).toContain("rate limit exceeded. Next attempt");
+        expect(second.content[0]!.text).not.toContain("rate limit exceeded Next attempt");
+      });
+
+      it("keeps the plain cooldown message on an immediate retry after a successful refresh", async () => {
+        adapters.fakegame = succeedingAdapter;
+        await seedAdapterCharacter("save-cooldown-ok");
+
+        const first = await refreshSave(env, USER_A, "save-cooldown-ok");
+        expect(first.isError).toBeFalsy();
+
+        const second = await refreshSave(env, USER_A, "save-cooldown-ok");
+        expect(second.isError).toBe(true);
+        expect(second.content[0]!.text).toContain("refreshed recently");
+        expect(second.content[0]!.text).not.toMatch(/Refresh failed/);
+      });
     });
 
     it("returns error when adapter save has no realm info", async () => {
@@ -1584,6 +1958,183 @@ describe("MCP Tools", () => {
           "SELECT data FROM sections WHERE save_uuid = 'save-fakeok' AND name = 'overview'",
         ).first<{ data: string }>();
         expect(section).toBeTruthy();
+      });
+    });
+
+    // GameState.identity.displayName is advertised on the adapter
+    // contract as a mutable display label but was silently dropped by
+    // the tools.ts refreshSave call to storePush — the arg list ended
+    // at extra, never forwarding displayName.
+    describe("display name propagation", () => {
+      const renamedAdapter: ApiAdapter = {
+        gameId: "fakegame",
+        gameName: "Fake Game",
+        getOAuthConfig() {
+          return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+        },
+        discoverSaves() {
+          return Promise.resolve([]);
+        },
+        fetchState(): Promise<GameState> {
+          return Promise.resolve({
+            identity: {
+              saveName: "Dratnos-testrealm-US",
+              gameId: "fakegame",
+              displayName: "Renamed Hero",
+            },
+            summary: "Refreshed",
+            sections: { overview: { description: "Overview", data: { level: 90 } } },
+          });
+        },
+      };
+
+      beforeEach(() => {
+        adapters.fakegame = renamedAdapter;
+      });
+      afterEach(() => {
+        delete adapters.fakegame;
+      });
+
+      it("persists the adapter's displayName to saves.display_name on refresh", async () => {
+        const sourceUuid = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+        )
+          .bind(sourceUuid, USER_A, `hash-displayname-${USER_A}`)
+          .run();
+        await env.DB.prepare(
+          "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+          .bind(
+            "save-displayname",
+            USER_A,
+            "fakegame",
+            "Fake Game",
+            "Dratnos-testrealm-US",
+            "",
+            "2020-01-01T00:00:00Z",
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+           VALUES (?, 'fakegame', ?, ?, ?, ?, 1)`,
+        )
+          .bind(
+            USER_A,
+            "char-id-displayname",
+            "Dratnos",
+            JSON.stringify({ realm_slug: "testrealm", region: "us" }),
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
+           VALUES (?, ?, 'acc-tok', NULL, NULL)`,
+        )
+          .bind(USER_A, providerForGame("fakegame"))
+          .run();
+
+        const result = await refreshSave(env, USER_A, "save-displayname");
+
+        expect(result.isError).toBeFalsy();
+
+        const save = await env.DB.prepare(
+          "SELECT display_name FROM saves WHERE uuid = 'save-displayname'",
+        ).first<{ display_name: string | null }>();
+        expect(save?.display_name).toBe("Renamed Hero");
+      });
+    });
+
+    // GGG invalidates the old refresh token the moment a refresh
+    // succeeds, so rotated credentials must be durably persisted via
+    // params.persistCredentials even when fetchState subsequently
+    // throws — otherwise the account wedges until manual re-auth.
+    describe("credential rotation durability", () => {
+      const rotatedCreds = {
+        accessToken: "rotated-acc",
+        refreshToken: "rotated-ref",
+        expiresAt: "2099-01-01T00:00:00Z",
+      };
+      const rotateThenFailAdapter: ApiAdapter = {
+        gameId: "fakegame",
+        gameName: "Fake Game",
+        getOAuthConfig() {
+          return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+        },
+        discoverSaves() {
+          return Promise.resolve([]);
+        },
+        async fetchState(params: FetchParams): Promise<GameState> {
+          // Simulates GGG: the token exchange succeeded (old refresh
+          // token now invalid upstream), then a later API call failed.
+          await params.persistCredentials(rotatedCreds);
+          throw new AdapterError("character_not_found", "character gone after rotation");
+        },
+      };
+
+      beforeEach(() => {
+        adapters.fakegame = rotateThenFailAdapter;
+      });
+      afterEach(() => {
+        delete adapters.fakegame;
+      });
+
+      it("persists rotated credentials even when fetchState throws after the refresh", async () => {
+        const sourceUuid = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+        )
+          .bind(sourceUuid, USER_A, `hash-fakerot-${USER_A}`)
+          .run();
+        await env.DB.prepare(
+          "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+          .bind(
+            "save-rotate-fail",
+            USER_A,
+            "fakegame",
+            "Fake Game",
+            "Dratnos-testrealm-US",
+            "",
+            "2020-01-01T00:00:00Z",
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+           VALUES (?, 'fakegame', ?, ?, ?, ?, 1)`,
+        )
+          .bind(
+            USER_A,
+            "char-id-xyz",
+            "Dratnos",
+            JSON.stringify({ realm_slug: "testrealm", region: "us" }),
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
+           VALUES (?, ?, 'stale-acc', 'stale-ref', '2000-01-01T00:00:00Z')`,
+        )
+          .bind(USER_A, providerForGame("fakegame"))
+          .run();
+
+        const result = await refreshSave(env, USER_A, "save-rotate-fail");
+
+        // The fetch itself still fails and surfaces the adapter error…
+        expect(result.isError).toBe(true);
+        expect(result.content[0]!.text).toContain("not found");
+
+        // …but the rotated credentials survived the failure.
+        const cred = await env.DB.prepare(
+          "SELECT access_token, refresh_token, expires_at FROM provider_credentials WHERE user_uuid = ? AND provider = ?",
+        )
+          .bind(USER_A, providerForGame("fakegame"))
+          .first<{ access_token: string; refresh_token: string; expires_at: string }>();
+        expect(cred!.access_token).toBe("rotated-acc");
+        expect(cred!.refresh_token).toBe("rotated-ref");
+        expect(cred!.expires_at).toBe("2099-01-01T00:00:00Z");
       });
     });
   });

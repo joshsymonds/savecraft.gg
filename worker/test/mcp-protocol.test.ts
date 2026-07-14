@@ -223,6 +223,29 @@ describe("MCP Protocol", () => {
     expect(resourceDomains).not.toContain("https://staging-api.savecraft.gg");
   });
 
+  it("tells the LLM to call get_save to enumerate section names in get_section's sections param", async () => {
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(mcpRequest("tools/list", 2));
+    const body = (await parseJsonResponse(resp)) as {
+      result: {
+        tools: {
+          name: string;
+          inputSchema: { properties: Record<string, { description?: string }> };
+        }[];
+      };
+    };
+
+    const getSection = body.result.tools.find((t) => t.name === "get_section")!;
+    expect(getSection.inputSchema.properties.sections?.description).toContain("get_save");
+  });
+
   it("includes every manifest game_id in list_games and show_games descriptions", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {
