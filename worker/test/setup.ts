@@ -54,6 +54,7 @@ const statements = [
     refresh_error TEXT,
     last_refresh_at TEXT,
     removed_at TEXT,
+    display_name TEXT,
     UNIQUE (user_uuid, game_id, save_name)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_uuid)`,

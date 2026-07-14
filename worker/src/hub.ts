@@ -129,6 +129,14 @@ function findOrCreateGame(source: SourceInfo, gameId: string): GameInfo {
   return game;
 }
 
+/** Extract the identity key + mutable display label from a PushSave, defaulting missing fields to "". */
+function pushIdentity(push: PushSave): { saveName: string; displayName: string } {
+  return {
+    saveName: push.identity?.name ?? "",
+    displayName: push.identity?.displayName ?? "",
+  };
+}
+
 function getConnTag(tags: string[]): string | undefined {
   return tags.find((t) => t.startsWith(CONN_PREFIX));
 }
@@ -1012,7 +1020,7 @@ export class SourceHub extends DurableObject<Env> {
         return;
       }
 
-      const saveName = push.identity?.name ?? "";
+      const { saveName, displayName } = pushIdentity(push);
       if (!saveName || !push.gameId) {
         this.debugLog.push("warn", "pushSave missing identity or gameId");
         this.sendPushSaveRejection(ws, push.gameId, PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED);
@@ -1051,6 +1059,8 @@ export class SourceHub extends DurableObject<Env> {
         parsedAt,
         sections,
         push.allSectionNames,
+        undefined,
+        displayName,
       );
 
       // Send PushSaveResult back to daemon

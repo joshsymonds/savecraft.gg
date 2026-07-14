@@ -143,6 +143,53 @@ export async function persistProviderCredentials(
     .run();
 }
 
+/** Empty/undefined display names are stored as NULL, never an empty string. */
+function normalizeDisplayName(displayName?: string): string | null {
+  if (!displayName) {
+    return null;
+  }
+  return displayName;
+}
+
+async function insertNewSave(
+  env: Env,
+  userUuid: string | null,
+  sourceUuid: string,
+  gameId: string,
+  saveName: string,
+  summary: string,
+  parsedAt: string,
+  sections: Record<string, SectionInput>,
+  extra: Record<string, unknown> | undefined,
+  displayName: string | undefined,
+): Promise<{ saveUuid: string; changed: boolean }> {
+  const saveUuid = crypto.randomUUID();
+  const gameName = resolveGameName(gameId);
+  await env.DB.prepare(
+    "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid, display_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      saveUuid,
+      userUuid,
+      gameId,
+      gameName,
+      saveName,
+      summary,
+      parsedAt,
+      sourceUuid,
+      normalizeDisplayName(displayName),
+    )
+    .run();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?").bind(
+      sourceUuid,
+    ),
+    ...buildSectionStatements(env.DB, saveUuid, saveName, sections),
+  ]);
+  await postPushHooks(env.DB, gameId, userUuid, sections, saveUuid, extra);
+  return { saveUuid, changed: true };
+}
+
 export async function storePush(
   env: Env,
   userUuid: string | null,
@@ -154,6 +201,7 @@ export async function storePush(
   sections: Record<string, SectionInput>,
   allSectionNames?: string[],
   extra?: Record<string, unknown>,
+  displayName?: string,
 ): Promise<{ saveUuid: string; changed: boolean }> {
   // Linked sources dedup by (user_uuid, game_id, save_name).
   // Unlinked sources dedup by (last_source_uuid, game_id, save_name) where user_uuid IS NULL.
@@ -170,21 +218,18 @@ export async function storePush(
         .first<{ uuid: string; last_updated: string; summary: string }>();
 
   if (!existingSave) {
-    const saveUuid = crypto.randomUUID();
-    const gameName = resolveGameName(gameId);
-    await env.DB.prepare(
-      "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    )
-      .bind(saveUuid, userUuid, gameId, gameName, saveName, summary, parsedAt, sourceUuid)
-      .run();
-    await env.DB.batch([
-      env.DB.prepare(
-        "UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?",
-      ).bind(sourceUuid),
-      ...buildSectionStatements(env.DB, saveUuid, saveName, sections),
-    ]);
-    await postPushHooks(env.DB, gameId, userUuid, sections, saveUuid, extra);
-    return { saveUuid, changed: true };
+    return insertNewSave(
+      env,
+      userUuid,
+      sourceUuid,
+      gameId,
+      saveName,
+      summary,
+      parsedAt,
+      sections,
+      extra,
+      displayName,
+    );
   }
 
   const saveUuid = existingSave.uuid;
@@ -208,8 +253,12 @@ export async function storePush(
 
   const batch: D1PreparedStatement[] = [
     env.DB.prepare(
-      "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
-    ).bind(summary, parsedAt, sourceUuid, saveUuid),
+      // display_name is updated in place on every push; an existing
+      // non-null display_name is not overwritten by an empty incoming
+      // one (a plugin that failed to parse the name this run must not
+      // erase a previously-learned name).
+      "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ?, display_name = COALESCE(NULLIF(?, ''), display_name) WHERE uuid = ?",
+    ).bind(summary, parsedAt, sourceUuid, displayName ?? "", saveUuid),
     env.DB.prepare("UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?").bind(
       sourceUuid,
     ),

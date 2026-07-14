@@ -128,6 +128,11 @@ export interface GameState {
     saveName: string;
     gameId: string;
     extra?: Record<string, unknown>;
+    /**
+     * Mutable display label, updated in place on every push. `saveName`
+     * remains the immutable identity key. Optional — adapters may omit it.
+     */
+    displayName?: string;
   };
   summary: string;
   sections: Record<string, GameStateSection>;
