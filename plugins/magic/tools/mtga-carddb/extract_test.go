@@ -41,14 +41,17 @@ func TestExtractFullCards_Kavaero(t *testing.T) {
 		t.Fatalf("extractFullCards: %v", err)
 	}
 
-	// Kavaero, Mind-Bitten — arena_id 97973, set om1
-	c := findCard(cards, 97973)
+	// Kavaero, Mind-Bitten (set om1). Looked up by name, not arena_id —
+	// WotC renumbers GrpIds between client DB revisions (97973 was Kavaero,
+	// then became SPM's Superior Spider-Man), so a pinned id rots with
+	// every depot refresh while the name stays stable.
+	c := findDefaultByName(cards, "Kavaero, Mind-Bitten")
 	if c == nil {
-		t.Fatal("Kavaero (97973) not found")
+		t.Fatal("Kavaero, Mind-Bitten not found")
 	}
 
-	if c.Name != "Kavaero, Mind-Bitten" {
-		t.Errorf("Name = %q, want %q", c.Name, "Kavaero, Mind-Bitten")
+	if c.ArenaID <= 0 {
+		t.Errorf("ArenaID = %d, want > 0", c.ArenaID)
 	}
 	if c.ManaCost != "{2}{U}{B}" {
 		t.Errorf("ManaCost = %q, want %q", c.ManaCost, "{2}{U}{B}")
@@ -78,9 +81,6 @@ func TestExtractFullCards_Kavaero(t *testing.T) {
 	// Oracle text should be present (ability text assembled).
 	if c.OracleText == "" {
 		t.Error("OracleText is empty")
-	}
-	if !c.IsDefault {
-		t.Error("IsDefault should be true (only printing)")
 	}
 }
 
