@@ -81,12 +81,17 @@ describe("GET /api/v1/game-requests", () => {
   });
 
   it("caps the response at 200 entries, highest-count first", async () => {
-    for (let i = 0; i < 205; i++) {
-      const slug = `game-${i.toString().padStart(3, "0")}`;
+    for (let gameIndex = 0; gameIndex < 205; gameIndex++) {
+      const slug = `game-${gameIndex.toString().padStart(3, "0")}`;
       // A handful of distinct counts so ordering is still asserted, not just truncation.
-      const players = i < 5 ? 5 - i : 1;
-      for (let p = 0; p < players; p++) {
-        await insertRequest(`user-${i}-${p}`, slug, slug, "2026-01-01 00:00:00");
+      const players = gameIndex < 5 ? 5 - gameIndex : 1;
+      for (let playerIndex = 0; playerIndex < players; playerIndex++) {
+        await insertRequest(
+          `user-${slug}-${playerIndex.toString()}`,
+          slug,
+          slug,
+          "2026-01-01 00:00:00",
+        );
       }
     }
 
