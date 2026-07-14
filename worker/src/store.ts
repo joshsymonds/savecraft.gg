@@ -44,6 +44,69 @@ function buildSectionStatements(
 }
 
 /**
+ * Build the atomic batch for an existing save's update path: save/source
+ * metadata, FTS rows rebuilt only for the incoming (delta) sections — since
+ * the daemon routinely sends partial pushes, untouched sections' FTS rows
+ * must survive — plus stale-section cleanup (sections + their FTS rows)
+ * driven by allSectionNames. Every IN/NOT-IN over section names uses
+ * json_each(?) to stay under D1's ~100 bound-parameter limit.
+ */
+function buildUpdateBatch(
+  db: D1Database,
+  saveUuid: string,
+  saveName: string,
+  summary: string,
+  parsedAt: string,
+  sourceUuid: string,
+  sections: Record<string, SectionInput>,
+  allSectionNames?: string[],
+): D1PreparedStatement[] {
+  const incomingNames = Object.keys(sections);
+
+  const batch: D1PreparedStatement[] = [
+    db
+      .prepare(
+        "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
+      )
+      .bind(summary, parsedAt, sourceUuid, saveUuid),
+    db
+      .prepare("UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?")
+      .bind(sourceUuid),
+  ];
+
+  if (incomingNames.length > 0) {
+    batch.push(
+      db
+        .prepare(
+          `DELETE FROM search_index WHERE save_id = ? AND type = 'section' AND ref_id IN (SELECT value FROM json_each(?))`,
+        )
+        .bind(saveUuid, JSON.stringify(incomingNames)),
+    );
+  }
+
+  batch.push(...buildSectionStatements(db, saveUuid, saveName, sections));
+
+  // Delete stale sections (and their FTS rows) no longer produced by the plugin.
+  if (allSectionNames && allSectionNames.length > 0) {
+    const namesJson = JSON.stringify(allSectionNames);
+    batch.push(
+      db
+        .prepare(
+          `DELETE FROM sections WHERE save_uuid = ? AND name NOT IN (SELECT value FROM json_each(?))`,
+        )
+        .bind(saveUuid, namesJson),
+      db
+        .prepare(
+          `DELETE FROM search_index WHERE save_id = ? AND type = 'section' AND ref_id NOT IN (SELECT value FROM json_each(?))`,
+        )
+        .bind(saveUuid, namesJson),
+    );
+  }
+
+  return batch;
+}
+
+/**
  * Run game-specific post-push hooks. Called from BOTH the insert and
  * update paths after the save + sections are committed (so `saveUuid`
  * exists for FK-bound side tables). `extra` carries adapter-only,
@@ -200,28 +263,16 @@ export async function storePush(
     }
   }
 
-  const batch: D1PreparedStatement[] = [
-    env.DB.prepare(
-      "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
-    ).bind(summary, parsedAt, sourceUuid, saveUuid),
-    env.DB.prepare("UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?").bind(
-      sourceUuid,
-    ),
-    env.DB.prepare("DELETE FROM search_index WHERE save_id = ? AND type = 'section'").bind(
-      saveUuid,
-    ),
-    ...buildSectionStatements(env.DB, saveUuid, saveName, sections),
-  ];
-
-  // Delete stale sections no longer produced by the plugin.
-  if (allSectionNames && allSectionNames.length > 0) {
-    const placeholders = allSectionNames.map(() => "?").join(", ");
-    batch.push(
-      env.DB.prepare(
-        `DELETE FROM sections WHERE save_uuid = ? AND name NOT IN (${placeholders})`,
-      ).bind(saveUuid, ...allSectionNames),
-    );
-  }
+  const batch = buildUpdateBatch(
+    env.DB,
+    saveUuid,
+    saveName,
+    summary,
+    parsedAt,
+    sourceUuid,
+    sections,
+    allSectionNames,
+  );
 
   await env.DB.batch(batch);
   await postPushHooks(env.DB, gameId, userUuid, sections, saveUuid, extra);
