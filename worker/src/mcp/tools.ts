@@ -958,8 +958,22 @@ function checkAdapterCooldown(save: SaveRow): ToolResult | null {
   const lastRefreshAt = new Date(iso).getTime();
   const cooldownMs = ADAPTER_REFRESH_COOLDOWN_SEC * 1000;
   const now = Date.now();
-  if (now - lastRefreshAt < cooldownMs) {
-    const retryAfter = Math.ceil((cooldownMs - (now - lastRefreshAt)) / 1000);
+  const elapsedMs = now - lastRefreshAt;
+  if (elapsedMs < cooldownMs) {
+    const retryAfter = Math.ceil((cooldownMs - elapsedMs) / 1000);
+    // If the prior attempt failed, echo the real actionable error instead
+    // of the generic message — masking it behind "refreshed recently" was
+    // driving retry-mashing (users repeating a doomed call up to 9x/min).
+    if (save.refresh_status === "error" && save.refresh_error) {
+      const elapsedMinutes = Math.floor(elapsedMs / 1000 / 60);
+      const relative =
+        elapsedMinutes < 1
+          ? "under a minute"
+          : `${String(elapsedMinutes)} minute${elapsedMinutes === 1 ? "" : "s"}`;
+      return errorResult(
+        `Refresh failed ${relative} ago: ${save.refresh_error} Next attempt available in ${String(retryAfter)} seconds.`,
+      );
+    }
     return errorResult(
       `This character was refreshed recently. Try again in ${String(retryAfter)} seconds.`,
     );
@@ -1098,15 +1112,19 @@ async function refreshAdapterSave(
     });
   } catch (error) {
     if (error instanceof AdapterError) {
+      const result = handleAdapterError(error);
       // Stamp the attempt so a failed fetch (e.g. rate_limited) still
       // starts the cooldown — don't let the AI hammer the upstream API.
-      const message = `${error.code}: ${error.message}`;
+      // Store the exact user-facing message (not just `code: message`) so
+      // a cooldown-blocked retry can echo the full actionable error (e.g.
+      // token_expired's reconnect instructions) instead of masking it.
+      const message = result.content[0]?.text ?? `${error.code}: ${error.message}`;
       await env.DB.prepare(
         "UPDATE saves SET refresh_status = 'error', refresh_error = ?, last_refresh_at = datetime('now') WHERE uuid = ?",
       )
         .bind(message.length > 500 ? `${message.slice(0, 497)}...` : message, save.uuid)
         .run();
-      return handleAdapterError(error);
+      return result;
     }
     throw error;
   }

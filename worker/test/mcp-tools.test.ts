@@ -1326,6 +1326,114 @@ describe("MCP Tools", () => {
       expect(result.content[0]!.text).not.toContain("refreshed recently");
     });
 
+    describe("cooldown message reflects prior refresh outcome", () => {
+      const failingAdapter: ApiAdapter = {
+        gameId: "fakegame",
+        gameName: "Fake Game",
+        getOAuthConfig() {
+          return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+        },
+        discoverSaves() {
+          return Promise.resolve([]);
+        },
+        fetchState(): Promise<GameState> {
+          return Promise.reject(new AdapterError("token_expired", "Token has expired"));
+        },
+      };
+
+      const succeedingAdapter: ApiAdapter = {
+        gameId: "fakegame",
+        gameName: "Fake Game",
+        getOAuthConfig() {
+          return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+        },
+        discoverSaves() {
+          return Promise.resolve([]);
+        },
+        fetchState(): Promise<GameState> {
+          return Promise.resolve({
+            identity: { saveName: "Dratnos-testrealm-US", gameId: "fakegame" },
+            summary: "Refreshed",
+            sections: { overview: { description: "Overview", data: { level: 90 } } },
+          });
+        },
+      };
+
+      afterEach(() => {
+        delete adapters.fakegame;
+      });
+
+      async function seedAdapterCharacter(saveUuid: string): Promise<void> {
+        const sourceUuid = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+        )
+          .bind(sourceUuid, USER_A, `hash-${saveUuid}`)
+          .run();
+        await env.DB.prepare(
+          "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+          .bind(
+            saveUuid,
+            USER_A,
+            "fakegame",
+            "Fake Game",
+            "Dratnos-testrealm-US",
+            "",
+            "2020-01-01T00:00:00Z",
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+           VALUES (?, 'fakegame', ?, ?, ?, ?, 1)`,
+        )
+          .bind(
+            USER_A,
+            "char-id-cooldown",
+            "Dratnos",
+            JSON.stringify({ realm_slug: "testrealm", region: "us" }),
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
+           VALUES (?, ?, 'acc-tok', NULL, NULL)`,
+        )
+          .bind(USER_A, providerForGame("fakegame"))
+          .run();
+      }
+
+      it("echoes the stored failure message and remaining wait on an immediate retry after a failed refresh", async () => {
+        adapters.fakegame = failingAdapter;
+        await seedAdapterCharacter("save-cooldown-fail");
+
+        const first = await refreshSave(env, USER_A, "save-cooldown-fail");
+        expect(first.isError).toBe(true);
+        expect(first.content[0]!.text).toContain("Account token expired");
+
+        const second = await refreshSave(env, USER_A, "save-cooldown-fail");
+        expect(second.isError).toBe(true);
+        expect(second.content[0]!.text).not.toContain("refreshed recently");
+        expect(second.content[0]!.text).toMatch(/Refresh failed .* ago:/);
+        expect(second.content[0]!.text).toContain("Account token expired");
+        expect(second.content[0]!.text).toMatch(/available in \d+ seconds/);
+      });
+
+      it("keeps the plain cooldown message on an immediate retry after a successful refresh", async () => {
+        adapters.fakegame = succeedingAdapter;
+        await seedAdapterCharacter("save-cooldown-ok");
+
+        const first = await refreshSave(env, USER_A, "save-cooldown-ok");
+        expect(first.isError).toBeFalsy();
+
+        const second = await refreshSave(env, USER_A, "save-cooldown-ok");
+        expect(second.isError).toBe(true);
+        expect(second.content[0]!.text).toContain("refreshed recently");
+        expect(second.content[0]!.text).not.toMatch(/Refresh failed/);
+      });
+    });
+
     it("returns error when adapter save has no realm info", async () => {
       // Create adapter source
       const sourceUuid = crypto.randomUUID();
