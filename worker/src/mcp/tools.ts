@@ -1114,6 +1114,7 @@ async function refreshAdapterSave(
       gameState.sections,
       undefined,
       gameState.identity.extra,
+      gameState.identity.displayName,
     );
 
     await env.DB.prepare(

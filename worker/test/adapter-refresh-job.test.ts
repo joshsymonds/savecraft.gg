@@ -150,6 +150,10 @@ describe("Adapter Refresh Job", () => {
   });
 
   it("refreshes an adapter save and writes refresh_status=ok", async () => {
+    fakeGameState = {
+      ...fakeGameState,
+      identity: { ...fakeGameState.identity, displayName: "Renamed Hero" },
+    };
     const sourceUuid = await seedAdapterSource(USER_UUID);
     const saveUuid = await seedAdapterSave(
       USER_UUID,
@@ -170,12 +174,17 @@ describe("Adapter Refresh Job", () => {
 
     // Check refresh_status was written
     const save = await env.DB.prepare(
-      "SELECT refresh_status, refresh_error FROM saves WHERE uuid = ?",
+      "SELECT refresh_status, refresh_error, display_name FROM saves WHERE uuid = ?",
     )
       .bind(saveUuid)
-      .first<{ refresh_status: string | null; refresh_error: string | null }>();
+      .first<{
+        refresh_status: string | null;
+        refresh_error: string | null;
+        display_name: string | null;
+      }>();
     expect(save!.refresh_status).toBe("ok");
     expect(save!.refresh_error).toBeNull();
+    expect(save!.display_name).toBe("Renamed Hero");
   });
 
   it("records error on token_expired and writes refresh_status=error", async () => {

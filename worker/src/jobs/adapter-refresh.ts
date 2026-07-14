@@ -194,6 +194,7 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
       gameState.sections,
       undefined,
       gameState.identity.extra,
+      gameState.identity.displayName,
     );
 
     // Record success

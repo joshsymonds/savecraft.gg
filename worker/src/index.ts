@@ -1150,6 +1150,7 @@ async function handleAdapterRefresh(
       gameState.sections,
       undefined,
       gameState.identity.extra,
+      gameState.identity.displayName,
     );
 
     return Response.json(

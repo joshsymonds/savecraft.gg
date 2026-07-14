@@ -1814,6 +1814,91 @@ describe("MCP Tools", () => {
       });
     });
 
+    // GameState.identity.displayName is advertised on the adapter
+    // contract as a mutable display label but was silently dropped by
+    // the tools.ts refreshSave call to storePush — the arg list ended
+    // at extra, never forwarding displayName.
+    describe("display name propagation", () => {
+      const renamedAdapter: ApiAdapter = {
+        gameId: "fakegame",
+        gameName: "Fake Game",
+        getOAuthConfig() {
+          return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
+        },
+        discoverSaves() {
+          return Promise.resolve([]);
+        },
+        fetchState(): Promise<GameState> {
+          return Promise.resolve({
+            identity: {
+              saveName: "Dratnos-testrealm-US",
+              gameId: "fakegame",
+              displayName: "Renamed Hero",
+            },
+            summary: "Refreshed",
+            sections: { overview: { description: "Overview", data: { level: 90 } } },
+          });
+        },
+      };
+
+      beforeEach(() => {
+        adapters.fakegame = renamedAdapter;
+      });
+      afterEach(() => {
+        delete adapters.fakegame;
+      });
+
+      it("persists the adapter's displayName to saves.display_name on refresh", async () => {
+        const sourceUuid = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+        )
+          .bind(sourceUuid, USER_A, `hash-displayname-${USER_A}`)
+          .run();
+        await env.DB.prepare(
+          "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+          .bind(
+            "save-displayname",
+            USER_A,
+            "fakegame",
+            "Fake Game",
+            "Dratnos-testrealm-US",
+            "",
+            "2020-01-01T00:00:00Z",
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+           VALUES (?, 'fakegame', ?, ?, ?, ?, 1)`,
+        )
+          .bind(
+            USER_A,
+            "char-id-displayname",
+            "Dratnos",
+            JSON.stringify({ realm_slug: "testrealm", region: "us" }),
+            sourceUuid,
+          )
+          .run();
+        await env.DB.prepare(
+          `INSERT INTO provider_credentials (user_uuid, provider, access_token, refresh_token, expires_at)
+           VALUES (?, ?, 'acc-tok', NULL, NULL)`,
+        )
+          .bind(USER_A, providerForGame("fakegame"))
+          .run();
+
+        const result = await refreshSave(env, USER_A, "save-displayname");
+
+        expect(result.isError).toBeFalsy();
+
+        const save = await env.DB.prepare(
+          "SELECT display_name FROM saves WHERE uuid = 'save-displayname'",
+        ).first<{ display_name: string | null }>();
+        expect(save?.display_name).toBe("Renamed Hero");
+      });
+    });
+
     // GGG invalidates the old refresh token the moment a refresh
     // succeeds, so rotated credentials must be durably persisted via
     // params.persistCredentials even when fetchState subsequently
