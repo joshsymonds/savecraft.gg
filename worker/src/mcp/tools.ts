@@ -435,6 +435,15 @@ export async function requestGame(
   gameName: string,
   details?: string,
 ): Promise<ToolResult> {
+  if (gameName.length > 200) {
+    return errorResult(
+      "game_name is too long (max 200 characters) — pass the game's official title.",
+    );
+  }
+  if (details !== undefined && new TextEncoder().encode(details).length > 2048) {
+    return errorResult("details is too long (max 2048 bytes) — trim it and try again.");
+  }
+
   const slug = slugifyGameName(gameName);
   if (!slug) {
     return errorResult(

@@ -1285,7 +1285,8 @@ async function handleGameRequestTally(env: Env): Promise<Response> {
      FROM game_requests gr
      WHERE gr.game_slug NOT IN (SELECT game_slug FROM game_request_blocks)
      GROUP BY gr.game_slug
-     ORDER BY count DESC, name ASC`,
+     ORDER BY count DESC, name ASC
+     LIMIT 200`,
   ).all<{ slug: string; name: string; count: number }>();
 
   return Response.json(

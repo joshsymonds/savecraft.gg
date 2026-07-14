@@ -80,6 +80,30 @@ describe("GET /api/v1/game-requests", () => {
     expect(text).not.toContain("please add this game");
   });
 
+  it("caps the response at 200 entries, highest-count first", async () => {
+    for (let i = 0; i < 205; i++) {
+      const slug = `game-${i.toString().padStart(3, "0")}`;
+      // A handful of distinct counts so ordering is still asserted, not just truncation.
+      const players = i < 5 ? 5 - i : 1;
+      for (let p = 0; p < players; p++) {
+        await insertRequest(`user-${i}-${p}`, slug, slug, "2026-01-01 00:00:00");
+      }
+    }
+
+    const resp = await SELF.fetch("https://test-host/api/v1/game-requests");
+    expect(resp.status).toBe(200);
+    const body = await resp.json<{ requests: { slug: string; name: string; count: number }[] }>();
+    expect(body.requests).toHaveLength(200);
+    expect(body.requests.slice(0, 5).map((r) => r.count)).toEqual([5, 4, 3, 2, 1]);
+    expect(body.requests.slice(0, 5).map((r) => r.slug)).toEqual([
+      "game-000",
+      "game-001",
+      "game-002",
+      "game-003",
+      "game-004",
+    ]);
+  });
+
   it("does not match POST", async () => {
     // Falls through to the protected-endpoints router, which returns 401 for
     // an unauthenticated request to an unmatched path (not a 404).

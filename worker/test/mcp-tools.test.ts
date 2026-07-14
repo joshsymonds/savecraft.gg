@@ -438,6 +438,18 @@ describe("MCP Tools", () => {
       const stardew = data.games.find((g) => g.game_id === "stardew")!;
       expect(stardew.icon_url).toBeUndefined();
     });
+
+    it("includes a request_hint pointing to request_game", async () => {
+      const result = await listGames(env.DB, "no-saves-user");
+      const data = parseResult(result) as { request_hint?: string };
+      expect(data.request_hint).toContain("request_game");
+    });
+
+    it("mentions request_game in the no-match filter error", async () => {
+      const result = await listGames(env.DB, "no-saves-user", "zzz-totally-unmatched-zzz");
+      expect(result.isError).toBe(true);
+      expect(result.content[0]!.text).toContain("request_game");
+    });
   });
 
   // ── viewResult format ──────────────────────────────────────
@@ -1326,6 +1338,57 @@ describe("MCP Tools", () => {
     it("returns an error for an empty/garbage game name", async () => {
       const result = await requestGame(env.DB, USER_A, "!!!");
       expect(result.isError).toBe(true);
+    });
+
+    it("rejects a game_name over 200 characters and inserts nothing", async () => {
+      const result = await requestGame(env.DB, USER_A, "A".repeat(201));
+      expect(result.isError).toBe(true);
+      expect(result.content[0]!.text).toContain("game_name is too long");
+
+      const count = await env.DB.prepare("SELECT COUNT(*) as count FROM game_requests").first<{
+        count: number;
+      }>();
+      expect(count?.count).toBe(0);
+    });
+
+    it("accepts a game_name of exactly 200 characters", async () => {
+      const result = await requestGame(env.DB, USER_A, "A".repeat(200));
+      expect(result.isError).toBeUndefined();
+
+      const count = await env.DB.prepare("SELECT COUNT(*) as count FROM game_requests").first<{
+        count: number;
+      }>();
+      expect(count?.count).toBe(1);
+    });
+
+    it("rejects details over 2048 bytes and inserts nothing", async () => {
+      const result = await requestGame(
+        env.DB,
+        USER_A,
+        "Hollow Knight: Silksong",
+        "x".repeat(2049),
+      );
+      expect(result.isError).toBe(true);
+
+      const count = await env.DB.prepare("SELECT COUNT(*) as count FROM game_requests").first<{
+        count: number;
+      }>();
+      expect(count?.count).toBe(0);
+    });
+
+    it("accepts details of exactly 2048 bytes", async () => {
+      const result = await requestGame(
+        env.DB,
+        USER_A,
+        "Hollow Knight: Silksong",
+        "x".repeat(2048),
+      );
+      expect(result.isError).toBeUndefined();
+
+      const count = await env.DB.prepare("SELECT COUNT(*) as count FROM game_requests").first<{
+        count: number;
+      }>();
+      expect(count?.count).toBe(1);
     });
   });
 
