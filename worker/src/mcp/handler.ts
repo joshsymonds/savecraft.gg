@@ -68,16 +68,22 @@ When working with tool results, write down important information you might need 
 
 const RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 
-/** Build resource list from discovered views. */
-const VIEW_CSP = {
-  resourceDomains: [
-    "https://fonts.googleapis.com",
-    "https://fonts.gstatic.com",
-    "https://api.savecraft.gg",
-    "https://staging-api.savecraft.gg",
-    "https://cards.scryfall.io",
-  ],
-};
+interface ViewCsp {
+  resourceDomains: string[];
+}
+
+const SHARED_VIEW_RESOURCE_DOMAINS = [
+  "https://fonts.googleapis.com",
+  "https://fonts.gstatic.com",
+  "https://cards.scryfall.io",
+];
+
+/** Build the narrowest widget CSP for the active deployment. */
+function buildViewCsp(env: Env): ViewCsp {
+  return {
+    resourceDomains: [...SHARED_VIEW_RESOURCE_DOMAINS, new URL(env.SERVER_URL ?? "").origin],
+  };
+}
 
 /** Cached per-environment results (ENVIRONMENT is constant per Worker instance). */
 let cachedToolsWithUi: ToolDefinition[] | undefined;
@@ -86,7 +92,7 @@ let cachedResourceList:
       uri: string;
       name: string;
       mimeType: string;
-      _meta: { ui: { csp: typeof VIEW_CSP } };
+      _meta: { ui: { csp: ViewCsp } };
     }[]
   | undefined;
 let cachedEnvironment: string | undefined;
@@ -95,14 +101,15 @@ function buildResourceList(env: Env): {
   uri: string;
   name: string;
   mimeType: string;
-  _meta: { ui: { csp: typeof VIEW_CSP } };
+  _meta: { ui: { csp: ViewCsp } };
 }[] {
   if (cachedResourceList && cachedEnvironment === env.ENVIRONMENT) return cachedResourceList;
+  const viewCsp = buildViewCsp(env);
   cachedResourceList = Object.keys(VIEWS).map((slug) => ({
     uri: `ui://savecraft/${slug}.html`,
     name: slug,
     mimeType: RESOURCE_MIME_TYPE,
-    _meta: { ui: { csp: VIEW_CSP } },
+    _meta: { ui: { csp: viewCsp } },
   }));
   return cachedResourceList;
 }
@@ -347,7 +354,7 @@ const TOOLS: ToolDefinition[] = [
       readOnlyHint: false,
       destructiveHint: false,
       idempotentHint: true,
-      openWorldHint: true,
+      openWorldHint: false,
     },
   },
   // ── Search ────────────────────────────────────────────────
@@ -570,6 +577,7 @@ const SHOW_TOOL_SLUGS: Record<string, string> = {
 function buildToolsWithUi(env: Env): ToolDefinition[] {
   if (cachedToolsWithUi && cachedEnvironment === env.ENVIRONMENT) return cachedToolsWithUi;
   cachedEnvironment = env.ENVIRONMENT;
+  const viewCsp = buildViewCsp(env);
   cachedToolsWithUi = TOOLS.map((tool) => {
     const slug = SHOW_TOOL_SLUGS[tool.name];
     if (!slug || !VIEWS[slug]) return tool;
@@ -579,7 +587,7 @@ function buildToolsWithUi(env: Env): ToolDefinition[] {
         ...tool._meta,
         ui: {
           resourceUri: `ui://savecraft/${slug}.html`,
-          csp: VIEW_CSP,
+          csp: viewCsp,
         },
       },
     };
@@ -1050,7 +1058,7 @@ function routeRpc(
               uri,
               mimeType: RESOURCE_MIME_TYPE,
               text: html,
-              _meta: { ui: { csp: VIEW_CSP } },
+              _meta: { ui: { csp: buildViewCsp(env) } },
             },
           ],
         }),

@@ -186,6 +186,42 @@ describe("MCP Protocol", () => {
     ]);
   });
 
+  it("marks refresh_save as a private state change, not an open-world action", async () => {
+    const resp = await SELF.fetch(mcpRequest("tools/list", 2));
+    const body = (await parseJsonResponse(resp)) as {
+      result: {
+        tools: {
+          name: string;
+          annotations: { readOnlyHint: boolean; openWorldHint: boolean };
+        }[];
+      };
+    };
+
+    const refreshSave = body.result.tools.find((tool) => tool.name === "refresh_save");
+    expect(refreshSave?.annotations).toMatchObject({
+      readOnlyHint: false,
+      openWorldHint: false,
+    });
+  });
+
+  it("limits widget resources to the configured server origin", async () => {
+    const resp = await SELF.fetch(mcpRequest("tools/list", 2));
+    const body = (await parseJsonResponse(resp)) as {
+      result: {
+        tools: {
+          name: string;
+          _meta?: { ui?: { csp?: { resourceDomains?: string[] } } };
+        }[];
+      };
+    };
+
+    const showGames = body.result.tools.find((tool) => tool.name === "show_games");
+    const resourceDomains = showGames?._meta?.ui?.csp?.resourceDomains ?? [];
+    expect(resourceDomains).toContain("http://localhost:8787");
+    expect(resourceDomains).not.toContain("https://api.savecraft.gg");
+    expect(resourceDomains).not.toContain("https://staging-api.savecraft.gg");
+  });
+
   it("includes every manifest game_id in list_games and show_games descriptions", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {
