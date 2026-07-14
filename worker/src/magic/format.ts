@@ -51,3 +51,16 @@ export function deriveFormat(eventId: string): string {
 
   return "";
 }
+
+/**
+ * Derive the draft/sealed set code from a Limited event ID, e.g.
+ * "PremierDraft_LCI_20260313" → "LCI". Returns undefined for
+ * non-Limited events or event IDs that don't carry a set token.
+ */
+export function deriveLimitedSet(eventId: string): string | undefined {
+  const tokens = eventId.split("_");
+  if (tokens[0] && LIMITED_PREFIXES.has(tokens[0]) && tokens[1]) {
+    return tokens[1];
+  }
+  return undefined;
+}

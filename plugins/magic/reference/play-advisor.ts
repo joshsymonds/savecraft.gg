@@ -14,6 +14,7 @@ import type {
   NativeReferenceModule,
   ReferenceResult,
 } from "../../../worker/src/reference/types";
+import { deriveFormat, deriveLimitedSet } from "../../../worker/src/magic/format";
 import { resolveAliases } from "./alias";
 
 // Alias resolution is only used in mulligan mode (which queries magic_cards for
@@ -114,53 +115,175 @@ async function resolveArchetype(
   return probe ? archetype : "ALL";
 }
 
+// ── Set resolution ───────────────────────────────────────────
+//
+// `set` is optional in every mode. Resolution order:
+//   1. explicit query.set → source "explicit"
+//   2. a Limited event's derived set, if it has baseline data → source "event"
+//      (only reachable when a match_id lookup loaded an eventId — currently
+//      game_review is the only mode that does this)
+//   3. the set with the most total_games in magic_play_turn_baselines →
+//      source "fallback"
+// If magic_play_turn_baselines is empty, resolution fails outright: there is
+// no baseline data to advise against regardless of mode.
+
+type SetResolution =
+  | { set: string; source: "explicit" | "event" | "fallback" }
+  | { error: string };
+
+async function resolveSet(
+  env: Env,
+  explicitSet: string | undefined,
+  eventId: string | undefined,
+): Promise<SetResolution> {
+  if (explicitSet) {
+    return { set: explicitSet, source: "explicit" };
+  }
+
+  if (eventId) {
+    const limitedSet = deriveLimitedSet(eventId);
+    if (limitedSet) {
+      const probe = await env.DB.prepare(
+        `SELECT 1 FROM magic_play_turn_baselines WHERE set_code = ? LIMIT 1`,
+      )
+        .bind(limitedSet)
+        .first();
+      if (probe) {
+        return { set: limitedSet, source: "event" };
+      }
+    }
+  }
+
+  const fallback = await env.DB.prepare(
+    `SELECT set_code FROM magic_play_turn_baselines
+     GROUP BY set_code ORDER BY SUM(total_games) DESC LIMIT 1`,
+  ).first<{ set_code: string }>();
+
+  if (!fallback) {
+    return {
+      error:
+        "Error: play statistics aren't loaded yet — no baseline data is available for any set. Pass an explicit set to try anyway.",
+    };
+  }
+
+  return { set: fallback.set_code, source: "fallback" };
+}
+
+// ── Cross-set card timing ────────────────────────────────────
+//
+// When the resolved set wasn't explicit, a single-set card_timing lookup
+// returns near-zero coverage for Constructed/Brawl decks (which span many
+// sets). Instead, look up each card across all sets (archetype ALL only)
+// and use whichever set has the most total_games for that specific card.
+
+async function crossSetCardTiming(
+  env: Env,
+  cards: string[],
+): Promise<Map<string, { setCode: string; rows: CardTimingRow[] }>> {
+  const result = new Map<string, { setCode: string; rows: CardTimingRow[] }>();
+  if (cards.length === 0) return result;
+
+  const placeholders = cards.map(() => "?").join(", ");
+  const rows = await env.DB.prepare(
+    `SELECT card_name, set_code, turn_number, times_deployed, games_won, total_games
+     FROM magic_play_card_timing
+     WHERE archetype = 'ALL' AND card_name IN (${placeholders})
+     ORDER BY card_name, set_code, turn_number`,
+  )
+    .bind(...cards)
+    .all<CardTimingRow & { set_code: string }>();
+
+  const bySetPerCard = new Map<string, Map<string, CardTimingRow[]>>();
+  for (const r of rows.results) {
+    let setMap = bySetPerCard.get(r.card_name);
+    if (!setMap) {
+      setMap = new Map();
+      bySetPerCard.set(r.card_name, setMap);
+    }
+    const existing = setMap.get(r.set_code) ?? [];
+    existing.push(r);
+    setMap.set(r.set_code, existing);
+  }
+
+  for (const [card, setMap] of bySetPerCard) {
+    let bestSet: string | undefined;
+    let bestTotal = -1;
+    for (const [setCode, setRows] of setMap) {
+      const total = setRows.reduce((sum, r) => sum + r.total_games, 0);
+      if (total > bestTotal) {
+        bestTotal = total;
+        bestSet = setCode;
+      }
+    }
+    if (bestSet) {
+      result.set(card, { setCode: bestSet, rows: setMap.get(bestSet)! });
+    }
+  }
+
+  return result;
+}
+
 // ── Query: card_timing ───────────────────────────────────────
 
 async function cardTiming(
   query: Record<string, unknown>,
   env: Env,
 ): Promise<ReferenceResult> {
-  const set = query.set as string;
   const rawCards = (query.cards as string[])?.slice(0, MAX_CARDS) ?? [];
   const archetype = (query.archetype as string) ?? "ALL";
   const format = query.format as string | undefined;
+  const explicitSet = query.set as string | undefined;
 
-  if (!set || rawCards.length === 0) {
+  if (rawCards.length === 0) {
     return {
       type: "text",
-      content: "Error: card_timing requires set and cards parameters.",
+      content: "Error: card_timing requires a cards parameter.",
     };
   }
 
-  const arch = await resolveArchetype(
-    env,
-    "magic_play_card_timing",
-    set,
-    archetype,
-  );
-
-  const placeholders = rawCards.map(() => "?").join(", ");
-  const rows = await env.DB.prepare(
-    `SELECT card_name, turn_number, times_deployed, games_won, total_games
-     FROM magic_play_card_timing
-     WHERE set_code = ? AND archetype = ? AND card_name IN (${placeholders})
-     ORDER BY card_name, turn_number`,
-  )
-    .bind(set, arch, ...rawCards)
-    .all<CardTimingRow>();
+  const resolution = await resolveSet(env, explicitSet, undefined);
+  if ("error" in resolution) {
+    return { type: "text", content: resolution.error };
+  }
+  const { set, source: setSource } = resolution;
+  const useCrossSet = setSource !== "explicit";
 
   const byCard = new Map<string, CardTimingRow[]>();
-  for (const r of rows.results) {
-    const existing = byCard.get(r.card_name) ?? [];
-    existing.push(r);
-    byCard.set(r.card_name, existing);
+  const crossSetByCard = useCrossSet
+    ? await crossSetCardTiming(env, rawCards)
+    : undefined;
+
+  if (!useCrossSet) {
+    const arch = await resolveArchetype(
+      env,
+      "magic_play_card_timing",
+      set,
+      archetype,
+    );
+    const placeholders = rawCards.map(() => "?").join(", ");
+    const rows = await env.DB.prepare(
+      `SELECT card_name, turn_number, times_deployed, games_won, total_games
+       FROM magic_play_card_timing
+       WHERE set_code = ? AND archetype = ? AND card_name IN (${placeholders})
+       ORDER BY card_name, turn_number`,
+    )
+      .bind(set, arch, ...rawCards)
+      .all<CardTimingRow>();
+
+    for (const r of rows.results) {
+      const existing = byCard.get(r.card_name) ?? [];
+      existing.push(r);
+      byCard.set(r.card_name, existing);
+    }
   }
 
   const cardsWithData = new Set<string>();
   const cards = [];
 
   for (const card of rawCards) {
-    const cardRows = byCard.get(card);
+    const cardRows = useCrossSet
+      ? crossSetByCard!.get(card)?.rows
+      : byCard.get(card);
     if (!cardRows || cardRows.length === 0) continue;
     cardsWithData.add(card);
 
@@ -176,6 +299,7 @@ async function cardTiming(
 
     cards.push({
       card_name: card,
+      ...(useCrossSet ? { set_code: crossSetByCard!.get(card)!.setCode } : {}),
       best_turn: bestTurn,
       best_win_rate: bestWR,
       turns: cardRows.map((r) => ({
@@ -191,6 +315,8 @@ async function cardTiming(
     type: "structured",
     data: {
       disclaimer: disclaimerText(format),
+      baseline_set: set,
+      set_source: setSource,
       cards,
       coverage: { found: cardsWithData.size, total: rawCards.length },
     },
@@ -203,20 +329,26 @@ async function manaEfficiency(
   query: Record<string, unknown>,
   env: Env,
 ): Promise<ReferenceResult> {
-  const set = query.set as string;
   const archetype = (query.archetype as string) ?? "ALL";
   const onPlay = query.on_play === true ? 1 : 0;
   const turns = (
     (query.turns as { turn: number; mana_spent: number }[]) ?? []
   ).slice(0, MAX_TURNS);
   const format = query.format as string | undefined;
+  const explicitSet = query.set as string | undefined;
 
-  if (!set || turns.length === 0) {
+  if (turns.length === 0) {
     return {
       type: "text",
-      content: "Error: mana_efficiency requires set and turns parameters.",
+      content: "Error: mana_efficiency requires a turns parameter.",
     };
   }
+
+  const resolution = await resolveSet(env, explicitSet, undefined);
+  if ("error" in resolution) {
+    return { type: "text", content: resolution.error };
+  }
+  const { set, source: setSource } = resolution;
 
   const arch = await resolveArchetype(env, "magic_play_tempo", set, archetype);
   const turnNums = turns.map((t) => t.turn);
@@ -285,6 +417,8 @@ async function manaEfficiency(
     type: "structured",
     data: {
       disclaimer: disclaimerText(format),
+      baseline_set: set,
+      set_source: setSource,
       turns: turnResults,
     },
   };
@@ -304,16 +438,22 @@ async function attackAnalysis(
   query: Record<string, unknown>,
   env: Env,
 ): Promise<ReferenceResult> {
-  const set = query.set as string;
   const turns = ((query.turns as AttackTurnInput[]) ?? []).slice(0, MAX_TURNS);
   const format = query.format as string | undefined;
+  const explicitSet = query.set as string | undefined;
 
-  if (!set || turns.length === 0) {
+  if (turns.length === 0) {
     return {
       type: "text",
-      content: "Error: attack_analysis requires set and turns parameters.",
+      content: "Error: attack_analysis requires a turns parameter.",
     };
   }
+
+  const resolution = await resolveSet(env, explicitSet, undefined);
+  if ("error" in resolution) {
+    return { type: "text", content: resolution.error };
+  }
+  const { set, source: setSource } = resolution;
 
   const allCreatureNames = new Set<string>();
   for (const t of turns) {
@@ -411,6 +551,8 @@ async function attackAnalysis(
     type: "structured",
     data: {
       disclaimer: disclaimerText(format),
+      baseline_set: set,
+      set_source: setSource,
       turns: turnResults,
       coverage: { found: creaturesWithData.size, total: allCreatureNames.size },
     },
@@ -423,18 +565,24 @@ async function mulligan(
   query: Record<string, unknown>,
   env: Env,
 ): Promise<ReferenceResult> {
-  const set = query.set as string;
   const archetype = (query.archetype as string) ?? "ALL";
   const onPlay = query.on_play === true ? 1 : 0;
   const hand = ((query.hand as string[]) ?? []).slice(0, MAX_HAND);
   const format = query.format as string | undefined;
+  const explicitSet = query.set as string | undefined;
 
-  if (!set || hand.length === 0) {
+  if (hand.length === 0) {
     return {
       type: "text",
-      content: "Error: mulligan requires set and hand parameters.",
+      content: "Error: mulligan requires a hand parameter.",
     };
   }
+
+  const resolution = await resolveSet(env, explicitSet, undefined);
+  if ("error" in resolution) {
+    return { type: "text", content: resolution.error };
+  }
+  const { set, source: setSource } = resolution;
 
   const arch = await resolveArchetype(
     env,
@@ -534,6 +682,8 @@ async function mulligan(
     type: "structured",
     data: {
       disclaimer: disclaimerText(format),
+      baseline_set: set,
+      set_source: setSource,
       hand_size: hand.length,
       land_count: landCount,
       cmc_bucket: cmcBucket,
@@ -747,11 +897,62 @@ export function extractTurnsFromSection(
     }));
 }
 
+/**
+ * Trim whitespace and strip one leading "game:" or "match:" prefix — models
+ * often paste the section name itself instead of the bare match ID.
+ */
+function normalizeMatchId(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("game:")) return trimmed.slice("game:".length);
+  if (trimmed.startsWith("match:")) return trimmed.slice("match:".length);
+  return trimmed;
+}
+
+/**
+ * Build a self-correcting error when a `game:<id>` section is missing: name
+ * the requested section, list match_ids that DO have a game log for this
+ * user, and explain why older matches may have no game log at all.
+ */
+async function buildGameSectionNotFoundError(
+  env: Env,
+  userId: string,
+  gameSectionName: string,
+): Promise<string> {
+  const available = await env.DB.prepare(
+    `SELECT sec.name FROM sections sec
+     JOIN saves sv ON sv.uuid = sec.save_uuid
+     WHERE sv.user_uuid = ? AND sv.game_id = 'magic' AND sec.name LIKE 'game:%'
+     LIMIT 10`,
+  )
+    .bind(userId)
+    .all<{ name: string }>();
+
+  const availableIds = available.results.map((r) => r.name.slice("game:".length));
+  const availableText =
+    availableIds.length > 0
+      ? `Match IDs with a game log currently available for this user: ${availableIds.join(", ")}.`
+      : "No matches currently have a game log available for this user.";
+
+  return (
+    `Game section "${gameSectionName}" not found. ${availableText} ` +
+    "Game logs (turn-by-turn detail) only cover matches present in the current Player.log — " +
+    "MTGA truncates that log on client restart, so older matches drop out of it. Older matches " +
+    "still exist as summary history (opponent, result, deck) via the match_stats module, but " +
+    "without a turn-by-turn log. game_review with match_id only works for matches listed in " +
+    "player_summary.games."
+  );
+}
+
+interface LoadedTurns {
+  turns: TurnInput[];
+  eventId: string | undefined;
+}
+
 async function loadTurnsFromMatchId(
   matchId: string,
   userId: string,
   env: Env,
-): Promise<TurnInput[] | string> {
+): Promise<LoadedTurns | string> {
   const gameSectionName = `game:${matchId}`;
   const matchSectionName = `match:${matchId}`;
 
@@ -775,15 +976,19 @@ async function loadTurnsFromMatchId(
   ]);
 
   if (!gameRow) {
-    return `Game section "${gameSectionName}" not found in any MTGA save.`;
+    return buildGameSectionNotFoundError(env, userId, gameSectionName);
   }
 
   let playerSeat = 1;
+  let eventId: string | undefined;
   if (matchRow) {
     try {
-      playerSeat =
-        (JSON.parse(matchRow.data) as { player?: { seat?: number } }).player
-          ?.seat ?? 1;
+      const parsed = JSON.parse(matchRow.data) as {
+        player?: { seat?: number };
+        eventId?: string;
+      };
+      playerSeat = parsed.player?.seat ?? 1;
+      eventId = parsed.eventId || undefined;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return `Failed to parse match section data for ${matchId}: ${message}`;
@@ -791,10 +996,11 @@ async function loadTurnsFromMatchId(
   }
 
   try {
-    return extractTurnsFromSection(
+    const turns = extractTurnsFromSection(
       JSON.parse(gameRow.data) as GameSectionData,
       playerSeat,
     );
+    return { turns, eventId };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return `Failed to parse game section data for ${matchId}: ${message}`;
@@ -814,15 +1020,17 @@ async function gameReview(
   query: Record<string, unknown>,
   env: Env,
 ): Promise<ReferenceResult> {
-  const set = query.set as string;
   const archetype = (query.archetype as string) ?? "ALL";
   const onPlay = query.on_play === true ? 1 : 0;
   let turns = query.turns as TurnInput[] | undefined;
-  const format = query.format as string | undefined;
-  const matchId = query.match_id as string | undefined;
+  let format = query.format as string | undefined;
+  const explicitSet = query.set as string | undefined;
+  const rawMatchId = query.match_id as string | undefined;
   const userId = query.user_id as string | undefined;
 
-  if (matchId) {
+  let eventId: string | undefined;
+
+  if (rawMatchId) {
     if (!userId) {
       return {
         type: "text",
@@ -830,19 +1038,32 @@ async function gameReview(
           "Error: match_id lookup requires user_id (provided automatically by MCP context).",
       };
     }
+    const matchId = normalizeMatchId(rawMatchId);
     const loaded = await loadTurnsFromMatchId(matchId, userId, env);
     if (typeof loaded === "string") {
       return { type: "text", content: `Error: ${loaded}` };
     }
-    turns = loaded;
+    turns = loaded.turns;
+    eventId = loaded.eventId;
   }
 
-  if (!set || !turns?.length) {
+  if (!turns?.length) {
     return {
       type: "text",
       content:
-        "Error: game_review requires set and (turns OR match_id) parameters.",
+        "Error: game_review requires turns OR match_id parameters.",
     };
+  }
+
+  const resolution = await resolveSet(env, explicitSet, eventId);
+  if ("error" in resolution) {
+    return { type: "text", content: resolution.error };
+  }
+  const { set, source: setSource } = resolution;
+
+  if (!format && eventId) {
+    const derived = deriveFormat(eventId);
+    if (derived) format = derived;
   }
 
   turns = turns.slice(0, MAX_TURNS);
@@ -872,23 +1093,33 @@ async function gameReview(
     for (const c of t.cards_played ?? []) allPlayedCards.add(c);
   }
 
+  // Constructed/Brawl decks span many sets — a single-set lookup returns
+  // near-zero coverage when the baseline set wasn't explicitly chosen.
+  const useCrossSet = setSource !== "explicit";
   const cardTimingMap = new Map<string, CardTimingRow[]>();
   if (allPlayedCards.size > 0) {
     const cardList = [...allPlayedCards];
-    const cardPlaceholders = cardList.map(() => "?").join(", ");
-    const timingRows = await env.DB.prepare(
-      `SELECT card_name, turn_number, games_won, total_games
-       FROM magic_play_card_timing
-       WHERE set_code = ? AND archetype = ? AND card_name IN (${cardPlaceholders})
-       ORDER BY card_name, turn_number`,
-    )
-      .bind(set, arch, ...cardList)
-      .all<CardTimingRow>();
+    if (useCrossSet) {
+      const crossSet = await crossSetCardTiming(env, cardList);
+      for (const [card, entry] of crossSet) {
+        cardTimingMap.set(card, entry.rows);
+      }
+    } else {
+      const cardPlaceholders = cardList.map(() => "?").join(", ");
+      const timingRows = await env.DB.prepare(
+        `SELECT card_name, turn_number, games_won, total_games
+         FROM magic_play_card_timing
+         WHERE set_code = ? AND archetype = ? AND card_name IN (${cardPlaceholders})
+         ORDER BY card_name, turn_number`,
+      )
+        .bind(set, arch, ...cardList)
+        .all<CardTimingRow>();
 
-    for (const r of timingRows.results) {
-      const existing = cardTimingMap.get(r.card_name) ?? [];
-      existing.push(r);
-      cardTimingMap.set(r.card_name, existing);
+      for (const r of timingRows.results) {
+        const existing = cardTimingMap.get(r.card_name) ?? [];
+        existing.push(r);
+        cardTimingMap.set(r.card_name, existing);
+      }
     }
   }
 
@@ -975,6 +1206,8 @@ async function gameReview(
     type: "structured",
     data: {
       disclaimer: disclaimerText(format),
+      baseline_set: set,
+      set_source: setSource,
       findings: findings.slice(0, 5).map((f) => ({
         turn: f.turn,
         category: f.category,
@@ -997,15 +1230,23 @@ export const playAdvisorModule: NativeReferenceModule = {
     "Works for all formats — advice is card-intrinsic but statistical baselines reflect Limited play patterns.",
     "",
     "MODES:",
-    '1. mode="card_timing" → Win rate by deployment turn for specific cards. Params: set, cards[], archetype?',
-    '2. mode="mana_efficiency" → Compare mana spent per turn against archetype baselines. Params: set, archetype?, on_play, turns[{turn, mana_spent}]',
-    '3. mode="attack_analysis" → Were attacks made when they should have been? Params: set, turns[{turn, creatures[], attacked[], user_creatures, oppo_creatures}]',
-    '4. mode="mulligan" → Should this hand have been kept? Params: set, archetype?, on_play, hand[]',
+    '1. mode="card_timing" → Win rate by deployment turn for specific cards. Params: cards[], set?, archetype?',
+    '2. mode="mana_efficiency" → Compare mana spent per turn against archetype baselines. Params: turns[{turn, mana_spent}], set?, archetype?, on_play',
+    '3. mode="attack_analysis" → Were attacks made when they should have been? Params: turns[{turn, creatures[], attacked[], user_creatures, oppo_creatures}], set?',
+    '4. mode="mulligan" → Should this hand have been kept? Params: hand[], set?, archetype?, on_play',
     '5. mode="game_review" → Full post-game analysis identifying biggest deviations.',
-    "   Inline: set, archetype?, on_play, turns[{turn, mana_spent, cards_played[], creatures_attacked[], user_creatures, oppo_creatures}]",
-    "   Match lookup: set, match_id (loads game data from save sections via user_id)",
+    "   Inline: turns[{turn, mana_spent, cards_played[], creatures_attacked[], user_creatures, oppo_creatures}], set?, archetype?, on_play",
+    "   Match lookup: match_id (loads game data from save sections via user_id), set?",
     "",
-    "All modes accept optional format parameter. Non-PremierDraft formats receive a disclaimer.",
+    "set is optional in every mode. Resolution order: an explicit set → the set of a Limited " +
+      "match_id lookup's event, if it has baseline data → the set with the most recorded games " +
+      "overall. The resolved set and how it was picked are reported back as baseline_set and " +
+      "set_source (\"explicit\" | \"event\" | \"fallback\"). When set wasn't explicit, card_timing " +
+      "and game_review look up each card's timing across all sets rather than a single set, since " +
+      "Constructed/Brawl decks span many sets.",
+    "",
+    "All modes accept optional format parameter. Non-PremierDraft formats receive a disclaimer. " +
+      "For game_review via match_id, format is auto-derived from the match's event when omitted.",
   ].join("\n"),
   parameters: {
     mode: {
@@ -1016,7 +1257,8 @@ export const playAdvisorModule: NativeReferenceModule = {
     },
     set: {
       type: "string",
-      description: "Set code (e.g., 'FDN'). Required for all modes.",
+      description:
+        "Set code (e.g., 'FDN'). Optional — if omitted, resolved server-side from the match_id's event or the set with the most baseline data. See baseline_set/set_source in the result.",
     },
     archetype: {
       type: "string",
@@ -1048,7 +1290,7 @@ export const playAdvisorModule: NativeReferenceModule = {
     match_id: {
       type: "string",
       description:
-        "Match ID for game_review mode. Loads game data from save sections via user_id.",
+        "Match ID for game_review mode. Loads game data from save sections via user_id. Only works for matches in the current Player.log — MTGA truncates it on client restart, so this covers a rolling window, not full match history (older matches are summary-only via match_stats).",
     },
   },
 

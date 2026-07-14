@@ -871,6 +871,9 @@ describe("play_advisor reference module", () => {
     expect(kaito!.best_turn).toBe(3);
     expect(kaito!.best_win_rate).toBeCloseTo(0.6, 2);
     expect(result.data.coverage).toEqual({ found: 2, total: 2 });
+    // Explicit set is passed through unchanged, with source "explicit".
+    expect(result.data.baseline_set).toBe("FDN");
+    expect(result.data.set_source).toBe("explicit");
   });
 
   it("reports coverage for missing cards", async () => {
@@ -1193,6 +1196,392 @@ describe("play_advisor reference module", () => {
     );
     const content = (result as { type: "text"; content: string }).content;
     expect(content).toContain("not found");
+  });
+
+  it("not-found error lists available match_ids and explains the rolling log window", async () => {
+    const saveUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(saveUuid, "user-notfound-list", "magic", "magic", "TestPlayer", "test")
+      .run();
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, "game:existing-match-1", "Game log", JSON.stringify(realGameSection))
+      .run();
+
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "game_review",
+        set: "FDN",
+        match_id: "totally-missing-match",
+        user_id: "user-notfound-list",
+      },
+      env,
+    );
+    const content = (result as { type: "text"; content: string }).content;
+    expect(content).toContain("not found");
+    expect(content).toContain("existing-match-1");
+    expect(content.toLowerCase()).toContain("player.log");
+    expect(content.toLowerCase()).toContain("match_stats");
+  });
+
+  it("normalizes a whitespace-padded, game:-prefixed match_id", async () => {
+    const saveUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(saveUuid, "user-normalize", "magic", "magic", "TestPlayer", "test")
+      .run();
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, `game:${REAL_MATCH_ID}`, "Game log", JSON.stringify(realGameSection))
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, `match:${REAL_MATCH_ID}`, "Match summary", JSON.stringify(realMatchSection))
+      .run();
+
+    const gamePrefixed = await playAdvisorModule.execute(
+      {
+        mode: "game_review",
+        set: "FDN",
+        match_id: `  game:${REAL_MATCH_ID}  `,
+        user_id: "user-normalize",
+      },
+      env,
+    );
+    expect(gamePrefixed.type).toBe("structured");
+
+    const matchPrefixed = await playAdvisorModule.execute(
+      {
+        mode: "game_review",
+        set: "FDN",
+        match_id: `  match:${REAL_MATCH_ID}  `,
+        user_id: "user-normalize",
+      },
+      env,
+    );
+    expect(matchPrefixed.type).toBe("structured");
+  });
+
+  it("resolves every mode via fallback (greatest total_games baseline set) when set is omitted", async () => {
+    // Second, smaller set — fallback must still prefer FDN (seeded larger by seedBaselines).
+    await env.DB.prepare(
+      `INSERT INTO magic_play_turn_baselines (set_code, archetype, turn_number, on_play, total_mana_spent, total_creatures_cast, total_spells_cast, total_creatures_attacked, total_attacks_possible, games_won, total_games)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind("WOE", "ALL", 1, 1, 10, 2, 2, 1, 2, 3, 10)
+      .run();
+
+    const cases: { mode: string; query: Record<string, unknown> }[] = [
+      { mode: "card_timing", query: { cards: ["Gleaming Barrier"], archetype: "UB" } },
+      {
+        mode: "mana_efficiency",
+        query: { archetype: "UB", on_play: true, turns: [{ turn: 3, mana_spent: 3 }] },
+      },
+      {
+        mode: "attack_analysis",
+        query: {
+          turns: [
+            {
+              turn: 3,
+              creatures: ["Gleaming Barrier"],
+              attacked: ["Gleaming Barrier"],
+              user_creatures: 2,
+              oppo_creatures: 2,
+            },
+          ],
+        },
+      },
+      {
+        mode: "mulligan",
+        query: {
+          archetype: "UB",
+          on_play: true,
+          hand: [
+            "Island",
+            "Island",
+            "Swamp",
+            "Kaito, Cunning Infiltrator",
+            "Gleaming Barrier",
+            "Eaten Alive",
+            "Archmage of Runes",
+          ],
+        },
+      },
+      {
+        mode: "game_review",
+        query: {
+          archetype: "UB",
+          on_play: true,
+          turns: [
+            {
+              turn: 2,
+              mana_spent: 2,
+              cards_played: ["Gleaming Barrier"],
+              creatures_attacked: [],
+              user_creatures: 1,
+              oppo_creatures: 0,
+            },
+          ],
+        },
+      },
+    ];
+
+    for (const c of cases) {
+      const result = await playAdvisorModule.execute({ mode: c.mode, ...c.query }, env);
+      expect(result.type, `${c.mode} result type`).toBe("structured");
+      if (result.type !== "structured") throw new Error("unexpected type");
+      expect(result.data.baseline_set, `${c.mode} baseline_set`).toBe("FDN");
+      expect(result.data.set_source, `${c.mode} set_source`).toBe("fallback");
+    }
+  });
+
+  it("returns a text error when set is omitted and no baseline data is loaded", async () => {
+    await env.DB.prepare("DELETE FROM magic_play_turn_baselines").run();
+
+    const result = await playAdvisorModule.execute(
+      { mode: "mulligan", archetype: "UB", on_play: true, hand: ["Island"] },
+      env,
+    );
+    expect(result.type).toBe("text");
+    if (result.type !== "text") throw new Error("unexpected type");
+    expect(result.content.toLowerCase()).toContain("play statistics");
+  });
+
+  it("derives the baseline set from a Limited match's eventId when it has baseline data (source: event)", async () => {
+    const saveUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(saveUuid, "user-event-set", "magic", "magic", "TestPlayer", "test")
+      .run();
+
+    const gameSection = JSON.stringify({
+      cd: { "93965": "Gleaming Barrier" },
+      matchId: "event-set-match",
+      tn: [
+        {
+          a: [{ cast: { c: 93_965, m: [{ k: "Colorless", n: 2 }] }, p: 1 }],
+          ap: 1,
+          ph: "main1",
+          t: 2,
+        },
+      ],
+    });
+    const matchSection = JSON.stringify({
+      matchId: "event-set-match",
+      eventId: "PremierDraft_LCI_20260313",
+      opponent: { seat: 2 },
+      player: { seat: 1 },
+      result: "win",
+    });
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, "game:event-set-match", "Game log", gameSection)
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, "match:event-set-match", "Match summary", matchSection)
+      .run();
+
+    await env.DB.prepare(
+      `INSERT INTO magic_play_turn_baselines (set_code, archetype, turn_number, on_play, total_mana_spent, total_creatures_cast, total_spells_cast, total_creatures_attacked, total_attacks_possible, games_won, total_games)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind("LCI", "ALL", 2, 1, 20, 4, 4, 2, 4, 5, 10)
+      .run();
+
+    const result = await playAdvisorModule.execute(
+      { mode: "game_review", match_id: "event-set-match", user_id: "user-event-set" },
+      env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.baseline_set).toBe("LCI");
+    expect(result.data.set_source).toBe("event");
+  });
+
+  it("falls through to fallback when the Limited event's derived set has no baseline rows", async () => {
+    const saveUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(saveUuid, "user-event-fallthrough", "magic", "magic", "TestPlayer", "test")
+      .run();
+
+    const gameSection = JSON.stringify({
+      cd: { "93965": "Gleaming Barrier" },
+      matchId: "no-baseline-match",
+      tn: [
+        {
+          a: [{ cast: { c: 93_965, m: [{ k: "Colorless", n: 2 }] }, p: 1 }],
+          ap: 1,
+          ph: "main1",
+          t: 2,
+        },
+      ],
+    });
+    const matchSection = JSON.stringify({
+      matchId: "no-baseline-match",
+      eventId: "PremierDraft_WOE_20260101",
+      opponent: { seat: 2 },
+      player: { seat: 1 },
+      result: "win",
+    });
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, "game:no-baseline-match", "Game log", gameSection)
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, "match:no-baseline-match", "Match summary", matchSection)
+      .run();
+
+    const result = await playAdvisorModule.execute(
+      { mode: "game_review", match_id: "no-baseline-match", user_id: "user-event-fallthrough" },
+      env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.baseline_set).toBe("FDN");
+    expect(result.data.set_source).toBe("fallback");
+  });
+
+  it("derives format from a Brawl eventId and includes the non-Limited disclaimer", async () => {
+    const saveUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(saveUuid, "user-brawl-format", "magic", "magic", "TestPlayer", "test")
+      .run();
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, `game:${REAL_MATCH_ID}`, "Game log", JSON.stringify(realGameSection))
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, `match:${REAL_MATCH_ID}`, "Match summary", JSON.stringify(realMatchSection))
+      .run();
+
+    const result = await playAdvisorModule.execute(
+      { mode: "game_review", match_id: REAL_MATCH_ID, user_id: "user-brawl-format" },
+      env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.disclaimer).toContain("Premier Draft");
+  });
+
+  it("card_timing surfaces a card whose stats live in a different set than the fallback set, with its set_code", async () => {
+    await env.DB.prepare(
+      `INSERT INTO magic_play_card_timing (set_code, card_name, archetype, turn_number, times_deployed, games_won, total_games)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind("WOE", "Cross Set Card", "ALL", 4, 40, 25, 40)
+      .run();
+
+    const result = await playAdvisorModule.execute(
+      { mode: "card_timing", cards: ["Cross Set Card"], archetype: "UB" },
+      env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.set_source).toBe("fallback");
+    expect(result.data.baseline_set).toBe("FDN");
+    const cards = result.data.cards as {
+      card_name: string;
+      set_code?: string;
+      best_turn: number;
+    }[];
+    const crossCard = cards.find((c) => c.card_name === "Cross Set Card");
+    expect(crossCard).toBeDefined();
+    expect(crossCard!.set_code).toBe("WOE");
+    expect(crossCard!.best_turn).toBe(4);
+    expect(result.data.coverage).toEqual({ found: 1, total: 1 });
+  });
+
+  it("game_review finds card timing data in a different set than the fallback set when set is omitted", async () => {
+    const saveUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(saveUuid, "user-cross-set-review", "magic", "magic", "TestPlayer", "test")
+      .run();
+
+    const gameSection = JSON.stringify({
+      cd: { "12345": "Cross Set Review Card" },
+      matchId: "cross-set-review-match",
+      tn: [
+        {
+          a: [{ cast: { c: 12_345, m: [{ k: "Colorless", n: 1 }] }, p: 1 }],
+          ap: 1,
+          ph: "main1",
+          t: 6,
+        },
+      ],
+    });
+    const matchSection = JSON.stringify({
+      matchId: "cross-set-review-match",
+      eventId: "Historic_Ranked",
+      opponent: { seat: 2 },
+      player: { seat: 1 },
+      result: "win",
+    });
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, "game:cross-set-review-match", "Game log", gameSection)
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, "match:cross-set-review-match", "Match summary", matchSection)
+      .run();
+
+    await env.DB.prepare(
+      `INSERT INTO magic_play_card_timing (set_code, card_name, archetype, turn_number, times_deployed, games_won, total_games)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind("WOE", "Cross Set Review Card", "ALL", 2, 40, 30, 40)
+      .run();
+
+    const result = await playAdvisorModule.execute(
+      { mode: "game_review", match_id: "cross-set-review-match", user_id: "user-cross-set-review" },
+      env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.set_source).toBe("fallback");
+    expect(result.data.baseline_set).toBe("FDN");
+    const findings = result.data.findings as { category: string; description: string }[];
+    expect(
+      findings.some(
+        (f) => f.category === "Timing" && f.description.includes("Cross Set Review Card"),
+      ),
+    ).toBe(true);
   });
 
   it("returns error for unknown mode", async () => {
