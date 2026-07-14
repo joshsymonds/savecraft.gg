@@ -26,10 +26,7 @@ import {
 } from "../adapters/adapter";
 import { gamesForProvider, providerForGame } from "../adapters/providers";
 import { adapters } from "../adapters/registry";
-import {
-  resolveAdapterCharacter,
-  type ResolvedCharacter,
-} from "../adapters/resolve-character";
+import { resolveAdapterCharacter, type ResolvedCharacter } from "../adapters/resolve-character";
 import { normalizeGameId } from "../gameid";
 import { getNativeGameIds, getNativeModule, getNativeModules } from "../reference/registry";
 import type { ListedReferenceModule, NativeReferenceModule } from "../reference/types";
@@ -531,7 +528,7 @@ async function handleSectionMiss(
     );
     if (suggestions.length > 0) {
       return errorResult(
-        `Section '${firstDeckMiss}' not found. Did you mean: ${suggestions.join(", ")}?`,
+        `Section '${firstDeckMiss}' not found. Did you mean: ${suggestions.join(", ")}? Available sections for this save: ${names.join(", ")}.`,
       );
     }
   }

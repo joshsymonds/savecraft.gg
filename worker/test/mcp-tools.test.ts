@@ -35,7 +35,14 @@ import {
 } from "../src/mcp/tools";
 import type { Env } from "../src/types";
 
-import { cleanAll, closeWs, connectDaemonWs, seedSource, sendProto, waitForProtoMessage } from "./helpers";
+import {
+  cleanAll,
+  closeWs,
+  connectDaemonWs,
+  seedSource,
+  sendProto,
+  waitForProtoMessage,
+} from "./helpers";
 
 const USER_A = "mcp-user-a";
 const USER_B = "mcp-user-b";
@@ -647,6 +654,7 @@ describe("MCP Tools", () => {
       expect(result.isError).toBe(true);
       const text = result.content[0]?.type === "text" ? result.content[0].text : "";
       expect(text).toContain("deck:[HB] Slivers");
+      expect(text).toContain("Available sections for this save:");
     });
 
     it("does not suggest deck matches for non-deck section misses", async () => {
@@ -1312,7 +1320,14 @@ describe("MCP Tools", () => {
       sendProto(daemonWs, {
         payload: {
           $case: "sourceOnline",
-          sourceOnline: { version: "0.1.0", platform: "", os: "", arch: "", hostname: "", device: "" },
+          sourceOnline: {
+            version: "0.1.0",
+            platform: "",
+            os: "",
+            arch: "",
+            hostname: "",
+            device: "",
+          },
         },
       });
       await waitForProtoMessage(daemonWs);
