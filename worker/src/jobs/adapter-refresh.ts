@@ -15,10 +15,7 @@ import {
 } from "../adapters/adapter";
 import { OAUTH_PROVIDERS } from "../adapters/providers";
 import { adapters } from "../adapters/registry";
-import {
-  resolveAdapterCharacter,
-  type ResolvedCharacter,
-} from "../adapters/resolve-character";
+import { resolveAdapterCharacter, type ResolvedCharacter } from "../adapters/resolve-character";
 import { pushGameStatus } from "../index";
 import { persistProviderCredentials, storePush } from "../store";
 import type { Env } from "../types";

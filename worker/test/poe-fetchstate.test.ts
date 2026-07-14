@@ -3,11 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { poeAdapter } from "../../plugins/poe/adapter";
 import characterFixture from "../../plugins/poe/testdata/ggg-character-full.json";
-import {
-  AdapterError,
-  type FetchParams,
-  type GameCredentials,
-} from "../src/adapters/adapter";
+import { AdapterError, type FetchParams, type GameCredentials } from "../src/adapters/adapter";
 import { ensureGggAccessToken } from "../src/adapters/ggg";
 import { storePush } from "../src/store";
 import type { Env } from "../src/types";
