@@ -889,7 +889,23 @@ export async function deleteNote(
 
 // ── Refresh ──────────────────────────────────────────────────
 
-export async function refreshSave(env: Env, userUuid: string, saveId: string): Promise<ToolResult> {
+/**
+ * Max time to wait for the SourceHub DO's /rescan response. handleRescan is
+ * fire-and-forget by design (it queues a proto message on the daemon
+ * WebSocket and returns immediately) so this should resolve almost
+ * instantly — but a hung DO or a dead-but-not-yet-evicted WebSocket can
+ * otherwise stall the request until the platform kills the subrequest
+ * (observed in production at ~95s). Bounding it here gives the LLM a fast,
+ * honest answer instead of a platform-timeout crash.
+ */
+const RESCAN_TIMEOUT_MS = 10_000;
+
+export async function refreshSave(
+  env: Env,
+  userUuid: string,
+  saveId: string,
+  rescanTimeoutMs = RESCAN_TIMEOUT_MS,
+): Promise<ToolResult> {
   const save = await lookupSave(env.DB, userUuid, saveId);
   if (!save)
     return errorResult("Save not found. Check the game listing for available saves and their IDs.");
@@ -909,15 +925,29 @@ export async function refreshSave(env: Env, userUuid: string, saveId: string): P
     return refreshAdapterSave(env, userUuid, save, save.last_source_uuid);
   }
 
-  // Daemon-backed: send rescan via SourceHub
+  // Daemon-backed: send rescan via SourceHub. handleRescan is fire-and-forget
+  // (queues a proto message, doesn't wait for the daemon), so this call
+  // should return almost instantly — but bound it anyway in case the DO or
+  // WebSocket is hung, rather than letting the platform kill the subrequest.
   const id = env.SOURCE_HUB.idFromName(save.last_source_uuid);
   const stub = env.SOURCE_HUB.get(id);
-  const resp = await stub.fetch(
-    new Request("https://do/rescan", {
-      method: "POST",
-      body: JSON.stringify({ gameId: save.game_id }),
-    }),
-  );
+  let resp: Response;
+  try {
+    resp = await stub.fetch(
+      new Request("https://do/rescan", {
+        method: "POST",
+        body: JSON.stringify({ gameId: save.game_id }),
+        signal: AbortSignal.timeout(rescanTimeoutMs),
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      return errorResult(
+        "The rescan could not be confirmed — the player's daemon connection is unresponsive. The last-known data is still available via get_section.",
+      );
+    }
+    throw error;
+  }
 
   const result = await resp.json<{ sent: boolean; daemon_online?: boolean }>();
 
@@ -929,7 +959,8 @@ export async function refreshSave(env: Env, userUuid: string, saveId: string): P
 
   return textResult({
     save_id: saveId,
-    refreshed: true,
+    rescan_requested: true,
+    note: "The rescan was queued on the player's daemon. Fresh data arrives asynchronously once the daemon processes it — fetch sections again in a moment to see the update.",
     timestamp: new Date().toISOString(),
   });
 }
@@ -967,10 +998,9 @@ function checkAdapterCooldown(save: SaveRow): ToolResult | null {
     // driving retry-mashing (users repeating a doomed call up to 9x/min).
     if (save.refresh_status === "error" && save.refresh_error) {
       const elapsedMinutes = Math.floor(elapsedMs / 1000 / 60);
+      const minutesSuffix = elapsedMinutes === 1 ? "" : "s";
       const relative =
-        elapsedMinutes < 1
-          ? "under a minute"
-          : `${String(elapsedMinutes)} minute${elapsedMinutes === 1 ? "" : "s"}`;
+        elapsedMinutes < 1 ? "under a minute" : `${String(elapsedMinutes)} minute${minutesSuffix}`;
       return errorResult(
         `Refresh failed ${relative} ago: ${save.refresh_error} Next attempt available in ${String(retryAfter)} seconds.`,
       );

@@ -35,7 +35,7 @@ import {
 } from "../src/mcp/tools";
 import type { Env } from "../src/types";
 
-import { cleanAll } from "./helpers";
+import { cleanAll, closeWs, connectDaemonWs, seedSource, sendProto, waitForProtoMessage } from "./helpers";
 
 const USER_A = "mcp-user-a";
 const USER_B = "mcp-user-b";
@@ -122,6 +122,30 @@ async function seedSave(options: {
   if (sectionBatch.length > 0) {
     await env.DB.batch(sectionBatch);
   }
+}
+
+/**
+ * Hand-written fake SourceHub namespace whose /rescan fetch never resolves
+ * on its own — simulates a healthy DO with an unresponsive daemon connection.
+ * Honors the AbortSignal passed via the Request init (as a real Workers
+ * subrequest would when the platform or an explicit timeout cancels it), so
+ * refreshSave's timeout path can be exercised without a real 10s wait.
+ */
+function fakeHungSourceHub(): DurableObjectNamespace {
+  const stub = {
+    fetch: (input: RequestInfo | URL) => {
+      const request = input instanceof Request ? input : new Request(input);
+      return new Promise<Response>((_resolve, reject) => {
+        request.signal.addEventListener("abort", () => {
+          reject(new DOMException("The operation timed out.", "TimeoutError"));
+        });
+      });
+    },
+  } as unknown as DurableObjectStub;
+  return {
+    idFromName: () => ({}) as unknown as DurableObjectId,
+    get: () => stub,
+  } as unknown as DurableObjectNamespace;
 }
 
 function parseResult(result: ToolResult | ViewToolResult): unknown {
@@ -1260,6 +1284,64 @@ describe("MCP Tools", () => {
       const result = await refreshSave(env, USER_A, "save-refresh-offline");
       expect(result.isError).toBe(true);
       expect(result.content[0]!.text).toContain("daemon is offline");
+    });
+
+    it("returns an unresponsive-daemon error when the DO rescan fetch never resolves (times out)", async () => {
+      await seedSave({
+        saveUuid: "save-refresh-hung",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "HungChar",
+        summary: "Level 89",
+      });
+
+      const hungEnv = { ...env, SOURCE_HUB: fakeHungSourceHub() } as unknown as Env;
+      // Inject a short timeout so the test doesn't wait the real 10s default.
+      const result = await refreshSave(hungEnv, USER_A, "save-refresh-hung", 20);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0]!.text).toContain("unresponsive");
+      expect(result.content[0]!.text).toContain("get_section");
+      // Must be distinct from the daemon-offline message (different failure mode).
+      expect(result.content[0]!.text).not.toContain("daemon is offline");
+    });
+
+    it("daemon rescan success returns rescan_requested + note, not refreshed", async () => {
+      const { sourceUuid, sourceToken } = await seedSource(USER_A);
+      const daemonWs = await connectDaemonWs(sourceToken);
+      sendProto(daemonWs, {
+        payload: {
+          $case: "sourceOnline",
+          sourceOnline: { version: "0.1.0", platform: "", os: "", arch: "", hostname: "", device: "" },
+        },
+      });
+      await waitForProtoMessage(daemonWs);
+
+      await env.DB.prepare(
+        "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+        .bind(
+          "save-rescan-success",
+          USER_A,
+          "d2r",
+          "Diablo II: Resurrected",
+          "Hammerdin",
+          "Level 89",
+          "2026-02-25T21:30:00Z",
+          sourceUuid,
+        )
+        .run();
+
+      const result = await refreshSave(env, USER_A, "save-rescan-success");
+      expect(result.isError).toBeUndefined();
+      const parsed = parseResult(result) as Record<string, unknown>;
+      expect(parsed.rescan_requested).toBe(true);
+      expect(parsed).not.toHaveProperty("refreshed");
+      expect(parsed.save_id).toBe("save-rescan-success");
+      expect(typeof parsed.note).toBe("string");
+      expect(parsed.note).toMatch(/fetch sections again/i);
+
+      closeWs(daemonWs);
     });
 
     it("rate limits adapter-backed saves", async () => {
