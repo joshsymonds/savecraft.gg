@@ -10,6 +10,7 @@ import type {
   SourceState,
 } from "./proto/savecraft/v1/protocol";
 import { GameStatusEnum, Message, PushSaveError } from "./proto/savecraft/v1/protocol";
+import { saveLabel } from "./save-label";
 import type { SectionInput } from "./store";
 import { resolveGameName, storePush } from "./store";
 import type { Env } from "./types";
@@ -1169,6 +1170,13 @@ export class SourceHub extends DurableObject<Env> {
     gameId: string,
     saveUuid: string,
   ): Promise<void> {
+    // Relay a presentable displayName to the browser even when the plugin
+    // hasn't learned one yet (e.g. Magic's identity key "player").
+    const { saveName, displayName } = pushIdentity(push);
+    const identity: SaveIdentity | undefined = push.identity
+      ? { ...push.identity, displayName: saveLabel(gameId, saveName, displayName) }
+      : push.identity;
+
     const pushCompletedMsg: Message = {
       payload: {
         $case: "pushCompleted",
@@ -1176,7 +1184,7 @@ export class SourceHub extends DurableObject<Env> {
           gameId,
           saveUuid,
           summary: push.summary,
-          identity: push.identity,
+          identity,
           snapshotSizeBytes: 0,
           durationMs: 0,
         },
@@ -1190,7 +1198,7 @@ export class SourceHub extends DurableObject<Env> {
       gameId,
       saveUuid,
       summary: push.summary,
-      identity: push.identity,
+      identity,
     });
     await this.saveState(state);
 
@@ -1440,12 +1448,20 @@ export class SourceHub extends DurableObject<Env> {
    * immediately, without waiting for the daemon to re-push the file.
    */
   private async handleRestoreSaveState(request: Request): Promise<Response> {
-    const { sourceId, gameId, saveUuid, saveName, summary } = await request.json<{
+    const {
+      sourceId,
+      gameId,
+      saveUuid,
+      saveName,
+      summary,
+      displayName: rawDisplayName,
+    } = await request.json<{
       sourceId: string;
       gameId: string;
       saveUuid: string;
       saveName: string;
       summary: string;
+      displayName?: string | null;
     }>();
 
     const state = await this.loadState();
@@ -1468,7 +1484,11 @@ export class SourceHub extends DurableObject<Env> {
     if (!game.saves.some((s) => s.saveUuid === saveUuid)) {
       game.saves.push({
         saveUuid,
-        identity: { name: saveName, extra: undefined },
+        identity: {
+          name: saveName,
+          extra: undefined,
+          displayName: saveLabel(gameId, saveName, rawDisplayName),
+        },
         summary,
         lastUpdated: new Date(),
       });
@@ -1663,7 +1683,9 @@ export class SourceHub extends DurableObject<Env> {
         gameId: body.gameId,
         saveUuid: save.saveUuid,
         summary: "",
-        identity: { name: save.name, extra: undefined },
+        // Discovery is summary-less by design (Req 5) — no display name is
+        // known yet either, so leave it empty rather than inventing one.
+        identity: { name: save.name, extra: undefined, displayName: "" },
       });
     }
     await this.saveState(state);
@@ -1982,7 +2004,7 @@ export class SourceHub extends DurableObject<Env> {
           await Promise.all(
             source.games.map(async (game) => {
               const rows = await this.env.DB.prepare(
-                `SELECT uuid, save_name, summary, last_updated
+                `SELECT uuid, save_name, summary, last_updated, display_name
                  FROM saves WHERE last_source_uuid = ? AND game_id = ? AND removed_at IS NULL
                  ORDER BY last_updated DESC LIMIT 500`,
               )
@@ -1992,10 +2014,15 @@ export class SourceHub extends DurableObject<Env> {
                   save_name: string;
                   summary: string;
                   last_updated: string | null;
+                  display_name: string | null;
                 }>();
               game.saves = rows.results.map((row) => ({
                 saveUuid: row.uuid,
-                identity: { name: row.save_name, extra: undefined },
+                identity: {
+                  name: row.save_name,
+                  extra: undefined,
+                  displayName: saveLabel(game.gameId, row.save_name, row.display_name),
+                },
                 summary: row.summary,
                 lastUpdated: row.last_updated ? new Date(row.last_updated) : undefined,
               }));

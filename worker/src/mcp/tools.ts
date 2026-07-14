@@ -30,6 +30,7 @@ import { resolveAdapterCharacter, type ResolvedCharacter } from "../adapters/res
 import { normalizeGameId } from "../gameid";
 import { getNativeGameIds, getNativeModule, getNativeModules } from "../reference/registry";
 import type { ListedReferenceModule, NativeReferenceModule } from "../reference/types";
+import { saveLabel } from "../save-label";
 import { persistProviderCredentials, storePush } from "../store";
 import type { Env } from "../types";
 
@@ -62,6 +63,7 @@ interface SaveRow {
   refresh_status: string | null;
   refresh_error: string | null;
   last_refresh_at: string | null;
+  display_name: string | null;
 }
 
 /** Maximum bytes for a single section's JSON before we reject it (~20K tokens). */
@@ -347,10 +349,10 @@ export async function listGames(
     fetchNotesBySave(db, userUuid),
     db
       .prepare(
-        `SELECT game_id, save_name FROM saves WHERE user_uuid = ? AND removed_at IS NOT NULL LIMIT 500`,
+        `SELECT game_id, save_name, display_name FROM saves WHERE user_uuid = ? AND removed_at IS NOT NULL LIMIT 500`,
       )
       .bind(userUuid)
-      .all<{ game_id: string; save_name: string }>(),
+      .all<{ game_id: string; save_name: string; display_name: string | null }>(),
   ]);
 
   // Attach saves to their game entries
@@ -365,7 +367,7 @@ export async function listGames(
     }
     game.saves.push({
       save_id: row.uuid,
-      name: row.save_name,
+      name: saveLabel(row.game_id, row.save_name, row.display_name),
       summary: row.summary,
       last_updated: relativeTime(row.last_updated),
       notes: notesBySave.get(row.uuid) ?? [],
@@ -377,7 +379,7 @@ export async function listGames(
     const game = gameMap.get(row.game_id);
     if (game) {
       game.removed_saves ??= [];
-      game.removed_saves.push(row.save_name);
+      game.removed_saves.push(saveLabel(row.game_id, row.save_name, row.display_name));
     }
   }
 
@@ -399,11 +401,12 @@ async function checkRemovedSave(
 ): Promise<string | null> {
   const removed = await db
     .prepare(
-      "SELECT save_name FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NOT NULL",
+      "SELECT game_id, save_name, display_name FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NOT NULL",
     )
     .bind(saveId, userUuid)
-    .first<{ save_name: string }>();
-  return removed?.save_name ?? null;
+    .first<{ game_id: string; save_name: string; display_name: string | null }>();
+  if (!removed) return null;
+  return saveLabel(removed.game_id, removed.save_name, removed.display_name);
 }
 
 export async function getSave(
@@ -467,7 +470,7 @@ export async function getSave(
     save_id: saveId,
     game_id: save.game_id,
     game_name: save.game_name,
-    name: save.save_name,
+    name: saveLabel(save.game_id, save.save_name, save.display_name),
     summary: save.summary,
     overview,
     sections,
@@ -1154,6 +1157,8 @@ interface SearchRow {
   ref_id: string;
   ref_title: string;
   content: string;
+  display_name: string | null;
+  game_id: string | null;
 }
 
 export async function searchSaves(
@@ -1172,18 +1177,26 @@ export async function searchSaves(
   const params: string[] = [];
 
   if (saveId) {
-    sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
+    sql = `SELECT search_index.save_id as save_id, search_index.save_name as save_name, search_index.type as type,
+                  search_index.ref_id as ref_id, search_index.ref_title as ref_title,
+                  saves.display_name as display_name, saves.game_id as game_id,
+                  snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
-           WHERE search_index MATCH ? AND save_id = ?
-             AND save_id IN (SELECT uuid FROM saves WHERE user_uuid = ? AND removed_at IS NULL)
+           LEFT JOIN saves ON search_index.save_id = saves.uuid
+           WHERE search_index MATCH ? AND search_index.save_id = ?
+             AND search_index.save_id IN (SELECT uuid FROM saves WHERE user_uuid = ? AND removed_at IS NULL)
            ORDER BY rank
            LIMIT 20`;
     params.push(saveId, userUuid);
   } else {
-    sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
+    sql = `SELECT search_index.save_id as save_id, search_index.save_name as save_name, search_index.type as type,
+                  search_index.ref_id as ref_id, search_index.ref_title as ref_title,
+                  saves.display_name as display_name, saves.game_id as game_id,
+                  snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
+           LEFT JOIN saves ON search_index.save_id = saves.uuid
            WHERE search_index MATCH ?
-             AND save_id IN (SELECT uuid FROM saves WHERE user_uuid = ? AND removed_at IS NULL)
+             AND search_index.save_id IN (SELECT uuid FROM saves WHERE user_uuid = ? AND removed_at IS NULL)
            ORDER BY rank
            LIMIT 20`;
     params.push(userUuid);
@@ -1199,7 +1212,7 @@ export async function searchSaves(
     results: rows.results.map((row) => ({
       type: row.type,
       save_id: row.save_id,
-      save_name: row.save_name,
+      save_name: saveLabel(row.game_id ?? "", row.save_name, row.display_name),
       ref_id: row.ref_id,
       ref_title: row.ref_title,
       snippet: row.snippet,

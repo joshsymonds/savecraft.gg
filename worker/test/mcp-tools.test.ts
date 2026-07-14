@@ -95,6 +95,7 @@ async function seedSave(options: {
   summary: string;
   lastUpdated?: string;
   gameState?: typeof sampleGameState;
+  displayName?: string | null;
 }): Promise<void> {
   const lastUpdated = options.lastUpdated ?? "2026-02-25T21:30:00Z";
   const gameName = options.gameName ?? options.gameId;
@@ -103,7 +104,7 @@ async function seedSave(options: {
   await ensureSource(options.userUuid);
 
   await env.DB.prepare(
-    "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid, display_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       options.saveUuid,
@@ -114,6 +115,7 @@ async function seedSave(options: {
       options.summary,
       lastUpdated,
       sourceUuid,
+      options.displayName ?? null,
     )
     .run();
 
@@ -472,6 +474,58 @@ describe("MCP Tools", () => {
       const data = parseResult(result) as { games: GameEntry[] };
       const stardew = data.games.find((g) => g.game_id === "stardew")!;
       expect(stardew.icon_url).toBeUndefined();
+    });
+
+    it("labels a magic save with no display_name as MTG Arena Player", async () => {
+      await seedSave({
+        saveUuid: "save-magic-no-name",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: null,
+      });
+
+      const result = await listGames(env.DB, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      const magic = data.games.find((g) => g.game_id === "magic")!;
+      expect(magic.saves.find((s) => s.save_id === "save-magic-no-name")!.name).toBe(
+        "MTG Arena Player",
+      );
+    });
+
+    it("labels a magic save with a display_name using the display_name", async () => {
+      await seedSave({
+        saveUuid: "save-magic-named",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: "Aure Silvershield",
+      });
+
+      const result = await listGames(env.DB, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      const magic = data.games.find((g) => g.game_id === "magic")!;
+      expect(magic.saves.find((s) => s.save_id === "save-magic-named")!.name).toBe(
+        "Aure Silvershield",
+      );
+    });
+
+    it("labels a non-magic save with no display_name using save_name", async () => {
+      await seedSave({
+        saveUuid: "save-d2r-no-name",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Hammerdin",
+        summary: "Paladin",
+        displayName: null,
+      });
+
+      const result = await listGames(env.DB, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      const d2r = data.games.find((g) => g.game_id === "d2r")!;
+      expect(d2r.saves.find((s) => s.save_id === "save-d2r-no-name")!.name).toBe("Hammerdin");
     });
   });
 
@@ -1020,6 +1074,51 @@ describe("MCP Tools", () => {
       expect(data.notes).toBeDefined();
     });
 
+    it("labels a magic save with no display_name as MTG Arena Player", async () => {
+      await seedSave({
+        saveUuid: "save-magic-get-no-name",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: null,
+      });
+
+      const result = await getSave(env.DB, USER_A, "save-magic-get-no-name");
+      const data = parseResult(result) as { name: string };
+      expect(data.name).toBe("MTG Arena Player");
+    });
+
+    it("labels a magic save with a display_name using the display_name", async () => {
+      await seedSave({
+        saveUuid: "save-magic-get-named",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: "Aure Silvershield",
+      });
+
+      const result = await getSave(env.DB, USER_A, "save-magic-get-named");
+      const data = parseResult(result) as { name: string };
+      expect(data.name).toBe("Aure Silvershield");
+    });
+
+    it("labels a non-magic save with no display_name using save_name", async () => {
+      await seedSave({
+        saveUuid: "save-d2r-get-no-name",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Hammerdin",
+        summary: "Paladin",
+        displayName: null,
+      });
+
+      const result = await getSave(env.DB, USER_A, "save-d2r-get-no-name");
+      const data = parseResult(result) as { name: string };
+      expect(data.name).toBe("Hammerdin");
+    });
+
     it("includes icon_url when plugins and serverUrl are provided", async () => {
       await seedSave({
         saveUuid: "save-icon-get",
@@ -1143,6 +1242,40 @@ describe("MCP Tools", () => {
       // content carries JSON data for model reasoning
       expect(viewResult.content).toHaveLength(1);
       expect(viewResult.content[0]!.text).toContain("Hammerdin");
+    });
+
+    it("labels magic search results using the save's display_name", async () => {
+      await seedSave({
+        saveUuid: "save-fts-magic-named",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: "Aure Silvershield",
+      });
+      await indexSaveSections(env.DB, "save-fts-magic-named", "player", sampleGameState.sections);
+
+      const result = await searchSaves(env.DB, USER_A, "Hammerdin");
+      const data = parseResult(result) as { results: { save_id: string; save_name: string }[] };
+      const match = data.results.find((r) => r.save_id === "save-fts-magic-named")!;
+      expect(match.save_name).toBe("Aure Silvershield");
+    });
+
+    it("labels magic search results with no display_name as MTG Arena Player", async () => {
+      await seedSave({
+        saveUuid: "save-fts-magic-unnamed",
+        userUuid: USER_A,
+        gameId: "magic",
+        saveName: "player",
+        summary: "MTGA player",
+        displayName: null,
+      });
+      await indexSaveSections(env.DB, "save-fts-magic-unnamed", "player", sampleGameState.sections);
+
+      const result = await searchSaves(env.DB, USER_A, "Hammerdin");
+      const data = parseResult(result) as { results: { save_id: string; save_name: string }[] };
+      const match = data.results.find((r) => r.save_id === "save-fts-magic-unnamed")!;
+      expect(match.save_name).toBe("MTG Arena Player");
     });
   });
 

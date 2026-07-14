@@ -1,4 +1,9 @@
-import { GameStatusEnum, type Message, type SourceInfo } from "$lib/proto/savecraft/v1/protocol";
+import {
+  GameStatusEnum,
+  type Message,
+  type SaveIdentity,
+  type SourceInfo,
+} from "$lib/proto/savecraft/v1/protocol";
 import { gameDisplayName } from "$lib/stores/plugins";
 import type { GameStatus, SaveSummary, Source, SourceGame, SourceStatus } from "$lib/types/source";
 import { relativeTime } from "$lib/utils/time";
@@ -56,12 +61,22 @@ function formatTimestamp(ts: Date | undefined): string {
   return relativeTime(ts.toISOString());
 }
 
+/**
+ * A non-empty display name always wins (server relay guarantees a
+ * presentable label on enriched paths); otherwise fall back to the
+ * identity key, then "Unknown".
+ */
+function saveDisplayName(identity: SaveIdentity | undefined): string {
+  if (identity?.displayName) return identity.displayName;
+  return identity?.name ?? "Unknown";
+}
+
 function mapSourceInfo(d: SourceInfo): Source {
   const games: SourceGame[] = d.games.map((g) => {
     const status = enumStatusToGameStatus(g.status);
     const saves: SaveSummary[] = g.saves.map((s) => ({
       saveUuid: s.saveUuid,
-      saveName: s.identity?.name ?? "Unknown",
+      saveName: saveDisplayName(s.identity),
       summary: s.summary,
       lastUpdated: formatTimestamp(s.lastUpdated),
       status: "success" as const,

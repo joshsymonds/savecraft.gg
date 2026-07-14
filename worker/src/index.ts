@@ -23,6 +23,7 @@ import { indexNote, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
 import { generatePkcePair } from "./oauth-pkce";
 import { Message } from "./proto/savecraft/v1/protocol";
+import { saveLabel } from "./save-label";
 import { cleanupSource } from "./source-cleanup";
 import { persistProviderCredentials, reconcileOrphanSaves, storePush } from "./store";
 import type { Env } from "./types";
@@ -1672,7 +1673,7 @@ async function handleDeleteSave(env: Env, userUuid: string, saveUuid: string): P
 async function handleRestoreSave(env: Env, userUuid: string, saveUuid: string): Promise<Response> {
   // Find the removed save
   const save = await env.DB.prepare(
-    "SELECT uuid, game_id, save_name, summary, last_source_uuid FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NOT NULL",
+    "SELECT uuid, game_id, save_name, summary, last_source_uuid, display_name FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NOT NULL",
   )
     .bind(saveUuid, userUuid)
     .first<{
@@ -1681,6 +1682,7 @@ async function handleRestoreSave(env: Env, userUuid: string, saveUuid: string): 
       save_name: string;
       summary: string;
       last_source_uuid: string | null;
+      display_name: string | null;
     }>();
 
   if (!save) {
@@ -1726,6 +1728,7 @@ async function handleRestoreSave(env: Env, userUuid: string, saveUuid: string): 
           saveUuid: save.uuid,
           saveName: save.save_name,
           summary: save.summary,
+          displayName: save.display_name,
         }),
       }),
     );
@@ -1740,7 +1743,7 @@ async function handleGetRemovedSaves(
   gameId: string,
 ): Promise<Response> {
   const saves = await env.DB.prepare(
-    `SELECT s.uuid, s.save_name, s.summary, s.removed_at, COUNT(n.note_id) as note_count
+    `SELECT s.uuid, s.save_name, s.summary, s.removed_at, s.display_name, COUNT(n.note_id) as note_count
      FROM saves s
      LEFT JOIN notes n ON s.uuid = n.save_id
      WHERE s.user_uuid = ? AND s.game_id = ? AND s.removed_at IS NOT NULL
@@ -1754,13 +1757,14 @@ async function handleGetRemovedSaves(
       save_name: string;
       summary: string;
       removed_at: string;
+      display_name: string | null;
       note_count: number;
     }>();
 
   return Response.json({
     saves: saves.results.map((s) => ({
       saveUuid: s.uuid,
-      saveName: s.save_name,
+      saveName: saveLabel(gameId, s.save_name, s.display_name),
       summary: s.summary,
       removedAt: s.removed_at,
       noteCount: s.note_count,
@@ -2008,7 +2012,7 @@ async function deleteOneNote(
 
 async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
   const rows = await env.DB.prepare(
-    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE user_uuid = ? AND removed_at IS NULL ORDER BY last_updated DESC",
+    "SELECT uuid, game_id, save_name, summary, last_updated, display_name FROM saves WHERE user_uuid = ? AND removed_at IS NULL ORDER BY last_updated DESC",
   )
     .bind(userUuid)
     .all<{
@@ -2017,13 +2021,14 @@ async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
       save_name: string;
       summary: string;
       last_updated: string;
+      display_name: string | null;
     }>();
 
   return Response.json({
     saves: rows.results.map((row) => ({
       id: row.uuid,
       game_id: row.game_id,
-      save_name: row.save_name,
+      save_name: saveLabel(row.game_id, row.save_name, row.display_name),
       summary: row.summary,
       last_updated: row.last_updated,
     })),
@@ -2032,7 +2037,7 @@ async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
 
 async function handleGetSave(env: Env, userUuid: string, saveId: string): Promise<Response> {
   const save = await env.DB.prepare(
-    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NULL",
+    "SELECT uuid, game_id, save_name, summary, last_updated, display_name FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NULL",
   )
     .bind(saveId, userUuid)
     .first<{
@@ -2041,6 +2046,7 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
       save_name: string;
       summary: string;
       last_updated: string;
+      display_name: string | null;
     }>();
 
   if (!save) return Response.json({ error: "Save not found" }, { status: 404 });
@@ -2054,7 +2060,7 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
   return Response.json({
     id: save.uuid,
     game_id: save.game_id,
-    save_name: save.save_name,
+    save_name: saveLabel(save.game_id, save.save_name, save.display_name),
     summary: save.summary,
     last_updated: save.last_updated,
     sections: sectionRows.results,
