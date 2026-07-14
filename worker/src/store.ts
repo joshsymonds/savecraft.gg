@@ -48,8 +48,15 @@ function buildSectionStatements(
  * metadata, FTS rows rebuilt only for the incoming (delta) sections — since
  * the daemon routinely sends partial pushes, untouched sections' FTS rows
  * must survive — plus stale-section cleanup (sections + their FTS rows)
- * driven by allSectionNames. Every IN/NOT-IN over section names uses
- * json_each(?) to stay under D1's ~100 bound-parameter limit.
+ * driven by allSectionNames. `search_index` is FTS5 with save_id
+ * UNINDEXED, so every IN/NOT-IN over ref_id is a full per-save scan; when
+ * allSectionNames is present, incoming rows to delete-and-reinsert and
+ * stale rows to purge are collapsed into a single NOT-IN scan instead of
+ * two, since incoming is always a subset of allSectionNames: the rows to
+ * delete are exactly those NOT IN (allSectionNames \ incoming) — i.e. not
+ * among the untouched, still-current sections. Every IN/NOT-IN over
+ * section names uses json_each(?) to stay under D1's ~100 bound-parameter
+ * limit.
  */
 function buildUpdateBatch(
   db: D1Database,
@@ -74,7 +81,16 @@ function buildUpdateBatch(
       .bind(sourceUuid),
   ];
 
-  if (incomingNames.length > 0) {
+  if (allSectionNames && allSectionNames.length > 0) {
+    const untouched = allSectionNames.filter((name) => !Object.hasOwn(sections, name));
+    batch.push(
+      db
+        .prepare(
+          `DELETE FROM search_index WHERE save_id = ? AND type = 'section' AND ref_id NOT IN (SELECT value FROM json_each(?))`,
+        )
+        .bind(saveUuid, JSON.stringify(untouched)),
+    );
+  } else if (incomingNames.length > 0) {
     batch.push(
       db
         .prepare(
@@ -86,20 +102,15 @@ function buildUpdateBatch(
 
   batch.push(...buildSectionStatements(db, saveUuid, saveName, sections));
 
-  // Delete stale sections (and their FTS rows) no longer produced by the plugin.
+  // Delete stale sections no longer produced by the plugin. Their FTS rows
+  // were already removed by the NOT-IN scan above.
   if (allSectionNames && allSectionNames.length > 0) {
-    const namesJson = JSON.stringify(allSectionNames);
     batch.push(
       db
         .prepare(
           `DELETE FROM sections WHERE save_uuid = ? AND name NOT IN (SELECT value FROM json_each(?))`,
         )
-        .bind(saveUuid, namesJson),
-      db
-        .prepare(
-          `DELETE FROM search_index WHERE save_id = ? AND type = 'section' AND ref_id NOT IN (SELECT value FROM json_each(?))`,
-        )
-        .bind(saveUuid, namesJson),
+        .bind(saveUuid, JSON.stringify(allSectionNames)),
     );
   }
 

@@ -228,6 +228,40 @@ describe("storePush", () => {
     expect(JSON.parse(bRow.content)).toEqual({ v: 2 });
   });
 
+  it("preserves search_index rows for unchanged sections on a delta push with no allSectionNames", async () => {
+    const { sourceUuid } = await seedSource(null);
+
+    const { saveUuid } = await storePush(
+      env,
+      null,
+      sourceUuid,
+      "d2r",
+      "Atmus",
+      "Level 1",
+      "2026-01-01T00:00:00Z",
+      {
+        a: { description: "A", data: { v: 1 } },
+        b: { description: "B", data: { v: 1 } },
+        c: { description: "C", data: { v: 1 } },
+      },
+    );
+
+    // Delta push with no allSectionNames: only section b is refreshed, a/c untouched.
+    await storePush(env, null, sourceUuid, "d2r", "Atmus", "Level 2", "2026-01-02T00:00:00Z", {
+      b: { description: "B", data: { v: 2 } },
+    });
+
+    const rows = await env.DB.prepare(
+      "SELECT ref_id, content FROM search_index WHERE save_id = ? AND type = 'section' ORDER BY ref_id",
+    )
+      .bind(saveUuid)
+      .all<{ ref_id: string; content: string }>();
+
+    expect(rows.results.map((r) => r.ref_id)).toEqual(["a", "b", "c"]);
+    const bRow = rows.results.find((r) => r.ref_id === "b")!;
+    expect(JSON.parse(bRow.content)).toEqual({ v: 2 });
+  });
+
   it("removes search_index rows (and sections rows) for sections no longer produced", async () => {
     const { sourceUuid } = await seedSource(null);
 
