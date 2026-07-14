@@ -1344,8 +1344,7 @@ describe("play_advisor reference module", () => {
       },
     ];
 
-    const resultsByMode: Record<string, Awaited<ReturnType<typeof playAdvisorModule.execute>>> =
-      {};
+    const resultsByMode: Record<string, Awaited<ReturnType<typeof playAdvisorModule.execute>>> = {};
     for (const c of cases) {
       const result = await playAdvisorModule.execute({ mode: c.mode, ...c.query }, env);
       expect(result.type, `${c.mode} result type`).toBe("structured");
