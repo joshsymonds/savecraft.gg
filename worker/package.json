@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "dump-mcp-tools": "npx tsx scripts/dump-mcp-tools.ts",
     "test": "node scripts/test-sharded.mjs",
     "test:watch": "vitest",
     "lint": "eslint .",
