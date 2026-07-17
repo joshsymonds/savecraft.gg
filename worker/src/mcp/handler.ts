@@ -603,7 +603,7 @@ const SHOW_TOOL_SLUGS: Record<string, string> = {
 };
 
 /** Build tools with _meta.ui for show_* tools that always render a view. */
-function buildToolsWithUi(env: Env): ToolDefinition[] {
+export function buildToolsWithUi(env: Env): ToolDefinition[] {
   if (cachedToolsWithUi && cachedEnvironment === env.ENVIRONMENT) return cachedToolsWithUi;
   cachedEnvironment = env.ENVIRONMENT;
   const viewCsp = buildViewCsp(env);
